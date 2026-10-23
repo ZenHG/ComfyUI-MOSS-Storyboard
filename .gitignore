@@ -9,3 +9,4 @@ venv/
 .comfy_registry_token
 .DS_Store
 Thumbs.db
+.commit-msg.txt
