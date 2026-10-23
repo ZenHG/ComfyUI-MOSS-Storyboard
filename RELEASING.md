@@ -1,61 +1,158 @@
-# RELEASING
+# 发布规范（RELEASING）
 
-两条发布渠道，**顺序不能反**：先 GitHub（提供 raw 直链与 tag），再 Registry（读 pyproject 的 Icon/Banner 直链）。
+> 本文件是**发布流程的唯一真相源**。执行体 = [`tools/release.py`](tools/release.py)
+> （两边必须一致；改了流程先改这里）。
 
-## 0. 发布前自检（缺一条就别发）
+## 0. 一句话
 
-```bash
-python -m ruff check .                       # 必须 All checks passed
-python tests/test_core.py                    # 282/0
-python tests/test_contract.py                #  54/0
-python tests/test_sampling_contract.py       #  18/0
-node   tests/test_i18n.mjs                   #  46/0
-python tools/smoke_nodes.py                  #  25/0
-python tools/host_loader_check.py            #  16/0
-python tools/check_frontend.py               #   9/0
-python tools/check_ui_workflow.py            #  30/0（2 个示例）
-python tools/e2e_matrix.py                   #  14/14（要 GPU + 权重，人工跑）
-```
-
-还要人工确认三件机检看不到的事：
-
-1. **打开工作流看界面**：中/EN 按钮能切、悬浮提示跟着切、格数改了画布跟着变。
-2. **英文界面下截图**一张，确认没有中文残留（`check_frontend` F1 只查词表，查不到渲染）。
-3. `pyproject.toml` 的 `PublisherId` 已填真值（当前是 `TODO-set-before-publish`）。
-
-## 1. 渠道一：GitHub
+**一次发布 = 两个渠道同时更新，且回头验证过。**
 
 ```bash
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin main --tags
-gh release create v0.1.0 --title v0.1.0 --notes-file <(sed -n '/## 0.1.0/,/^## /p' CHANGES.md | head -n -1)
+python tools/release.py                 # 预演（前置 + 改动面，不推不发）
+python tools/release.py --go            # 真发布：push → 等 CI 绿 → GitHub Release → registry publish → 交叉验证
+python tools/release.py --verify-only   # 只回答「两边现在同步吗」（纯只读，不跑前置）
+python tools/release.py --release-only  # 只补建 GitHub Release（幂等；不 push、不发 registry）
+python tools/release.py --go --skip-ci-wait   # 🔴 跳过「等 CI 绿」（默认不跳）
+python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，不发布）
 ```
 
-要点：
+> 🔴 **`--verify-only` 不是「预演」**：它**只跑 ⑥ 交叉验证**（纯只读），不跑 ① 前置。
+> 要看前置预演，**不带参数**跑。
+>
+> 🔴 **`--skip-ci-wait` 是逃生门**：跳过它 = 在没验证过的提交上发 registry，
+> 而 registry 的 changelog **发出去就改不回来**。只在 CI 本身故障、且你另行确认过门槛全绿时才用。
+>
+> 🔴 **顺序是故意的**：唯一"改不回来"的动作（registry changelog）排在最后，
+> 中间任何一步失败都停在「什么都没弄脏」的状态上。
 
-- **tag 必须在 main 上**。Registry 的 Install 走 git，tag 指向别的分支会让用户拿到半成品。
-- 推送后**回到 registry 页面确认 Icon/Banner 不是空图** —— 直链要等文件真到 main 才有效。
-- GitHub 仓库需开 **Private vulnerability reporting**（见 `SECURITY.md`），否则安全报告没有私密渠道。
+## 1. 两个渠道各是什么
 
-## 2. 渠道二：Comfy Registry
+| 渠道 | 发布物 | "完成"的判据 |
+|---|---|---|
+| **GitHub**（`ZenHG/ComfyUI-MOSS-Storyboard`） | ① 提交历史 + 源码 ② **Release**（`vX.Y.Z` tag + 正文） | 远端 `main` 含本地 HEAD，**那一轮 CI 是绿的**，且 Releases 页面上**有本版** |
+| **Comfy Registry**（`zenhg/moss-storyboard`） | `.comfyignore` 筛出的 zip（运行期文件，**不含 tests/tools/docs**） | `api.comfy.org/nodes/moss-storyboard/versions` 里**能查到本版版本号** |
 
-```bash
-# 令牌只放一个文件，别进 shell 历史、别进提交（见用户级 MEMORY 的凭据纪律）
-comfy --skip-prompt --no-enable-telemetry env
-comfy node publish
+🔴 **为什么必须成对**：任何一个单独成功都是**半成品**，而且两边都不报错 ——
+
+- 只 push 不 publish ⇒ GitHub 是新版、Manager 里还是旧版（用户装到的和文档写的不是同一个东西）
+- 只 publish 不 push ⇒ registry 那版指向的代码在远端不存在（无法复核、issue 无从查起）
+- push 了但 CI 红 ⇒ 已公开的提交没过自检
+
+## 2. 发布前置（缺一项就别开始）
+
+1. **工作树干净** —— 发出去的必须是**提交态**（`release.py` 会拦）。
+2. **版本号五处一致**（`check_release_ready.py` 的 S5 盯着）：
+   `__init__.py` 的 `__version__` · `pyproject.toml` 的 `version` · `CHANGES.md` 顶部 `## x.y.z` ·
+   `README.md` 的 `| 版本 | **x.y.z** |` · `README_EN.md` 的 `| Version | **x.y.z** |`。
+3. **两份记录都写了本版**：
+   - `CHANGES.md` 顶部那一节（面向开发者）
+   - `RELEASE-NOTES.md` 有本版一节、**中英双语**（面向用户；registry changelog 与 GitHub Release 正文都取它）。
+     ⚠️ **字符分段算**：中文 ≤700 · 英文 ≤1700（不是"总共 2000"）。格式见 §6。
+4. **开源卫生门全绿**：`python tools/check_release_ready.py`（26 项，见 §3 ①）。
+5. **全量回归全绿**：`CONTRIBUTING.md` 列的 8 条。`release.py` 只跑其中 2 条，
+   全量请你手跑——**发布前的那次别省**。
+6. **registry 元数据合规**（S6 盯着）：`name` 不带 `ComfyUI`、`license` 为 `{ file = … }`、
+   `PublisherId` 非占位（本仓 = `zenhg`）、`Icon`/`Banner` 是 https 直链。
+7. **两个 CLI 能跑**（判据是**真跑一次 `--version`**，不是"文件在不在"）：
+
+   ```bash
+   gh --version                                                            # 本机已登录 ZenHG
+   C:/Users/Administrator/.local/comfy-cli/Scripts/comfy.exe --version     # → 1.22.0
+   ```
+
+   ⚠️ **`comfy` 不在 PATH 上**。它装在隔离 venv 里（`~/.local/comfy-cli`），
+   用 `COMFY_CLI=<那个路径>` 指给 `release.py`；`_find_comfy()` 的候选清单里有这一条，
+   但排在 PATH 之后，显式给最稳。
+   ⚠️ 重装时：**清华源没有 `comfy-cli`**，要 `-i https://pypi.org/simple`；
+   隔离 venv 用**系统 Python 3.12** 建（3.13 建的在清华源上装不上）。
+
+## 3. 执行体做的六步（`tools/release.py --go`）
+
+| 步 | 动作 | 失败时的状态 |
+|---|---|---|
+| ① 前置 | 干净工作树 · 版本五处 · **`check_release_ready.py`（26 项）** · **`test_contract.py`（58 项）** · `RELEASE-NOTES.md` 本版一节 | 什么都没发生 |
+| ② GitHub push | `git push origin HEAD:refs/heads/main`（失败自动换 HTTP/1.1 / schannel / 去代理直连重试） | 什么都没发生 |
+| ③ 等 CI | 找 `headSha == 本地 HEAD` 那一轮，`gh run watch --exit-status` | **已 push、未 publish** ⇒ 修完重跑，安全 |
+| ④ GitHub Release | `gh release create vX.Y.Z --target <HEAD> --notes-file <RELEASE-NOTES 生成>`。**幂等**：已存在就不动 | 已 push、未 Release ⇒ 重跑 |
+| ⑤ Registry | `comfy node validate` → `node pack` 预览（开发件混入即拒）→ `publish --token --changelog` | 已 push、未 publish ⇒ 重跑 |
+| ⑥ 交叉验证 | 远端 `main` 含 HEAD？registry 版本列表含本版？Releases 有本版？ | **点名**哪一项没过 |
+
+> ⚠️ **③ 的失败是本流程唯一的"半成品"状态**（GitHub 有了、registry 没有）。
+> 这是**有意如此**：宁可在 registry 上少一版，也不要在 CI 红的提交上发版。
+> 修完再跑一遍即可，registry 那边不会被弄脏。
+
+## 4. 失败处置速查
+
+| 症状 | 含义 | 怎么办 |
+|---|---|---|
+| `git: 'remote-https' is not a git command` | 便携版 git 缺助手 | 设 `MOSSSB_GIT` 指向完整版 git |
+| `CONNECT tunnel failed` | 本机代理对 git 打回 | 脚本会自动去代理直连重试一次 |
+| `comfy node publish` 报 publisher 不匹配 | `PublisherId` 与网站上不一致 | 改成网站上 `@` 后面那串（**两边都不可改，别猜**） |
+| `comfy node validate` 报警 | 元数据或打包口径问题 | 看具体行；**别为消警告换拼法** |
+| registry 说版本已存在 | 同版本不能重发 | bump 一版（**已发布版本与 changelog 都不可改**） |
+| `gh` 找不到 / 建 Release 失败 | 没装或没登录 | 装/登录 gh。这一步**在 registry 之前** ⇒ 停在这里 = 什么都没弄脏 |
+| `Release vX.Y.Z 已存在` | tag 上已有 Release | 脚本**幂等跳过**（不擅自覆盖正文）；要改去网页上改 |
+
+## 5. 密钥（Registry PAT）
+
+- 取得方式**只能在网页上做**：registry.comfy.org 用 GitHub 登录 → 建 Publisher → 生成 API Key。
+  没有任何 API/CLI 路径。`PublisherId` **发布后不可改**。
+- 本仓**不复制**凭据文件。本机与 H 仓共用同一份：
+
+  ```bash
+  COMFY_REGISTRY_PAT_FILE=H:/ComfyUI-H3-Latent-Relay/.comfy_registry_token \
+    python tools/release.py
+  ```
+
+  为什么不复制第二份：凭据的副本越多，进 git / 进日志 / 进截图的面就越大，
+  而**一旦进了 git 历史就擦不干净**（要 rewrite + force push）⇒ 判据只能是"别让它进来"。
+- 轮换用 `--set-token`：**从 stdin 读**（不留在 shell 历史），不发布。
+- `release.py` 会把 Token 记进 `SECRETS`，之后**所有命令回显都脱敏**。
+- 发布前会**真查**一遍它不会被上传：既不能在 `git ls-files` 里，也必须命中忽略规则。
+
+## 6. 版本与发布说明
+
+### 6.1 版本号
+
+`0.1.0` 起。语义化：修 bug 升 PATCH，加功能升 MINOR，破坏兼容升 MAJOR。
+
+### 6.2 两份记录、两个读者（**别混**）
+
+| 文件 | 读者 | 写什么 |
+|---|---|---|
+| `RELEASE-NOTES.md` | **用户** | 能感知的变化、要不要动配置。**两个渠道的用户可见文案都取这里** |
+| `CHANGES.md` | 开发者 | 实现方案、实测证据、修了哪些坑 |
+
+用户可见文案里**不许出现内部记号**（文件名、目录名、"机检"、"断言"之类）——
+`check_release_ready.py` 的 S8 会拦。
+
+### 6.3 每节的格式
+
+```md
+## X.Y.Z — YYYY-MM-DD
+
+**一句话说这一版是什么。**
+
+- 用户能感知的变化
+- 🔴 有行为变化时，点明「要不要动配置」
+
+**升级动作**：…
+
+<!-- EN -->
+
+**One line saying what this release is.**
+
+- What the user can perceive
+
+**Action required**: …
 ```
 
-要点：
+`check_release_ready.py` S8 **硬校验**：本版一节存在、含 `<!-- EN -->`、中 ≤700 / 英 ≤1700 字符、
+两端各有「升级动作」/「Action required」、无内部记号。不符即拒绝发布（在 push 之前）。
 
-- `name`（= `moss-storyboard`）**发布后不可改**，它同时是安装 URL 的一部分。
-- `PublisherId` 与 H 仓同属一个发布者时可以复用；不同发布者必须各自注册。
-- 首发后 registry 会保留所有版本快照；**改版本号才叫新版本**，同一版本号重复发布会被拒。
-- 发完在网页上验三件：节点清单有 3 个、分类是 `moss/storyboard`、`requires-comfyui` 显示 `>=0.42.0`。
+## 7. 明确不做的事
 
-## 3. 回滚
-
-| 场景 | 动作 |
-|---|---|
-| 只是描述/文案错 | 改文件 → 补丁版本（0.1.1）→ 重发，**不要改已发布版本** |
-| 有功能性错误 | 立刻发 0.1.x 修复；README 顶部加醒目提示 |
-| 包本身有问题（装载崩） | 在 registry 上把该版本标记为不可安装（或发 0.1.x 覆盖提示），GitHub 侧把 tag 保留但 Release 标注 breaking |
+- **不做自动 bump**：版本号是人定的，脚本只校验一致性。
+- **不覆盖已存在的 GitHub Release**：正文可以改，但改不改是人的决定。
+- **不重发同版本到 registry**：同版本会被拒，而且 changelog 不可改 ⇒ 只能 bump。
+- **不在 CI 里发布**：发布要 PAT 与人工判断，CI 只做验证。
