@@ -48,7 +48,9 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
    - `CHANGES.md` 顶部那一节（面向开发者）
    - `RELEASE-NOTES.md` 有本版一节、**中英双语**（面向用户；registry changelog 与 GitHub Release 正文都取它）。
      ⚠️ **字符分段算**：中文 ≤700 · 英文 ≤1700（不是"总共 2000"）。格式见 §6。
-4. **开源卫生门全绿**：`python tools/check_release_ready.py`（26 项，见 §3 ①）。
+4. **开源卫生门全绿**：`python tools/check_release_ready.py`（29 项，见 §3 ①）。
+   ⚠️ 其中 **S9 扫的是提交信息**（最近 50 条）：内部措辞或本机路径一旦推上去，
+   就只能改写历史（force push + 重建 tag），代价远高于改文件 —— 所以**推之前**跑这一遍别省。
 5. **全量回归全绿**：`CONTRIBUTING.md` 列的 8 条。`release.py` 只跑其中 2 条，
    全量请你手跑——**发布前的那次别省**。
 6. **registry 元数据合规**（S6 盯着）：`name` 不带 `ComfyUI`、`license` 为 `{ file = … }`、
@@ -70,7 +72,7 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
 
 | 步 | 动作 | 失败时的状态 |
 |---|---|---|
-| ① 前置 | 干净工作树 · 版本五处 · **`check_release_ready.py`（26 项）** · **`test_contract.py`（58 项）** · `RELEASE-NOTES.md` 本版一节 | 什么都没发生 |
+| ① 前置 | 干净工作树 · 版本五处 · **`check_release_ready.py`（29 项）** · **`test_contract.py`（58 项）** · `RELEASE-NOTES.md` 本版一节 | 什么都没发生 |
 | ② GitHub push | `git push origin HEAD:refs/heads/main`（失败自动换 HTTP/1.1 / schannel / 去代理直连重试） | 什么都没发生 |
 | ③ 等 CI | 找 `headSha == 本地 HEAD` 那一轮，`gh run watch --exit-status` | **已 push、未 publish** ⇒ 修完重跑，安全 |
 | ④ GitHub Release | `gh release create vX.Y.Z --target <HEAD> --notes-file <RELEASE-NOTES 生成>`。**幂等**：已存在就不动 | 已 push、未 Release ⇒ 重跑 |

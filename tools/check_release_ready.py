@@ -273,6 +273,46 @@ def s8_notes(version: str) -> None:
     check("用户可见文案里没有内部记号", not leaked, "；".join(leaked))
 
 
+# --------------------------------------------------------------------------- S9 提交信息
+# 提交信息一旦推上去，改动就只能靠改写历史（force push + 重建 tag），代价远高于改文件，
+# 所以必须在这一步之前挡住。判据词用 \u 转义写：门禁源码本身也在公开面上，词不落明文。
+#: 内部意图 / 内部沟通：仓库是给读者的，不是过程记录。
+MSG_BANNED = (
+    "\u5ba3\u4f20",
+    "\u7528\u6237\u8bf4",
+    "\u7528\u6237\u8981\u6c42",
+    "\u7528\u6237\u6307\u51fa",
+    "\u6211\u8ba9",
+    "\u5e2e\u6211",
+)
+#: 本机痕迹：盘符路径与本机用户名（author 不算，这里只看提交信息正文）。
+MSG_MACHINE = re.compile(r"(?<![A-Za-z])[A-Za-z]:[\\/]|Administrator", re.I)
+
+
+def s9_commits() -> None:
+    say("\nS9 提交信息（推上去就只能改写历史）")
+    out = git("log", "-n", "50", "--format=%h%x1f%B%x1e").stdout or ""
+    leaks, machine = [], []
+    for rec in out.split("\x1e"):
+        rec = rec.strip("\n")
+        if not rec.strip():
+            continue
+        sha, _, body = rec.partition("\x1f")
+        sha = sha.strip()
+        lines = body.splitlines()
+        for word in MSG_BANNED:
+            if word in body:
+                ln = next((i for i, s in enumerate(lines, 1) if word in s), 0)
+                leaks.append("%s:%d" % (sha, ln))
+        if MSG_MACHINE.search(body):
+            ln = next((i for i, s in enumerate(lines, 1) if MSG_MACHINE.search(s)), 0)
+            machine.append("%s:%d" % (sha, ln))
+    # 只报位置（短 hash:行号），不打印命中的原文 —— 日志本身也是公开面。
+    check("最近 50 条提交信息无内部措辞", not leaks,
+          "；".join(leaks[:5]) + ("（改写要 force push，先改再推）" if leaks else ""))
+    check("最近 50 条提交信息无本机路径/用户名", not machine, "；".join(machine[:5]))
+
+
 def main() -> int:
     say("MOSS Storyboard · 发布前开源卫生检查")
     say("=" * 64)
@@ -290,6 +330,7 @@ def main() -> int:
         s8_notes(version)
     else:
         say("\nS8 跳过（版本号不一致，先修 S5）")
+    s9_commits()
 
     say("\n" + "=" * 64)
     say("结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

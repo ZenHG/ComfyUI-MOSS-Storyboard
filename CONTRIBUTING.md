@@ -14,7 +14,7 @@ python tools/smoke_nodes.py               # 25 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 16 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py         # 15 项/文件：工作流连线 + widget 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_release_ready.py       # 26 项：**发布前**开源卫生（凭据/打包/元数据/发布说明）
+python tools/check_release_ready.py       # 29 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 ```
 
 后三条需要宿主：设 `COMFYUI_PATH=/path/to/ComfyUI`，或写进仓库根的 `.comfyui_path`（本地文件，已忽略）。
