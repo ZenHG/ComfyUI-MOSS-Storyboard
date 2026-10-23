@@ -21,6 +21,11 @@
 5. **不静默兜底**。尺寸不符、spec 不合、整除失败 —— 一律 raise 带操作指引的中文错误。
    唯一允许的"降级"是带出声的成功路径（例如解码尺寸不符时按解码结果重建几何，并写进 report）。
 6. **画布与单格必须 16 的倍数**。对齐余量只加到右/下外边距，绝不改单格尺寸。
+7. **i18n 只改显示，不改存档**（抄 H 仓铁律）：
+   - 只碰 `label` / `title` / `tooltip`，**绝不碰 `name` / `value` / `options.values`**；
+   - 中文提示**只在 `nodes.py` 写一份**，`web/moss_sb_i18n.js` 的 `TIPS` 只存 `en`；
+   - 用户自定义标题不许覆盖；只换默认名前缀、后缀保留；
+   - 新增参数必须同时补 `TIPS` 英文条，否则 `test_contract.py` 会红。
 
 ## 三、一次改动的最小闭环
 
@@ -30,6 +35,14 @@ python tools/smoke_nodes.py         # 自加载：注册 + schema + 纯节点真
 python tools/make_example.py        # 改了参数表就重生成示例（槽位会变）
 python tools/check_ui_workflow.py   # 示例连线与 widget 槽位
 python tools/host_loader_check.py   # 走宿主 load_custom_node —— "宿主真的调你"的唯一证据
+node   tests/test_i18n.mjs          # 中英切换纯函数（零浏览器）
+```
+
+前端扩展是否真的被宿主登记，只能这样验（`WEB_DIRECTORY` 写错是**静默失效**）：
+
+```bash
+curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
+# 必须看到 /extensions/ComfyUI-MOSS-Storyboard/moss_sb_i18n.js 与 _ui.js
 ```
 
 五条都必须「失败 0」。**改了 `INPUT_TYPES()` 必须跑中间两条**，否则示例会静默错位。

@@ -46,9 +46,11 @@ else:
     from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
     __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
-WEB_DIRECTORY = None  # 本包纯后端，无前端扩展
+# 前端扩展目录：中英切换（web/moss_sb_i18n.js 纯逻辑 + moss_sb_i18n_ui.js 挂钩）。
+# ⚠ 宿主只在这个变量**非 None 且目录存在**时注册；写错路径是静默失效（画布上没按钮、没翻译）。
+WEB_DIRECTORY = "./web"
 
 
 def _node_names():

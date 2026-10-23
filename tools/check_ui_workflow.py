@@ -106,8 +106,12 @@ def check_file(path, mappings):
     ids = [n["id"] for n in wf["nodes"]]
     check("节点 id 唯一", len(ids) == len(set(ids)))
     check("last_node_id 一致", wf.get("last_node_id") == max(ids), "last=%s max=%s" % (wf.get("last_node_id"), max(ids)))
-    check("last_link_id 一致", wf.get("last_link_id") == len(wf.get("links") or []),
-          "last=%s len=%s" % (wf.get("last_link_id"), len(wf.get("links") or [])))
+    # last_link_id 是**高水位**，不是条数：删过连线后 id 会留空洞，这不违规。
+    # 断言成 "== len(links)" 会给出假红（本脚本第一版就错在这里）。
+    lids = [l[0] for l in (wf.get("links") or [])]
+    check("last_link_id 是高水位", (wf.get("last_link_id") or 0) >= max(lids or [0]),
+          "last=%s max=%s 条数=%s" % (wf.get("last_link_id"), max(lids or [0]), len(lids)))
+    check("连线 id 不重复", len(lids) == len(set(lids)))
 
     # 连表自洽
     bad = []

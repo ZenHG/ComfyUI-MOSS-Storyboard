@@ -22,6 +22,7 @@
 # nodes.py
 # core/            （layout / prompt / pixels / sampling 四个模块全部被 import）
 # v3/              （默认出口就是 v3，排掉等于没有节点）
+# web/             （中英切换在这里；排掉 = 没有翻译、没有 中/EN 按钮）
 # pyproject.toml   （宿主读 requires-comfyui）
 # requirements.txt （Manager 读依赖）
 # LICENSE          （license = { file = "LICENSE" }）
