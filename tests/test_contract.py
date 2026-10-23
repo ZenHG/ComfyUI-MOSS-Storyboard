@@ -22,7 +22,10 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "tools"))
+from _paths import host_root  # noqa: E402
+
+COMFY = host_root()
 
 PASS, FAIL = [], []
 

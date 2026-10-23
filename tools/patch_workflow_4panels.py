@@ -19,8 +19,9 @@ sys.path.insert(0, ROOT)
 
 from core import layout as L  # noqa: E402
 from core import prompt as T  # noqa: E402
+from _paths import host_root  # noqa: E402  （脚本同目录，见 tools/_paths.py）
 
-COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
+COMFY = host_root()
 WF = os.path.join(COMFY, "user", "default", "workflows", "MOSS 故事板宫格.json")
 
 #: 4 格版提示词：第 1 段全局改成「恰好 4 个面板」，并只保留前 4 段分镜。

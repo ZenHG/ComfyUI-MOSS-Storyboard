@@ -48,7 +48,7 @@ def find_node():
         if p:
             return p
     for c in (r"C:/Program Files/nodejs/node.exe",
-              r"C:/Users/Administrator/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"):
+              shutil.which("node") or ""):
         if os.path.exists(c):
             return c
     return None

@@ -57,12 +57,12 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
 
    ```bash
    gh --version                                                            # 本机已登录 ZenHG
-   C:/Users/Administrator/.local/comfy-cli/Scripts/comfy.exe --version     # → 1.22.0
+   <comfy-cli 安装目录>/Scripts/comfy.exe --version                        # → 1.22.0
    ```
 
-   ⚠️ **`comfy` 不在 PATH 上**。它装在隔离 venv 里（`~/.local/comfy-cli`），
-   用 `COMFY_CLI=<那个路径>` 指给 `release.py`；`_find_comfy()` 的候选清单里有这一条，
-   但排在 PATH 之后，显式给最稳。
+   ⚠️ **`comfy` 可能不在 PATH 上**（常见于装在隔离 venv 里）。
+   用 `COMFY_CLI=<comfy 可执行文件>` 指给 `release.py`；`_find_comfy()` 也会自己试候选，
+   但显式给最稳。
    ⚠️ 重装时：**清华源没有 `comfy-cli`**，要 `-i https://pypi.org/simple`；
    隔离 venv 用**系统 Python 3.12** 建（3.13 建的在清华源上装不上）。
 
@@ -100,8 +100,7 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
 - 本仓**不复制**凭据文件。本机与 H 仓共用同一份：
 
   ```bash
-  COMFY_REGISTRY_PAT_FILE=H:/ComfyUI-H3-Latent-Relay/.comfy_registry_token \
-    python tools/release.py
+  COMFY_REGISTRY_PAT_FILE=/path/to/.comfy_registry_token python tools/release.py
   ```
 
   为什么不复制第二份：凭据的副本越多，进 git / 进日志 / 进截图的面就越大，

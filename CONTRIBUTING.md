@@ -17,7 +17,7 @@ python tools/check_frontend.py            # 9 项：前端词表/语法/接线/�
 python tools/check_release_ready.py       # 26 项：**发布前**开源卫生（凭据/打包/元数据/发布说明）
 ```
 
-后三条需要宿主：`COMFYUI_PATH=/path/to/ComfyUI`（默认 `I:/ComfyUI`）。
+后三条需要宿主：设 `COMFYUI_PATH=/path/to/ComfyUI`，或写进仓库根的 `.comfyui_path`（本地文件，已忽略）。
 端到端（要 GPU + 权重，不进 CI）：`python tools/e2e_matrix.py`。
 
 > ⚠️ **别用 `| tail -n` 跑这些脚本** —— 管道会把退出码吃掉，你会看到"通过"却拿到 0。

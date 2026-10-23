@@ -132,7 +132,7 @@ try {
     check("本包节点上各有 1 个「中/EN」按钮",
         oursBefore.length > 0 && oursBefore.every((n) => n.btn === 1),
         `ours=${oursBefore.length} btns=${JSON.stringify(oursBefore.map((n) => n.btn))}`);
-    check("官方/其它节点上一个按钮都没有（GG 的硬要求）",
+    check("官方/其它节点上一个按钮都没有（只看本包节点）",
         othersBefore.every((n) => n.btn === 0),
         `others=${othersBefore.length} btns=${JSON.stringify(othersBefore.map((n) => n.btn))}`);
 
@@ -163,7 +163,7 @@ try {
     check("官方/其它节点 widget 原封不动（label 未变）",
         JSON.stringify(othersAfter.map((n) => n.widgets)) === JSON.stringify(othersBefore.map((n) => n.widgets)));
 
-    // 正/负面提示词的标题必须真的渲染出来（GG 点名）
+    // 正/负面提示词的标题必须真的渲染出来
     const pos = oursBefore.find((n) => n.type === "MossStoryboardSampler");
     const posLabels = (after.find((n) => n.type === "MossStoryboardSampler")?.widgets || [])
         .filter((w) => w[0] === "positive" || w[0] === "negative").map((w) => [w[0], w[1]]);
@@ -172,7 +172,7 @@ try {
     check("界面上真能看到「正面提示词」", bodyText.includes("正面提示词"));
     check("界面上真能看到「负面提示词」", bodyText.includes("负面提示词"));
 
-    // 布尔与"生成后"下拉（GG 点的两处）
+    // 布尔与「生成后」下拉
     const boolOk = await page.evaluate(() => {
         const n = (globalThis.MOSS_SB_LANG.graph()._nodes || []).find((x) => x.type === "MossStoryboardSampler");
         const w = (n?.widgets || []).find((x) => x.name === "reborder");

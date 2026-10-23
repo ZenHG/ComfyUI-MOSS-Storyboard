@@ -355,6 +355,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/02`](docs/02-e2e-matrix.md) | 端到端矩阵实测记录（每条用例的参数与产物） |
 | [`docs/03`](docs/03-open-source-readiness.md) | 开源就绪度自查（覆盖了什么、没覆盖什么） |
 | [`docs/04`](docs/04-i18n-and-widgets.md) | 中英切换与控件机理（维护者向） |
+| [`docs/05`](docs/05-local-development.md) | 本地开发与维护：单一副本、两件"重载"、改动验证顺序、写作规范 |
 | [`AGENTS.md`](AGENTS.md) | **本仓开发规范**：改动入口、铁律、验收清单 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](CHANGES.md) | 变更记录 |

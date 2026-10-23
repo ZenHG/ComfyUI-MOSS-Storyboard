@@ -17,9 +17,10 @@
 import json
 import os
 import sys
+from _paths import host_root
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
+COMFY = host_root()
 OUT_DIR = os.path.join(COMFY, "user", "default", "workflows")
 OUT_NAME = "MOSS 故事板宫格.json"
 #: 仓库内（`--out`）必须用 ASCII 名：registry 打包按 latin-1 解路径，

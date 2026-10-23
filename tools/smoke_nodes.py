@@ -7,17 +7,17 @@
 - 每个节点的 schema 都构造得出来（V3 是加载时就取 schema，构造失败 = 节点消失）；
 - 纯节点（Layout / Crop）真跑一遍，产物形状与 spec 自洽。
 
-跑法：`python tools/smoke_nodes.py`（默认宿主 I:/ComfyUI，可用 COMFYUI_PATH 覆盖）
+跑法：`python tools/smoke_nodes.py`（宿主根见 tools/_paths.py；可用 COMFYUI_PATH 覆盖）
 """
 
 import importlib.machinery
 import importlib.util
 import os
 import sys
+from _paths import host_root
 
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
-
+COMFY = host_root()
 PASS, FAIL = [], []
 
 
