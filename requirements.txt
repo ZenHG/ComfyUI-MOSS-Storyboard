@@ -1,0 +1,6 @@
+# 本包**零第三方依赖**：`torch` 与 `comfy*` 全部由宿主 ComfyUI 提供。
+#
+# 为什么不列：torch 要按 CUDA 版本挑 wheel，本包代管只会造成版本漂移；
+# comfy / comfy_api 是宿主自有模块，不是可 pip 安装的包。
+#
+# 保留这个文件是为了 ComfyUI-Manager：它读到空依赖清单会直接跳过 pip 步骤。

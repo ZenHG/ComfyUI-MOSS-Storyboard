@@ -1,0 +1,29 @@
+# `comfy node publish` 的打包黑名单。
+#
+# 机制：**默认打包全部 git 跟踪文件**，本文件用于排除开发设施。
+#   ⚠ 黑名单排除的是"发布包"，与 `tools/` 里的白名单机制不是同一个东西，口径不必相等。
+#   ⚠ 末尾的"绝不能排"清单是运行期必需的，排掉就是 ImportError。
+#
+# —— 开发设施（不进发布包）——
+/tests/
+/tools/
+/docs/
+/.github/
+/CHANGES.md
+/AGENTS.md
+/THIRD-PARTY-NOTICES.md
+/.gitignore
+/.gitattributes
+/.comfyignore
+/comfyignore
+
+# —— 绝不能排（运行期必需）——
+# __init__.py
+# nodes.py
+# core/            （layout / prompt / pixels / sampling 四个模块全部被 import）
+# v3/              （默认出口就是 v3，排掉等于没有节点）
+# pyproject.toml   （宿主读 requires-comfyui）
+# requirements.txt （Manager 读依赖）
+# LICENSE          （license = { file = "LICENSE" }）
+# README.md        （readme = "README.md"）
+# examples/        （文档叫用户打开，排掉就是"叫用户开一个不存在的文件"）

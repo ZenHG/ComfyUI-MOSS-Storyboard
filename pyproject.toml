@@ -1,0 +1,58 @@
+# 仅用于元数据（ComfyUI-Manager / Comfy Registry 会读）。**不声明 [build-system]**：
+# 本包是 ComfyUI 自定义节点，不做 pip 打包安装。
+#
+# ⚠ 表归属纪律：`keywords` / `classifiers` / `dependencies` 必须在 [project] 段内，
+#    且排在 [project.urls] **之前**。放到 urls 后面会被 TOML 归属成 urls 表 ⇒ 宿主解析器
+#    读不到 ⇒ 依赖声明与平台标签**静默失效**。
+#
+# ⚠ 发布纪律：`name` = registry 的 node id = 安装 URL，**发布后不可改**；官方 Best Practices
+#    明写不要带 "ComfyUI"；`license` 只认 `{ file = ... }` / `{ text = ... }`（不收裸 SPDX 字符串）。
+[project]
+name = "moss-storyboard"
+version = "0.1.0"
+description = "Storyboard grid nodes for MOSS-Image: 3/4/6/8/9 panels in one sampling pass, with native JSON-layout bbox locking and post-composited gutters."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "ComfyUI-MOSS-Storyboard contributors" }]
+keywords = ["comfyui", "moss", "moss-image", "storyboard", "grid", "panels", "text-to-image"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Image",
+    "Environment :: GPU :: NVIDIA CUDA",
+]
+# ⚠ 只列本包**直接 import** 且不由宿主代管的第三方库。
+#    `torch` 与 `comfy*` 由宿主 ComfyUI 自己管（torch 还要按 CUDA 版本挑 wheel），
+#    本包代管只会造成版本漂移 ⇒ 刻意不写。本包因此**零额外依赖**。
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/ZenHG/ComfyUI-MOSS-Storyboard"
+Homepage = "https://github.com/ZenHG/ComfyUI-MOSS-Storyboard"
+Issues = "https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/issues"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = ["__pycache__", ".git", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "C4", "PIE", "RET", "RUF100"]
+ignore = [
+    "E501",  # 行宽由 line-length 管；中文 tooltip 本来就有长行
+]
+
+# 宿主版本下限用**官方字段**（宿主 comfy_config/config_parser.py 读 comfy_data["requires-comfyui"]）。
+# 🔢 为什么是 0.42.0：MOSS-Image 原生支持由 Comfy-Org/ComfyUI PR #17095 合入，
+#    首次出现在 0.42.0（本地宿主 comfyui_version.py 实测 0.42.0 且存在
+#    comfy_extras/nodes_moss_image.py + CLIPType.MOSS_IMAGE）。更早的宿主装得上本包，
+#    但 CLIPLoader 里没有 moss_image 类型 ⇒ 节点照常出现、**提示词编码静默错**。
+[tool.comfy]
+requires-comfyui = ">=0.42.0"
+PublisherId = "TODO-set-before-publish"
+DisplayName = "MOSS Storyboard"
+# 与画布节点分类同名，Manager 卡片与菜单一致。
+# Icon / Banner 需公网可取；首次发布前把 400×400 方图与 21:9 横幅推到 main 再填 raw 直链。
+# Icon = "https://raw.githubusercontent.com/ZenHG/ComfyUI-MOSS-Storyboard/main/icon.png"
+# Banner = "https://raw.githubusercontent.com/ZenHG/ComfyUI-MOSS-Storyboard/main/banner.png"
