@@ -1,5 +1,20 @@
 # CHANGES
 
+## 0.1.1 — 2026-10-23
+
+### 修复
+- 🔴 **示例工作流没进 registry 包**。`examples/` 里那个带说明的工作流用了中文文件名，
+  而 `comfy node pack` 按 latin-1 解路径 ⇒ 中文名被**静默跳过**（只在打包日志里留一行
+  `File not found. Not including in zip`），README 却叫用户去开它。
+  现已改名为 `moss-storyboard-4panels-ui.json`；`tools/make_ui_workflow.py` 写宿主目录仍用中文名
+  （用户友好），写仓库副本强制 ASCII。
+- `tools/check_release_ready.py` 的 S4 把「包内中文文件名」从警告改为**判红** ——
+  这类缺陷两边都不报错，只能靠发布前拦。
+
+### 计数
+`check_release_ready 27/0` · 其余 8 条全绿
+
+
 ## 0.1.0 — 2026-10-23
 
 首个版本：三个节点、两条出口、八道机检、中英双语界面。

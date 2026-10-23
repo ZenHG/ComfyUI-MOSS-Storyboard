@@ -9,7 +9,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.1.0** |
+| 版本 | **0.1.1** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（MOSS-Image 原生支持自 PR #17095 起） |
 | 依赖 | **零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供） |
@@ -118,7 +118,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 **④ 跑**。输出端两路：`grid`（整张宫格）+ `panels`（逐格，数量 = 格数）。
 
-> 也可以直接用现成工作流：`examples/MOSS 故事板宫格.json`，拖进 ComfyUI 即可
+> 也可以直接用现成工作流：`examples/moss-storyboard-4panels-ui.json`，拖进 ComfyUI 即可
 > （已分好组、带画布内说明）。
 
 ---

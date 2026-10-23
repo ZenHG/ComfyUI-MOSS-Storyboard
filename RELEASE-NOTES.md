@@ -19,6 +19,24 @@
 
 ---
 
+## 0.1.1 — 2026-10-23
+
+**修一个只有装完才会发现的问题：从 Manager 安装的包里，示例工作流不在。**
+
+- 0.1.0 的示例工作流用了中文文件名，发布打包时被跳过 —— 于是 `examples/` 下那个带分组和说明的工作流装完找不到。已改成英文文件名。
+- 功能没有任何变化。
+
+**升级动作**：从 Manager 更新到 0.1.1 即可；已手动放过示例的不用动。
+
+<!-- EN -->
+
+**Fixed an issue only visible after installing: the example workflow was missing from the Manager package.**
+
+- The 0.1.0 example used a non-ASCII filename, which the packer silently skipped — so the annotated workflow under `examples/` never arrived. Renamed to ASCII.
+- No functional changes.
+
+**Action required**: update to 0.1.1 from the Manager. If you already placed the file manually, nothing to do.
+
 ## 0.1.0 — 2026-10-23
 
 **MOSS-Image 的故事板宫格节点，首个版本。**

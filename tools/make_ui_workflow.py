@@ -22,6 +22,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
 OUT_DIR = os.path.join(COMFY, "user", "default", "workflows")
 OUT_NAME = "MOSS 故事板宫格.json"
+#: 仓库内（`--out`）必须用 ASCII 名：registry 打包按 latin-1 解路径，
+#: 中文名会被静默跳过（2026-10-23 实测：包内少了整个 examples 里的工作流）。
+OUT_NAME_ASCII = "moss-storyboard-4panels-ui.json"
 
 PROMPT = """[STYLE]: 单一故事板画布分割为严格对称网格，恰好 4 个面板，每个面板展示雨夜咖啡店叙事的顺序推进，所有面板由细白边框线整齐分隔，完全没有粗框、黑边或跨面板全景溢出；苏晚：黑发低马尾、米白高领针织衫、哑光织物、自然裸肤毛孔；陈屿：深灰外套、黑衬衫、短发、修长手指、哑光面料；固定环境：雨夜咖啡店靠窗双人桌、湿街反光、玻璃雨痕、暖黄吊灯、柠檬水杯、咖啡杯；相机规格：35mm 胶片摄影、真实演员、自然原始皮肤纹理、有机胶片颗粒、锐利光学镜头焦点、浅景深、近距取景
 
@@ -271,9 +274,10 @@ def build():
 
 def main(argv):
     # `--out <dir>`：仓库里也存一份（否则 clone 下来只有最小示例，没有带说明的 UI 版）
-    out_dir = OUT_DIR
+    out_dir, name = OUT_DIR, OUT_NAME
     if "--out" in argv:
         out_dir = argv[argv.index("--out") + 1]
+        name = OUT_NAME_ASCII
     wf = build()
     if "--bypass-lora" in argv:
         # 仓库示例默认旁路 LoRA：别人没有这个权重文件也不会报红，装了再取消旁路
@@ -281,7 +285,7 @@ def main(argv):
             if n["type"] == "LoraLoaderModelOnly":
                 n["mode"] = 4
     os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, OUT_NAME)
+    path = os.path.join(out_dir, name)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(wf, fh, ensure_ascii=False, indent=1)
     print("已写出 %s" % path)
