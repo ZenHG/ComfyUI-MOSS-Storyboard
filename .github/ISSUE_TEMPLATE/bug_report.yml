@@ -52,5 +52,5 @@ body:
       label: 自查
       options:
         - label: 我已确认 CLIPLoader 的 type 是 `moss_image`
-        - label: 我已确认 `denoise = 1.0`（低步数下大于 0.8 的降噪不生效）
-        - label: 我没有使用模板 img2img（`init=template/both` 在 MOSS 上实测无效）
+        - label: 我已确认 `denoise = 1.0`（本包不做图生图，调低只会少跑几步）
+        - label: 我已确认没有把 `cfg` 调到 >1 或 `steps` 调到 50（本机实测画面崩坏）

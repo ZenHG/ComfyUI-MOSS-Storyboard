@@ -336,11 +336,6 @@
      "link": 4
     },
     {
-     "name": "template",
-     "type": "IMAGE",
-     "link": null
-    },
-    {
      "name": "panels",
      "type": "INT",
      "link": null,

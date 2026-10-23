@@ -19,6 +19,38 @@
 
 ---
 
+## 0.1.2 — 2026-10-23
+
+**去掉了一个选了必然失败的选项：图生图。**
+
+- 🔴 「初始化方式」从五个选项收成三个：`自动（纯布局）/ 纯布局 / 原样提示词`。
+  原来的「仅模板」「布局 + 模板」已删除——MOSS 不以参考图条件化（官方已声明不支持编辑），
+  实测这三组参数只会得到纯黑或模板残影，留着只会让你白跑一次。
+- 采样器不再有「模板图」输入。起点永远从纯噪声开始。
+- 如果你之前接过模板线：工作流还能打开，但那根线会失效，重新生成一次工作流即可。
+- 另外补一条实测：官方非蒸馏配方（50 步 / cfg 3）在我们机器上跑出来是崩坏扭曲的画面，
+  原因未确认，有人能跑通。想试请先出单张小样，别直接批量跑。
+
+**升级动作**：从 Manager 更新到 0.1.2。建议重新生成一次示例工作流，避免旧的模板线残留。
+
+<!-- EN -->
+
+**Removed an option that could only fail: img2img.**
+
+- 🔴 The `init` menu went from five choices to three: `auto (layout) / layout / plain`.
+  "Template only" and "layout + template" are gone. MOSS is not conditioned on reference images
+  (the official limitation says no editing), and every measured parameter set produced either a
+  black frame or template ghosting — keeping it only cost you a wasted run.
+- The sampler no longer has a template input; the latent always starts from pure noise.
+- If you had a template wire connected: the workflow still opens, but that wire becomes inert.
+  Regenerate the workflow once to clean it up.
+- Also documented: the official non-distilled recipe (50 steps / cfg 3) produced corrupted frames
+  on our machine. Cause unconfirmed, others report it works — sample one image before running a batch.
+
+**Action required**: Update to 0.1.2 from the Manager. Regenerating the example workflow is
+recommended so the old template wire does not linger.
+
+
 ## 0.1.1 — 2026-10-23
 
 **修一个只有装完才会发现的问题：从 Manager 安装的包里，示例工作流不在。**

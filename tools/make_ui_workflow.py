@@ -175,7 +175,6 @@ def build():
         ("denoise", "FLOAT", True, 1.0),
         # —— 以下为 optional ——
         ("spec", "STRING", False, None),
-        ("template", "IMAGE", False, None),
         ("panels", "INT", True, 4),
         ("panel_aspect", "COMBO", True, "16:9"),
         ("panel_edge", "INT", True, 496),
@@ -222,7 +221,6 @@ def build():
         (clip, "CLIP", smp, "clip"),
         (vae, "VAE", smp, "vae"),
         (lay, "spec", smp, "spec"),
-        (lay, "template", smp, "template"),
         (lay, "template", prev, "images"),
         (smp, "grid", save_grid, "images"),
         (smp, "panels", save_pan, "images"),

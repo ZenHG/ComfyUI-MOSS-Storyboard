@@ -115,4 +115,4 @@ jobs:
       # 同样要 import 宿主节点定义 ⇒ CPU runner 上可能同样触发 CUDA 断言。
       - name: 工作流连线与槽位（CPU runner 上可能跳过）
         continue-on-error: true
-        run: python tools/check_ui_workflow.py examples/moss-storyboard-8panels-layout.json examples/moss-storyboard-8panels-template.json
+        run: python tools/check_ui_workflow.py examples/moss-storyboard-8panels-layout.json

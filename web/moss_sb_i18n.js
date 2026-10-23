@@ -133,8 +133,6 @@ export const COMBOS = {
         // 界面上只写"是什么"，不写"有没有用"——结论放 tooltip，且带版本口径。
         auto: "自动（纯布局）",
         layout: "纯布局",
-        template: "仅模板",
-        both: "布局 + 模板",
         plain: "原样提示词",
     },
     label: { object: "物体", character: "人物", text: "文字" },
@@ -224,6 +222,7 @@ export const TIPS = {
     },
     "MossStoryboardSampler.cfg": {
         en: "[What to enter] Guidance scale. 1.0 with a distilled LoRA; the official non-distilled recipe is 3.0.\n"
+            + "⚠ On our machine 50 steps / cfg 3 produced corrupted frames (cause unconfirmed; others report it works).\n"
             + "⚠ Negative prompts only work above 1.0.",
     },
     "MossStoryboardSampler.sampler_name": { en: "[What to enter] euler is the verified default." },
@@ -232,17 +231,12 @@ export const TIPS = {
         en: "[What to enter] Random seed. Keep the control on randomize unless you need to reproduce a frame.",
     },
     "MossStoryboardSampler.denoise": {
-        en: "[What to enter] Keep this at 1.0.\n"
-            + "⚠ The host re-derives sigmas with int(steps/denoise); at 4 steps any value above 0.8 is\n"
-            + "silently ignored. The report prints the nominal and the effective value - trust the effective one.",
+        en: "[Keep at 1.0] Denoise strength. 1.0 = generate from pure noise, which is the normal path here.\n"
+            + "⚠ There is no img2img: values below 1.0 do not reference any image, they only make the host\n"
+            + "truncate sigmas via int(steps/denoise) - i.e. you run fewer steps. Lower steps directly instead.",
     },
     "MossStoryboardSampler.spec": {
         en: "[Wiring] Geometry from the Layout node. When wired, the geometry widgets below are ignored.",
-    },
-    "MossStoryboardSampler.template": {
-        en: "[Wiring] Grid template image.\n"
-            + "⚠ MOSS has no native img2img: three parameter sets were measured and every one produced\n"
-            + "either template ghosting or a black frame. Leave it unwired.",
     },
     "MossStoryboardSampler.panels": { en: "[Used only without spec] Panel count." },
     "MossStoryboardSampler.panel_aspect": { en: "[Used only without spec] Aspect ratio of one panel." },
@@ -251,10 +245,10 @@ export const TIPS = {
     "MossStoryboardSampler.gutter": { en: "[Used only without spec] Gap between panels." },
     "MossStoryboardSampler.margin": { en: "[Used only without spec] Outer frame width." },
     "MossStoryboardSampler.init": {
-        en: "[What to enter] How the grid is locked.\n"
-            + "auto / layout = native JSON layout boxes only (recommended);\n"
-            + "template / both = latent-init img2img (measured NOT to work on MOSS);\n"
-            + "plain = raw prompt, no layout boxes.",
+        en: "[What to enter] How the prompt is sent.\n"
+            + "auto / layout = panel captions are turned into native JSON layout boxes (recommended);\n"
+            + "plain = raw prompt, no layout boxes.\n"
+            + "⚠ This pack does not do img2img: the latent starts empty, MOSS does not condition on reference images.",
     },
     "MossStoryboardSampler.label": { en: "[Advanced] Layout box type, same as the Layout node." },
     "MossStoryboardSampler.reborder": {
