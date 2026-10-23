@@ -22,10 +22,16 @@
    唯一允许的"降级"是带出声的成功路径（例如解码尺寸不符时按解码结果重建几何，并写进 report）。
 6. **画布与单格必须 16 的倍数**。对齐余量只加到右/下外边距，绝不改单格尺寸。
 7. **i18n 只改显示，不改存档**（抄 H 仓铁律）：
-   - 只碰 `label` / `title` / `tooltip`，**绝不碰 `name` / `value` / `options.values`**；
+   - 只碰 `label` / `title` / `tooltip` / `placeholder`，**绝不碰 `name` / `value` / `options.values`**；
    - 中文提示**只在 `nodes.py` 写一份**，`web/moss_sb_i18n.js` 的 `TIPS` 只存 `en`；
    - 用户自定义标题不许覆盖；只换默认名前缀、后缀保留；
-   - 新增参数必须同时补 `TIPS` 英文条，否则 `test_contract.py` 会红。
+   - 新增参数必须同时补 `TIPS` 英文条，否则 `test_contract.py` 会红；
+   - 🔴 **多行文本框的标题是 `placeholder`，不是 `label`** —— DOM `<textarea>` 的父容器
+     `size-full` 把画布自绘标题盖住了，只改 label 在界面上**看不到**（已真机踩到）。
+     两个提示词框必须同时写 label + placeholder，`tests/test_i18n.mjs` 6.20–6.23 锁这条；
+   - 🔴 **`negative` 必须保持 `advanced: True`** —— cfg=1 时宿主跳过负面分支
+     （`comfy/samplers.py::sampling_function`），放普通区等于骗用户"写了会生效"。
+     `test_contract.py::test_sampler_shape` 锁这条，别"好心"挪回去。
 
 ## 三、一次改动的最小闭环
 

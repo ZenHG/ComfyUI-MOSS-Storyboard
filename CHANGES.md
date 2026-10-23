@@ -14,8 +14,15 @@
 
 ### 中英双语与悬浮提示
 - `web/moss_sb_i18n.js`（纯函数，可 node 单测）+ `moss_sb_i18n_ui.js`（挂钩、中/EN 按钮、抗覆盖兜底）。
-- 铁律：只改 `label`/`title`/`tooltip`，绝不改 `name`/`value`/`options.values`；
+- 铁律：只改 `label`/`title`/`tooltip`/`placeholder`，绝不改 `name`/`value`/`options.values`；
   中文提示只在 `nodes.py` 写一份，`TIPS` 只存 `en`；自定义标题不覆盖、只换前缀。
+- **多行文本框的标题是 `placeholder`，不是 `label`**：DOM `<textarea>` 父容器 `size-full`
+  把画布自绘标题盖住了。只写 label ⇒ 界面上仍是 `positive` / `negative`（真机实证）。
+  现在两者同写，`tests/test_i18n.mjs` 6.20–6.23 锁这条。
+- **`negative` 默认收进「高级」**（`advanced: True`）：MOSS 实测 cfg=1.0，
+  宿主在 cfg=1 时跳过负面分支（`comfy/samplers.py::sampling_function`），
+  那段不进计算图。放普通区只会让人误以为"写了就生效"。
+  `test_contract.py::test_sampler_shape` 锁这条。
 - `WEB_DIRECTORY` 已接；宿主 `/extensions` 实测出现两个 JS（HTTP 200）。
 
 ### 测试（全部可复跑）

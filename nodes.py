@@ -228,8 +228,14 @@ class MossStoryboardSampler:
                 }),
                 "negative": ("STRING", {
                     "multiline": True, "default": "",
-                    "tooltip": "【可留空】负面提示词。\n"
-                               "⚠ cfg=1.0 时负面分支不参与计算，这段等于没写（本地实测配置即 cfg=1.0）。",
+                    # 默认收进节点的「高级」折叠区：MOSS 的实测配方是 cfg=1.0，
+                    # 而宿主在 cfg=1 时会跳过负面分支（comfy/samplers.py 的 cfg1 优化），
+                    # 把它放在外面只有一个后果——让人以为"写了就会生效"。
+                    "advanced": True,
+                    "tooltip": "【默认折叠在「高级」里，可留空】负面提示词。\n"
+                               "⚠ cfg=1.0 时宿主直接跳过负面分支（见 comfy/samplers.py 的 cfg1 优化），\n"
+                               "这段不进计算图；MOSS 实测配置就是 cfg=1.0 ⇒ 留空即可。\n"
+                               "只有把 cfg 调到 >1 时才需要填。",
                 }),
                 "steps": ("INT", {
                     "default": 35, "min": 1, "max": 200, "step": 1,
@@ -238,8 +244,9 @@ class MossStoryboardSampler:
                 }),
                 "cfg": ("FLOAT", {
                     "default": 1.0, "min": 0.0, "max": 30.0, "step": 0.1,
-                    "tooltip": "【填什么】引导强度。默认 1.0 = 本地已实测可用的配置（负面分支失效）。\n"
-                               "⚠ 要负面提示词生效必须 >1；官方非蒸馏配方给 3。换成大步数+高 cfg 前先小样对比。",
+                    "tooltip": "【填什么】引导强度。默认 1.0 = 本地已实测可用的配置。\n"
+                               "⚠ 1.0 时宿主跳过负面分支 ⇒ 负面提示词（在「高级」里）填了也不生效。\n"
+                               "要让负面生效必须 >1；官方非蒸馏配方给 3，换配方前先出小样对比。",
                 }),
                 "sampler_name": (["euler", "euler_ancestral", "heun", "dpmpp_2m", "dpmpp_2m_sde",
                                   "dpmpp_3m_sde", "res_multistep", "er_sde", "lms"], {

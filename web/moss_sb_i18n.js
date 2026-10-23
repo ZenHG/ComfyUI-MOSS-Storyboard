@@ -370,7 +370,7 @@ export function tipFor(type, widgetName, lang) {
  * @returns {{title:boolean, labels:number, combos:number, tips:number}}
  */
 export function applyLang(node, lang) {
-    const out = { title: false, labels: 0, combos: 0, tips: 0 };
+    const out = { title: false, labels: 0, combos: 0, tips: 0, placeholders: 0 };
     if (!node) return out;
     // 🔴 **只处理本包节点**。外来节点（官方 / 别人的）一个字节都不许动：
     //    同名参数（steps/cfg/seed…）在别人那里语义不同，改了 label 就是篡改别人的界面。
@@ -394,6 +394,28 @@ export function applyLang(node, lang) {
         // 归属标记：界面汉化插件会按自己的词典改回中文，这行让兜底轮询能识别并写回。
         // ⚠ 只是内存标记，序列化只写 value ⇒ 不落进工作流 JSON。
         try { w.__mosssbWant = want; } catch (e) { /* 冻结对象 */ }
+
+        // 🔴 多行文本框（DOM `<textarea class="comfy-multiline-input">`）的**标题其实是
+        //    `placeholder`**，前端根本不读 `widget.label`。真机实测（前端 1.57.1）：
+        //    `label` 已是「正面提示词」，界面上仍显示 `placeholder="positive"` —— 因为
+        //    DOM 元素 `size-full` 把画布自绘的标题整个盖住了。
+        //    ⇒ 只改 label 的写法对这两个框**永远无效**，必须同时写 placeholder。
+        //    原始值先存起来：切英文时要能回滚成后端下发的那个（而不是写死参数名）。
+        const el = w.element;
+        if (el && String(el.tagName || "").toUpperCase() === "TEXTAREA") {
+            try {
+                if (w.__mosssbPlaceholder === undefined) {
+                    w.__mosssbPlaceholder = el.getAttribute("placeholder") || name;
+                }
+                const ph = L === "zh" ? (zh || w.__mosssbPlaceholder)
+                    : (LABELS_EN[name] || w.__mosssbPlaceholder);
+                if (el.getAttribute("placeholder") !== ph) {
+                    el.setAttribute("placeholder", ph);
+                    out.placeholders = (out.placeholders || 0) + 1;
+                }
+                w.__mosssbWantPh = ph;
+            } catch (e) { /* 无 element 的控件（纯画布自绘）走不到这里 */ }
+        }
 
         // 枚举显示
         if (w.options && Array.isArray(w.options.values) && COMBOS[name]) {
