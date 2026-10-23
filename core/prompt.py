@@ -111,10 +111,3 @@ def layout_json_text(global_caption, pairs, boxes, label="object", char_boxes=""
     }
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
-
-def describe(text):
-    """一行摘要，写进 report，避免把整段提示词刷到日志里。"""
-    if not text:
-        return "空"
-    head = text[:48].replace("\n", " ")
-    return "%s…（%d 字）" % (head, len(text)) if len(text) > 48 else "%s（%d 字）" % (head, len(text))

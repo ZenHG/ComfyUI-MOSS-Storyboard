@@ -236,7 +236,8 @@ python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张
 node   tests/test_i18n.mjs             # 中英切换纯函数，46 项
 python tools/smoke_nodes.py            # 自加载 + 纯节点真跑，25 项
 python tools/host_loader_check.py      # 走宿主自己的 load_custom_node，16 项
-python tools/check_ui_workflow.py      # 工作流连线 + widget 槽位逐位值域
+python tools/check_ui_workflow.py      # 工作流连线 + widget 槽位（15 项/文件）
+python tools/check_frontend.py         # 前端词表纯净度/语法/接线/标题可换语言
 python tools/e2e_matrix.py             # 端到端 15 次真跑（要 GPU + 模型）
 ```
 

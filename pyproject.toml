@@ -9,7 +9,7 @@
 #    明写不要带 "ComfyUI"；`license` 只认 `{ file = ... }` / `{ text = ... }`（不收裸 SPDX 字符串）。
 [project]
 name = "moss-storyboard"
-version = "0.2.0"
+version = "0.1.0"
 description = "Storyboard grid nodes for MOSS-Image: 3/4/6/8/9 panels in one sampling pass, with native JSON-layout bbox locking and post-composited gutters."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -54,5 +54,7 @@ PublisherId = "TODO-set-before-publish"
 DisplayName = "MOSS Storyboard"
 # 与画布节点分类同名，Manager 卡片与菜单一致。
 # Icon / Banner 需公网可取；首次发布前把 400×400 方图与 21:9 横幅推到 main 再填 raw 直链。
-# Icon = "https://raw.githubusercontent.com/ZenHG/ComfyUI-MOSS-Storyboard/main/icon.png"
-# Banner = "https://raw.githubusercontent.com/ZenHG/ComfyUI-MOSS-Storyboard/main/banner.png"
+# ⚠️ 直链要等这两个文件**推到 main 之后**才有效 —— 只提交不推 ⇒ registry 页面上是空图。
+# 文件由 `python tools/make_brand.py` 生成（纯几何，可复跑，无许可风险）。
+Icon = "https://raw.githubusercontent.com/ZenHG/ComfyUI-MOSS-Storyboard/main/icon.png"
+Banner = "https://raw.githubusercontent.com/ZenHG/ComfyUI-MOSS-Storyboard/main/banner.png"

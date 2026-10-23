@@ -1,0 +1,112 @@
+# 回归套件（CPU-only、零 GPU）。
+#
+# 设计口径与 H 仓（ComfyUI-H3-Latent-Relay）一致：
+#   · **每个脚本用自己的退出码表达成败**，不靠解析输出 ⇒ 失败即非零，CI 直接红；
+#   · 期望值写在这里，但**不写行号**（会漂的东西别写）；
+#   · 只跑"能确定判定"的东西：几何、契约、词表、装载。**成片质量不进 CI**（要 GPU + 权重）。
+#
+# 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
+#   · 282/0  tests/test_core.py               几何 / 提示词 / 像素
+#   ·  54/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
+#   ·  18/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
+#   ·  46/0  tests/test_i18n.mjs              中英切换纯函数（node）
+#   ·  25/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
+#   ·  16/0  tools/host_loader_check.py       走宿主 load_custom_node
+#   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
+#                （CI 传 2 个示例 ⇒ 实际 30 项）
+#   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
+#
+# ⚠️ **已知覆盖缺口（诚实记录，别当成已覆盖）**：
+#   1. `host` job 需要在 runner 上现装 ComfyUI，**本机（Windows）无法等价复现**
+#      ⇒ 先设为 `continue-on-error`，本地等价闸是 `tools/host_loader_check.py`。
+#      等它在 main 上连续绿过几次再取消这个开关。
+#   2. 只跑 CPU：`bf16` / 显存路径 / VAE 解码全部不在 CI 内。
+#   3. `tools/e2e_matrix.py` 不进 CI（要 GPU + 4GB 权重），靠人工在真机跑。
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install --disable-pip-version-check ruff
+      - run: ruff check .
+
+  unit:
+    name: unit py${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      # CPU 轮子：本包的像素/采样测试只用 torch 的张量算子，不需要 CUDA
+      - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - name: 几何 / 提示词 / 像素
+        run: python tests/test_core.py
+      - name: 契约（不碰宿主）
+        run: python tests/test_contract.py --no-host
+      - name: 采样 API 契约
+        run: python tests/test_sampling_contract.py
+      # 前端一致性放在这个 job：它需要 torch（要 import nodes.py 取参数名），
+      # 而 runner 自带 node 供 F2 语法检查；万一没有 node，F2 会明确跳过并写进输出。
+      - name: 前端一致性（词表 / 语法 / 接线 / 标题可换语言）
+        run: python tools/check_frontend.py
+
+  frontend:
+    name: i18n (node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node tests/test_i18n.mjs
+
+  host:
+    name: host load (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # 见文件头「已知覆盖缺口 1」：先不阻塞合并
+    continue-on-error: true
+    env:
+      COMFYUI_PATH: ${{ github.workspace }}/comfyui
+      MOSSSB_PATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 取宿主（钉版本，避免上游漂移造成与本包无关的红）
+        run: git clone --depth 1 --branch v0.42.0 https://github.com/comfyanonymous/ComfyUI.git comfyui
+      - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install --disable-pip-version-check -r comfyui/requirements.txt
+      - name: 挂进 custom_nodes（真实加载路径）
+        run: ln -s "$GITHUB_WORKSPACE" "$COMFYUI_PATH/custom_nodes/ComfyUI-MOSS-Storyboard"
+      - name: 自加载 + 纯节点真跑
+        run: python tools/smoke_nodes.py
+      - name: 走宿主 load_custom_node
+        run: python tools/host_loader_check.py
+      - name: 工作流连线与槽位
+        run: python tools/check_ui_workflow.py examples/moss-storyboard-8panels-layout.json examples/moss-storyboard-8panels-template.json

@@ -16,9 +16,9 @@ import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import torch  # noqa: E402
+import torch
 
-from core import sampling as S  # noqa: E402
+from core import sampling as S
 
 PASS, FAIL = [], []
 
@@ -61,8 +61,7 @@ def install_stubs():
     def _prepare_noise(latent_image, seed, noise_inds=None):
         rec["prepare_noise"](latent_image)
         # 真实实现会调 .size()/.is_nested —— 这里复刻同样的硬约束
-        latent_image.is_nested
-        latent_image.size()
+        _ = (latent_image.is_nested, latent_image.size())
         return torch.zeros_like(latent_image)
 
     sample_mod.prepare_noise = _prepare_noise
@@ -70,7 +69,7 @@ def install_stubs():
     def _sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image,
                        noise_mask=None, callback=None, disable_pbar=False, seed=None):
         rec.setdefault("sample_custom", Rec())(latent_image)
-        latent_image.is_nested  # 真实实现同样会碰这个属性
+        _ = latent_image.is_nested  # 真实实现同样会碰这个属性
         return torch.zeros_like(latent_image)
 
     sample_mod.sample_custom = _sample_custom
@@ -133,9 +132,9 @@ def main():
             check("%s → %s" % (tag, needle), needle in str(e), str(e)[:70])
 
     print("\n== 4. denoise/steps 边界 ==")
-    for kw, needle, tag in ((dict(steps=0, denoise=1.0), "steps", "steps=0"),
-                            (dict(steps=4, denoise=0.0), "denoise", "denoise=0"),
-                            (dict(steps=4, denoise=1.5), "denoise", "denoise>1")):
+    for kw, needle, tag in (({"steps": 0, "denoise": 1.0}, "steps", "steps=0"),
+                            ({"steps": 4, "denoise": 0.0}, "denoise", "denoise=0"),
+                            ({"steps": 4, "denoise": 1.5}, "denoise", "denoise>1")):
         try:
             S.sample(FakeModel(), "p", "n", latent_t, cfg=1.0, sampler_name="euler",
                      scheduler="simple", seed=1, preview=False, **kw)

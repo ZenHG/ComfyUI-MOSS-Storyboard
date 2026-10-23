@@ -137,7 +137,6 @@ def run_case(name, over, wf, infos, seed=None):
             api[nid]["inputs"][key] = v
     api["5"]["inputs"]["seed"] = seed        # 每条用例换随机种，避免整批图雷同
 
-    t0 = time.time()
     res = post(API + "/prompt", {"prompt": api, "client_id": "e2e"})
     if res.get("node_errors"):
         return {"用例": name, "结果": "拒收", "种子": seed, "细节": str(res["node_errors"])[:200]}
@@ -154,7 +153,7 @@ def run_case(name, over, wf, infos, seed=None):
                 if it.get("type") == "output":
                     outs.append((nid, it.get("subfolder", ""), it.get("filename")))
 
-    grid_path = panel_paths = None
+    grid_path = None
     panels = []
     for nid, sub, fn in outs:
         p = os.path.join(OUT_DIR, sub, fn)

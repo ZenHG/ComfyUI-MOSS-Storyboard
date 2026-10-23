@@ -13,11 +13,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import torch  # noqa: E402
+import torch
 
-from core import layout as L  # noqa: E402
-from core import pixels as P  # noqa: E402
-from core import prompt as T  # noqa: E402
+from core import layout as L
+from core import pixels as P
+from core import prompt as T
 
 PASS, FAIL = [], []
 
@@ -64,7 +64,7 @@ for panels in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12):
                 gaps.add(right[0].x - (c.x + c.w))
             if down:
                 gaps.add(down[0].y - (c.y + c.h))
-        check("%s 相邻缝宽恒为 %d" % (tag, L.gutter if False else 8), gaps <= {8})
+        check("%s 相邻缝宽恒为 gutter" % tag, gaps <= {8})
 
 print("\n== 2. 布局选择（3/4/6/8/9 的默认排法）==")
 expect = {

@@ -14,6 +14,41 @@ MOSS-Image 事实（`comfy/latent_formats.py::Flux2`）：latent 128 通道、�
 import torch
 
 
+_PROBED = {"ok": False}
+
+#: 本包真正依赖的宿主符号。宿主升级若改了这些，报错必须说"改了什么"，
+#: 而不是抛一个 AttributeError 让人自己猜（这是节点包最常见的跨版本死法）。
+_HOST_API = (
+    ("comfy.sample", "sample_custom"),
+    ("comfy.sample", "prepare_noise"),
+    ("comfy.sample", "fix_empty_latent_channels"),
+    ("comfy.samplers", "KSampler"),
+    ("comfy.samplers", "sampler_object"),
+    ("comfy.model_management", "intermediate_device"),
+)
+
+
+def probe_host_api():
+    """校验宿主公开内核是否齐全（幂等，只成功一次之后不再检查）。"""
+    if _PROBED["ok"]:
+        return
+    missing = []
+    for mod_name, attr in _HOST_API:
+        try:
+            mod = __import__(mod_name, fromlist=[attr])
+        except Exception as exc:
+            missing.append("%s（import 失败：%s）" % (mod_name, exc))
+            continue
+        if not hasattr(mod, attr):
+            missing.append("%s.%s" % (mod_name, attr))
+    if missing:
+        raise RuntimeError(
+            "宿主 ComfyUI 缺少本包依赖的内核：%s\n"
+            "说明：这是宿主版本不匹配（本包要求 requires-comfyui >=0.42.0）。\n"
+            "处理：升级 ComfyUI，或回退本包到与宿主匹配的版本。" % "、".join(missing))
+    _PROBED["ok"] = True
+
+
 def empty_latent(model, width, height, batch=1):
     """空 latent：先造 4 通道再让宿主按模型 latent_format 扩到 128 通道。
 

@@ -108,7 +108,7 @@ def check_file(path, mappings):
     check("last_node_id 一致", wf.get("last_node_id") == max(ids), "last=%s max=%s" % (wf.get("last_node_id"), max(ids)))
     # last_link_id 是**高水位**，不是条数：删过连线后 id 会留空洞，这不违规。
     # 断言成 "== len(links)" 会给出假红（本脚本第一版就错在这里）。
-    lids = [l[0] for l in (wf.get("links") or [])]
+    lids = [lk[0] for lk in (wf.get("links") or [])]
     check("last_link_id 是高水位", (wf.get("last_link_id") or 0) >= max(lids or [0]),
           "last=%s max=%s 条数=%s" % (wf.get("last_link_id"), max(lids or [0]), len(lids)))
     check("连线 id 不重复", len(lids) == len(set(lids)))
@@ -144,7 +144,7 @@ def check_file(path, mappings):
             continue
         specs = widget_specs(cls)
         bad = []
-        for name, val in zip(want, got):
+        for name, val in zip(want, got, strict=False):
             if name == "<control_after_generate>":
                 if val not in ("fixed", "increment", "decrement", "randomize"):
                     bad.append("seed 控制项=%r" % (val,))
@@ -154,7 +154,7 @@ def check_file(path, mappings):
                 bad.append("%s=%r 不符合 %s%s" % (name, val, typ, opts.get("min") and "[%s,%s]" % (opts.get("min"), opts.get("max")) or ""))
         # 逐位值域校验：槽位错一位几乎必然在这里翻红（例如 16:9 落进 panels）
         check("%s(id=%d) 每个 widget 值都在值域内" % (n["type"], n["id"]), not bad, "；".join(bad[:3]))
-        pv = dict(zip(want, got)).get("panels")
+        pv = dict(zip(want, got, strict=False)).get("panels")
         if "panels" in want:
             check("%s(id=%d) panels 合理" % (n["type"], n["id"]), pv in (3, 4, 6, 8, 9), str(pv))
     check("文件里含本包节点（%d 个）" % ours, ours > 0)
@@ -179,7 +179,6 @@ def check_file(path, mappings):
                 continue
             it = cls.INPUT_TYPES() or {}
             req = it.get("required") or {}
-            wnames = set(expected_widgets(cls)) if hasattr(cls, "RETURN_TYPES") else set()
             linked = {i["name"] for i in (n.get("inputs") or []) if i.get("link") is not None}
             for name, spec in req.items():
                 t = spec[0] if isinstance(spec, tuple) else spec
@@ -193,7 +192,8 @@ def check_file(path, mappings):
     for n in wf["nodes"]:
         if n["type"] != "MossStoryboardSampler":
             continue
-        kv = dict(zip(expected_widgets(mappings["MossStoryboardSampler"]), n.get("widgets_values") or []))
+        kv = dict(zip(expected_widgets(mappings["MossStoryboardSampler"]),
+                      n.get("widgets_values") or [], strict=False))
         init, den = kv.get("init"), kv.get("denoise")
         if init in ("template", "both"):
             check("init=%s 时 denoise<1" % init, isinstance(den, (int, float)) and den < 1.0, str(den))

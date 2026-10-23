@@ -82,7 +82,7 @@ def convert(wf, infos):
             warn.append("%s(%s) widget 数 %d != 期望 %d（按名前缀对齐，可能错位）"
                         % (ntype, nid, len(wvals), len(wnames)))
         inputs = {}
-        for name, val in zip(wnames, wvals):
+        for name, val in zip(wnames, wvals, strict=False):
             if name == "<control_after_generate>":
                 continue
             inputs[name] = val
@@ -103,7 +103,7 @@ def convert(wf, infos):
             info = infos.get(n["type"])
             if info is not None:
                 slot_names[str(n["id"])] = all_input_names(info)
-    for lid, src, sslot, dst, dslot, typ in wf.get("links") or []:
+    for lid, src, sslot, dst, dslot, _typ in wf.get("links") or []:
         ds, ss = str(dst), str(src)
         if ds not in api or ss not in api:
             continue
