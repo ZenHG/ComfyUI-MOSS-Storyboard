@@ -16,13 +16,14 @@
 
 import json
 import os
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
 OUT_DIR = os.path.join(COMFY, "user", "default", "workflows")
 OUT_NAME = "MOSS 故事板宫格.json"
 
-PROMPT = """[STYLE]: 单一故事板画布分割为严格对称网格，恰好 8 个面板，每个面板展示雨夜咖啡店叙事的顺序推进，所有面板由细白边框线整齐分隔，完全没有粗框、黑边或跨面板全景溢出；苏晚：黑发低马尾、米白高领针织衫、哑光织物、自然裸肤毛孔；陈屿：深灰外套、黑衬衫、短发、修长手指、哑光面料；固定环境：雨夜咖啡店靠窗双人桌、湿街冷反光、玻璃雨痕、暖黄吊灯、柠檬水杯、咖啡杯；相机规格：35mm 胶片摄影、真实演员、自然原始皮肤纹理、有机胶片颗粒、锐利光学镜头焦点、浅景深、近距取景
+PROMPT = """[STYLE]: 单一故事板画布分割为严格对称网格，恰好 4 个面板，每个面板展示雨夜咖啡店叙事的顺序推进，所有面板由细白边框线整齐分隔，完全没有粗框、黑边或跨面板全景溢出；苏晚：黑发低马尾、米白高领针织衫、哑光织物、自然裸肤毛孔；陈屿：深灰外套、黑衬衫、短发、修长手指、哑光面料；固定环境：雨夜咖啡店靠窗双人桌、湿街反光、玻璃雨痕、暖黄吊灯、柠檬水杯、咖啡杯；相机规格：35mm 胶片摄影、真实演员、自然原始皮肤纹理、有机胶片颗粒、锐利光学镜头焦点、浅景深、近距取景
 
 [PANEL 1]: 画面为中景腰以上构图，相机位于双人桌侧前方，苏晚与陈屿同框对坐，苏晚把柠檬水杯向两人正中轻推，暖黄吊灯主光照亮桌面与玻璃雨痕
 
@@ -30,15 +31,7 @@ PROMPT = """[STYLE]: 单一故事板画布分割为严格对称网格，恰好 8
 
 [PANEL 3]: 画面为胸以上中近景，相机位于陈屿侧前方低角度，陈屿修长手指在咖啡杯上收紧、视线压在杯口、眉骨微紧
 
-[PANEL 4]: 画面为特写，相机位于苏晚眼部与手部之间，苏晚眼睛看向桌面、睫毛投下细影、手指搭在柠檬水杯旁
-
-[PANEL 5]: 画面为过肩中景，相机位于苏晚右肩后方，陈屿在对面可见，握住咖啡杯、视线抬起、嘴唇微动
-
-[PANEL 6]: 画面为 Choker 特写，相机位于陈屿正前方偏三分法，陈屿视线从杯口抬向苏晚、眉骨压低、嘴唇闭紧
-
-[PANEL 7]: 画面为胸以上中近景，相机位于苏晚侧前方三分法，苏晚面部克制、视线落在陈屿方向、嘴唇轻抿
-
-[PANEL 8]: 画面为特写，相机位于桌面正中偏上，苏晚的手停在柠檬水杯上没有收回，陈屿手指在咖啡杯旁收紧，雨声填满停顿"""
+[PANEL 4]: 画面为特写，相机位于苏晚眼部与手部之间，苏晚眼睛看向桌面、睫毛投下细影、手指搭在柠檬水杯旁"""
 
 NEGATIVE = "多余面板，错位拼贴，粗黑边框，跨格溢出，文字水印，畸变手指，塑料皮肤"
 
@@ -55,7 +48,9 @@ NOTE = """## 三步
 ## 格数 → 画布（单格 16:9，长边 496）
 3=512×848　4=1024×576　6=1520×576　8=2032×576　9=1520×848
 
-模板 img2img 在 MOSS 上实测无效（残影或纯黑），已断开。宫格线由节点按坐标复绘。"""
+## ① LoRA（4-step）
+没装这个 LoRA 就选中它按 `Ctrl+B` 旁路，不影响其它接线。
+宫格线由节点按坐标复绘（不依赖模型画直线）。"""
 
 
 class NodeBuilder:
@@ -136,12 +131,18 @@ def build():
     vae.decl_inputs([("vae_name", "COMBO", True, "flux2-vae.safetensors")])
     vae.decl_outputs([("VAE", "VAE")])
 
+    lora = N(10, "LoraLoaderModelOnly", (-1150, 214), (340, 82), "① LoRA（4-step，装了再取消旁路）")
+    lora.decl_inputs([("model", "MODEL", False, None),
+                      ("lora_name", "COMBO", True, "loras_moss_image_sft_4_steps_lora_v2_600_avg_rank_72_bf16.safetensors"),
+                      ("strength_model", "FLOAT", True, 1.0)])
+    lora.decl_outputs([("MODEL", "MODEL")])
+
     lay = N(4, "MossStoryboardLayout", (-740, -100), (470, 620), None)
     lay.decl_inputs([
         ("prompt", "STRING", True, ""),          # 故意留空：提示词只填在 ③
-        ("panels", "INT", True, 8),
+        ("panels", "INT", True, 4),
         ("panel_aspect", "COMBO", True, "16:9"),
-        ("panel_edge", "INT", True, 512),
+        ("panel_edge", "INT", True, 496),
         ("canvas_aspect", "COMBO", True, "auto"),
         ("columns", "INT", True, 0),
         ("rows", "INT", True, 0),
@@ -162,22 +163,22 @@ def build():
         ("vae", "VAE", False, None),
         ("positive", "STRING", True, PROMPT),
         ("negative", "STRING", True, NEGATIVE),
-        ("steps", "INT", True, 35),
+        ("steps", "INT", True, 4),
         ("cfg", "FLOAT", True, 1.0),
         ("sampler_name", "COMBO", True, "euler"),
         ("scheduler", "COMBO", True, "simple"),
-        ("seed", "INT", True, 0),
-        ("denoise", "FLOAT", True, 0.85),
+        ("seed", "INT", True, 555),
+        ("denoise", "FLOAT", True, 1.0),
         # —— 以下为 optional ——
         ("spec", "STRING", False, None),
         ("template", "IMAGE", False, None),
-        ("panels", "INT", True, 8),
+        ("panels", "INT", True, 4),
         ("panel_aspect", "COMBO", True, "16:9"),
-        ("panel_edge", "INT", True, 512),
+        ("panel_edge", "INT", True, 496),
         ("canvas_aspect", "COMBO", True, "auto"),
         ("gutter", "INT", True, 8),
         ("margin", "INT", True, 8),
-        ("init", "COMBO", True, "both"),
+        ("init", "COMBO", True, "layout"),
         ("label", "COMBO", True, "object"),
         ("reborder", "BOOLEAN", True, True),
         ("border_px", "INT", True, 0),
@@ -189,7 +190,7 @@ def build():
     # 位置 = 包含 seed 在内的 widget 个数（widgets_values 是按位存的，这里算错就整体错位）。
     seed_slot = smp.slot("seed")
     seed_widget_i = sum(1 for n in smp.inputs[: seed_slot + 1] if "widget" in n)
-    smp.widgets.insert(seed_widget_i, "fixed")
+    smp.widgets.insert(seed_widget_i, "randomize")
 
     prev = N(6, "PreviewImage", (-740, 560), (470, 260), "模板预览")
     prev.decl_inputs([("images", "IMAGE", False, None)])
@@ -212,7 +213,8 @@ def build():
 
     # ---- 接线（按名字，不按索引）----
     pending += [
-        (unet, "MODEL", smp, "model"),
+        (unet, "MODEL", lora, "model"),
+        (lora, "MODEL", smp, "model"),
         (clip, "CLIP", smp, "clip"),
         (vae, "VAE", smp, "vae"),
         (lay, "spec", smp, "spec"),
@@ -231,7 +233,7 @@ def build():
 
     # ---- 分组：由子节点包围盒自动推出，避免手写矩形和实际位置对不上 ----
     groups = [
-        ("① 模型加载", [unet, clip, vae]),
+        ("① 模型加载（LoRA 可选）", [unet, clip, vae, lora]),
         ("② 宫格几何 + 模板预览", [lay, prev]),
         ("③ 故事板生成", [smp]),
         ("④ 出片", [save_grid, save_pan]),
@@ -252,7 +254,7 @@ def build():
             "flags": {},
         })
 
-    order = {n.id: i for i, n in enumerate([unet, clip, vae, lay, prev, smp, save_grid, save_pan, note])}
+    order = {n.id: i for i, n in enumerate([unet, clip, vae, lora, lay, prev, smp, save_grid, save_pan, note])}
     return {
         "id": "moss-storyboard-grid",
         "revision": 0,
@@ -267,10 +269,19 @@ def build():
     }
 
 
-def main():
+def main(argv):
+    # `--out <dir>`：仓库里也存一份（否则 clone 下来只有最小示例，没有带说明的 UI 版）
+    out_dir = OUT_DIR
+    if "--out" in argv:
+        out_dir = argv[argv.index("--out") + 1]
     wf = build()
-    os.makedirs(OUT_DIR, exist_ok=True)
-    path = os.path.join(OUT_DIR, OUT_NAME)
+    if "--bypass-lora" in argv:
+        # 仓库示例默认旁路 LoRA：别人没有这个权重文件也不会报红，装了再取消旁路
+        for n in wf["nodes"]:
+            if n["type"] == "LoraLoaderModelOnly":
+                n["mode"] = 4
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, OUT_NAME)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(wf, fh, ensure_ascii=False, indent=1)
     print("已写出 %s" % path)
@@ -281,4 +292,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
