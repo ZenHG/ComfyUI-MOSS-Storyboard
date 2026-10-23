@@ -189,7 +189,7 @@ class MossStoryboardLayout:
     RETURN_NAMES = ("width", "height", "columns", "rows", "spec", "layout_json", "template", "report")
     FUNCTION = "build"
     CATEGORY = CATEGORY
-    DESCRIPTION = "算 3/4/6/8/9 宫格几何，生成 MOSS-Image 原生布局提示词与宫格模板图。"
+    DESCRIPTION = "算 3/4/6/8/9 宫格的尺寸与每格坐标，输出布局提示词与宫格模板图。不加载模型，秒出。"
     SEARCH_ALIASES = ["storyboard", "grid", "宫格", "故事板", "分镜", "panel layout", "moss layout"]
 
     @_node_errors("panels", "panel_aspect", "panel_edge")
@@ -323,7 +323,7 @@ class MossStoryboardSampler:
     RETURN_NAMES = ("grid", "panels", "latent", "spec", "prompt_used", "report")
     FUNCTION = "run"
     CATEGORY = CATEGORY
-    DESCRIPTION = "用 MOSS-Image 一步生成 3/4/6/8/9 宫格故事板，并输出逐格切片。布局框为 MOSS 实验特性。"
+    DESCRIPTION = "一次生成 3/4/6/8/9 宫格故事板，并裁出逐格。\n每格画什么由 MOSS 原生布局能力约束（官方标为实验特性，不保证每格都照办）。"
     SEARCH_ALIASES = ["storyboard", "grid", "宫格", "故事板", "分镜", "moss storyboard", "生成故事板"]
 
     @_node_errors("panels", "steps", "cfg", "denoise")
@@ -345,7 +345,7 @@ class MossStoryboardSampler:
         notes = []
         mode = init
         if mode == "auto":
-            mode = "layout"          # 模板路线在 MOSS 上实测走不通（见 README §七），不设默认
+            mode = "layout"          # 模板路线在 MOSS 上实测走不通（见 README「已知边界」），不设默认
             if template is not None:
                 notes.append("模板已接线，但 init=auto 走纯布局：MOSS 无 img2img，"
                              "实测模板路线会得到模板残影或纯黑（要试就显式选 template/both）")
@@ -474,7 +474,7 @@ class MossStoryboardCrop:
     RETURN_NAMES = ("panels", "preview", "report")
     FUNCTION = "run"
     CATEGORY = CATEGORY
-    DESCRIPTION = "按 spec（或列/行）把宫格图精确切成逐格，附带裁切线预览。"
+    DESCRIPTION = "把整张宫格图按几何参数精确切成逐格。接了 Layout 的 spec 就与生成时逐像素一致。"
     SEARCH_ALIASES = ["crop", "split", "裁格", "切图", "分格", "panel crop", "grid crop"]
 
     @_node_errors("columns", "rows", "shave")

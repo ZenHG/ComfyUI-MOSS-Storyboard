@@ -32,17 +32,55 @@
    - 🔴 **`negative` 必须保持 `advanced: True`** —— cfg=1 时宿主跳过负面分支
      （`comfy/samplers.py::sampling_function`），放普通区等于骗用户"写了会生效"。
      `test_contract.py::test_sampler_shape` 锁这条，别"好心"挪回去。
+8. **文档分工不许混**（照 H 仓 `ComfyUI-H3-Latent-Relay`）：
+
+   | 文件 | 写给谁 | 只许写 |
+   |---|---|---|
+   | `README.md` / `README_EN.md` | **开源用户** | 这是什么、怎么装、怎么用、参数表、已知边界、许可 |
+   | `AGENTS.md`（本文） | AI / 维护者 | 铁律、改动闭环、命令、禁区、薄弱点 |
+   | `CONTRIBUTING.md` | 外部贡献者 | 怎么跑机检、提交前必须过哪几条 |
+   | `docs/NN-*.md` | 想深挖的人 | 机理、实测记录、几何数学 |
+
+   **不许**把「四条铁律」「placeholder 为什么不是 label」「机检命令」「目录里每个文件干吗」
+   这类开发内容写进 README —— README 里出现的每一段都必须是用户会做的动作或会遇到的边界。
+   反过来，用户操作步骤也不许只写在 AGENTS 里。判据：**一个只用画布的用户，读完 README 能不能跑通**。
 
 ## 三、一次改动的最小闭环
 
 ```bash
-python tests/test_core.py           # 几何/提示词/像素（零 GPU）
-python tools/smoke_nodes.py         # 自加载：注册 + schema + 纯节点真跑
-python tools/make_example.py        # 改了参数表就重生成示例（槽位会变）
-python tools/check_ui_workflow.py   # 示例连线与 widget 槽位
-python tools/host_loader_check.py   # 走宿主 load_custom_node —— "宿主真的调你"的唯一证据
-node   tests/test_i18n.mjs          # 中英切换纯函数（零浏览器）
+python tests/test_core.py              # 几何/提示词/像素，零 GPU，282 项
+python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，58 项
+python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，18 项
+node   tests/test_i18n.mjs             # 中英切换纯函数，54 项（零浏览器）
+python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点真跑，25 项
+python tools/host_loader_check.py      # 走宿主 load_custom_node，16 项
+python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，15 项/文件
+python tools/check_frontend.py         # 前端词表/语法/接线/标题可换语言，9 项
 ```
+
+改了参数表还要重生成示例（槽位会变）：
+
+```bash
+python tools/make_example.py                                   # 机检用的最小图
+python tools/make_ui_workflow.py                               # 交付用 UI 版（写宿主目录）
+python tools/make_ui_workflow.py --out examples --bypass-lora   # 仓库内也存一份
+```
+
+要 GPU + 权重的两条（**人工跑，不进 CI**）：
+
+```bash
+python tools/e2e_matrix.py             # 端到端 14 用例真跑，逐条断言尺寸/缝色/不雷同
+python tools/ui_smoke.mjs              # 可选诊断：本机无头浏览器无 WebGL，结论不可信
+```
+
+全部应是「失败 0」。**不要用 `| tail -n` 看这些脚本**——退出码会被吃掉。
+
+三条不可替代：
+- `host_loader_check.py` 调的是 ComfyUI 启动时扫 `custom_nodes` 的**同一个函数**，
+  查的是 `nodes.NODE_CLASS_MAPPINGS` ——「配置写对 ≠ 宿主调你」的唯一证据。
+- `e2e_matrix.py` 是唯一能证明"别人机器上也能出图且尺寸对"的东西；`--dry` 只能证明图能被提交。
+- `test_contract.py` 的「每个参数都有英文提示」与「negative 必须 advanced」，
+  是**新增参数漏翻译**和**把死参数挪回普通区**的唯一拦截点。
 
 前端扩展是否真的被宿主登记，只能这样验（`WEB_DIRECTORY` 写错是**静默失效**）：
 
@@ -50,9 +88,6 @@ node   tests/test_i18n.mjs          # 中英切换纯函数（零浏览器）
 curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
 # 必须看到 /extensions/ComfyUI-MOSS-Storyboard/moss_sb_i18n.js 与 _ui.js
 ```
-
-五条都必须「失败 0」。**改了 `INPUT_TYPES()` 必须跑中间两条**，否则示例会静默错位。
-**任何"部署完就好"的结论必须由最后一条背书**：它查的是 `nodes.NODE_CLASS_MAPPINGS`。
 
 ## 四、命令速查
 
@@ -63,6 +98,8 @@ curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
 | 换宿主路径 | `COMFYUI_PATH=D:/ComfyUI python tools/smoke_nodes.py` |
 | 强制用 V1 出口 | `MOSSSB_NODE_API=v1 python tools/smoke_nodes.py` |
 | 打印某种格数的几何 | `python -c "from core import layout as L; print(L.build_layout(panels=9,panel_edge=512,panel_aspect='16:9',canvas_aspect='auto').spec())"` |
+| 起宿主并等就绪 | `I:/python/python.exe I:/start_comfyui.py --kill-existing --verify` |
+| 一次真跑交付工作流 | `python tools/ui_to_api.py "<workflow>.json" --run` |
 
 ## 五、禁区
 
@@ -74,5 +111,9 @@ curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
 ## 六、已知薄弱点
 
 - 模板 img2img 与布局框的**成片效果都未量化评测**；本仓只保证几何与接线正确。
-- `README_EN.md` 没有节级 hash 同步闸（H 仓那套 `en_sync.py` 未移植）。
-- 没有 CI；四条命令目前靠人跑。
+- `README_EN.md` 是**节选翻译**，没有节级 hash 同步闸（H 仓那套 `en_sync.py` 未移植）
+  ⇒ 改了中文 README 必须人肉看一眼英文版。这条是当前最大的文档漂移风险。
+- CI（`.github/workflows/ci.yml`）只跑 ruff + CPU 单测 + 前端一致性；
+  **`e2e_matrix.py` 要 GPU + 权重，不在 CI**，靠人跑。
+- 前端"看得见"没有自动化闸：本机无头 chromium 无 WebGL，画布不渲染，`ui_smoke.mjs`
+  的结论不可信（已降级为诊断）。现在靠控制台两行日志 + `MOSS_SB_LANG.where()` + 人眼。
