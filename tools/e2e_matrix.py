@@ -33,11 +33,12 @@ sys.path.insert(0, HERE)
 from core import layout as L          # noqa: E402
 from core import prompt as T          # noqa: E402
 import ui_to_api as U                 # noqa: E402
+from _paths import host_root  # noqa: E402  （脚本同目录，见 tools/_paths.py）
 
 API = os.environ.get("H3_API", "http://127.0.0.1:8188")
-WF = os.path.join(os.environ.get("COMFYUI_PATH", "I:/ComfyUI"), "user", "default",
+WF = os.path.join(host_root(), "user", "default",
                   "workflows", "MOSS 故事板宫格.json")
-OUT_DIR = os.path.join(os.environ.get("COMFYUI_PATH", "I:/ComfyUI"), "output")
+OUT_DIR = os.path.join(host_root(), "output")
 DOC = os.path.join(ROOT, "docs", "02-e2e-matrix.md")
 
 #: (用例名, 覆盖项)。4.* 全是 Layout 节点（几何权威），5.* 是采样器。

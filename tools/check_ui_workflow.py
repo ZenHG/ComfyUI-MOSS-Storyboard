@@ -14,10 +14,10 @@ import importlib.util
 import json
 import os
 import sys
+from _paths import host_root
 
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
-
+COMFY = host_root()
 #: 这些类型在画布上只以**输入槽**出现，不占 widgets_values 的位置。
 LINK_ONLY = {"MODEL", "CLIP", "VAE", "IMAGE", "LATENT", "CONDITIONING", "MASK", "SIGMAS"}
 

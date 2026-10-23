@@ -13,9 +13,10 @@
 import asyncio
 import os
 import sys
+from _paths import host_root
 
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMFY = os.environ.get("COMFYUI_PATH", "I:/ComfyUI")
+COMFY = host_root()
 TARGET = os.environ.get("MOSSSB_PATH", os.path.join(COMFY, "custom_nodes", "ComfyUI-MOSS-Storyboard"))
 
 EXPECT = {
