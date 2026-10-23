@@ -190,6 +190,7 @@ class MossStoryboardLayout:
     FUNCTION = "build"
     CATEGORY = CATEGORY
     DESCRIPTION = "算 3/4/6/8/9 宫格几何，生成 MOSS-Image 原生布局提示词与宫格模板图。"
+    SEARCH_ALIASES = ["storyboard", "grid", "宫格", "故事板", "分镜", "panel layout", "moss layout"]
 
     @_node_errors("panels", "panel_aspect", "panel_edge")
     def build(self, prompt, panels, panel_aspect, panel_edge, canvas_aspect, columns, rows,
@@ -316,7 +317,8 @@ class MossStoryboardSampler:
     RETURN_NAMES = ("grid", "panels", "latent", "spec", "prompt_used", "report")
     FUNCTION = "run"
     CATEGORY = CATEGORY
-    DESCRIPTION = "用 MOSS-Image 一步生成 3/4/6/8/9 宫格故事板，并输出逐格切片。"
+    DESCRIPTION = "用 MOSS-Image 一步生成 3/4/6/8/9 宫格故事板，并输出逐格切片。布局框为 MOSS 实验特性。"
+    SEARCH_ALIASES = ["storyboard", "grid", "宫格", "故事板", "分镜", "moss storyboard", "生成故事板"]
 
     @_node_errors("panels", "steps", "cfg", "denoise")
     def run(self, model, clip, vae, positive, negative, steps, cfg, sampler_name, scheduler,
@@ -324,6 +326,8 @@ class MossStoryboardSampler:
             canvas_aspect="auto", gutter=8, margin=8, init="auto", label="object",
             reborder=True, border_px=0, shave=0):
         from .core import sampling as S
+
+        S.probe_host_api()   # 宿主内核指纹：版本不匹配时给出"改了什么"，而不是 AttributeError
 
         if spec and str(spec).strip():
             lay = L.parse_spec(spec)
@@ -405,11 +409,12 @@ class MossStoryboardSampler:
 
 def _match_layout_to_image(lay, width, height):
     """解码尺寸与布局不一致时，按同一套比例重建几何（保持格数/列行）。"""
-    kw = dict(panels=lay.panels, cols=lay.cols, rows=lay.rows, gutter=lay.gutter,
-              margin=lay.margin, panel_w=max(64, (width - 2 * lay.margin
-                                                  - (lay.cols - 1) * lay.gutter) // lay.cols),
-              panel_h=max(64, (height - 2 * lay.margin
-                               - (lay.rows - 1) * lay.gutter) // lay.rows))
+    kw = {
+        "panels": lay.panels, "cols": lay.cols, "rows": lay.rows,
+        "gutter": lay.gutter, "margin": lay.margin,
+        "panel_w": max(64, (width - 2 * lay.margin - (lay.cols - 1) * lay.gutter) // lay.cols),
+        "panel_h": max(64, (height - 2 * lay.margin - (lay.rows - 1) * lay.gutter) // lay.rows),
+    }
     return L.build_layout(**kw)
 
 
@@ -464,6 +469,7 @@ class MossStoryboardCrop:
     FUNCTION = "run"
     CATEGORY = CATEGORY
     DESCRIPTION = "按 spec（或列/行）把宫格图精确切成逐格，附带裁切线预览。"
+    SEARCH_ALIASES = ["crop", "split", "裁格", "切图", "分格", "panel crop", "grid crop"]
 
     @_node_errors("columns", "rows", "shave")
     def run(self, image, target_aspect, padding_mode, resize_edge, shave,

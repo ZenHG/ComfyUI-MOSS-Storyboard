@@ -1,0 +1,56 @@
+name: Bug report
+description: 节点报错 / 尺寸不对 / 中英切换异常
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        报之前请先跑这三条，把结果贴上来——**没有这三条基本无法定位**：
+
+        ```
+        python tools/host_loader_check.py     # 宿主有没有真的加载本包
+        python tools/check_frontend.py        # 前端词表/接线是否一致
+        python tools/check_ui_workflow.py <你的工作流.json>
+        ```
+  - type: input
+    id: versions
+    attributes:
+      label: 版本
+      description: ComfyUI 版本（启动日志第一行）+ 本包版本（`[MOSS SB] v...` 那行）
+      placeholder: "ComfyUI 0.42.0 / MOSS SB 0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 出问题的部分
+      options:
+        - 生成（画面/布局不对）
+        - 尺寸（画布或格子尺寸与预期不符）
+        - 裁格（数量/顺序/边缘不对）
+        - 中英切换 / 悬浮提示
+        - 安装 / 加载
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象 + 复现步骤
+      description: 说清"预期什么 / 实际什么"。有 report 输出请原样贴进来。
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: 采样器 report 输出
+      description: ③ 生成节点的 `report` 输出（0.1.0 起会打印几何来源、单格尺寸、denoise 名义/实际）
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查
+      options:
+        - label: 我已确认 CLIPLoader 的 type 是 `moss_image`
+        - label: 我已确认 `denoise = 1.0`（低步数下大于 0.8 的降噪不生效）
+        - label: 我没有使用模板 img2img（`init=template/both` 在 MOSS 上实测无效）

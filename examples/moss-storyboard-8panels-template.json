@@ -36,8 +36,7 @@
    "widgets_values": [
     "moss_image_sft_bf16.safetensors",
     "default"
-   ],
-   "title": "Load MOSS-Image SFT (BF16)"
+   ]
   },
   {
    "id": 2,
@@ -72,8 +71,7 @@
     "qwen3.5_9b_int8_convrot.safetensors",
     "moss_image",
     "default"
-   ],
-   "title": "Load Qwen3.5 text encoder"
+   ]
   },
   {
    "id": 3,
@@ -106,8 +104,7 @@
    },
    "widgets_values": [
     "flux2-vae.safetensors"
-   ],
-   "title": "Load FLUX.2 VAE"
+   ]
   },
   {
    "id": 4,
@@ -286,8 +283,7 @@
     25,
     false,
     "object"
-   ],
-   "title": "宫格布局 8 格"
+   ]
   },
   {
    "id": 5,
@@ -544,8 +540,7 @@
     true,
     0,
     0
-   ],
-   "title": "MOSS 故事板（布局+模板）"
+   ]
   },
   {
    "id": 6,
@@ -587,8 +582,7 @@
    },
    "widgets_values": [
     "moss/storyboard_%date:yyyyMMddhhmmss%/%mode%/grid"
-   ],
-   "title": "存整张宫格"
+   ]
   },
   {
    "id": 7,
@@ -630,8 +624,7 @@
    },
    "widgets_values": [
     "moss/storyboard_%date:yyyyMMddhhmmss%/%mode%/panel"
-   ],
-   "title": "存逐格"
+   ]
   },
   {
    "id": 8,
@@ -660,8 +653,7 @@
     "cnr_id": "moss-storyboard",
     "ver": "0.1.0"
    },
-   "widgets_values": [],
-   "title": "宫格模板预览（确认格数与缝宽）"
+   "widgets_values": []
   }
  ],
  "links": [

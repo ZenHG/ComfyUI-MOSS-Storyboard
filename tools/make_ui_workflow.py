@@ -42,37 +42,20 @@ PROMPT = """[STYLE]: 单一故事板画布分割为严格对称网格，恰好 8
 
 NEGATIVE = "多余面板，错位拼贴，粗黑边框，跨格溢出，文字水印，畸变手指，塑料皮肤"
 
-NOTE = """## MOSS 故事板宫格 · 使用说明
+NOTE = """## 三步
+1. ② 改 `panels`（3/4/6/8/9），画布自动算。
+2. ③ 提示词**只填这里**：`[STYLE]` 一段 + `[PANEL 1]`…`[PANEL n]` 每格一段。
+3. 跑。产物 = 整张宫格 + 逐格。
 
-**① 模型**：三个 loader 已按 Moss 官方节点填好；LoRA 挂在 UNET 与采样器之间。
-　⚠ CLIPLoader 的 type 必须是 `moss_image`。写错不报错，只是画不对。
+## 三条不要动
+- ① `type` 必须是 `moss_image`。
+- ③ `steps=4`（配 4-step LoRA）、`denoise=1.0`。
+- ② 提示词留空 —— 它只算尺寸。
 
-**② 宫格几何**：只算尺寸与缝，**不填提示词**（prompt 留空是故意的）。
-　`panels` 选 3 / 4 / 6 / 8 / 9；`panel_aspect` 选 16:9 或 9:16。下方预览图就是模板。
+## 格数 → 画布（单格 16:9，长边 496）
+3=512×848　4=1024×576　6=1520×576　8=2032×576　9=1520×848
 
-**③ 生成**：故事板稿只填这里的 `positive`。
-　格式：开头一段全局描述，然后 `[PANEL 1]` … `[PANEL n]` 每格一段。
-　步数 **4**（配合 UNET 后的 4-step 蒸馏 LoRA）；种子已设 randomize。
-
-**格数 → 画布**（单格 16:9 / 长边 496，整图 0.4–1.3MP，在 MOSS 训练区间内）：
-
-| 格数 | 排法 | 画布 |
-|---|---|---|
-| 3 | 3 行 × 1 列 | 512 × 848 |
-| 4 | 2 × 2 | 1024 × 576 |
-| 6 | 2 行 × 3 列 | 1520 × 576 |
-| 8 | 2 行 × 4 列 | 2032 × 576 |
-| 9 | 3 行 × 3 列 | 1520 × 848 |
-
-**两件必须先知道的事**
-
-1. `denoise` 必须 1.0。4 步时 `int(4/denoise)=4`，任何 >0.8 的降噪都不会生效，
-   设了只是假象。report 会打印「名义 / 实际」。
-2. **别用模板 img2img**（`init=template/both`）：MOSS 没有原生 img2img，
-   三组参数实测只得到模板残影或纯黑。宫格线由节点在解码后按坐标复绘，不靠模型画。
-
-**先跑小样**：4 格约 0.59MP，单张 30 秒内出。
-**看 report**：③ 的 report 写清几何来源、单格尺寸、提示词对齐、denoise 实际值。"""
+模板 img2img 在 MOSS 上实测无效（残影或纯黑），已断开。宫格线由节点按坐标复绘。"""
 
 
 class NodeBuilder:
@@ -138,22 +121,22 @@ def build():
         nodes.append(b)
         return b
 
-    unet = N(1, "UNETLoader", (-1150, -100), (340, 82), "① MOSS-Image SFT (BF16)")
+    unet = N(1, "UNETLoader", (-1150, -100), (340, 82), "① MOSS-Image")
     unet.decl_inputs([("unet_name", "COMBO", True, "moss_image_sft_bf16.safetensors"),
                       ("weight_dtype", "COMBO", True, "default")])
     unet.decl_outputs([("MODEL", "MODEL")])
 
-    clip = N(2, "CLIPLoader", (-1150, -6), (340, 106), "① 文本编码器（type 必须 moss_image）")
+    clip = N(2, "CLIPLoader", (-1150, -6), (340, 106), "① 文本编码器")
     clip.decl_inputs([("clip_name", "COMBO", True, "qwen3.5_9b_int8_convrot.safetensors"),
                       ("type", "COMBO", True, "moss_image"),
                       ("device", "COMBO", True, "default")])
     clip.decl_outputs([("CLIP", "CLIP")])
 
-    vae = N(3, "VAELoader", (-1150, 120), (340, 58), "① FLUX.2 VAE")
+    vae = N(3, "VAELoader", (-1150, 120), (340, 58), "① VAE")
     vae.decl_inputs([("vae_name", "COMBO", True, "flux2-vae.safetensors")])
     vae.decl_outputs([("VAE", "VAE")])
 
-    lay = N(4, "MossStoryboardLayout", (-740, -100), (470, 620), "② 宫格几何（只算尺寸，不填提示词）")
+    lay = N(4, "MossStoryboardLayout", (-740, -100), (470, 620), None)
     lay.decl_inputs([
         ("prompt", "STRING", True, ""),          # 故意留空：提示词只填在 ③
         ("panels", "INT", True, 8),
@@ -172,7 +155,7 @@ def build():
                       ("spec", "STRING"), ("layout_json", "STRING"), ("template", "IMAGE"),
                       ("report", "STRING")])
 
-    smp = N(5, "MossStoryboardSampler", (-210, -100), (520, 800), "③ 故事板生成（提示词填这里）")
+    smp = N(5, "MossStoryboardSampler", (-210, -100), (520, 800), None)
     smp.decl_inputs([
         ("model", "MODEL", False, None),
         ("clip", "CLIP", False, None),
@@ -208,16 +191,16 @@ def build():
     seed_widget_i = sum(1 for n in smp.inputs[: seed_slot + 1] if "widget" in n)
     smp.widgets.insert(seed_widget_i, "fixed")
 
-    prev = N(6, "PreviewImage", (-740, 560), (470, 260), "② 模板预览（形状不对＝格数/比例不对）")
+    prev = N(6, "PreviewImage", (-740, 560), (470, 260), "模板预览")
     prev.decl_inputs([("images", "IMAGE", False, None)])
     prev.decl_outputs([])
 
-    save_grid = N(7, "SaveImage", (370, -100), (500, 620), "④ 存整张宫格")
+    save_grid = N(7, "SaveImage", (370, -100), (500, 620), "④ 存整张")
     save_grid.decl_inputs([("images", "IMAGE", False, None),
                            ("filename_prefix", "STRING", True, "moss/storyboard/grid")])
     save_grid.decl_outputs([("images", "IMAGE")])
 
-    save_pan = N(8, "SaveImage", (370, 560), (500, 620), "④ 存逐格（一台面板一张）")
+    save_pan = N(8, "SaveImage", (370, 560), (500, 620), "④ 存逐格")
     save_pan.decl_inputs([("images", "IMAGE", False, None),
                           ("filename_prefix", "STRING", True, "moss/storyboard/panel")])
     save_pan.decl_outputs([("images", "IMAGE")])
@@ -274,7 +257,7 @@ def build():
         "id": "moss-storyboard-grid",
         "revision": 0,
         "last_node_id": max(n.id for n in nodes),
-        "last_link_id": max((l[0] for l in links), default=0),
+        "last_link_id": max((lk[0] for lk in links), default=0),
         "nodes": [n.to_dict(order[n.id]) for n in nodes],
         "links": links,
         "groups": groups_json,

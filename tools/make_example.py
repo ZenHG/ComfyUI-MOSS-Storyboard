@@ -73,13 +73,13 @@ def build(mode):
     # ---- 模型三件套（对齐 Moss 官方节点工作流）----
     nodes.append(node(1, "UNETLoader", (-980, -120), (340, 82),
                       ["moss_image_sft_bf16.safetensors", "default"],
-                      outputs=[out("MODEL", "MODEL")], title="Load MOSS-Image SFT (BF16)", order=0))
+                      outputs=[out("MODEL", "MODEL")], title=None, order=0))
     nodes.append(node(2, "CLIPLoader", (-980, 20), (340, 106),
                       ["qwen3.5_9b_int8_convrot.safetensors", "moss_image", "default"],
-                      outputs=[out("CLIP", "CLIP")], title="Load Qwen3.5 text encoder", order=1))
+                      outputs=[out("CLIP", "CLIP")], title=None, order=1))
     nodes.append(node(3, "VAELoader", (-980, 170), (340, 58),
                       ["flux2-vae.safetensors"],
-                      outputs=[out("VAE", "VAE")], title="Load FLUX.2 VAE", order=2))
+                      outputs=[out("VAE", "VAE")], title=None, order=2))
 
     # ---- 布局节点 ----
     lay_inputs = [inp(n, t, widget=(n if t in ("INT", "FLOAT", "STRING", "BOOLEAN", "COMBO") else None))
@@ -93,7 +93,7 @@ def build(mode):
     ]
     nodes.append(node(4, "MossStoryboardLayout", (-560, -120), (420, 560),
                       [PROMPT, 8, "16:9", 512, "auto", 0, 0, 8, 8, 25, False, "object"],
-                      inputs=lay_inputs, outputs=lay_outputs, title="宫格布局 8 格", order=3))
+                      inputs=lay_inputs, outputs=lay_outputs, title=None, order=3))
 
     # ---- 采样器 ----
     denoise = 1.0 if mode == "layout" else 0.85
@@ -120,39 +120,42 @@ def build(mode):
                        8, "16:9", 512, "auto", 8, 8, init, "object", True, 0, 0]
     nodes.append(node(5, "MossStoryboardSampler", (-60, -120), (480, 700), sampler_widgets,
                       inputs=sampler_inputs, outputs=sampler_outputs,
-                      title="MOSS 故事板（%s）" % ("纯布局" if mode == "layout" else "布局+模板"), order=6))
+                      title=None, order=6))
 
     nodes.append(node(6, "SaveImage", (500, -120), (520, 620),
                       ["moss/storyboard_%date:yyyyMMddhhmmss%/%mode%/grid"],
                       inputs=[inp("images", "IMAGE"), inp("filename_prefix", "STRING")],
-                      outputs=[out("images", "IMAGE")], title="存整张宫格", order=8))
+                      outputs=[out("images", "IMAGE")], title=None, order=8))
     nodes.append(node(7, "SaveImage", (500, 540), (520, 620),
                       ["moss/storyboard_%date:yyyyMMddhhmmss%/%mode%/panel"],
                       inputs=[inp("images", "IMAGE"), inp("filename_prefix", "STRING")],
-                      outputs=[out("images", "IMAGE")], title="存逐格", order=8))
+                      outputs=[out("images", "IMAGE")], title=None, order=8))
     nodes.append(node(8, "PreviewImage", (1040, -120), (480, 360), [],
-                      inputs=[inp("images", "IMAGE")], title="宫格模板预览（确认格数与缝宽）", order=10))
+                      inputs=[inp("images", "IMAGE")], title=None, order=10))
 
     # ---- 连线 ----
     def set_links(nid, slot, lid_list):
         nodes[nid - 1]["outputs"][slot]["links"] = lid_list
 
-    # UNET → sampler.model
-    l = link(1, 0, 5, 0, "MODEL"); set_links(1, 0, [l]); nodes[4]["inputs"][0]["link"] = l
-    l = link(2, 0, 5, 1, "CLIP"); set_links(2, 0, [l]); nodes[4]["inputs"][1]["link"] = l
-    l = link(3, 0, 5, 2, "VAE"); set_links(3, 0, [l]); nodes[4]["inputs"][2]["link"] = l
-    # Layout.spec(4) → sampler.spec(5)
-    l = link(4, 4, 5, 5, "STRING"); set_links(4, 4, [l]); nodes[4]["inputs"][5]["link"] = l
-    # Layout.template(6) → PreviewImage(0)（模板永远预览；template 模式再分一路给采样器）
-    tpl_links = [link(4, 6, 8, 0, "IMAGE")]
-    nodes[7]["inputs"][0]["link"] = tpl_links[0]
+    def wire(src, sslot, dst_idx, dslot, typ, dst_node_idx):
+        """接一根线：登记到 links 表、源输出、目标输入三处（少一处宿主就丢线）。"""
+        lid = link(src, sslot, dst_idx, dslot, typ)
+        set_links(src, sslot, [lid])
+        nodes[dst_node_idx]["inputs"][dslot]["link"] = lid
+        return lid
+
+    # UNET → LoRA → sampler.model 由 wire 保证三处一致
+    wire(1, 0, 5, 0, "MODEL", 4)
+    wire(2, 0, 5, 1, "CLIP", 4)
+    wire(3, 0, 5, 2, "VAE", 4)
+    wire(4, 4, 5, 5, "STRING", 4)
+    # Layout.template → PreviewImage（template 模式再多一路给采样器）
+    tpl = [wire(4, 6, 8, 0, "IMAGE", 7)]
     if mode == "template":
-        l = link(4, 6, 5, 6, "IMAGE"); tpl_links.append(l); nodes[4]["inputs"][6]["link"] = l
-    set_links(4, 6, tpl_links)
-    # sampler.grid(0) → SaveImage1
-    l = link(5, 0, 6, 0, "IMAGE"); set_links(5, 0, [l]); nodes[5]["inputs"][0]["link"] = l
-    # sampler.panels(1) → SaveImage2
-    l = link(5, 1, 7, 0, "IMAGE"); set_links(5, 1, [l]); nodes[6]["inputs"][0]["link"] = l
+        tpl.append(wire(4, 6, 5, 6, "IMAGE", 4))
+    set_links(4, 6, tpl)
+    wire(5, 0, 6, 0, "IMAGE", 5)
+    wire(5, 1, 7, 0, "IMAGE", 6)
 
     return {
         "id": "moss-storyboard-%s" % mode,

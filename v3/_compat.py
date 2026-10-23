@@ -101,6 +101,8 @@ def schema_from_v1(v1_cls) -> io.Schema:
         description=getattr(v1_cls, "DESCRIPTION", "") or "",
         inputs=v1_inputs(v1_cls.INPUT_TYPES()),
         outputs=v1_outputs(v1_cls.RETURN_TYPES, v1_cls.RETURN_NAMES),
+        # 搜索别名：用户在节点搜索框里打 "故事板"/"storyboard" 才找得到本包
+        search_aliases=list(getattr(v1_cls, "SEARCH_ALIASES", []) or []),
     )
 
 
