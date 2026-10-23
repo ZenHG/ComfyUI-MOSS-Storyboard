@@ -43,7 +43,7 @@
 - One run produces a **single canvas** split into 3, 4, 6, 8 or 9 panels, plus each panel cropped out.
 - Write one line per panel (`[PANEL 1]` …); the node turns them into MOSS's native layout prompt so each panel knows what to draw.
 - Grid lines are redrawn by the node after generation — they never wobble or break.
-- Every node in this pack has a 中 / EN button; display-only, **your saved workflow is untouched**.
+- Every node in this pack has a Chinese / EN toggle; display-only, **your saved workflow is untouched**.
 - Ten panel ratios (16:9, 9:16, 1:1 and more); the canvas size is computed and 16-aligned for you.
 
 **Two limits in this version**

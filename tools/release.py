@@ -120,7 +120,7 @@ def pyproject() -> dict:
 
 
 def local_facts() -> dict:
-    """版本号**四处**（与 check_release_ready 的 S5 同一口径）+ 本地 HEAD。"""
+    """版本号**五处**（与 check_release_ready 的 S5 同一口径）+ 本地 HEAD。"""
     cfg = pyproject()
     pj, tk = cfg["project"], cfg["tool"]["comfy"]
     def _read(rel):
@@ -279,8 +279,8 @@ def preflight(f: dict):
     say("  ✅ 工作树干净")
     bad = {k: v for k, v in f["versions"].items() if v != f["version"]}
     if bad:
-        die("版本号不是**四处一致**（H1 口径）：pyproject=%s，不一致的：%s" % (f["version"], bad))
-    say("  ✅ 版本号四处一致：%s" % f["version"])
+        die("版本号不是**五处一致**（S5 口径）：pyproject=%s，不一致的：%s" % (f["version"], bad))
+    say("  ✅ 版本号五处一致：%s" % f["version"])
     say("  ✅ 发布目标：%s/%s" % (f["publisher"], f["name"]))
     # 门槛：全量回归由 CONTRIBUTING.md 的 8 条负责；这里只拦**发布面**最会翻车的两条。
     # ① 开源卫生：凭据 / 绝对路径 / 临时件 / 打包口径 / 版本五处 / 元数据占位 / 发布说明
