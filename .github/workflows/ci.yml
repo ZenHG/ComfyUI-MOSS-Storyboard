@@ -88,8 +88,7 @@ jobs:
     name: host load (informational)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # 见文件头「已知覆盖缺口 1」：先不阻塞合并
-    continue-on-error: true
+    # 见文件头「已知覆盖缺口 1」：不阻塞整体结论。逐步骤的例外见下。
     env:
       COMFYUI_PATH: ${{ github.workspace }}/comfyui
       MOSSSB_PATH: ${{ github.workspace }}
@@ -106,7 +105,14 @@ jobs:
         run: ln -s "$GITHUB_WORKSPACE" "$COMFYUI_PATH/custom_nodes/ComfyUI-MOSS-Storyboard"
       - name: 自加载 + 纯节点真跑
         run: python tools/smoke_nodes.py
-      - name: 走宿主 load_custom_node
+      # 🔴 CPU runner 上 ComfyUI 在 import 期就会断言 CUDA（`Torch not compiled with CUDA enabled`），
+      #    这一步在 CI 里**必然失败**，且与本包无关。用 **step 级** continue-on-error：
+      #    job 结论为绿，失败详情仍完整留在这一步的日志里。
+      #    本地等价检查（有 GPU 的机器）见 RELEASING.md §2。
+      - name: 走宿主 load_custom_node（CPU runner 上预期失败）
+        continue-on-error: true
         run: python tools/host_loader_check.py
-      - name: 工作流连线与槽位
+      # 同样要 import 宿主节点定义 ⇒ CPU runner 上可能同样触发 CUDA 断言。
+      - name: 工作流连线与槽位（CPU runner 上可能跳过）
+        continue-on-error: true
         run: python tools/check_ui_workflow.py examples/moss-storyboard-8panels-layout.json examples/moss-storyboard-8panels-template.json
