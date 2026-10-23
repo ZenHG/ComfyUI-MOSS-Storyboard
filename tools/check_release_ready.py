@@ -175,7 +175,7 @@ def s4_package(files: list[str]) -> None:
                     ".github/workflows/ci.yml", "CHANGES.md", "AGENTS.md"]
     must_keep = ["__init__.py", "nodes.py", "core/layout.py", "core/sampling.py",
                  "v3/_compat.py", "web/moss_sb_i18n.js", "pyproject.toml", "LICENSE",
-                 "README.md", "examples/MOSS 故事板宫格.json", "requirements.txt"]
+                 "README.md", "examples/moss-storyboard-4panels-ui.json", "requirements.txt"]
     bad_ex = [f for f in must_exclude if not ignored(f, rules)]
     bad_keep = [f for f in must_keep if ignored(f, rules)]
     check("开发件全部被排除", not bad_ex, "漏排：%s" % bad_ex[:5] if bad_ex else "")
@@ -185,10 +185,11 @@ def s4_package(files: list[str]) -> None:
     say("  包内 %d 个文件（受控 %d）" % (len(shipped), len(files)))
     leaked = [f for f in shipped if JUNK_RE.search(f)]
     check("包内无临时件", not leaked, "；".join(leaked[:4]))
-    # 中文文件名：Windows/macOS 没问题，但跨平台 zip 解包可能变乱码 ⇒ 只警告，不判红
+    # 🔴 中文文件名必须**判红**，不是警告：`comfy node pack` 按 latin-1 解路径，
+    #    中文名会被**静默跳过**（2026-10-23 实测：`examples/MOSS 故事板宫格.json` 没进包，
+    #    而 README 正叫用户去开它 ⇒ 用户装完找不到文件，两边都不报错）。
     cjk = [f for f in shipped if re.search(r"[\u4e00-\u9fff]", f)]
-    if cjk:
-        say("  [⚠] 包内有中文文件名（跨平台解包可能乱码，不影响功能）：%s" % cjk[:3])
+    check("包内路径全为 ASCII（中文名会被 registry 打包静默丢弃）", not cjk, "；".join(cjk[:5]))
 
 
 # --------------------------------------------------------------------------- S5 版本

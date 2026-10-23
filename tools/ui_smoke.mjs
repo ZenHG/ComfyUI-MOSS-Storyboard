@@ -98,7 +98,7 @@ try {
     // 载入**仓库里那份真实工作流**。⚠️ 不要手工拼最小图：真前端靠 `inputs[]` 与
     // widget 定义重建控件，字段不全时节点是空壳（widgets 为空、name 变成 UNKNOWN），
     // 于是"没有 label"这类断言会变成假红。
-    const wfPath = join(ROOT, "examples", "MOSS 故事板宫格.json");
+    const wfPath = join(ROOT, "examples", "moss-storyboard-4panels-ui.json");
     const wfJson = JSON.parse(readFileSync(wfPath, "utf8"));
     const loaded = await page.evaluate(async (wf) => {
         try { await globalThis.MOSS_SB_LANG.loadGraph(wf); return { ok: true }; }

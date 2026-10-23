@@ -10,7 +10,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.1.0** |
+| Version | **0.1.1** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*` |
@@ -110,7 +110,7 @@ Rainy-night cafe, one canvas divided into a strict grid of 4 panels, thin white 
 
 5. Run. Outputs: `grid` (the canvas) + `panels` (one image per panel).
 
-A ready-made graph is in `examples/MOSS 故事板宫格.json`.
+A ready-made graph is in `examples/moss-storyboard-4panels-ui.json`.
 
 ### Prompt rules (three, no more)
 
