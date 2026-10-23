@@ -160,6 +160,40 @@ applyLang(foreign, "en");
 check("6.18 外来节点：切英文也零改动", JSON.stringify(foreign) === snapshot);
 check("6.19 外来节点：不装枚举显示钩子", foreign.widgets[0].options.getOptionLabel === undefined);
 
+// ---- 6.5 多行文本框：标题是 placeholder，不是 label ----
+// 真机实证（前端 1.57.1）：`widget.label` 改成了「正面提示词」，界面上仍显示
+// `placeholder="positive"` —— DOM `<textarea>` 撑满整个控件，前端根本不画 label。
+// 只改 label 的写法对这两个框**永远无效**，所以这里锁住 placeholder。
+function fakeTa(init) {
+    let ph = init;
+    return {
+        tagName: "TEXTAREA",
+        getAttribute: (k) => (k === "placeholder" ? ph : null),
+        setAttribute: (k, v) => { if (k === "placeholder") ph = v; },
+    };
+}
+const mkText = (type, names) => ({
+    type,
+    title: type,
+    widgets: names.map((n) => ({ name: n, value: "", label: n, options: {}, element: fakeTa(n) })),
+});
+const phOf = (node, n) => node.widgets.find((w) => w.name === n).element.getAttribute("placeholder");
+
+const tn = mkText("MossStoryboardSampler", ["positive", "negative"]);
+applyLang(tn, "zh");
+check("6.20 中文：positive 的 placeholder 写成「正面提示词」",
+    phOf(tn, "positive") === "正面提示词", phOf(tn, "positive"));
+check("6.21 中文：negative 的 placeholder 写成「负面提示词」",
+    phOf(tn, "negative") === "负面提示词", phOf(tn, "negative"));
+applyLang(tn, "en");
+check("6.22 英文：placeholder 回滚成原名（不残留中文）",
+    phOf(tn, "positive") === "positive" && phOf(tn, "negative") === "negative",
+    phOf(tn, "positive") + "/" + phOf(tn, "negative"));
+
+const fta = mkText("KSampler", ["positive"]);
+applyLang(fta, "zh");
+check("6.23 外来节点的 placeholder 一个字节都不动", phOf(fta, "positive") === "positive");
+
 // ---- 7. 自定义标题在切换中存活 ----
 const custom = mkNode("MossStoryboardCrop", [], { title: "我自己的裁格" });
 applyLang(custom, "zh");

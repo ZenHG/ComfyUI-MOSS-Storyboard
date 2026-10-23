@@ -171,12 +171,24 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 |---|---|---|
 | 节点标题 | `web/moss_sb_i18n.js::NODES` | 后端 `NODE_DISPLAY_NAME_MAPPINGS` 存**英文**；中文由前端补。只换**前缀**，用户自定义标题与后缀一律保留 |
 | 参数标签 | `LABELS` | 只存中文；英文回落到 widget 原名（原名本身是英文） |
+| 多行文本框标题 | `LABELS` → `element.placeholder` | ⚠ **不是 `label`**。DOM `<textarea>` 撑满控件，前端不画 label（见下） |
 | 枚举显示 | `COMBOS` + `options.getOptionLabel` | **只改显示**，存档值不变；白名单外不翻 |
 | 悬浮提示 | `TIPS`（**只存 `en`**） | 中文唯一源是 `nodes.py` 的 `tooltip`；切中文时**一个字节都不写**，前端回落后端原文 |
 
+**多行文本框（提示词框）的标题是 `placeholder`，不是 `label`。**
+真机实证（前端 1.57.1）：`widget.label` 已写成「正面提示词」，界面上仍显示 `placeholder="positive"`，
+因为 DOM `<textarea class="comfy-multiline-input">` 的父容器是 `size-full`，把画布自绘的标题整个盖住了。
+所以这两个框必须**同时**写 `label` 与 `placeholder`；只写 label 的改法对它们永远无效。
+（`tests/test_i18n.mjs` 6.20–6.23 锁这条。）
+
+**负面提示词默认收在「高级」里**，不是忘了写。MOSS 实测配方是 `cfg=1.0`，而宿主在 cfg=1 时
+直接跳过负面分支（`comfy/samplers.py::sampling_function`：`if math.isclose(cond_scale, 1.0): uncond_ = None`），
+那段**不进计算图**。放在普通区只会让人以为"写了就生效"。
+要让它出现：展开节点上的「高级」；要让它生效：`cfg` 调到 >1。
+
 四条铁律（与 H 仓 `ComfyUI-H3-Latent-Relay` 同一套，每条对应一次事故）：
 
-1. **只改 `label` / `title` / `tooltip`，绝不改 `name`** —— `name` 是后端取参与序列化的依据。
+1. **只改 `label` / `title` / `tooltip` / `placeholder`，绝不改 `name`** —— `name` 是后端取参与序列化的依据。
 2. **绝不改 `widget.options.values`** —— 那是存档值（模型文件名、枚举值），翻了就是改图。
 3. **用户的自定义标题不许覆盖**，且只替换默认名前缀（与其它模块追加的提示共存）。
 4. **中文只写一份**（后端）。词表里多一份 `zh` 必然与后端漂开——历史上就是这样漂的。

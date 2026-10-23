@@ -222,6 +222,11 @@ function guard() {
                 if (!w) continue;
                 if (w.__mosssbWant !== undefined && w.label !== w.__mosssbWant) w.label = w.__mosssbWant;
                 if (w.__mosssbWantTip !== undefined && w.tooltip !== w.__mosssbWantTip) w.tooltip = w.__mosssbWantTip;
+                // 多行文本框的标题是 placeholder，被别的东西改了也要写回
+                if (w.__mosssbWantPh !== undefined
+                    && w.element && w.element.getAttribute("placeholder") !== w.__mosssbWantPh) {
+                    w.element.setAttribute("placeholder", w.__mosssbWantPh);
+                }
             }
         }
     } catch (e) { /* 这一轮跳过 */ }
