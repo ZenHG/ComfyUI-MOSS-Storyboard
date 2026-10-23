@@ -10,3 +10,4 @@ venv/
 .DS_Store
 Thumbs.db
 .commit-msg.txt
+.m*.txt
