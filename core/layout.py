@@ -104,7 +104,19 @@ def pick_grid(panels, pw, ph, gutter, margin, canvas_aspect="auto"):
 
     ok = [s for s in scored if (1.0 / MAX_CANVAS_RATIO) <= s[1] <= MAX_CANVAS_RATIO]
     pool = ok or scored
-    _, ar, rows, cols = pool[0]
+
+    # 🔴 近打平时按故事板惯例定序，而不是让 0.01 的差异决定排法。
+    # 反例：单格长边 512 → 6 格选 2行3列（2.58:1）；长边改 496 → 变成 3行2列（1.21:1）。
+    # 只因为两者对 16:9 的 log 距离是 0.37 vs 0.39 —— 用户只是把单格缩了 16px，
+    # 排法却从"横向条带"翻成"竖块"。所以：在最优值 0.08 个 log 单位内视为打平，
+    # 打平时横画幅优先"列更多"、竖画幅优先"行更多"。
+    best = pool[0][0]
+    near = [s for s in pool if s[0] <= best + 0.08]
+    if pw >= ph:
+        near.sort(key=lambda s: (-s[3], s[0]))
+    else:
+        near.sort(key=lambda s: (-s[2], s[0]))
+    _, ar, rows, cols = near[0]
     note = "按画布比例 %s 选 %dx%d（实际 %.2f:1）" % (tname, cols, rows, ar)
     if not ok:
         note += "；⚠ 全部候选都超出 %.0f:1，已退让" % MAX_CANVAS_RATIO

@@ -286,10 +286,12 @@ class MossStoryboardSampler:
                 "init": (_INIT_MODES, {
                     "default": "auto",
                     "tooltip": "【填什么】怎么锁布局：\n"
-                               "auto = 接了模板就用「布局+模板」，否则只用布局；\n"
-                               "layout = 只把面板描述转成布局框（单次纯生成，最干净）；\n"
-                               "template = 只用模板图做 img2img 起点（不写布局框，仿 Krea2 老流程）；\n"
-                               "both = 两者都上；plain = 原样送提示词，纯 txt2img。",
+                               "auto（默认）= 只把面板描述转成布局框，纯生成；\n"
+                               "layout = 同上，显式写法；\n"
+                               "template = 只用模板图做 img2img 起点（⚠ 实测无效：MOSS 无原生 img2img，"
+                               "会得到模板残影或纯黑）；\n"
+                               "both = 布局框 + 模板（⚠ 同上，模板那段无效）；\n"
+                               "plain = 原样送提示词，纯 txt2img，无布局框。",
                 }),
                 "label": (list(T.LABELS), {
                     "default": "object", "tooltip": "【进阶】布局框类型，同 Layout 节点。",
@@ -330,10 +332,13 @@ class MossStoryboardSampler:
             lay = _resolve_layout(panels, panel_aspect, panel_edge, canvas_aspect, gutter, margin)
             geom_src = "本节点参数"
 
+        notes = []
         mode = init
         if mode == "auto":
-            mode = "both" if template is not None else "layout"
-        notes = []
+            mode = "layout"          # 模板路线在 MOSS 上实测走不通（见 README §七），不设默认
+            if template is not None:
+                notes.append("模板已接线，但 init=auto 走纯布局：MOSS 无 img2img，"
+                             "实测模板路线会得到模板残影或纯黑（要试就显式选 template/both）")
 
         # ---- 提示词：layout / both 时转成布局 JSON ----
         if mode in ("layout", "both"):
@@ -356,6 +361,12 @@ class MossStoryboardSampler:
                 tpl = P.render_template(lay, cell_gray=25)
             if denoise > 0.999:
                 notes.append("⚠ denoise=1.0：模板被完全覆盖，等于没用（要模板效果请调 0.75–0.90）")
+            elif S.effective_denoise(steps, denoise) >= 1.0:
+                notes.append("⚠ 步数 %d 太小：int(%d/%.2f)=%d 没有截断 sigma ⇒ denoise 实际等于 1.0，"
+                             "模板完全没参与。要真 img2img 请把 denoise 降到 ≤%.2f，或把步数提到 ≥%d"
+                             % (steps, steps, denoise, int(steps / denoise),
+                                steps / (steps + 1.0), steps + 1))
+            notes.append("⚠ MOSS 无原生 img2img：实测模板路段会得到模板残影或纯黑（3 组步数/降噪都复现）")
             latent = S.encode_image(vae, tpl)
             notes.append("起点 = 模板 latent（denoise %.2f）" % denoise)
         else:
@@ -382,8 +393,9 @@ class MossStoryboardSampler:
             % (lay.panels, lay.cols, lay.rows, lay.width, lay.height, lay.megapixels),
             "单格 %d × %d，缝 %dpx，外边距 %dpx，对齐余量 右%d/下%d"
             % (lay.panel_w, lay.panel_h, lay.gutter, lay.margin, lay.pad_x, lay.pad_y),
-            "init=%s｜%d 步｜cfg %.2f｜%s/%s｜种子 %d"
-            % (mode, steps, cfg, sampler_name, scheduler, seed),
+            "init=%s｜%d 步｜cfg %.2f｜%s/%s｜种子 %d｜denoise 名义 %.2f / 实际 %.2f"
+            % (mode, steps, cfg, sampler_name, scheduler, seed, denoise,
+               S.effective_denoise(steps, denoise)),
             "输出：grid %s，panels %s" % (
                 "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
         ] + notes) + _mp_note(lay)

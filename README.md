@@ -107,17 +107,19 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 ## 五、宫格兼容方案
 
 格数是输入，**排法不是写死的**：先做整数分解，再按目标画布比例挑最接近的一档，
-极端比例（>4:1）优先排除。默认单格 16:9、长边 512、缝 8、外边距 8：
+极端比例（>4:1）优先排除；比例近打平时按故事板惯例优先「横条」（列 > 行）。
+下表是单格 16:9、长边 **496**（交付工作流的 1024 档）、缝 8、外边距 8：
 
-| 格数 | 单格 16:9 | 画布 | MP | 单格 9:16 | 画布 | MP |
+| 格数 | 单格 16:9 排法 | 画布 | MP | 单格 9:16 排法 | 画布 | MP |
 |---|---|---|---|---|---|---|
-| 3 | 3 行 × 1 列 | 528 × 896 | 0.47 | 1 行 × 3 列 | 896 × 528 | 0.47 |
-| 4 | 2 × 2 | 1056 × 608 | 0.64 | 2 × 2 | 608 × 1056 | 0.64 |
-| 6 | 2 行 × 3 列 | 1568 × 608 | 0.95 | 3 行 × 2 列 | 608 × 1568 | 0.95 |
-| 8 | 2 行 × 4 列 | 2096 × 608 | 1.27 | 4 行 × 2 列 | 608 × 2096 | 1.27 |
-| 9 | 3 × 3 | 1568 × 896 | 1.40 | 3 × 3 | 896 × 1568 | 1.40 |
+| 3 | 3 行 × 1 列 | 512 × 848 | 0.43 | 1 行 × 3 列 | 848 × 512 | 0.43 |
+| 4 | 2 行 × 2 列 | **1024 × 576** | 0.59 | 2 行 × 2 列 | 576 × 1024 | 0.59 |
+| 6 | 2 行 × 3 列 | 1520 × 576 | 0.88 | 3 行 × 2 列 | 576 × 1520 | 0.88 |
+| 8 | 2 行 × 4 列 | 2032 × 576 | 1.17 | 4 行 × 2 列 | 576 × 2032 | 1.17 |
+| 9 | 3 行 × 3 列 | 1520 × 848 | 1.29 | 3 行 × 3 列 | 848 × 1520 | 1.29 |
 
-（以上为 `make_layout` 实测输出，全部落在 MOSS 的 1–2MP 训练区间内。）
+（以上由 `make_layout` 实测输出，全部落在 MOSS 的 1–2MP 训练区间内。
+节点默认 `panel_edge=512`，4 格 → 1056×608；交付工作流用 496 是为了让 4 格正好 1024×576。）
 
 想强行换排法：把 `columns` 填成想要的列数（`rows` 留 0 自动补齐）。
 3 格默认是竖条，是因为横排 3×16:9 会让画布到 5.2:1 —— 超过 4:1 的容忍线；
@@ -161,46 +163,94 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 ---
 
-## 七、已知边界（读这一段再报 bug）
+## 七、中英双语与悬浮提示
 
-**已实测（有机器断言）**
-- 3/4/6/8/9 格的几何、16 对齐、缝宽恒定、裁格顺序 —— `tests/test_core.py` 282 项
-- 两条出口（V1/V3）都能注册、schema 入参名与顺序逐位一致、seed 控制槽一致 —— `tools/smoke_nodes.py` 25 项
-- 示例工作流的连线自洽与 widget 槽位 —— `tools/check_ui_workflow.py` 24 项
-- `Moss BF16 官方节点.json` 可正常出图（GG 实测）
+节点标题、参数标签、枚举显示、悬浮提示都随**宿主界面语言**切换，右下角有个「中 / EN」按钮可手动覆盖（存 localStorage）。
+
+| 层 | 谁负责 | 规则 |
+|---|---|---|
+| 节点标题 | `web/moss_sb_i18n.js::NODES` | 后端 `NODE_DISPLAY_NAME_MAPPINGS` 存**英文**；中文由前端补。只换**前缀**，用户自定义标题与后缀一律保留 |
+| 参数标签 | `LABELS` | 只存中文；英文回落到 widget 原名（原名本身是英文） |
+| 枚举显示 | `COMBOS` + `options.getOptionLabel` | **只改显示**，存档值不变；白名单外不翻 |
+| 悬浮提示 | `TIPS`（**只存 `en`**） | 中文唯一源是 `nodes.py` 的 `tooltip`；切中文时**一个字节都不写**，前端回落后端原文 |
+
+四条铁律（与 H 仓 `ComfyUI-H3-Latent-Relay` 同一套，每条对应一次事故）：
+
+1. **只改 `label` / `title` / `tooltip`，绝不改 `name`** —— `name` 是后端取参与序列化的依据。
+2. **绝不改 `widget.options.values`** —— 那是存档值（模型文件名、枚举值），翻了就是改图。
+3. **用户的自定义标题不许覆盖**，且只替换默认名前缀（与其它模块追加的提示共存）。
+4. **中文只写一份**（后端）。词表里多一份 `zh` 必然与后端漂开——历史上就是这样漂的。
+
+为什么中文提示要放在后端：`w.tooltip` 只是一次性覆盖，序列化只写 `widget.value`，
+所以提示翻不了图、分享出去也不污染别人的工作流 JSON。
+
+**抗覆盖**：装了界面汉化插件（ComfyUI-Chinese-Translation 等）时，它有守护轮询会按自己的
+词典把我们的 label/tooltip 改回中文。所以本包给每个改过的 widget 打内存标记
+（`__mosssbWant` / `__mosssbWantTip`），每 1.5 秒比对一次，不一致就写回。
+
+**没有前端也能用**：所有文案的后端版本是**英文**（`NODE_DISPLAY_NAME_MAPPINGS` +
+`DESCRIPTION`），JS 加载失败只是没有中文，不会出现空标题或报错。
+
+---
+
+## 八、已知边界（读这一段再报 bug）
+
+**已实测（有机器断言，证据见 `docs/02-e2e-matrix.md`）**
+
+| 项 | 结论 | 量 |
+|---|---|---|
+| 3/4/6/8/9 格 · 横竖屏 · 无缝 · 粗缝 · 小画布 · plain 路线 | 全部真跑成功，尺寸与理论值逐像素一致 | 15 次真跑 |
+| 宫格线 | 复绘后缝/外框为纯白（采样点 ≥235） | 每用例 |
+| 随机种子 | 同参数换种子 → 整图 md5 不同 | 2 次对照 |
+| 几何/提示词/像素 | 282 项断言 | 零 GPU |
+| 参数表 · 双出口 · 错误路径 · 依赖边界 · 仓库卫生 | 50 项断言 | 零 GPU |
+| 采样 API 契约（latent 必须是张量） | 18 项断言 | 零 GPU |
+| 宿主真加载 | `nodes.load_custom_node()` 注册出 3 个 node_id | 16 项 |
+
+**已实测为「不可用」（不要再用）**
+- 🔴 **模板 img2img 路线（`init=template` / `both`）在 MOSS 上不成立。**
+  三组独立复现：35 步 / denoise 0.85 → 纯黑；12 步 / 0.6 → 模板残影；4 步 / 0.5 → 模板残影。
+  只要 sigma 真截断（真 img2img），模型就不改动 latent 或直接崩成黑。这与官方
+  limitation「不直接以参考图条件化、不支持编辑」一致。**所以默认 `init=auto = 纯布局路线`**。
+- ⚠ **低步数下 `denoise` 会被静默吃掉**：宿主按 `int(steps/denoise)` 重算 sigma，
+  4 步时 `int(4/0.85)=4` ⇒ 一段都没截，等价 denoise=1.0。`report` 会打印
+  「denoise 名义 x / 实际 y」，以实际值为准。
 
 **未实测（本包不声称）**
-- **模板 img2img（`init=template` / `both`）在 MOSS 上的实际效果**。MOSS 无原生 img2img，
-  这是分布外用法。已知的是这条路线在 Krea2 上成立。
-- **布局框能否稳定换来"每格按要求构图"**。MOSS 的布局能力官方标为 *experimental*，
-  且本项目**没有做过成片评测**。建议先跑 4 格小样，再用 8/9 格。
-- 8 格以上每格有效像素只有 512×288，小字与细纹理最先崩——这是分辨率账，不是节点 bug。
+- 布局框能否**稳定**换来"每格按要求构图"：MOSS 的布局能力官方标 *experimental*，
+  本项目只验证了"能出、尺寸对、格子和描述大体对应"，**没有做成片评分**。
+- 8/9 格每格有效像素只有 496×272（交付档），小字与细纹理最先崩——这是分辨率账，不是节点 bug。
 
 **硬约束**
 - 画布与单格必须 16 的倍数（`Layout` 已强制；手改 spec 会被 `parse_spec` 拒绝）。
-- 整图 >2MP 会 warn，>4MP 会强 warn：MOSS 训练区间是 1–2MP，官方外推上限 ≈4MP。
-- 4.7MP（旧 Krea2 工作流的 4096×1152）在 MOSS 上属于外推区之外，本包不设为默认。
+- 整图 >2MP 会 warn，>4MP 会强 warn：MOSS 训练区间 1–2MP，官方外推上限 ≈4MP。
 
 ---
 
-## 八、机检四条命令
+## 九、机检七条命令
 
 ```bash
-python tests/test_core.py          # 几何/提示词/像素，零 GPU，282 项
-python tools/smoke_nodes.py        # 自加载：V1+V3 注册、schema、纯节点真跑，25 项
-python tools/check_ui_workflow.py  # 示例工作流连线 + widget 槽位，24 项
-python tools/host_loader_check.py  # 走宿主自己的 load_custom_node，16 项
+python tests/test_core.py              # 几何/提示词/像素，零 GPU，282 项
+python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表完整性，零 GPU，54 项
+python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，18 项
+node   tests/test_i18n.mjs             # 中英切换纯函数，46 项
+python tools/smoke_nodes.py            # 自加载 + 纯节点真跑，25 项
+python tools/host_loader_check.py      # 走宿主自己的 load_custom_node，16 项
+python tools/check_ui_workflow.py      # 工作流连线 + widget 槽位逐位值域
+python tools/e2e_matrix.py             # 端到端 15 次真跑（要 GPU + 模型）
 ```
 
-四条都应是「失败 0」。**不要用 `| tail -n` 看这些脚本**——退出码会被吃掉。
+全部应是「失败 0」。**不要用 `| tail -n` 看这些脚本**——退出码会被吃掉。
 
-第四条是**最关键的一条**：它调用 ComfyUI 启动时扫 `custom_nodes` 用的同一个函数
-`nodes.load_custom_node()`，再查 `nodes.NODE_CLASS_MAPPINGS` 里是否真的注册了三个 node_id。
-前三条只能证明"包能 import"，证明不了"宿主真的调你"。
+三条不可替代：
+- `host_loader_check.py` 调的是 ComfyUI 启动时扫 `custom_nodes` 的**同一个函数**，
+  查的是 `nodes.NODE_CLASS_MAPPINGS` ——「配置写对 ≠ 宿主调你」的唯一证据。
+- `e2e_matrix.py` 是唯一能证明"别人机器上也能出图且尺寸对"的东西；`--dry` 只能证明图能被提交。
+- `test_contract.py` 的「每个参数都有英文提示」那一项，是**新增参数忘了翻译**的唯一拦截点。
 
 ---
 
-## 九、目录结构
+## 十、目录结构
 
 ```
 ComfyUI-MOSS-Storyboard/
@@ -215,7 +265,11 @@ ComfyUI-MOSS-Storyboard/
 │   ├── _compat.py           全包唯一 import comfy_api 的地方
 │   ├── nodes_v3.py          三个空壳类 + NODES 清单
 │   └── entrypoint.py        comfy_entrypoint（逐节点 schema 预检）
+├── web/                     前端扩展（中英切换）
+│   ├── moss_sb_i18n.js      词表 + 纯函数（可 node 单测，零 DOM）
+│   └── moss_sb_i18n_ui.js   挂钩：读宿主语言 / 按钮 / 抗覆盖兜底
 ├── tests/test_core.py       零 GPU 回归
+├── tests/test_i18n.mjs      中英切换纯函数单测（node）
 ├── tools/                   smoke_nodes / check_ui_workflow / make_example
 ├── examples/                两个可直接载入的工作流
 ├── docs/01-layout-and-panels.md   几何数学、spec 格式、旧实现缺陷表
@@ -226,7 +280,7 @@ ComfyUI-MOSS-Storyboard/
 
 ---
 
-## 十、出处与许可
+## 十一、出处与许可
 
 - 本包代码 MIT。
 - 思路参考与代码归属说明见 `THIRD-PARTY-NOTICES.md`（**未复制**任何第三方代码）。
