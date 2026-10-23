@@ -14,3 +14,4 @@ Thumbs.db
 
 # 本机宿主路径（开发机专用，不进库）
 .comfyui_path
+.cm*.txt
