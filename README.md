@@ -183,15 +183,20 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 ---
 
-## 八、机检三条命令
+## 八、机检四条命令
 
 ```bash
 python tests/test_core.py          # 几何/提示词/像素，零 GPU，282 项
-python tools/smoke_nodes.py        # 真宿主：V1+V3 注册、schema、纯节点真跑，25 项
+python tools/smoke_nodes.py        # 自加载：V1+V3 注册、schema、纯节点真跑，25 项
 python tools/check_ui_workflow.py  # 示例工作流连线 + widget 槽位，24 项
+python tools/host_loader_check.py  # 走宿主自己的 load_custom_node，16 项
 ```
 
-三条都应是「失败 0」。**不要用 `| tail -n` 看这些脚本**——退出码会被吃掉。
+四条都应是「失败 0」。**不要用 `| tail -n` 看这些脚本**——退出码会被吃掉。
+
+第四条是**最关键的一条**：它调用 ComfyUI 启动时扫 `custom_nodes` 用的同一个函数
+`nodes.load_custom_node()`，再查 `nodes.NODE_CLASS_MAPPINGS` 里是否真的注册了三个 node_id。
+前三条只能证明"包能 import"，证明不了"宿主真的调你"。
 
 ---
 

@@ -13,7 +13,8 @@
 - `core/layout.py` / `core/prompt.py` / `core/pixels.py` / `core/sampling.py`
 - `v3/_compat.py`：V3 schema 由 `INPUT_TYPES()` 自动生成（参数表唯一真相源）
 - `examples/`：8 格布局路线与 8 格模板路线两个工作流
-- `tools/`：`smoke_nodes.py`（真宿主）、`check_ui_workflow.py`（连线 + widget 槽位）、`make_example.py`
+- `tools/`：`smoke_nodes.py`（自加载）、`check_ui_workflow.py`（连线 + widget 槽位）、
+  `make_example.py`（生成示例）、`host_loader_check.py`（走宿主 `load_custom_node`，16 项）
 
 ### 两个不显眼但会咬人的点（已修，写下防回归）
 - **V1/V3 槽位差一格**：V1 下前端自动给 `seed` 加"生成后控制"下拉，V3 下不声明就没有 ⇒

@@ -26,12 +26,14 @@
 
 ```bash
 python tests/test_core.py           # 几何/提示词/像素（零 GPU）
-python tools/smoke_nodes.py         # 真宿主：注册 + schema + 纯节点真跑
+python tools/smoke_nodes.py         # 自加载：注册 + schema + 纯节点真跑
 python tools/make_example.py        # 改了参数表就重生成示例（槽位会变）
 python tools/check_ui_workflow.py   # 示例连线与 widget 槽位
+python tools/host_loader_check.py   # 走宿主 load_custom_node —— "宿主真的调你"的唯一证据
 ```
 
-四条都必须「失败 0」。**改了 `INPUT_TYPES()` 必须跑后两条**，否则示例会静默错位。
+五条都必须「失败 0」。**改了 `INPUT_TYPES()` 必须跑中间两条**，否则示例会静默错位。
+**任何"部署完就好"的结论必须由最后一条背书**：它查的是 `nodes.NODE_CLASS_MAPPINGS`。
 
 ## 四、命令速查
 
