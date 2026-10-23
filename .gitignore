@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.so
+dist/
+build/
+.venv/
+venv/
+*.log
+.comfy_registry_token
+.DS_Store
+Thumbs.db

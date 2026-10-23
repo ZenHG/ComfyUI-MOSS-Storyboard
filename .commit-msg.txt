@@ -1,0 +1,25 @@
+feat(0.1.0): MOSS-Image 故事板宫格节点包首版
+
+为什么：Krea2 故事板工作流的机制（模板图 img2img 锁布局）可以复用到 Moss，
+但文本编码器 type / VAE / latent 通道 / 画布 16 对齐 / 采样参数五处必须换，
+且旧裁切实现有「3 列画布必崩」等 11 项已复现缺陷。
+
+机理：
+- 几何唯一真相源 = core/layout.Layout。格数先做整数分解，再按目标画布比例打分选排法
+  （4:1 容忍线），单格长边/短边对齐 16，对齐余量只加右/下外边距，不污染格坐标。
+- 语义 = MOSS 原生 JSON 布局框（abs_centralized / yxyx），与宿主
+  comfy_extras/nodes_moss_image.py::MOSSImageLayoutPrompt 输出同格式；模板图仅作可选先验。
+- 确定性 = 解码后按同一 Layout 复绘宫格线并精确裁格，不依赖模型发挥。
+- V3 schema 由 INPUT_TYPES 自动生成；seed 显式补 control_after_generate，
+  避免 V1/V3 两条出口 widgets_values 差一个槽后整体错位。
+
+清单：
+- core/layout.py 宫格几何与 spec 编解码；core/prompt.py 段落拆分与布局 JSON
+- core/pixels.py 模板渲染/边框复绘/精确裁格/校准预览；core/sampling.py 宿主采样封装
+- nodes.py 三节点（Layout / Sampler / Crop）+ _node_errors 异常上下文
+- v3/_compat.py schema 生成；v3/nodes_v3.py 空壳清单；v3/entrypoint.py 逐节点预检
+- tests/test_core.py 零 GPU 回归；tools/smoke_nodes.py 真宿主冒烟；
+  tools/check_ui_workflow.py 连线与 widget 槽位机检；tools/make_example.py 生成示例
+- examples/ 两个工作流（纯布局 / 布局+模板）；docs/01-layout-and-panels.md 几何与缺陷表
+
+计数：test_core 282/0 ｜ smoke_nodes 25/0 ｜ check_ui_workflow 24/0
