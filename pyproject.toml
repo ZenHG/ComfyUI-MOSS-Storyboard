@@ -50,7 +50,9 @@ ignore = [
 #    但 CLIPLoader 里没有 moss_image 类型 ⇒ 节点照常出现、**提示词编码静默错**。
 [tool.comfy]
 requires-comfyui = ">=0.42.0"
-PublisherId = "TODO-set-before-publish"
+# PublisherId：在 registry.comfy.org 注册发布者后获得（全局唯一、**发布后不可更改**）。
+# 与同账号的 ComfyUI-H3-Latent-Relay 同一个发布者。
+PublisherId = "zenhg"
 DisplayName = "MOSS Storyboard"
 # 与画布节点分类同名，Manager 卡片与菜单一致。
 # Icon / Banner 需公网可取；首次发布前把 400×400 方图与 21:9 横幅推到 main 再填 raw 直链。
