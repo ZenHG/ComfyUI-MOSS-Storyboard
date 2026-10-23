@@ -26,8 +26,8 @@
 - `tools/smoke_nodes.py` 25 项 / `tools/host_loader_check.py` 16 项 / `tools/check_ui_workflow.py` 15 项/文件
 - `tools/e2e_matrix.py` 14 用例真跑：3/4/6/8/9 格、横竖屏、无缝、粗缝、1 格、edge=256、plain
 
-### 已实测为「不可用」（详见 README §八）
-- **模板 img2img 在 MOSS 上不成立**：35步/0.85 纯黑、12步/0.6 与 4步/0.5 均模板残影
+### 0.1.0 实测结论（详见 README §八）
+- **模板 img2img 在 MOSS 上未生效**（下一版会重做并复测）：35步/0.85 纯黑、12步/0.6 与 4步/0.5 均模板残影
   ⇒ 只要 sigma 真截断，模型就不改动 latent。默认改纯布局路线。
 - **低步数 denoise 静默失效**：宿主按 `int(steps/denoise)` 重算 sigma，4 步时 >0.8 一段都不截；
   `report` 现在打印「名义 / 实际」。

@@ -289,9 +289,8 @@ class MossStoryboardSampler:
                     "tooltip": "【填什么】怎么锁布局：\n"
                                "auto（默认）= 只把面板描述转成布局框，纯生成；\n"
                                "layout = 同上，显式写法；\n"
-                               "template = 只用模板图做 img2img 起点（⚠ 实测无效：MOSS 无原生 img2img，"
-                               "会得到模板残影或纯黑）；\n"
-                               "both = 布局框 + 模板（⚠ 同上，模板那段无效）；\n"
+                               "template = 只用模板图做 img2img 起点（⚠ 本版实测重绘不生效，会得到模板残影或纯黑；后续版本会再验证）；\n"
+                               "both = 布局框 + 模板（⚠ 同上，模板那段本版无效）；\n"
                                "plain = 原样送提示词，纯 txt2img，无布局框。",
                 }),
                 "label": (list(T.LABELS), {
@@ -370,7 +369,7 @@ class MossStoryboardSampler:
                              "模板完全没参与。要真 img2img 请把 denoise 降到 ≤%.2f，或把步数提到 ≥%d"
                              % (steps, steps, denoise, int(steps / denoise),
                                 steps / (steps + 1.0), steps + 1))
-            notes.append("⚠ MOSS 无原生 img2img：实测模板路段会得到模板残影或纯黑（3 组步数/降噪都复现）")
+            notes.append("⚠ 本版实测：模板初始化得不到有效重绘（残影或纯黑）；后续版本会再验证")
             latent = S.encode_image(vae, tpl)
             notes.append("起点 = 模板 latent（denoise %.2f）" % denoise)
         else:

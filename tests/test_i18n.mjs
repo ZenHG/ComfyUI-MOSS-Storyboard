@@ -84,7 +84,8 @@ check("3.6 未知类型 ⇒ 原样返回", swapTitle("x", "NotMyNode", "zh") ===
 check("3.7 isDefaultTitle 判定正确",
     isDefaultTitle(NODES[T].en, T) && isDefaultTitle(NODES[T].zh, T)
     && isDefaultTitle("", T) && !isDefaultTitle("自定义", T));
-check("3.8 defaultTitles 返回两种语言", defaultTitles(T).length === 2);
+check("3.8 defaultTitles 含 中/英/后端显示名 三种", defaultTitles(T).length === 3,
+    JSON.stringify(defaultTitles(T)));
 
 // ---- 4. 枚举显示 ----
 check("4.1 白名单内 ⇒ 中文", comboLabel("init", "layout", "zh") === COMBOS.init.layout);
@@ -139,6 +140,25 @@ check("6.14 zh：存档值仍是英文原值", node.widgets[2].value === "layout
 check("6.15 zh 后 name/value 依旧未变",
     JSON.stringify(node.widgets.map((w) => w.name)) === JSON.stringify(namesBefore)
     && JSON.stringify(node.widgets.map((w) => w.value)) === JSON.stringify(valuesBefore));
+
+// ---- 6.5 外来节点：一个字节都不许动（官方 / 别人的节点）----
+const foreign = {
+    type: "KSampler",
+    title: "KSampler",
+    widgets: [
+        { name: "steps", value: 20, label: "Steps（别人家的标签）", options: { values: [] }, tooltip: "own tip" },
+        { name: "cfg", value: 8, label: "CFG", options: { values: [] } },
+        { name: "seed", value: 1, label: "Seed", options: { values: [] } },
+    ],
+};
+const snapshot = JSON.stringify(foreign);
+const rF = applyLang(foreign, "zh");
+check("6.16 外来节点：applyLang 零改动",
+    rF.title === false && rF.labels === 0 && rF.combos === 0 && rF.tips === 0, JSON.stringify(rF));
+check("6.17 外来节点：标题/label/tooltip 全部原样", JSON.stringify(foreign) === snapshot);
+applyLang(foreign, "en");
+check("6.18 外来节点：切英文也零改动", JSON.stringify(foreign) === snapshot);
+check("6.19 外来节点：不装枚举显示钩子", foreign.widgets[0].options.getOptionLabel === undefined);
 
 // ---- 7. 自定义标题在切换中存活 ----
 const custom = mkNode("MossStoryboardCrop", [], { title: "我自己的裁格" });

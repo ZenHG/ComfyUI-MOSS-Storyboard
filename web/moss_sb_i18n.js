@@ -51,16 +51,41 @@ export function defaultLang(readHostLang) {
 // 后端 `NODE_DISPLAY_NAME_MAPPINGS` 存**英文**（无 JS 时英文用户看到英文）；
 // 这里补中文，切换时只换标题前缀。
 // ---------------------------------------------------------------------------
+// `legacy` = 后端 `NODE_DISPLAY_NAME_MAPPINGS` 里的名字（没有图标）。
+// 老工作流里节点标题就是它 —— 不把它算进"默认名"，就会被当成**用户自定义标题**，
+// 中英切换对这类节点永久失效（2026-10-23 真机踩到）。
 export const NODES = {
-    MossStoryboardLayout: { zh: "🎬 故事板 · 宫格几何", en: "🎬 Storyboard · Grid Layout" },
-    MossStoryboardSampler: { zh: "🎬 故事板 · 生成", en: "🎬 Storyboard · Generate" },
-    MossStoryboardCrop: { zh: "🎬 故事板 · 裁格", en: "🎬 Storyboard · Split Panels" },
+    MossStoryboardLayout: {
+        zh: "🎬 故事板 · 宫格几何", en: "🎬 Storyboard · Grid Layout",
+        legacy: "MOSS Storyboard Layout",
+    },
+    MossStoryboardSampler: {
+        zh: "🎬 故事板 · 生成", en: "🎬 Storyboard · Generate",
+        legacy: "MOSS Storyboard Sampler",
+    },
+    MossStoryboardCrop: {
+        zh: "🎬 故事板 · 裁格", en: "🎬 Storyboard · Split Panels",
+        legacy: "MOSS Storyboard Crop",
+    },
 };
 
 // ---------------------------------------------------------------------------
 // 词表 2 · 参数标签（只存中文；英文回落到 widget 原名，原名本身已是英文）
 // 键是**参数名**（三节点共用，同名参数语义相同才放进来）
 // ---------------------------------------------------------------------------
+/** 英文界面下比原名更好读的少数几个（其余英文直接用原名）。 */
+export const LABELS_EN = {
+    control_after_generate: "after generate",
+    panel_edge: "panel long edge",
+    cell_gray: "template gray",
+    border_px: "line width",
+    show_guides: "show crop lines",
+    resize_edge: "output long edge",
+    spec: "geometry spec",
+    target_aspect: "target aspect",
+    padding_mode: "padding mode",
+};
+
 export const LABELS = {
     prompt: "提示词（留空）",
     panels: "格数",
@@ -96,6 +121,7 @@ export const LABELS = {
     padding_mode: "填充方式",
     resize_edge: "输出长边",
     show_guides: "显示裁切线",
+    control_after_generate: "生成后",
 };
 
 // ---------------------------------------------------------------------------
@@ -115,6 +141,12 @@ export const COMBOS = {
     padding_mode: { crop: "中心裁切", pad: "补黑边" },
     panel_aspect: { "1:1": "1:1 方形" },
     weight_dtype: { default: "默认" },
+    // 布尔在 V3 里常渲染成 true/false 下拉 ⇒ 也要翻，否则界面上就是裸 true/false
+    invert: { true: "开", false: "关" },
+    reborder: { true: "开", false: "关" },
+    show_guides: { true: "开", false: "关" },
+    // 种子下面那一栏（生成后控制）：值是 fixed/increment/decrement/randomize
+    control_after_generate: { fixed: "固定", increment: "递增", decrement: "递减", randomize: "随机" },
 };
 
 // ---------------------------------------------------------------------------
@@ -269,7 +301,8 @@ export const TIPS = {
 /** 该 class_type 的两种语言默认标题。 */
 export function defaultTitles(type) {
     const c = NODES[String(type || "")];
-    return c ? [c.zh, c.en] : [];
+    if (!c) return [];
+    return [c.zh, c.en, c.legacy].filter(Boolean);
 }
 
 /** 标题当前是否仍是默认名（空标题按默认处理）。 */
@@ -339,6 +372,10 @@ export function tipFor(type, widgetName, lang) {
 export function applyLang(node, lang) {
     const out = { title: false, labels: 0, combos: 0, tips: 0 };
     if (!node) return out;
+    // 🔴 **只处理本包节点**。外来节点（官方 / 别人的）一个字节都不许动：
+    //    同名参数（steps/cfg/seed…）在别人那里语义不同，改了 label 就是篡改别人的界面。
+    //    这条不写在调用方，是因为调用方可能漏判（`nodeCreated` 对所有节点都触发）。
+    if (!NODES[String(node.type || "")]) return out;
     const L = normLang(lang);
 
     try {
@@ -350,9 +387,9 @@ export function applyLang(node, lang) {
         const name = w && w.name;
         if (!name) continue;
 
-        // 标签：中文取词表，英文回落 widget 原名（原名已是英文）
+        // 标签：中文取 LABELS；英文优先 LABELS_EN，再回落 widget 原名
         const zh = LABELS[name];
-        const want = L === "zh" && zh ? zh : name;
+        const want = L === "zh" ? (zh || name) : (LABELS_EN[name] || name);
         if (w.label !== want) { w.label = want; out.labels += 1; }
         // 归属标记：界面汉化插件会按自己的词典改回中文，这行让兜底轮询能识别并写回。
         // ⚠ 只是内存标记，序列化只写 value ⇒ 不落进工作流 JSON。

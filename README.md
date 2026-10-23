@@ -188,6 +188,23 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 词典把我们的 label/tooltip 改回中文。所以本包给每个改过的 widget 打内存标记
 （`__mosssbWant` / `__mosssbWantTip`），每 1.5 秒比对一次，不一致就写回。
 
+**两个切换入口**（任一改动，另一处立即跟随）：
+
+1. **设置面板**（主入口）：`Settings` → `MOSS Storyboard · 节点语言 / Node language` → 跟随界面 / 中文 / English。
+2. **右下角悬浮按钮**：`中` ↔ `EN`，z-index 已压过画布浮层。
+
+**看不到入口时先看控制台**（这两行能区分"没加载"和"看不见"）：
+
+```
+[MOSS SB] i18n: 模块已加载（v0.1.0）
+[MOSS SB] i18n: 就绪（lang=zh，设置项=有，节点=3）
+```
+
+只有第一行没有第二行 ⇒ `setup()` 抛错（控制台会有 `setup 异常` 与堆栈）。
+两行都没有 ⇒ 前端扩展没被加载，查 `curl -s http://127.0.0.1:8188/extensions | grep MOSS-Storyboard`。
+两行都有但看不到按钮 ⇒ 在控制台敲 `MOSS_SB_LANG.where()`，返回 `button: true` 说明是遮挡问题，
+`button: false` 说明挂载失败（会有 `按钮挂载失败` 警告）。
+
 **没有前端也能用**：所有文案的后端版本是**英文**（`NODE_DISPLAY_NAME_MAPPINGS` +
 `DESCRIPTION`），JS 加载失败只是没有中文，不会出现空标题或报错。
 
@@ -207,7 +224,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 | 采样 API 契约（latent 必须是张量） | 18 项断言 | 零 GPU |
 | 宿主真加载 | `nodes.load_custom_node()` 注册出 3 个 node_id | 16 项 |
 
-**已实测为「不可用」（不要再用）**
+**0.1.0 实测：模板 img2img 路线不生效（后续版本会再验证）**
 - 🔴 **模板 img2img 路线（`init=template` / `both`）在 MOSS 上不成立。**
   三组独立复现：35 步 / denoise 0.85 → 纯黑；12 步 / 0.6 → 模板残影；4 步 / 0.5 → 模板残影。
   只要 sigma 真截断（真 img2img），模型就不改动 latent 或直接崩成黑。这与官方
@@ -238,6 +255,9 @@ python tools/smoke_nodes.py            # 自加载 + 纯节点真跑，25 项
 python tools/host_loader_check.py      # 走宿主自己的 load_custom_node，16 项
 python tools/check_ui_workflow.py      # 工作流连线 + widget 槽位（15 项/文件）
 python tools/check_frontend.py         # 前端词表纯净度/语法/接线/标题可换语言
+
+# 可选诊断（**不作为闸**）：本机无头浏览器没有 WebGL，画布渲染不全，结果仅供参考
+node   tools/ui_smoke.mjs
 python tools/e2e_matrix.py             # 端到端 15 次真跑（要 GPU + 模型）
 ```
 

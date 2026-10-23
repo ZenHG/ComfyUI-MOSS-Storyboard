@@ -3,22 +3,33 @@
 // 第三方出处与许可见 THIRD-PARTY-NOTICES.md
 //
 // MOSS Storyboard · 画布侧中英切换 —— **挂钩层**（DOM / litegraph）
-// 纯逻辑全在 `moss_sb_i18n.js`（可 node 单测）。这里只做四件事：
-//   ① 读宿主语言 ② 把语言灌到画布上的本包节点 ③ 放一个 中/EN 按钮 ④ 抗覆盖兜底
 //
-// 🔴 三条纪律：
-//   1. **任何异常都不许掀画布** —— 全部 try/catch，失败就是"没翻译"，不是"打不开"。
-//   2. `app.extensionManager` 在模块顶层还不存在 ⇒ 只能在 `setup()` 之后读。
-//   3. 界面汉化插件（ComfyUI-Chinese-Translation 等）有守护轮询，会按它自己的词典
-//      把我们的 label/tooltip 改回中文 ⇒ 兜底轮询按 `__mosssbWant` 比对后写回。
+// 结构照 H 仓 `ComfyUI-H3-Latent-Relay/web/relay_kit_i18n_ui.js`：
+//   · 「中/EN」按钮做成**节点内的 DOM 组件**（`node.addDOMWidget`），不挂页面浮层
+//     —— 浮层容易被画布/侧栏挡住，用户也不知道去哪找；
+//   · 按钮文字走 **CSS 伪元素**，不用 `textContent`：界面汉化插件按 DOM 文本翻译，
+//     会把 "EN" 翻成「英语」，连 `translate="no"` 都不一定认；CSS `content` 不是 textNode，
+//     翻译插件碰不到（H 仓 2026-10-06 真机实测）；
+//   · 默认**跟随宿主语言**，用户点按钮才写 localStorage 覆盖；`.clear()` 可清掉覆盖。
+//
+// 🔴 启动不依赖 `setup()` 生命周期。实测（前端 1.57.1）模块能执行、`registerExtension`
+//    也调了，但 `setup()` 没被调用 ⇒ 按钮永不出现。所以模块自己轮询到
+//    `document.body` + `app.graph` 就启动；`setup` / `nodeCreated` 只作加速与兜底。
+//
+// 🔴 任何异常都不许掀画布：全部 try/catch，失败只是"没翻译"。
 
 import { app } from "../../scripts/app.js";
 import {
-    LANG_EVENT, LANG_KEY, NODES, applyLang, defaultLang, loadLang, normLang, ownNodes, saveLang,
+    LANG_EVENT, LANG_KEY, NODES, applyLang, defaultLang, normLang, ownNodes,
 } from "./moss_sb_i18n.js";
 
-let lang = "en";
+const TAG = "[MOSS SB] i18n";
+const BTN_CLASS = "mosssb-i18n-btn";
+const STYLE_ID = "mosssb-i18n-btn-style";
+
+let _lang = null;
 let booted = false;
+let tries = 0;
 
 /** 读宿主界面语言：先 `<html lang>`，再退 `Comfy.Locale`。 */
 function readHostLang() {
@@ -32,90 +43,246 @@ function readHostLang() {
     return "";
 }
 
-/** 把当前语言应用到画布上所有本包节点（幂等）。 */
+function readStored() {
+    try { return globalThis.localStorage?.getItem(LANG_KEY) || ""; } catch (e) { return ""; }
+}
+
+/** 当前语言：有覆盖层用它，否则跟随宿主。 */
+export function currentLang() {
+    if (_lang == null) _lang = normLang(readStored() || defaultLang(readHostLang));
+    return _lang;
+}
+
+/** 写覆盖层 + 应用 + 广播。**不动宿主 `Comfy.Locale`**。 */
+export function setLang(v) {
+    const L = normLang(v);
+    _lang = L;
+    try { globalThis.localStorage?.setItem(LANG_KEY, L); } catch (e) { /* 隐私模式 */ }
+    applyAll();
+    paintAll();
+    try { window.dispatchEvent(new CustomEvent(LANG_EVENT, { detail: { lang: L } })); } catch (e) { /* 老浏览器 */ }
+    console.info("%s: lang -> %s", TAG, L);
+    return L;
+}
+
+/** 清掉覆盖层 ⇒ 回到"跟随宿主语言"（排障用）。 */
+export function clearLangOverride() {
+    _lang = null;
+    try { globalThis.localStorage?.removeItem(LANG_KEY); } catch (e) { /* 隐私模式 */ }
+    applyAll();
+    paintAll();
+    try { window.dispatchEvent(new CustomEvent(LANG_EVENT, { detail: { lang: currentLang() } })); } catch (e) { /* 老浏览器 */ }
+    return currentLang();
+}
+
+export function toggleLang() {
+    return setLang(currentLang() === "zh" ? "en" : "zh");
+}
+
 function applyAll() {
     let n = 0;
     try {
         for (const node of ownNodes(app?.graph?._nodes)) {
-            try { applyLang(node, lang); n += 1; } catch (e) { /* 单节点失败不影响其它 */ }
+            try { applyLang(node, currentLang()); n += 1; } catch (e) { /* 单节点失败不影响其它 */ }
         }
         if (n) app?.canvas?.setDirty(true, true);
     } catch (e) { /* 画布还没就绪 */ }
     return n;
 }
 
-function setLang(next) {
-    lang = normLang(next);
-    saveLang(lang);
-    applyAll();
-    try { window.dispatchEvent(new CustomEvent(LANG_EVENT, { detail: { lang } })); } catch (e) { /* 无 window */ }
+// ---------------------------------------------------------------------------
+// 按钮：节点内 DOM 组件
+// ---------------------------------------------------------------------------
+function ensureStyle() {
+    try {
+        if (document.getElementById(STYLE_ID)) return;
+        const st = document.createElement("style");
+        st.id = STYLE_ID;
+        // 「中」写成 \4e2d 转义：样式表与界面语言无关，英文界面下也稳定
+        st.textContent = `.${BTN_CLASS}::before{content:'EN'}`
+            + `.${BTN_CLASS}.zh::before{content:'\\4e2d'}`;
+        (document.head || document.documentElement).appendChild(st);
+    } catch (e) { /* 注入失败 ⇒ 按钮无字但功能不受影响 */ }
 }
 
-/** 抗覆盖：把被第三方插件改掉的本包 label/tooltip 写回（只认自己打过标记的）。 */
+function paintBtn(btn) {
+    if (!btn) return;
+    const zh = currentLang() === "zh";
+    try { btn.classList.toggle("zh", zh); } catch (e) { /* 类名都设不了就算了 */ }
+    btn.style.background = zh ? "#2d6cdf" : "#c0392b";
+    btn.title = zh
+        ? "MOSS 故事板：切换到 English（只改本包节点，不改宿主语言）"
+        : "MOSS Storyboard: switch to 中文 (this package's nodes only)";
+}
+
+const _BTNS = new Set();
+
+function paintAll() {
+    for (const b of Array.from(_BTNS)) paintBtn(b);
+}
+
+function makeBtn() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    // 标准"不要翻译我"标记：多数汉化插件认这两个
+    btn.setAttribute("translate", "no");
+    btn.classList.add("notranslate", BTN_CLASS);
+    ensureStyle();
+    btn.style.cssText = "color:#fff;border:1px solid rgba(0,0,0,.35);border-radius:4px;"
+        + "width:36px;height:22px;font-size:12px;font-weight:bold;cursor:pointer;"
+        + "display:flex;align-items:center;justify-content:center;padding:0;margin:0;"
+        + "flex:0 0 auto;user-select:none;transition:filter .15s;";
+    btn.onmouseenter = () => (btn.style.filter = "brightness(1.2)");
+    btn.onmouseleave = () => (btn.style.filter = "none");
+    btn.onclick = (e) => { e.stopPropagation(); try { toggleLang(); } catch (err) { /* 不掀画布 */ } };
+    paintBtn(btn);
+    _BTNS.add(btn);
+    return btn;
+}
+
+function mountBtn(node) {
+    // 🔴 只给本包节点加按钮。官方节点、别人的节点一律不加（挂了就是往人家界面上塞东西）。
+    if (!node || node.__mosssbBar) return false;
+    if (!NODES[String(node.type || "")]) return false;
+    try {
+        const bar = document.createElement("div");
+        bar.style.cssText = "display:flex;align-items:center;gap:6px;padding:3px 4px;";
+        bar.appendChild(makeBtn());
+        for (const ev of ["pointerdown", "mousedown", "dblclick", "keydown", "click"]) {
+            bar.addEventListener(ev, (e) => e.stopPropagation());   // 别让点按钮变成拖节点
+        }
+        // `serialize:false` = 绝不进工作流 JSON（分享出去不污染别人的图）
+        node.addDOMWidget("mosssb_i18n_bar", "custom", bar, {
+            serialize: false,
+            hideOnZoom: false,
+            getMinHeight: () => 28,
+        });
+        node.__mosssbBar = bar;
+        return true;
+    } catch (e) {
+        // 跨前端版本可能没有 addDOMWidget ⇒ 不掀画布，降级为"没有按钮但翻译照常"
+        console.warn("%s: 该前端不支持节点 DOM 组件，按钮不可用（翻译仍生效）", TAG, e);
+        return false;
+    }
+}
+
+/**
+ * 兜底入口：`addDOMWidget` 在个别前端版本不可用（会走 catch），此时节点上没有按钮。
+ * 只要画布上**有本包节点**，就在右下角放一个全局按钮 —— 它同样只切本包节点。
+ * 没有任何本包节点时不出现（不打扰别人的工作流）。
+ */
+function ensureFallbackButton() {
+    try {
+        const own = ownNodes(app?.graph?._nodes);
+        const exist = document.getElementById("mosssb-lang");
+        if (!own.length) { if (exist) exist.remove(); return; }
+        if (_BTNS.size > 0) { if (exist) exist.remove(); return; }   // 节点内有按钮就不需要它
+        if (exist || !document.body) return;
+        const b = document.createElement("button");
+        b.id = "mosssb-lang";
+        b.type = "button";
+        b.setAttribute("translate", "no");
+        b.classList.add("notranslate");
+        b.style.cssText = "position:fixed;right:14px;bottom:14px;z-index:2147483000;"
+            + "min-width:46px;height:30px;padding:0 10px;border-radius:6px;cursor:pointer;"
+            + "border:1px solid rgba(255,255,255,.28);background:rgba(30,34,42,.92);color:#eaeaea;"
+            + "font:600 12px/1 system-ui,sans-serif;user-select:none;box-shadow:0 2px 8px rgba(0,0,0,.35);";
+        b.addEventListener("click", (e) => { e.stopPropagation(); toggleLang(); });
+        document.body.appendChild(b);
+        b.textContent = currentLang() === "zh" ? "中" : "EN";   // ⚠ 必须 append 之后再写文字
+        console.info("%s: 节点内按钮不可用，已挂全局兜底按钮（只作用于本包节点）", TAG);
+    } catch (e) { /* 兜底也失败就算了 */ }
+}
+
+function mountAllBtns() {
+    let n = 0;
+    for (const node of ownNodes(app?.graph?._nodes)) {
+        if (mountBtn(node)) n += 1;
+    }
+    return n;
+}
+
+/**
+ * 兜底轮询（1.5s）：干三件事
+ *   ① 补挂按钮 —— 🔴 工作流**载入**时 `nodeCreated` 在部分前端版本不触发，
+ *      实测（前端 1.57.1）载入后 10 个节点里本包 2 个 `hasBar=false`、标题还是空串。
+ *      只靠 nodeCreated 会让"按钮不见了"，所以这里补一次（幂等，靠 `__mosssbBar` 去重）。
+ *   ② 补翻译 —— 同上，载入路径不一定会调 applyLang。
+ *   ③ 抗覆盖 —— 界面汉化插件会按自己的词典改回 label/tooltip，按标记比对写回。
+ */
 function guard() {
+    try {
+        applyAll();
+        mountAllBtns();
+        ensureFallbackButton();
+    } catch (e) { /* 这一轮跳过 */ }
     try {
         for (const node of ownNodes(app?.graph?._nodes)) {
             for (const w of (node.widgets || [])) {
                 if (!w) continue;
-                if (w.__mosssbWant !== undefined && w.label !== w.__mosssbWant) {
-                    w.label = w.__mosssbWant;
-                }
-                if (w.__mosssbWantTip !== undefined && w.tooltip !== w.__mosssbWantTip) {
-                    w.tooltip = w.__mosssbWantTip;
-                }
+                if (w.__mosssbWant !== undefined && w.label !== w.__mosssbWant) w.label = w.__mosssbWant;
+                if (w.__mosssbWantTip !== undefined && w.tooltip !== w.__mosssbWantTip) w.tooltip = w.__mosssbWantTip;
             }
         }
-    } catch (e) { /* 轮询里出错就跳过这一轮 */ }
+    } catch (e) { /* 这一轮跳过 */ }
 }
 
-/** 右下角「中 / EN」按钮。已存在就不重复创建。 */
-function mountButton() {
+// ---------------------------------------------------------------------------
+// 启动（不等 setup）
+// ---------------------------------------------------------------------------
+function bootstrap(why) {
+    if (booted) return;
     try {
-        if (!document.body || document.getElementById("mosssb-lang")) return;
-        const b = document.createElement("button");
-        b.id = "mosssb-lang";
-        b.type = "button";
-        b.title = "MOSS Storyboard: switch node labels / tooltips language";
-        const paint = () => { b.textContent = lang === "zh" ? "中" : "EN"; };
-        b.style.cssText = [
-            "position:fixed", "right:14px", "bottom:14px", "z-index:10000",
-            "width:38px", "height:30px", "border-radius:6px", "cursor:pointer",
-            "border:1px solid rgba(255,255,255,.25)", "background:rgba(40,44,52,.85)",
-            "color:#e6e6e6", "font:600 12px/1 system-ui,sans-serif", "user-select:none",
-        ].join(";");
-        paint();
-        b.addEventListener("click", (e) => {
-            e.stopPropagation();
-            setLang(lang === "zh" ? "en" : "zh");
-            paint();
-        });
-        document.body.appendChild(b);
-        window.addEventListener(LANG_EVENT, paint);
-    } catch (e) { /* 加不上按钮不影响翻译 */ }
+        if (!document.body || !app || !app.graph) {
+            if (tries++ < 60) setTimeout(() => bootstrap("retry"), 500);   // 最多 30s
+            return;
+        }
+        booted = true;
+        applyAll();
+        mountAllBtns();
+        setInterval(guard, 1500);
+        try { app.graph?.onGraphChanged?.(() => { applyAll(); mountAllBtns(); }); } catch (e) { /* 旧前端无此 API */ }
+        console.info("%s: 就绪（lang=%s，本包节点 %d，入口=%s）", TAG, currentLang(),
+            ownNodes(app?.graph?._nodes).length, why);
+    } catch (e) {
+        console.error("%s: 启动异常（翻译不可用，画布不受影响）", TAG, e);
+    }
 }
 
 app.registerExtension({
     name: "mosssb.i18n",
-    async setup() {
-        if (booted) return;
-        booted = true;
-        // 存储里有用户选择就用它，否则跟随宿主
-        const saved = (() => {
-            try { return globalThis.localStorage?.getItem(LANG_KEY) || ""; } catch (e) { return ""; }
-        })();
-        lang = saved ? normLang(saved) : defaultLang(readHostLang);
-        applyAll();
-        mountButton();
-        // 兜底：1.5s 一轮，只改被外部改动的项；成本是几次字符串比较
-        setInterval(guard, 1500);
-        try { app.graph?.onGraphChanged?.(() => applyAll()); } catch (e) { /* 旧前端无此 API */ }
-    },
+    async setup() { bootstrap("setup"); },
     nodeCreated(node) {
-        try { applyLang(node, lang); } catch (e) { /* 单个节点失败忽略 */ }
+        try {
+            // 两个函数内部都判过 `NODES[type]`，这里再判一次是为了不白做功（外来节点占多数）
+            if (!NODES[String(node?.type || "")]) return;
+            applyLang(node, currentLang());
+            mountBtn(node);          // 新建的本包节点立刻带按钮
+        } catch (e) { /* 单节点失败忽略 */ }
     },
 });
 
-// 供调试：控制台 `MOSS_SB_LANG.set("zh")`
+bootstrap("module");
+
+// 排障入口：控制台 `MOSS_SB_LANG.where()` / `.set("zh")` / `.clear()`
 try {
-    globalThis.MOSS_SB_LANG = { get: () => lang, set: setLang, nodes: NODES, apply: applyAll };
+    globalThis.MOSS_SB_LANG = {
+        get: currentLang,
+        set: setLang,
+        toggle: toggleLang,
+        clear: clearLangOverride,
+        apply: applyAll,
+        nodes: NODES,
+        // 排障用：这个前端的 `app` 是模块内变量，页面上没有全局 `app`，
+        // 所以控制台/无头冒烟只能从这里拿。只读用途，别在业务代码里依赖它。
+        graph: () => app?.graph,
+        loadGraph: (wf) => app.loadGraphData(wf),
+        where: () => ({
+            booted,
+            lang: currentLang(),
+            nodes: ownNodes(app?.graph?._nodes).length,
+            buttons: _BTNS.size,
+        }),
+    };
+    console.info("%s: 模块已加载（v%s）", TAG, "0.1.0");
 } catch (e) { /* 无 window */ }
