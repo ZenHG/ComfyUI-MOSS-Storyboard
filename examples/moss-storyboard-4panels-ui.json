@@ -2,7 +2,7 @@
  "id": "moss-storyboard-grid",
  "revision": 0,
  "last_node_id": 10,
- "last_link_id": 9,
+ "last_link_id": 8,
  "nodes": [
   {
    "id": 1,
@@ -358,8 +358,7 @@
      "name": "template",
      "type": "IMAGE",
      "links": [
-      6,
-      7
+      6
      ]
     },
     {
@@ -486,11 +485,6 @@
      "link": 5
     },
     {
-     "name": "template",
-     "type": "IMAGE",
-     "link": 6
-    },
-    {
      "name": "panels",
      "type": "INT",
      "link": null,
@@ -584,14 +578,14 @@
      "name": "grid",
      "type": "IMAGE",
      "links": [
-      8
+      7
      ]
     },
     {
      "name": "panels",
      "type": "IMAGE",
      "links": [
-      9
+      8
      ]
     },
     {
@@ -659,7 +653,7 @@
     {
      "name": "images",
      "type": "IMAGE",
-     "link": 7
+     "link": 6
     }
    ],
    "outputs": [],
@@ -687,7 +681,7 @@
     {
      "name": "images",
      "type": "IMAGE",
-     "link": 8
+     "link": 7
     },
     {
      "name": "filename_prefix",
@@ -731,7 +725,7 @@
     {
      "name": "images",
      "type": "IMAGE",
-     "link": 9
+     "link": 8
     },
     {
      "name": "filename_prefix",
@@ -827,28 +821,20 @@
    6,
    4,
    6,
-   5,
-   12,
+   6,
+   0,
    "IMAGE"
   ],
   [
    7,
-   4,
-   6,
-   6,
+   5,
+   0,
+   7,
    0,
    "IMAGE"
   ],
   [
    8,
-   5,
-   0,
-   7,
-   0,
-   "IMAGE"
-  ],
-  [
-   9,
    5,
    1,
    8,

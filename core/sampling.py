@@ -66,13 +66,6 @@ def empty_latent(model, width, height, batch=1):
     return {"samples": samples}
 
 
-def encode_image(vae, image):
-    """把宫格模板编码成 latent（img2img 起点）。"""
-    if image is None or image.ndim != 4:
-        raise ValueError("image 必须是 [B, H, W, C]")
-    return {"samples": vae.encode(image[:, :, :, :3])}
-
-
 def encode_text(clip, text):
     """与 `CLIPTextEncode` 同一实现：tokenize → encode_from_tokens_scheduled。"""
     if clip is None:

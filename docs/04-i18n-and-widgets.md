@@ -80,7 +80,8 @@
 - ⇒ 那段 conditioning **根本不进计算图**。
 
 放在普通区只有一个后果：让人以为"写了就会生效"。所以折叠，但**不删**——
-官方非蒸馏配方（50 步 / cfg 3）还需要它。
+`cfg > 1` 时它才进计算图，而官方非蒸馏配方（50 步 / cfg 3）属于这一档；
+本机实测该配方画面崩坏，所以默认永远用不到它，但通路留着（见 README「这一版做不到的」）。
 
 `tests/test_contract.py::test_sampler_shape` 锁这条：`negative.advanced` 必须是 `True`，
 `positive` 必须可见。别"好心"挪回去。

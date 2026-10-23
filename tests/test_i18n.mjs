@@ -110,7 +110,7 @@ check("5.4 pickTip 精确键优先于通配",
 const node = mkNode(T, [
     { name: "positive", value: "hello", label: "positive", tooltip: undefined },
     { name: "steps", value: 4, label: "steps", tooltip: undefined },
-    { name: "init", value: "layout", label: "init", values: ["auto", "layout", "template", "both", "plain"] },
+    { name: "init", value: "layout", label: "init", values: ["auto", "layout", "plain"] },
     { name: "panels", value: 4, label: "panels" },
 ]);
 const namesBefore = node.widgets.map((w) => w.name);
@@ -123,7 +123,7 @@ check("6.3 en：tooltip 写入英文", node.widgets[1].tooltip === TIPS[T + ".st
 check("6.4 en：name 一个都没变", JSON.stringify(node.widgets.map((w) => w.name)) === JSON.stringify(namesBefore));
 check("6.5 en：value 一个都没变", JSON.stringify(node.widgets.map((w) => w.value)) === JSON.stringify(valuesBefore));
 check("6.6 en：options.values 一个都没变",
-    node.widgets[2].options.values.join(",") === "auto,layout,template,both,plain");
+    node.widgets[2].options.values.join(",") === "auto,layout,plain");
 check("6.7 en：没有残留中文显示钩子", node.widgets[2].options.getOptionLabel === undefined);
 
 const rEn2 = applyLang(node, "en");

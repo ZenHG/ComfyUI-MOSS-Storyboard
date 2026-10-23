@@ -10,7 +10,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.1.1** |
+| Version | **0.1.2** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*` |
@@ -193,9 +193,14 @@ edge 496**, so you can run it as-is.
 | 复绘宫格线 `reborder` | on | redraw grid lines after decode |
 | 负面提示词 `negative` | empty | in the **Advanced** fold. ⚠ at `cfg=1.0` the host skips the negative branch entirely |
 
-`init` values: `auto` / `layout` = layout boxes only (default); `template` = template image as the
-repaint starting point (**does not produce a usable repaint in this version**); `both` = both
-(template part equally inactive); `plain` = raw prompt, no layout boxes.
+`init` values: `auto` / `layout` = panel captions become layout boxes (default);
+`plain` = raw prompt, no layout boxes.
+
+> **No img2img in this pack.** The latent always starts empty; keep `denoise` at 1.0.
+> MOSS does not condition on reference images (the official limitation says "no editing").
+> The template image is only an `IMAGE` output of `MossStoryboardLayout` for eyeballing the grid
+> geometry — it never enters the sampler. To rework an existing image, use a model that supports
+> img2img instead of lowering `denoise` here.
 
 ### 🎬 故事板 · 裁格 (`MossStoryboardCrop`)
 
@@ -217,13 +222,18 @@ the image evenly and **raises** otherwise.
 
 **Not possible in this version**
 
-- 🔴 **`init=template` / `both` produce no usable repaint.** Three runs: 35 steps / denoise 0.85 →
-  fully black; 12 steps / 0.6 and 4 steps / 0.5 → template ghosting. Whenever sigma is actually
-  truncated, the model leaves the image untouched — consistent with the official limitation
-  ("not conditioned on reference images, no editing"). **Hence the default is the layout route.**
-- ⚠ **At low step counts 降噪强度 is silently clamped.** The host recomputes sigmas as
+- 🔴 **No img2img.** MOSS is not conditioned on reference images (the official limitation says
+  "no editing"). Three runs measured: 35 steps / denoise 0.85 → fully black; 12 steps / 0.6 and
+  4 steps / 0.5 → template ghosting. Whenever sigma is actually truncated, the model leaves the
+  image untouched. Since 0.1.2 the path is removed: `init` has no `template` / `both`, and the
+  sampler no longer takes a template input.
+- ⚠ **The official non-distilled recipe (50 steps / cfg 3) produced corrupted frames on our machine.**
+  Cause unconfirmed; others report it works. Defaults are 4 steps (with a distill LoRA) or
+  35 steps at `cfg=1`; if you try 50/3, do a small sample first instead of a full batch.
+- ⚠ **At low step counts denoise is silently clamped.** The host recomputes sigmas as
   `int(steps / denoise)`, so at 4 steps `int(4/0.85)=4` truncates nothing (equivalent to 1.0).
-  `report` prints nominal vs. effective — trust the effective value.
+  `report` prints nominal vs. effective — trust the effective value. There is no img2img, so keep
+  `denoise` at 1.0.
 - **Per-panel composition is only approximate.** MOSS's layout capability is *experimental*; this
   pack does no quality scoring.
 - **At 8/9 panels each panel is ≈496×272.** Small text and fine texture degrade first — a
@@ -239,7 +249,8 @@ the image evenly and **raises** otherwise.
 ## FAQ
 
 **All black.** Check `report` for nominal vs. effective denoise, and the step count. Usual causes:
-① `init=template` (inactive in this version); ② 4-step LoRA with 35 steps, or no LoRA with 4 steps.
+① `cfg` pushed above 1 or `steps` raised to 50 (corrupted on our machine, see "Not possible");
+② 4-step LoRA with 35 steps, or no LoRA with 4 steps.
 
 **Right panel count, wrong content / everything crammed into one panel.** Layout boxes are
 advisory. Shorten each caption to one shot, and check that `report` parsed as many captions as

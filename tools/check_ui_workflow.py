@@ -188,17 +188,15 @@ def check_file(path, mappings):
     except Exception as e:
         check("必填输入都有来源", True, "跳过（%s）" % type(e).__name__)
 
-    # 采样器的 denoise 与 init 语义一致
+    # 采样器的 denoise 与 init 语义一致：本包不做图生图 ⇒ 恒 1.0
     for n in wf["nodes"]:
         if n["type"] != "MossStoryboardSampler":
             continue
         kv = dict(zip(expected_widgets(mappings["MossStoryboardSampler"]),
                       n.get("widgets_values") or [], strict=False))
         init, den = kv.get("init"), kv.get("denoise")
-        if init in ("template", "both"):
-            check("init=%s 时 denoise<1" % init, isinstance(den, (int, float)) and den < 1.0, str(den))
-        else:
-            check("init=%s 时 denoise=1" % init, isinstance(den, (int, float)) and abs(den - 1.0) < 1e-9, str(den))
+        check("init=%s 时 denoise=1（本包无图生图）" % init,
+              isinstance(den, (int, float)) and abs(den - 1.0) < 1e-9, str(den))
     return True
 
 
@@ -206,7 +204,7 @@ def main(argv):
     paths = argv[1:]
     if not paths:
         paths = [os.path.join(PKG_DIR, "examples", f) for f in
-                 ("moss-storyboard-8panels-layout.json", "moss-storyboard-8panels-template.json")]
+                 ("moss-storyboard-8panels-layout.json",)]
     if COMFY not in sys.path:
         sys.path.insert(0, COMFY)
     mappings = load_mappings()

@@ -1,5 +1,31 @@
 # CHANGES
 
+## 0.1.2 — 2026-10-23
+
+### 移除
+- 🔴 **删掉图生图（模板初始化）通路。** MOSS 不以参考图条件化（官方 limitation 明写"不支持编辑"），
+  此前三组实测（35 步 / 0.85 纯黑、12 步 / 0.6 与 4 步 / 0.5 残影）已证明只要 sigma 真截断，
+  模型就不改动 latent。留着"能选但必然失败"的选项只会让用户白跑一遍，所以直接收掉：
+  - `init` 从 `auto/layout/template/both/plain` 收成 `auto/layout/plain`
+  - 采样器不再有 `template` 输入，起点恒为空 latent
+  - 删除 `examples/moss-storyboard-8panels-template.json`（它是 35 步 / 0.85 / `init=both`，
+    正是会出纯黑的那组）
+  - `core/sampling.encode_image` 一并删除（无调用方）
+- ⚠ **破坏性变更**：已经接了模板线的旧工作流，载入后该连线会失效（不报错，只是不再连上）。
+  用 `tools/make_ui_workflow.py` 重新生成即可。
+
+### 文档
+- README / README_EN「这一版做不到的」改为直说"不做图生图"，并补一条实测：
+  **官方非蒸馏配方（50 步 / cfg 3）在本机跑出来是崩坏扭曲的**，原因未确认、社区有能跑通的报告。
+  `steps` / `cfg` 的 tooltip 同步这句，不再写成"可以试试更高保真"。
+- `denoise` 的说明改写成"没有图生图，调 <1 只会少跑几步"，删掉原先"模板初始化时必须 <1"那句。
+
+### 计数
+`test_core 282` · `test_contract 48`（--no-host）· `test_sampling_contract 18` · `test_i18n 54` ·
+`smoke_nodes 25` · `host_loader_check 16` · `check_ui_workflow 15/文件` · `check_frontend 9` ·
+`check_release_ready 29`
+
+
 ## 0.1.1 — 2026-10-23
 
 ### 修复

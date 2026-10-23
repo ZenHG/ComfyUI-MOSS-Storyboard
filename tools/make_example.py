@@ -61,8 +61,8 @@ def out(name, typ, links=()):
     return {"name": name, "type": typ, "links": list(links)}
 
 
-def build(mode):
-    """mode: 'layout' 纯布局约束 ｜ 'template' 模板混合。"""
+def build():
+    """8 格纯布局约束示例（本包不做图生图，只保留这一种形态）。"""
     nodes, links = [], []
 
     def link(fr, fslot, to, tslot, typ):
@@ -96,13 +96,13 @@ def build(mode):
                       inputs=lay_inputs, outputs=lay_outputs, title=None, order=3))
 
     # ---- 采样器 ----
-    denoise = 1.0 if mode == "layout" else 0.85
-    init = "layout" if mode == "layout" else "both"
+    denoise = 1.0
+    init = "layout"
     sampler_inputs = [
         inp("model", "MODEL"), inp("clip", "CLIP"), inp("vae", "VAE"),
         inp("positive", "STRING", widget="positive"), inp("negative", "STRING", widget="negative"),
-        inp("spec", "STRING"), inp("template", "IMAGE"),
-        inp("panels", "INT", widget="panels"), inp("panel_aspect", "COMBO", widget="panel_aspect"),
+        inp("spec", "STRING"), inp("panels", "INT", widget="panels"),
+        inp("panel_aspect", "COMBO", widget="panel_aspect"),
         inp("panel_edge", "INT", widget="panel_edge"), inp("canvas_aspect", "COMBO", widget="canvas_aspect"),
         inp("gutter", "INT", widget="gutter"), inp("margin", "INT", widget="margin"),
         inp("init", "COMBO", widget="init"), inp("label", "COMBO", widget="label"),
@@ -149,16 +149,13 @@ def build(mode):
     wire(2, 0, 5, 1, "CLIP", 4)
     wire(3, 0, 5, 2, "VAE", 4)
     wire(4, 4, 5, 5, "STRING", 4)
-    # Layout.template → PreviewImage（template 模式再多一路给采样器）
-    tpl = [wire(4, 6, 8, 0, "IMAGE", 7)]
-    if mode == "template":
-        tpl.append(wire(4, 6, 5, 6, "IMAGE", 4))
-    set_links(4, 6, tpl)
+    # Layout.template → PreviewImage（模板图只作几何示意，不再进采样器）
+    set_links(4, 6, [wire(4, 6, 8, 0, "IMAGE", 7)])
     wire(5, 0, 6, 0, "IMAGE", 5)
     wire(5, 1, 7, 0, "IMAGE", 6)
 
     return {
-        "id": "moss-storyboard-%s" % mode,
+        "id": "moss-storyboard-layout",
         "revision": 0,
         "last_node_id": 8,
         "last_link_id": len(links),
@@ -173,9 +170,8 @@ def build(mode):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for mode, name in (("layout", "moss-storyboard-8panels-layout.json"),
-                       ("template", "moss-storyboard-8panels-template.json")):
-        wf = build(mode)
+    for name in ("moss-storyboard-8panels-layout.json",):
+        wf = build()
         path = os.path.join(OUT, name)
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(wf, fh, ensure_ascii=False, indent=1)

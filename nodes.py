@@ -20,7 +20,7 @@ from .core import prompt as T
 
 CATEGORY = "moss/storyboard"
 
-_INIT_MODES = ["auto", "layout", "template", "both", "plain"]
+_INIT_MODES = ["auto", "layout", "plain"]
 _ASPECT_KEYS = list(L.ASPECTS)
 _CROP_ASPECTS = ["keep", "1:1", "16:9", "4:3", "9:16", "21:9"]
 
@@ -211,7 +211,7 @@ class MossStoryboardLayout:
 
 
 class MossStoryboardSampler:
-    """一步出故事板：布局约束（可选）+ 模板初始化（可选）+ 采样 + 复绘宫格线 + 裁格。"""
+    """一步出故事板：布局约束（可选）+ 采样 + 复绘宫格线 + 裁格。起点恒为空 latent（不做图生图）。"""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -224,7 +224,7 @@ class MossStoryboardSampler:
                 "positive": ("STRING", {
                     "multiline": True, "default": "",
                     "tooltip": "【填什么】故事板稿：[STYLE] 全局描述 + 每格 [PANEL n]。\n"
-                               "init=layout/both 时会自动转成 MOSS 布局 JSON 再编码。",
+                               "init=layout 时会自动转成 MOSS 布局 JSON 再编码。",
                 }),
                 "negative": ("STRING", {
                     "multiline": True, "default": "",
@@ -240,13 +240,14 @@ class MossStoryboardSampler:
                 "steps": ("INT", {
                     "default": 35, "min": 1, "max": 200, "step": 1,
                     "tooltip": "【填什么】采样步数。默认 35 = 本地已实测可用的官方节点配置。\n"
-                               "⚠ 官方文档的非蒸馏配方是 50 步 / cfg 3；要更高保真可试，但更慢。",
+                               "⚠ 官方文档另有非蒸馏配方（50 步 / cfg 3）。本机实测该组合画面崩坏扭曲，\n"
+                               "原因未确认；社区有能跑通的报告。想试请自行出小样对比，别直接量产。",
                 }),
                 "cfg": ("FLOAT", {
                     "default": 1.0, "min": 0.0, "max": 30.0, "step": 0.1,
                     "tooltip": "【填什么】引导强度。默认 1.0 = 本地已实测可用的配置。\n"
                                "⚠ 1.0 时宿主跳过负面分支 ⇒ 负面提示词（在「高级」里）填了也不生效。\n"
-                               "要让负面生效必须 >1；官方非蒸馏配方给 3，换配方前先出小样对比。",
+                               "要让负面生效必须 >1；官方非蒸馏配方给 3（本机实测崩坏，见 steps 的说明）。",
                 }),
                 "sampler_name": (["euler", "euler_ancestral", "heun", "dpmpp_2m", "dpmpp_2m_sde",
                                   "dpmpp_3m_sde", "res_multistep", "er_sde", "lms"], {
@@ -259,17 +260,15 @@ class MossStoryboardSampler:
                 }),
                 "denoise": ("FLOAT", {
                     "default": 1.0, "min": 0.05, "max": 1.0, "step": 0.01,
-                    "tooltip": "【填什么】降噪强度。1.0 = 纯生成（布局 JSON 起作用）。\n"
-                               "⚠ 用模板初始化时必须 <1：0.75–0.90 是保宫格线的常用区间，越低越像模板、越高越自由。",
+                    "tooltip": "【留 1.0】降噪强度。1.0 = 从纯噪声开始完整生成，这是本包的正常用法。\n"
+                               "⚠ 这里没有图生图：调 <1 不会参考任何图，只会让宿主按 int(步数/降噪) 截断 sigma，\n"
+                               "实际效果就是少跑几步（想省时间请直接调 steps，更直观）。",
                 }),
             },
             "optional": {
                 "spec": ("STRING", {
                     "default": "", "forceInput": True,
                     "tooltip": "【接线】接 MossStoryboardLayout 的 spec。接了就用它的几何，下面几何参数被忽略。",
-                }),
-                "template": ("IMAGE", {
-                    "tooltip": "【接线】宫格模板图。不接时若 init 需要模板会自动现算一张。",
                 }),
                 "panels": ("INT", {
                     "default": 8, "min": 1, "max": 12, "step": 1,
@@ -293,12 +292,11 @@ class MossStoryboardSampler:
                 }),
                 "init": (_INIT_MODES, {
                     "default": "auto",
-                    "tooltip": "【填什么】怎么锁布局：\n"
-                               "auto（默认）= 只把面板描述转成布局框，纯生成；\n"
+                    "tooltip": "【填什么】怎么送提示词：\n"
+                               "auto（默认）= 把每格描述转成布局框再送，纯生成；\n"
                                "layout = 同上，显式写法；\n"
-                               "template = 只用模板图做 img2img 起点（⚠ 本版实测重绘不生效，会得到模板残影或纯黑；后续版本会再验证）；\n"
-                               "both = 布局框 + 模板（⚠ 同上，模板那段本版无效）；\n"
-                               "plain = 原样送提示词，纯 txt2img，无布局框。",
+                               "plain = 原样送提示词，不加布局框（等于普通 txt2img）。\n"
+                               "⚠ 本包不做图生图：MOSS 不以参考图条件化，起点恒为空 latent。",
                 }),
                 "label": (list(T.LABELS), {
                     "default": "object", "tooltip": "【进阶】布局框类型，同 Layout 节点。",
@@ -328,7 +326,7 @@ class MossStoryboardSampler:
 
     @_node_errors("panels", "steps", "cfg", "denoise")
     def run(self, model, clip, vae, positive, negative, steps, cfg, sampler_name, scheduler,
-            seed, denoise, spec="", template=None, panels=8, panel_aspect="16:9", panel_edge=512,
+            seed, denoise, spec="", panels=8, panel_aspect="16:9", panel_edge=512,
             canvas_aspect="auto", gutter=8, margin=8, init="auto", label="object",
             reborder=True, border_px=0, shave=0):
         from .core import sampling as S
@@ -343,15 +341,12 @@ class MossStoryboardSampler:
             geom_src = "本节点参数"
 
         notes = []
-        mode = init
+        mode = init if init in _INIT_MODES else "auto"
         if mode == "auto":
-            mode = "layout"          # 模板路线在 MOSS 上实测走不通（见 README「已知边界」），不设默认
-            if template is not None:
-                notes.append("模板已接线，但 init=auto 走纯布局：MOSS 无 img2img，"
-                             "实测模板路线会得到模板残影或纯黑（要试就显式选 template/both）")
+            mode = "layout"
 
-        # ---- 提示词：layout / both 时转成布局 JSON ----
-        if mode in ("layout", "both"):
+        # ---- 提示词：layout 时转成布局 JSON ----
+        if mode == "layout":
             text, info = _prompt_for_layout(positive, lay, label)
             notes.append("布局提示词：%s" % info)
         else:
@@ -361,27 +356,9 @@ class MossStoryboardSampler:
         cond_pos = S.encode_text(clip, text)
         cond_neg = S.encode_text(clip, negative or "")
 
-        # ---- 起点 latent ----
-        use_template = mode in ("template", "both")
-        if use_template:
-            tpl = template if template is not None else P.render_template(lay, cell_gray=25)
-            if tpl.shape[1] != lay.height or tpl.shape[2] != lay.width:
-                notes.append("⚠ 传入模板 %dx%d 与布局 %dx%d 不一致 ⇒ 改用按布局现算的模板"
-                             % (tpl.shape[2], tpl.shape[1], lay.width, lay.height))
-                tpl = P.render_template(lay, cell_gray=25)
-            if denoise > 0.999:
-                notes.append("⚠ denoise=1.0：模板被完全覆盖，等于没用（要模板效果请调 0.75–0.90）")
-            elif S.effective_denoise(steps, denoise) >= 1.0:
-                notes.append("⚠ 步数 %d 太小：int(%d/%.2f)=%d 没有截断 sigma ⇒ denoise 实际等于 1.0，"
-                             "模板完全没参与。要真 img2img 请把 denoise 降到 ≤%.2f，或把步数提到 ≥%d"
-                             % (steps, steps, denoise, int(steps / denoise),
-                                steps / (steps + 1.0), steps + 1))
-            notes.append("⚠ 本版实测：模板初始化得不到有效重绘（残影或纯黑）；后续版本会再验证")
-            latent = S.encode_image(vae, tpl)
-            notes.append("起点 = 模板 latent（denoise %.2f）" % denoise)
-        else:
-            latent = S.empty_latent(model, lay.width, lay.height)
-            notes.append("起点 = 空 latent %d×%d" % (lay.width, lay.height))
+        # ---- 起点 latent：恒为空（本包不做图生图，MOSS 不以参考图条件化） ----
+        latent = S.empty_latent(model, lay.width, lay.height)
+        notes.append("起点 = 空 latent %d×%d" % (lay.width, lay.height))
 
         # ---- 采样 ----
         out = S.sample(model, cond_pos, cond_neg, latent, steps=steps, cfg=cfg,

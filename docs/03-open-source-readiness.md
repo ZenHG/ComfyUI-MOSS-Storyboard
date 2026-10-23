@@ -61,7 +61,7 @@
 | 用户手改 spec | 手编工作流 | 裁切错位 | `parse_spec` 严格校验 + 尺寸不符直接 raise |
 | 大画布 OOM | `panel_edge` 调大 | 进程被杀 | `report` 强 warn（>2MP / >4MP） |
 | 布局框不生效 | MOSS 布局为 experimental | 格子内容不按描述 | 默认叠加"复绘宫格线"；README 明确未量化 |
-| 模板路线被误用 | 用户按 Krea2 老习惯接线 | 黑图 | `init=template/both` 已在 tooltip + report + 文档三处标注"实测无效" |
+| 模板路线被误用 | 用户按 Krea2 老习惯接线 | 黑图 | 0.1.2 起**移除通路**：`init` 无 `template/both`、采样器无模板输入，堵死比标注更彻底 |
 
 ---
 
