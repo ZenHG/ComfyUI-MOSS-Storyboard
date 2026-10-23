@@ -130,10 +130,11 @@ export const LABELS = {
 export const COMBOS = {
     canvas_aspect: { auto: "自动" },
     init: {
+        // 界面上只写"是什么"，不写"有没有用"——结论放 tooltip，且带版本口径。
         auto: "自动（纯布局）",
         layout: "纯布局",
-        template: "模板（实测无效）",
-        both: "布局+模板（模板段无效）",
+        template: "仅模板",
+        both: "布局 + 模板",
         plain: "原样提示词",
     },
     label: { object: "物体", character: "人物", text: "文字" },

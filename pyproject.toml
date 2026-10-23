@@ -10,7 +10,7 @@
 [project]
 name = "moss-storyboard"
 version = "0.1.0"
-description = "Storyboard grid nodes for MOSS-Image: 3/4/6/8/9 panels in one sampling pass, with native JSON-layout bbox locking and post-composited gutters."
+description = "Storyboard grid nodes for MOSS-Image: 3, 4, 6, 8 or 9 panels in one generation, with per-panel layout control and exact panel crops."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
