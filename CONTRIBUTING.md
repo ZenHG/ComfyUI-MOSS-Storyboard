@@ -18,7 +18,7 @@ python tools/check_release_ready.py       # 26 项：**发布前**开源卫生�
 ```
 
 后三条需要宿主：设 `COMFYUI_PATH=/path/to/ComfyUI`，或写进仓库根的 `.comfyui_path`（本地文件，已忽略）。
-端到端（要 GPU + 权重，不进 CI）：`python tools/make_gallery.py             # 8 组不同风格/比例（出图素材，要 GPU）
+端到端（要 GPU + 权重，不进 CI）：`python tools/make_gallery.py             # 8 组预设提示词（换机器复现用，要 GPU）
 python tools/e2e_matrix.py`。
 
 > ⚠️ **别用 `| tail -n` 跑这些脚本** —— 管道会把退出码吃掉，你会看到"通过"却拿到 0。

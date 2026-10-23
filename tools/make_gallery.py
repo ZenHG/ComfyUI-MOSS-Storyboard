@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""批量出图：不同风格 / 不同提示词 / 不同比例，供宣传素材使用。
+"""批量出图：一组**预设提示词**，覆盖不同风格 / 比例 / 格数。
+
+用途是让别人拿到同样的输入就能复现同样的结果：换机器、换权重、报 bug 时
+都可以先跑一遍这组预设，确认现象是否一致。
 
 跑法：
     python tools/make_gallery.py                 # 全部用例
@@ -22,8 +25,8 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import ui_to_api as U  # noqa: E402  （同目录工具）
-from _paths import host_root  # noqa: E402
+import ui_to_api as U
+from _paths import host_root
 
 WF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                   "examples", "moss-storyboard-4panels-ui.json")
