@@ -750,7 +750,7 @@
         "Node name for S&R": "MossLayoutEditor"
       },
       "widgets_values": [
-        "{\"version\":3,\"preset\":\"title-body\",\"style\":\"暗色雪原，飘雪，胶片颗粒。35mm 胶片摄影，电影感，浅景深。\",\"items\":[{\"label\":\"text\",\"caption\":\"粗体无衬线标题，浅金色\",\"text\":\"永兵传说\",\"palette\":[\"#c8a15a\"],\"bbox\":[0.08,0.1,0.92,0.19],\"id\":\"e-f5aa33f6\"},{\"label\":\"character\",\"caption\":\"主角半身，侧对镜头，深色大衣，雪原背景\",\"bbox\":[0.1,0.24,0.9,0.8],\"id\":\"e-fe2d637d\"},{\"label\":\"text\",\"caption\":\"细体小字，白色\",\"text\":\"第一章 · 雪夜\",\"palette\":[\"#ffffff\"],\"bbox\":[0.08,0.84,0.92,0.9],\"id\":\"e-38054ac5\"}],\"canvas\":{\"width\":1536,\"height\":864}}"
+        "{\"version\":3,\"preset\":\"title-body\",\"style\":\"暗色雪原，飘雪，胶片颗粒。35mm 胶片摄影，电影感，浅景深。\",\"items\":[{\"label\":\"text\",\"caption\":\"粗体无衬线标题，浅金色\",\"text\":\"MOSS Storyboard\",\"palette\":[\"#c8a15a\"],\"bbox\":[0.08,0.1,0.92,0.19],\"id\":\"e-f5aa33f6\"},{\"label\":\"character\",\"caption\":\"主角半身，侧对镜头，深色大衣，雪原背景\",\"bbox\":[0.1,0.24,0.9,0.8],\"id\":\"e-fe2d637d\"},{\"label\":\"text\",\"caption\":\"细体小字，白色\",\"text\":\"Chapter One · Snow\",\"palette\":[\"#ffffff\"],\"bbox\":[0.08,0.84,0.92,0.9],\"id\":\"e-38054ac5\"}],\"canvas\":{\"width\":1536,\"height\":864}}"
       ]
     },
     {

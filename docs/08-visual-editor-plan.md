@@ -68,7 +68,7 @@
 {"version":3,"preset":"title-body","style":"暗色雪原，飘雪，胶片颗粒。",
  "canvas":{"width":1536,"height":864},
  "items":[
-   {"id":"t1","label":"text","caption":"粗体无衬线标题，浅金色","text":"永兵传说",
+   {"id":"t1","label":"text","caption":"粗体无衬线标题，浅金色","text":"MOSS Storyboard",
     "palette":["#c8a15a"],"bbox":[0.08,0.10,0.92,0.19]},
    {"id":"c1","label":"character","caption":"主角半身，侧对镜头","bbox":[0.10,0.24,0.90,0.80]}
  ]}
@@ -236,7 +236,7 @@ python tests/test_sampling_contract.py # 采样 API 契约，18 项
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项
 python tools/smoke_nodes.py            # 节点注册 + 纯节点真跑，41 项
 python tools/host_loader_check.py      # 宿主真实加载器，19 项
-python tools/check_ui_workflow.py examples/*.json   # 6 份共 88 项
+python tools/check_ui_workflow.py examples/*.json tests/fixtures/*.json   # 6 份共 88 项
 python tools/check_editor_ui.py        # 编辑器词表/语法/接线，58 项
 ```
 
@@ -246,7 +246,9 @@ python tools/check_editor_ui.py        # 编辑器词表/语法/接线，58 项
 |---|---|
 | `examples/moss-layout-editor-poster.json` | 单张海报（编辑器 → CLIPTextEncode + latent 宽高） |
 | `examples/moss-layout-editor-storyboard.json` | 4 格故事板（编辑器 → 采样器 positive/spec） |
-| `examples/moss-storyboard-4panels-ui.json` / `-8panels-layout.json` / `-4panels-edit.json` | 旧链路的 UI / 最小 / 编辑示例 |
+| `examples/moss-storyboard-4panels-ui.json` | 旧链路 4 格 UI 示例 |
+| `examples/moss-storyboard-4panels-edit.json` | 只改一格（需要 Moss-Image-Edit LoRA / 编辑节点） |
+| `tests/fixtures/` | 机检夹具：8 格最小图、0.1.x 20 槽工作流 |
 
 要 GPU 的端到端（人工跑，不进 CI）：
 

@@ -15,11 +15,12 @@
 #   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
 #   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
 #                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑
-#                （CI 传 6 个示例 ⇒ 实际 88 项）
+#                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
 #   ·  58/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表纯函数
 #   ·  50/0  tests/test_cross_language.py     JS ↔ Python 预设/校验差分
 #   ·   5/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义
+#   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #
 # ⚠️ **已知覆盖缺口（诚实记录，别当成已覆盖）**：
 #   1. `host` job 需要在 runner 上现装 ComfyUI，**本机（Windows）无法等价复现**
@@ -34,6 +35,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -97,6 +99,30 @@ jobs:
       - name: 编辑器前端（接线 / 语法 / 词表纯函数）
         run: python tools/check_editor_ui.py
 
+  release-preview:
+    name: release preview (build only, no publish)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # check_release_ready 的提交信息检查要最近 50 条
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Release hygiene gate
+        run: python tools/check_release_ready.py
+      - name: Build clean distribution set (no publish)
+        run: python tools/make_dist.py --out "$RUNNER_TEMP/moss-dist" --zip
+      - name: Upload preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: moss-storyboard-preview
+          path: ${{ runner.temp }}/moss-dist/*.zip
+          retention-days: 7
+
   host:
     name: host load (informational)
     runs-on: ubuntu-latest
@@ -118,6 +144,11 @@ jobs:
         run: ln -s "$GITHUB_WORKSPACE" "$COMFYUI_PATH/custom_nodes/ComfyUI-MOSS-Storyboard"
       - name: 自加载 + 纯节点真跑
         run: python tools/smoke_nodes.py
+      - name: Distribution preview (clean copy + independent load)
+        env:
+          COMFYUI_PATH: ${{ github.workspace }}/comfyui
+          PYTHONPATH: ${{ github.workspace }}/comfyui
+        run: python tools/make_dist.py --out "$RUNNER_TEMP/moss-dist-host" --verify
       # 🔴 CPU runner 上 ComfyUI 在 import 期就会断言 CUDA（`Torch not compiled with CUDA enabled`），
       #    这一步在 CI 里**必然失败**，且与本包无关。用 **step 级** continue-on-error：
       #    job 结论为绿，失败详情仍完整留在这一步的日志里。
@@ -129,9 +160,9 @@ jobs:
       - name: 工作流连线与槽位（CPU runner 上可能跳过）
         continue-on-error: true
         run: |
-          python tools/check_ui_workflow.py examples/moss-storyboard-8panels-layout.json
+          python tools/check_ui_workflow.py tests/fixtures/moss-storyboard-8panels-layout.json
           python tools/check_ui_workflow.py examples/moss-storyboard-4panels-ui.json
           python tools/check_ui_workflow.py examples/moss-storyboard-4panels-edit.json
           python tools/check_ui_workflow.py examples/moss-layout-editor-poster.json
           python tools/check_ui_workflow.py examples/moss-layout-editor-storyboard.json
-          python tools/check_ui_workflow.py examples/moss-storyboard-0.1-20slots.json
+          python tools/check_ui_workflow.py tests/fixtures/moss-storyboard-0.1-20slots.json

@@ -49,16 +49,18 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
    - `RELEASE-NOTES.md` 有本版一节、**中英双语**（面向用户；registry changelog 与 GitHub Release 正文都取它）。
      ⚠️ **字符分段算**：中文 ≤700 · 英文 ≤1700（不是"总共 2000"）。格式见 §6。
 4. **开源卫生门全绿**：`python tools/check_release_ready.py`（31 项，见 §3 ①）。
-   ⚠️ 其中 **S9 扫的是提交信息**（最近 50 条）：内部措辞或本机路径一旦推上去，
+   ⚠️ 其中 **S9 扫的是提交信息**（最近 50 条）：内部措辞或当前环境路径一旦推上去，
    就只能改写历史（force push + 重建 tag），代价远高于改文件 —— 所以**推之前**跑这一遍别省。
 5. **全量回归全绿**：`CONTRIBUTING.md` 列的全部命令。`release.py` 只跑其中 2 条，
    全量请你手跑——**发布前的那次别省**。
+   CI 另有 `release-preview`：`check_release_ready.py` + `make_dist.py --zip`（只构建分发包、上传 artifact，
+   **不发布**）；`host` job 再用 `make_dist.py --verify` 从干净副本独立加载并跑编辑器/宫格/裁格。
 6. **registry 元数据合规**（S6 盯着）：`name` 不带 `ComfyUI`、`license` 为 `{ file = … }`、
    `PublisherId` 非占位（本仓 = `zenhg`）、`Icon`/`Banner` 是 https 直链。
 7. **两个 CLI 能跑**（判据是**真跑一次 `--version`**，不是"文件在不在"）：
 
    ```bash
-   gh --version                                                            # 本机已登录 ZenHG
+   gh --version                                                            # 已登录 GitHub 账号
    <comfy-cli 安装目录>/Scripts/comfy.exe --version                        # → 1.22.0
    ```
 
@@ -88,7 +90,7 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
 | 症状 | 含义 | 怎么办 |
 |---|---|---|
 | `git: 'remote-https' is not a git command` | 便携版 git 缺助手 | 设 `MOSSSB_GIT` 指向完整版 git |
-| `CONNECT tunnel failed` | 本机代理对 git 打回 | 脚本会自动去代理直连重试一次 |
+| `CONNECT tunnel failed` | 当前环境代理对 git 打回 | 脚本会自动去代理直连重试一次 |
 | `comfy node publish` 报 publisher 不匹配 | `PublisherId` 与网站上不一致 | 改成网站上 `@` 后面那串（**两边都不可改，别猜**） |
 | `comfy node validate` 报警 | 元数据或打包口径问题 | 看具体行；**别为消警告换拼法** |
 | registry 说版本已存在 | 同版本不能重发 | bump 一版（**已发布版本与 changelog 都不可改**） |

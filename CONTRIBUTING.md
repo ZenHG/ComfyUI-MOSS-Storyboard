@@ -15,11 +15,14 @@ python tests/test_sampling_contract.py    # 18 项：宿主采样 API 的入参�
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
 python tools/smoke_nodes.py               # 41 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
-python tools/check_ui_workflow.py         # 6 份示例共 88 项：工作流连线 + widget 槽位
+python tools/check_ui_workflow.py         # 4 份示例 + 2 份夹具共 88 项：连线 + 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
 python tools/check_editor_ui.py           # 58 项：编辑器接线 / 语法 / 词表纯函数
 python tools/check_release_ready.py       # 31 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 ```
+
+CI 的 `release-preview` job 会构建干净分发包（`tools/make_dist.py --zip`，只上传 artifact，不发布）；
+`host` job 会从干净副本 `--verify` 独立加载并跑编辑器/宫格/裁格。
 
 `smoke_nodes.py` / `host_loader_check.py` / `check_ui_workflow.py` 需要宿主：
 设 `COMFYUI_PATH=/path/to/ComfyUI`，或写进仓库根的 `.comfyui_path`（本地文件，已忽略）。

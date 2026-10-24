@@ -236,7 +236,7 @@ def check_file(path, mappings):
 def main(argv):
     paths = argv[1:]
     if not paths:
-        paths = [os.path.join(PKG_DIR, "examples", f) for f in
+        paths = [os.path.join(PKG_DIR, "tests", "fixtures", f) for f in
                  ("moss-storyboard-8panels-layout.json",)]
     if COMFY not in sys.path:
         sys.path.insert(0, COMFY)

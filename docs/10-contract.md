@@ -16,7 +16,7 @@
 {"version":3,"preset":"title-body","style":"暗色雪原，飘雪，胶片颗粒。",
  "canvas":{"width":1536,"height":864},
  "items":[
-   {"id":"t1","label":"text","caption":"粗体无衬线标题，浅金色","text":"永兵传说",
+   {"id":"t1","label":"text","caption":"粗体无衬线标题，浅金色","text":"MOSS Storyboard",
     "palette":["#c8a15a"],"bbox":[0.08,0.10,0.92,0.19]},
    {"id":"c1","label":"character","caption":"主角半身，侧对镜头","bbox":[0.10,0.24,0.90,0.80]}
  ]}
@@ -102,7 +102,7 @@ MossLayoutEditor
 
 - **0.1.x 工作流**：`MossStoryboardSampler` 旧版只有 20 个 widget 值；当前节点在末尾追加了
   `mode` / `sample_edge`，旧值必须按原顺序映射到前 20 个参数，尾部用默认值。
-  `tools/check_ui_workflow.py` 有一个 0.1.x 20 槽 fixtures 专门锁这条。
+  `tests/fixtures/moss-storyboard-0.1-20slots.json` 是 0.1.x 20 槽夹具，`tools/check_ui_workflow.py` 专门锁这条。
 - **前端最低版本**：ComfyUI 前端 1.57.1（`addDOMWidget` + DOM/SVG 覆盖层）；
   Nodes 2.0 开关的兼容性见 `docs/11` 的验证记录。
 - **不做网络/遥测/API key**：编辑器与编译器纯本地、零额外依赖。
