@@ -19,6 +19,53 @@
 
 ---
 
+## 0.1.3 — 2026-10-24
+
+**新节点「贴回」：只改一格，不用重跑整张。**
+
+- 🆕 新增 `MossStoryboardPaste`（界面显示「🎬 故事板 · 贴回」）。把裁出来改好的那一格，
+  按 `spec` 的坐标**逐像素**贴回宫格，输出改好的整张图，宫格线与其它格不动。
+  适合"九格里有一格不对"——重跑会让所有格的种子一起变。
+- 🆕 裁格节点多了一个可选参数 `index` 和一个输出 `index`。填 -1（默认）行为完全不变；
+  填 0 起的格号就只输出那一格，并把格号送到输出上。**把这个输出接给贴回节点，
+  格号全程不用手打。**
+- ⚠ 贴回时 `shave` 必须和裁格时填的一样。不一致会让内容整体偏移几个像素且不报错——
+  `report` 会写出实际写入的矩形，请核对一眼。
+- 输入尺寸与格子不符会自动重采样，`report` 会说明。要逐像素一致：裁格 `resize_edge` 留 0、
+  `target_aspect` 选 `keep`、`shave` 与本节点相同。
+- 📌 **更正 0.1.2 的一条说法**：那版写「官方配方（50 步 / cfg 3）本机会崩坏」。
+  本轮按「高步数 + cfg 3–5 + 2MP 以上」复测（最高 4.0MP / 50 步 / cfg 3 与 5，
+  叠与不叠蒸馏 LoRA）**均正常出图，未能复现**，改为按下面的两档表使用。
+
+**升级动作**：重启 ComfyUI 后刷新浏览器页面（F5）。已有工作流无需改动；裁格新输出追加在末尾，旧接线不受影响。
+
+<!-- EN -->
+
+**New "Paste Panel" node: fix one panel without re-running the whole board.**
+
+- New `MossStoryboardPaste` (shown as "🎬 Storyboard · Paste Panel"). It writes a corrected
+  panel back into the board at the exact `spec` coordinates, pixel for pixel, and returns the
+  full corrected board. Grid lines and every other panel stay byte-identical.
+  Built for "one of nine panels is wrong" — re-running moves every panel's seed at once.
+- The Crop node gains an optional `index` parameter and an `index` output. Leave it at -1 and
+  nothing changes; a 0-based panel number outputs just that panel and emits the number.
+  **Wire that output into Paste and you never type a panel number**, so it can never disagree
+  with the panel you actually cut.
+- On Paste, `shave` must match what you used on Crop. A mismatch shifts content by a few pixels
+  **without erroring** — `report` prints the exact rectangle written, so check it once.
+- If the incoming panel is not cell-sized it is resampled and `report` says so. For a
+  pixel-exact round trip: Crop with `resize_edge=0`, `target_aspect=keep`, and the same `shave`.
+- 📌 **Correction to a 0.1.2 claim.** That version said the official non-distilled recipe
+  (50 steps / cfg 3) corrupted frames on our machine. Re-tested across the stated conditions
+  (high steps + cfg 3–5 + above 2MP, up to 4.0MP / 50 steps / cfg 3 and 5, with and without
+  the distilled LoRA): **all rendered normally, corruption did not reproduce.** Use the two
+  bands above instead.
+
+**Action required**: restart ComfyUI, then refresh the browser page (F5). Existing graphs need
+no changes; Crop's new output is appended, so existing wiring is unaffected.
+
+---
+
 ## 0.1.2 — 2026-10-23
 
 **去掉了一个选了必然失败的选项：图生图。**

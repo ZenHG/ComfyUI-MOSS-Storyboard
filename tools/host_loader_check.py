@@ -21,6 +21,7 @@ TARGET = os.environ.get("MOSSSB_PATH", os.path.join(COMFY, "custom_nodes", "Comf
 
 EXPECT = {
     "MossStoryboardLayout": "MOSS Storyboard Layout",
+    "MossStoryboardPaste": "MOSS Storyboard Paste",
     "MossStoryboardSampler": "MOSS Storyboard Sampler",
     "MossStoryboardCrop": "MOSS Storyboard Crop",
 }

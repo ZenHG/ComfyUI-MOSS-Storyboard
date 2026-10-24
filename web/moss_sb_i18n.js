@@ -67,6 +67,10 @@ export const NODES = {
         zh: "🎬 故事板 · 裁格", en: "🎬 Storyboard · Split Panels",
         legacy: "MOSS Storyboard Crop",
     },
+    MossStoryboardPaste: {
+        zh: "🎬 故事板 · 贴回", en: "🎬 Storyboard · Paste Panel",
+        legacy: "MOSS Storyboard Paste",
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -84,6 +88,10 @@ export const LABELS_EN = {
     spec: "geometry spec",
     target_aspect: "target aspect",
     padding_mode: "padding mode",
+    index: "panel index",
+    panel: "edited panel",
+    grid: "grid image",
+    marked: "marked grid",
 };
 
 export const LABELS = {
@@ -121,6 +129,10 @@ export const LABELS = {
     padding_mode: "填充方式",
     resize_edge: "输出长边",
     show_guides: "显示裁切线",
+    index: "贴到第几格",
+    panel: "改好的单格",
+    grid: "整张宫格",
+    marked: "标记图",
     control_after_generate: "生成后",
 };
 
@@ -206,7 +218,10 @@ export const TIPS = {
             + "⚠ A wrong type fails silently: you get a wrong embedding, not an error.",
     },
     "MossStoryboardSampler.vae": {
-        en: "[Wiring] FLUX.2 VAE - it is the latent space MOSS works in.",
+        en: "[Wiring] FLUX.2 VAE - it is the latent space MOSS works in.\n"
+            + "Decode precision is decided by whichever VAE loader you use; this node does not touch it.\n"
+            + "⚠ Running it in fp32 makes the host's decode memory estimate 4x larger (silently),\n"
+            + "which can trigger tiled decoding. Use fp16 / bf16 to keep memory down.",
     },
     "MossStoryboardSampler.positive": {
         en: "[What to enter] The storyboard script: one global paragraph, then [PANEL 1] ... [PANEL n].\n"
@@ -217,13 +232,16 @@ export const TIPS = {
             + "⚠ With cfg = 1.0 the negative branch is not evaluated at all - this text does nothing.",
     },
     "MossStoryboardSampler.steps": {
-        en: "[What to enter] Sampling steps. 4 matches a 4-step distilled LoRA;\n"
-            + "35 is the official-node baseline without a distill LoRA.",
+        en: "[What to enter] Sampling steps. Two bands, depending on whether a LoRA is loaded:\n"
+            + "· Base model, no LoRA: 30-50 steps, paired with cfg 3-5;\n"
+            + "· With a 4-step distilled LoRA: 4-8 steps, paired with cfg 1.0 - higher values break the distillation.\n"
+            + "The default 35 sits mid-range in the base-model band.",
     },
     "MossStoryboardSampler.cfg": {
-        en: "[What to enter] Guidance scale. 1.0 with a distilled LoRA; the official non-distilled recipe is 3.0.\n"
-            + "⚠ On our machine 50 steps / cfg 3 produced corrupted frames (cause unconfirmed; others report it works).\n"
-            + "⚠ Negative prompts only work above 1.0.",
+        en: "[What to enter] Guidance scale. Follow the steps band:\n"
+            + "· Base model, no LoRA: 3-5;\n"
+            + "· With a LoRA: 1.0.\n"
+            + "⚠ Negative prompts only work above 1.0 - at 1.0 the host skips the uncond branch entirely.",
     },
     "MossStoryboardSampler.sampler_name": { en: "[What to enter] euler is the verified default." },
     "MossStoryboardSampler.scheduler": { en: "[What to enter] simple is the verified default." },
@@ -287,6 +305,35 @@ export const TIPS = {
     "MossStoryboardCrop.show_guides": {
         en: "[Debug] Draw the crop lines in red on the preview output to eyeball alignment.",
     },
+    "MossStoryboardCrop.index": {
+        en: "[Optional] -1 outputs every panel (default, unchanged behaviour).\n"
+            + "A 0-based panel number outputs just that one and emits it on the index output,\n"
+            + "which wires straight into MossStoryboardPaste - no manual counting, no mismatch.",
+    },
+    "MossStoryboardPaste.grid": {
+        en: "[Wiring] The full grid image (Sampler's grid output, or an earlier Paste's output).",
+    },
+    "MossStoryboardPaste.panel": {
+        en: "[Wiring] The corrected panel (single image). Crop with index set is the safest source.",
+    },
+    "MossStoryboardPaste.index": {
+        en: "[Enter / wire] Which panel to write into - 0-based, row-major (left to right, top to bottom).\n"
+            + "Wiring Crop's index output overrides this widget, so it can never disagree with what you cut.",
+    },
+    "MossStoryboardPaste.shave": {
+        en: "[Optional] Must match the shave you used on Crop. Cutting inset s pixels, so pasting\n"
+            + "writes into the inset rectangle; a mismatch shifts content by s pixels without erroring.",
+    },
+    "MossStoryboardPaste.show_guides": {
+        en: "[Debug] Frame the pasted region in red on the marked output to confirm which cell was hit.",
+    },
+    "MossStoryboardPaste.spec": {
+        en: "[Wiring] Spec from the Layout/Sampler node - the only way to guarantee the paste matches generation.",
+    },
+    "MossStoryboardPaste.columns": {
+        en: "[Required without spec] Column count. 0 with no spec raises an error instead of guessing.",
+    },
+    "MossStoryboardPaste.rows": { en: "[Required without spec] Row count." },
 };
 
 // ---------------------------------------------------------------------------

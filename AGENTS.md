@@ -56,11 +56,11 @@
 ## 三、一次改动的最小闭环
 
 ```bash
-python tests/test_core.py              # 几何/提示词/像素，零 GPU，282 项
-python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，58 项
+python tests/test_core.py              # 几何/提示词/像素，零 GPU，294 项
+python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，64 项
 python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，18 项
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项（零浏览器）
-python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点真跑，25 项
+python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点真跑，37 项
 python tools/host_loader_check.py      # 走宿主 load_custom_node，16 项
 python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，15 项/文件
 python tools/check_frontend.py         # 前端词表/语法/接线/标题可换语言，9 项
@@ -72,6 +72,7 @@ python tools/check_frontend.py         # 前端词表/语法/接线/标题可换
 python tools/make_example.py                                   # 机检用的最小图
 python tools/make_ui_workflow.py                               # 交付用 UI 版（写宿主目录）
 python tools/make_ui_workflow.py --out examples --bypass-lora   # 仓库内也存一份
+python tools/make_edit_workflow.py --out examples               # 「只改一格」端到端示例
 ```
 
 要 GPU + 权重的两条（**人工跑，不进 CI**）：

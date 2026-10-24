@@ -72,7 +72,7 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
 
 | 步 | 动作 | 失败时的状态 |
 |---|---|---|
-| ① 前置 | 干净工作树 · 版本五处 · **`check_release_ready.py`（29 项）** · **`test_contract.py`（58 项）** · `RELEASE-NOTES.md` 本版一节 | 什么都没发生 |
+| ① 前置 | 干净工作树 · 版本五处 · **`check_release_ready.py`（29 项）** · **`test_contract.py`（64 项）** · `RELEASE-NOTES.md` 本版一节 | 什么都没发生 |
 | ② GitHub push | `git push origin HEAD:refs/heads/main`（失败自动换 HTTP/1.1 / schannel / 去代理直连重试） | 什么都没发生 |
 | ③ 等 CI | 找 `headSha == 本地 HEAD` 那一轮，`gh run watch --exit-status` | **已 push、未 publish** ⇒ 修完重跑，安全 |
 | ④ GitHub Release | `gh release create vX.Y.Z --target <HEAD> --notes-file <RELEASE-NOTES 生成>`。**幂等**：已存在就不动 | 已 push、未 Release ⇒ 重跑 |

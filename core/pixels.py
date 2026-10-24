@@ -146,3 +146,90 @@ def guide_preview(image, layout, thickness=None):
     red = torch.zeros_like(image)
     red[..., 0] = 1.0
     return image * (1.0 - mask) + red * mask
+
+
+def paste_panel(grid, layout, index, panel, shave=0):
+    """把一张改过的单格写回宫格的第 `index` 格，返回 `(新宫格, 信息行列表)`。
+
+    `crop_panels` 的逆运算。关键性质：
+
+    - **只动目标格的内容区**，缝与外边距一个字节都不碰 —— 宫格线是后画的，
+      贴回不该把它擦掉，也不需要重画。
+    - `shave` 必须与当初裁切时一致：裁切缩了 s 像素，贴回就写在缩过的矩形里，
+      否则内容会整体偏移 s 像素，而且不报错。
+    - 尺寸不符时**重采样到格子精确尺寸**并明确告知（ComfyUI 的 IMAGE 没有
+      "差不多就行"这回事，差 1 像素下游拼接就错位）。
+    - 宫格是 `[B, H, W, C]`；`panel` 是 `[1, h, w, C]` 或 `[h, w, C]`。
+    """
+    if grid is None or grid.ndim != 4:
+        raise ValueError("grid 必须是 [B, H, W, C]")
+    if panel is None or panel.ndim not in (3, 4):
+        raise ValueError("panel 必须是 [h, w, C] 或 [1, h, w, C]")
+    if int(index) < 0 or int(index) >= layout.panels:
+        raise ValueError("index=%d 越界：本布局共 %d 格（0 起）" % (int(index), layout.panels))
+    if panel.ndim == 3:
+        panel = panel.unsqueeze(0)
+    b, gh, gw, gc = grid.shape
+    if (gh, gw) != (layout.height, layout.width):
+        raise ValueError("宫格尺寸 %dx%d 与布局 %dx%d 不一致" % (gw, gh, layout.width, layout.height))
+    if grid.shape[0] != 1:
+        raise ValueError("宫格批次应为 1，收到 %d；请先取单张" % b)
+
+    cell = layout.cell(int(index))
+    s = max(0, int(shave))
+    x0, y0 = cell.x + s, cell.y + s
+    x1, y1 = cell.x + cell.w - s, cell.y + cell.h - s
+    if x1 - x0 < 16 or y1 - y0 < 16:
+        raise ValueError("第 %d 格内缩 %dpx 后不足 16px；把 shave 调小" % (cell.index + 1, s))
+
+    notes = []
+    if panel.shape[0] != 1:
+        raise ValueError("panel 批次应为 1，收到 %d；一次只贴一格" % panel.shape[0])
+    src = panel[0]
+    if src.shape[-1] != gc:
+        raise ValueError("panel 通道数 %d 与宫格 %d 不一致" % (src.shape[-1], gc))
+    ph, pw = int(src.shape[0]), int(src.shape[1])
+    if (ph, pw) != (y1 - y0, x1 - x0):
+        # 重采样到格子的精确尺寸；bicubic 之后必须 clamp，否则会出现越界值
+        src = F.interpolate(src.permute(2, 0, 1)[None], size=(y1 - y0, x1 - x0),
+                            mode="bicubic", align_corners=False)[0].permute(1, 2, 0)
+        src = torch.clamp(src, 0.0, 1.0)
+        notes.append("⚠ 输入 %dx%d ≠ 格子 %dx%d，已重采样（bicubic）。"
+                     "要逐像素一致：Crop 的 resize_edge=0、target_aspect=keep、shave 与本节点相同"
+                     % (pw, ph, x1 - x0, y1 - y0))
+    else:
+        notes.append("输入 %dx%d = 格子 %dx%d，逐像素贴入，无重采样" % (pw, ph, x1 - x0, y1 - y0))
+
+    out = grid.clone()
+    out[0, y0:y1, x0:x1, :] = src.to(dtype=out.dtype)
+    notes.append("贴回第 %d 格（0 起，行主序）= 第 %d 行第 %d 列，区域 x %d–%d / y %d–%d"
+                 % (cell.index, cell.row + 1, cell.col + 1, x0, x1, y0, y1))
+    notes.append("画布 %dx%d 未变；缝与外边距未触碰（宫格线保持原样）" % (gw, gh))
+    return out, notes
+
+
+def paste_marker(grid, layout, index, shave=0, thickness=4):
+    """把第 `index` 格的区域框成纯红，用于目检"到底贴进了哪一格"。
+
+    与 `paste_panel` 用同一套坐标，所以红线位置就是实际写入位置 —— 不会出现
+    "预览画在 A、实际写在 B"的分叉。`show_guides=False` 时节点直接返回原图，
+    不走这里。
+    """
+    if grid is None or grid.ndim != 4:
+        raise ValueError("grid 必须是 [B, H, W, C]")
+    cell = layout.cell(int(index))
+    s = max(0, int(shave))
+    x0, y0 = cell.x + s, cell.y + s
+    x1, y1 = cell.x + cell.w - s, cell.y + cell.h - s
+    t = max(1, int(thickness))
+    out = grid.clone()
+    x1c, y1c = min(x1, out.shape[2]), min(y1, out.shape[1])
+    out[:, y0:min(y0 + t, y1c), x0:x1c, 0] = 1.0
+    out[:, y0:min(y0 + t, y1c), x0:x1c, 1:] = 0.0
+    out[:, max(y1c - t, y0):y1c, x0:x1c, 0] = 1.0
+    out[:, max(y1c - t, y0):y1c, x0:x1c, 1:] = 0.0
+    out[:, y0:y1c, x0:min(x0 + t, x1c), 0] = 1.0
+    out[:, y0:y1c, x0:min(x0 + t, x1c), 1:] = 0.0
+    out[:, y0:y1c, max(x1c - t, x0):x1c, 0] = 1.0
+    out[:, y0:y1c, max(x1c - t, x0):x1c, 1:] = 0.0
+    return out
