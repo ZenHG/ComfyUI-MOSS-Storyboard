@@ -138,10 +138,12 @@ const STR = {
     duplicate: { zh: "复制元素", en: "Duplicate" },
     center: { zh: "居中", en: "Center" },
     help: { zh: "帮助", en: "Help" },
+    undo: { zh: "撤销", en: "Undo" },
+    redo: { zh: "重做", en: "Redo" },
     helpTitle: { zh: "操作提示", en: "Controls" },
     helpKeys: {
-        zh: "点选：单击框　拖动：按住框　画框：在空白处拖\n缩放：八个把手　删除：Delete / Backspace　微调：方向键（Shift ×10）\n复制：Ctrl/⌘ + D　取消选择：Esc",
-        en: "Select: click a box · Move: drag it · Draw: drag on empty canvas\nResize: 8 handles · Delete: Delete/Backspace · Nudge: arrow keys (Shift x10)\nDuplicate: Ctrl/Cmd + D · Deselect: Esc",
+        zh: "点选：单击框　拖动：按住框　画框：在空白处拖\n缩放：八个把手　删除：Delete / Backspace　微调：方向键（Shift ×10）\n复制：Ctrl/⌘ + D　取消选择：Esc\n撤销：Ctrl/⌘ + Z　重做：Ctrl/⌘ + Shift + Z（或 Ctrl + Y）",
+        en: "Select: click a box · Move: drag it · Draw: drag on empty canvas\nResize: 8 handles · Delete: Delete/Backspace · Nudge: arrow keys (Shift x10)\nDuplicate: Ctrl/Cmd + D · Deselect: Esc\nUndo: Ctrl/Cmd + Z · Redo: Ctrl/Cmd + Shift + Z (or Ctrl + Y)",
     },
     helpFields: {
         zh: "描述 = 元素长什么样；文字 = 实际渲染的字。二者不能混用。",
@@ -268,6 +270,31 @@ export function presetItems(preset, opt = {}) {
         items.push(it);
     }
     return items;
+}
+
+export const HISTORY_MAX = 100;
+
+export function makeHistory() {
+    return { undo: [], redo: [], key: null };
+}
+
+/** 记一步：prev = 改动前的序列化 state。同一 key 的连续改动（打字、连按方向键）合并成一步。 */
+export function recordHistory(hist, prev, key = null) {
+    if (key && hist.key === key) return;
+    hist.undo.push(prev);
+    if (hist.undo.length > HISTORY_MAX) hist.undo.shift();
+    hist.redo.length = 0;
+    hist.key = key;
+}
+
+/** dir=-1 撤销 / +1 重做；返回要恢复的序列化 state，没有可走的步返回 null。 */
+export function stepHistory(hist, current, dir) {
+    const from = dir < 0 ? hist.undo : hist.redo;
+    const to = dir < 0 ? hist.redo : hist.undo;
+    if (!from.length) return null;
+    to.push(current);
+    hist.key = null;
+    return from.pop();
 }
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
@@ -524,6 +551,7 @@ function ensureStyle() {
 .mossed-danger{border-color:#a33;color:#f88}
 .mossed-iconbtn{width:24px;height:24px;border-radius:50%;border:1px solid var(--border-color,#4a4f59);background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);cursor:pointer;font:600 13px/1 system-ui,sans-serif;padding:0}
 .mossed-iconbtn:hover{filter:brightness(1.2)}
+.mossed-iconbtn:disabled{opacity:.35;cursor:default;filter:none}
 .mossed-linkbtn{border:0;background:none;color:var(--input-text,#ddd);opacity:.65;cursor:pointer;font:inherit;text-decoration:underline;text-underline-offset:2px;padding:0}
 .mossed-linkbtn:hover{opacity:1}
 .mossed-spacer{flex:1 1 auto}
@@ -649,6 +677,14 @@ function buildUI() {
     bar.appendChild(chip);
     const spacer = h("span", "mossed-spacer", "");
     bar.appendChild(spacer);
+    const undoBtn = h("button", "mossed-iconbtn", "↶");
+    undoBtn.type = "button";
+    undoBtn.disabled = true;
+    bar.appendChild(undoBtn);
+    const redoBtn = h("button", "mossed-iconbtn", "↷");
+    redoBtn.type = "button";
+    redoBtn.disabled = true;
+    bar.appendChild(redoBtn);
     const helpBtn = h("button", "mossed-iconbtn", "?");
     helpBtn.type = "button";
     helpBtn.title = t("help");
@@ -831,7 +867,7 @@ function buildUI() {
     root.appendChild(panel);
 
     return {
-        root, bar, presetSel, applyBtn, chip, spacer, helpBtn, helpBox, presetHint,
+        root, bar, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
         gridRow, colsIn, rowsIn, aspectSel, gridAdvBtn, gridAdvRow, edgeIn, gutterIn, marginIn,
         canvasRow, canvasPresetSel, wIn, hIn, aspectChip,
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
@@ -1082,6 +1118,10 @@ function syncStatic(ui) {
     ui.applyBtn.title = t("apply");
     ui.helpBtn.title = t("help");
     ui.helpBtn.setAttribute("aria-label", t("help"));
+    ui.undoBtn.title = t("undo") + " (Ctrl/Cmd + Z)";
+    ui.undoBtn.setAttribute("aria-label", t("undo"));
+    ui.redoBtn.title = t("redo") + " (Ctrl/Cmd + Shift + Z)";
+    ui.redoBtn.setAttribute("aria-label", t("redo"));
     ui.gridAdvBtn.textContent = t("advanced");
     ui.dupBtn.textContent = t("duplicate");
     ui.dupBtn.title = "Ctrl/Cmd + D";
@@ -1270,13 +1310,45 @@ function writeState(ui, st) {
     try { ui.node.setDirtyCanvas?.(true, true); } catch (e) { /* 老前端 */ }
 }
 
-function commit(ui) {
+function commit(ui, historyKey = null) {
     if (!ui.state) return;
     ui.state.version = STATE_VERSION;
+    // 原地改 state 后才调 commit ⇒ 改动前的样子只能靠上次记下的 histRaw
+    const raw = JSON.stringify(ui.state);
+    if (ui.histRaw != null && raw !== ui.histRaw) recordHistory(ui.hist, ui.histRaw, historyKey);
+    ui.histRaw = raw;
     writeState(ui, ui.state);
     ui.warnings = validateState(ui.state, uiLang()).errors;
     render(ui);
     updateStatus(ui);
+    syncHistoryButtons(ui);
+}
+
+function resetHistory(ui) {
+    ui.hist = makeHistory();
+    ui.histRaw = ui.state ? JSON.stringify(ui.state) : null;
+    syncHistoryButtons(ui);
+}
+
+function syncHistoryButtons(ui) {
+    ui.undoBtn.disabled = !ui.state || !ui.hist.undo.length;
+    ui.redoBtn.disabled = !ui.state || !ui.hist.redo.length;
+}
+
+function stepUndo(ui, dir) {
+    if (!ui.state || ui.drag) return;
+    const raw = stepHistory(ui.hist, ui.histRaw, dir);
+    if (raw == null) return;
+    ui.state = readState(raw, uiLang()).state;
+    ui.histRaw = JSON.stringify(ui.state);
+    if (ui.sel && !ui.state.items.some((it) => it && it.id === ui.sel)) ui.sel = null;
+    writeState(ui, ui.state);
+    ui.warnings = validateState(ui.state, uiLang()).errors;
+    render(ui);
+    syncPanel(ui, true);
+    updateStatus(ui);
+    syncStatic(ui);
+    syncHistoryButtons(ui);
 }
 
 function loadFromWidget(ui, force) {
@@ -1299,6 +1371,7 @@ function loadFromWidget(ui, force) {
         render(ui);
         syncPanel(ui, true);
         updateStatus(ui);
+        resetHistory(ui);
         return;
     }
     ui.fatal = null;
@@ -1312,6 +1385,8 @@ function loadFromWidget(ui, force) {
     syncPanel(ui, true);
     updateStatus(ui);
     syncStatic(ui);
+    // 外部改了 widget（打开工作流 / 宿主级撤销）⇒ 旧历史对不上，清空
+    resetHistory(ui);
 }
 
 function currentGrid(ui) {
@@ -1652,7 +1727,7 @@ function nudgeItem(ui, dx, dy) {
     b[1] = clamp(b[1] + sy, 0, 1 - hh);
     b[3] = b[1] + hh;
     it.bbox = b.map(round3);
-    commit(ui);
+    commit(ui, "nudge:" + it.id);
     syncPanel(ui, true);
 }
 
@@ -1678,6 +1753,14 @@ function onKeyDown(ui, ev) {
         return;
     }
     if (typing) return;
+    if ((ev.ctrlKey || ev.metaKey) && !ev.altKey) {
+        const k = ev.key.toLowerCase();
+        if (k === "z" || k === "y") {
+            ev.preventDefault();
+            stepUndo(ui, k === "y" || ev.shiftKey ? 1 : -1);
+            return;
+        }
+    }
     if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); deleteSelected(ui); return; }
     if (ev.key === "ArrowLeft" || ev.key === "ArrowRight" || ev.key === "ArrowUp" || ev.key === "ArrowDown") {
         if (!ui.sel || ui.state?.preset === "grid") return;
@@ -1790,13 +1873,13 @@ function wire(ui) {
         const it = selectedItem(ui);
         if (!it) return;
         it.caption = ui.capTa.value;
-        commit(ui);
+        commit(ui, "caption:" + it.id);
     });
     ui.textIn.addEventListener("input", () => {
         const it = selectedItem(ui);
         if (!it) return;
         it.text = ui.textIn.value;
-        commit(ui);
+        commit(ui, "text:" + it.id);
     });
     ui.palIn.addEventListener("input", () => {
         const it = selectedItem(ui);
@@ -1805,7 +1888,7 @@ function wire(ui) {
         const good = vals.filter(isHex).slice(0, 5);
         if (good.length) it.palette = good;
         else delete it.palette;
-        commit(ui);
+        commit(ui, "palette:" + it.id);
         renderSwatches(ui, it);
         syncPanelTail(ui, it);
     });
@@ -1832,6 +1915,8 @@ function wire(ui) {
         syncPanel(ui, true);
     });
     ui.delBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteSelected(ui); });
+    ui.undoBtn.addEventListener("click", (e) => { e.stopPropagation(); stepUndo(ui, -1); });
+    ui.redoBtn.addEventListener("click", (e) => { e.stopPropagation(); stepUndo(ui, 1); });
     ui.dupBtn.addEventListener("click", (e) => { e.stopPropagation(); duplicateItem(ui); });
     ui.centerBtn.addEventListener("click", (e) => { e.stopPropagation(); centerItem(ui); });
 
@@ -1900,6 +1985,8 @@ function mount(node) {
     ui.fatal = null;
     ui.fatalMsg = "";
     ui.warnings = [];
+    ui.hist = makeHistory();
+    ui.histRaw = null;
     node.__mossedUI = ui;
 
     try {

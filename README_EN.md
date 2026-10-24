@@ -16,7 +16,7 @@ Two uses, one mechanism:
 
 | Item | Value |
 |---|---|
-| Version | **0.2.1** |
+| Version | **0.2.2** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*` |
@@ -102,7 +102,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 Restart ComfyUI. Nodes appear under **`moss/storyboard`**, and the startup log shows:
 
 ```
-[MOSS SB] v0.2.1 已加载｜节点 5 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v0.2.2 已加载｜节点 5 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 No such line = the pack did not load. Force the legacy V1 exit with `MOSSSB_NODE_API=v1`.
@@ -261,6 +261,7 @@ Two modes, switched by preset:
 | Click a box | Edit type (object / character / text), description, coordinates on the right |
 | Drag near another box's edge, the canvas centre line, or the rule-of-thirds lines | Snaps |
 | `Delete` / arrow keys / `Ctrl+D` | Delete / nudge / duplicate |
+| `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`) | Undo / redo (same as the `↶` `↷` toolbar buttons) |
 
 **Text elements have two separate fields — do not mix them**
 

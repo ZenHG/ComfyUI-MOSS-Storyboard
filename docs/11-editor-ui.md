@@ -1,7 +1,7 @@
 # 11 · Layout Editor 前端（state v3）
 
 > **状态**：F1–F6 前端完成，真实节点、grid 端到端、真节点海报示例均已验证；
-> `python tools/check_editor_ui.py` 58 项全过。
+> `python tools/check_editor_ui.py` 68 项全过。
 > **剩余**：宿主重启后复验修好的 widget 顺序。**Nodes 2.0 已验证**（Vue 模式下编辑器挂载、渲染、state 正确；无页面错误）。
 >
 > 契约以 [`docs/10`](10-contract.md) 为准；本文只写前端**怎么实现**、**怎么测**、**和后端约定了什么**。
@@ -144,12 +144,13 @@ grid:   { "version":3, "preset":"grid", "style":"…",
 | 首屏预设 chip | 一键生成初始框；每项带一句话用途（`PRESET_HINTS`） |
 | 预设说明行 | 选中预设时显示"它服务什么"，不用猜 |
 | 画布预设 | 16:9 / 9:16 / 1:1 / 4:3 / 3:4 常用尺寸；也可手改宽高（必须 16 的倍数） |
+| `↶` / `↷` | 撤销 / 重做（编辑器内部历史，最多 100 步；同一元素连续输入或微调合并为一步；外部改了 `editor_state`——打开工作流、宿主级撤销——时清空） |
 | `?` 帮助 | 快捷键与字段含义（`caption` vs `text`） |
-| 快捷键 | `Delete/Backspace` 删除 · 方向键微调 1px（`Shift` ×10）· `Ctrl/⌘+D` 复制 · `Esc` 取消选择 |
+| 快捷键 | `Delete/Backspace` 删除 · 方向键微调 1px（`Shift` ×10）· `Ctrl/⌘+D` 复制 · `Esc` 取消选择 · `Ctrl/⌘+Z` 撤销 · `Ctrl/⌘+Shift+Z`（或 `Ctrl+Y`）重做 |
 | 复制 / 居中 | 属性面板按钮；grid 模式禁用（格位由几何算死） |
 | 悬浮提示 | 画布上的框带 `<title>`（类型 + 描述 + text） |
 
-> 所有快捷键只在编辑器有焦点时生效；在输入框内不会抢 `Delete` / 方向键。
+> 所有快捷键只在编辑器有焦点时生效；在输入框内不会抢 `Delete` / 方向键 / `Ctrl+Z`（输入框里的撤销归浏览器）。
 
 ---
 
@@ -233,8 +234,10 @@ python tools/check_editor_ui.py
 - **S 语法**：ESM 解析（Node ≥22 已移除 `--experimental-default-type` ⇒ 自动退 `.mjs` 副本）。
 - **T 词表/纯函数**：把 `presetItems` / `validateState` / `readState` / `snapAxis` **真正执行**，
   覆盖 8 预设生成、数量、非重叠、格位、id 唯一、text 必带 text、7 条拒绝路径、宽容读取、吸附；
-  另查预设说明 8 条中英齐全、类型色覆盖三类、画布预设都是 16 的倍数、英文校验/致命文案无 CJK。
-- 总计 **58 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
+  另查预设说明 8 条中英齐全、类型色覆盖三类、画布预设都是 16 的倍数、英文校验/致命文案无 CJK；
+  撤销栈（`makeHistory` / `recordHistory` / `stepHistory`）：撤销/重做顺序、新改动清空重做、
+  同元素连续输入/微调合并为一步、不同元素与撤销后不合并、上限 100 步丢最旧。
+- 总计 **68 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
 
 ### 无头浏览器冒烟（未入仓，实测 38/38）
 
@@ -267,6 +270,12 @@ python tools/check_editor_ui.py
 4 格内容互异；编辑器 `spec` 与旧 `MossStoryboardLayout` 逐字相同。
 详见 `docs/08` §8.2。
 
+### 撤销 / 重做真机验证（2026-10-24）
+
+真实宿主里新建 `MossLayoutEditor`，title-body 预设 3 个元素：`Delete` → 2，`Ctrl+Z` → 3，
+`Ctrl+Shift+Z` → 2，`↶` 按钮 → 3，`Ctrl+Y` → 2；caption 连打 3 次 = 1 步；方向键 3 次 = 1 步且撤销后
+`bbox` 逐字还原；在 caption 输入框里按 `Ctrl+Z` 不动编辑器历史；所有按键都不冒泡到 `window`。
+
 ---
 
 ## 九、已知问题 / 待联调
@@ -276,7 +285,7 @@ python tools/check_editor_ui.py
 | 1 | 宿主重启后复验 widget 顺序 | poster 示例已验（从文件加载 → 真节点挂载）；**宿主重启后**重跑 storyboard 示例 |
 | 2 | Nodes 2.0 开关的兼容性 | 已验证：`Comfy.VueNodes.Enabled=true` 下编辑器挂载、3 个元素渲染、state 正确、无页面错误 |
 | 3 | grid 模式没有「单格内部的元素框」 | 契约 v3 的 grid item = 格位；如需单格内分区，先改契约 |
-| 4 | 撤销 / z 序 / 对齐均布 | P2（docs/09 §六），本版不做 |
+| 4 | z 序 / 对齐均布 | P2（docs/09 §六），本版不做（撤销/重做已落地，见 §八） |
 | 5 | 拖动性能只做了结构性优化，未测帧率/长列表 | 如遇大图卡顿，先量 `paintDrag` 的单帧耗时再优化 |
 | 6 | `tools/check_frontend.py` 的 F2 在 Node 24 下的语法误报 | 已修：Node ≥22 自动退 `.mjs` 副本；当前 9/9 |
 

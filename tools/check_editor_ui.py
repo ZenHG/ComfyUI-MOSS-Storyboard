@@ -114,6 +114,7 @@ import {
     PRESET_IDS, PRESET_SPECS, PRESET_HINTS, SIZES, ITEM_LABELS,
     TYPE_COLORS, CANVAS_PRESETS,
     presetItems, validateState, readState, snapAxis, stageAspect, makeItemId, emptyState,
+    makeHistory, recordHistory, stepHistory, HISTORY_MAX,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
@@ -205,6 +206,39 @@ const enErrors = validateState({ version: 2, preset: "free", style: "", canvas: 
 ok("英文校验文案无 CJK", enErrors.includes("version must be") && !/[\u4e00-\u9fff]/.test(enErrors), enErrors);
 const enFatal = readState("{}", "en").fatal || "";
 ok("英文 fatal 文案无 CJK", enFatal.includes("version") && !/[\u4e00-\u9fff]/.test(enFatal), enFatal);
+
+// 撤销 / 重做（纯函数）：状态用字符串代表
+{
+    const hst = makeHistory();
+    ok("撤销：空历史不动", stepHistory(hst, "A", -1) === null && stepHistory(hst, "A", 1) === null);
+    recordHistory(hst, "A");          // A → B
+    recordHistory(hst, "B");          // B → C
+    ok("撤销：回到上一步", stepHistory(hst, "C", -1) === "B");
+    ok("撤销：再回一步", stepHistory(hst, "B", -1) === "A");
+    ok("重做：前进", stepHistory(hst, "A", 1) === "B");
+    recordHistory(hst, "B");          // B → D：新改动清空重做
+    ok("新改动清空重做栈", stepHistory(hst, "D", 1) === null && hst.redo.length === 0);
+
+    const typing = makeHistory();
+    recordHistory(typing, "s0", "cap:o1");
+    recordHistory(typing, "s1", "cap:o1");
+    recordHistory(typing, "s2", "cap:o1");
+    ok("同一 key 连续改动合并为一步", typing.undo.length === 1 && stepHistory(typing, "s3", -1) === "s0",
+       JSON.stringify(typing.undo));
+    recordHistory(typing, "s0", "cap:o1");
+    recordHistory(typing, "s1", "cap:o2");
+    ok("换元素不合并", typing.undo.length === 2, JSON.stringify(typing.undo));
+    recordHistory(typing, "s2");
+    recordHistory(typing, "s3", "cap:o2");
+    ok("中间夹无 key 改动后不合并", typing.undo.length === 4, JSON.stringify(typing.undo));
+    stepHistory(typing, "s4", -1);
+    recordHistory(typing, "s3", "cap:o2");
+    ok("撤销后再输入不并进旧步", typing.undo.length === 4, JSON.stringify(typing.undo));
+
+    const cap = makeHistory();
+    for (let i = 0; i < HISTORY_MAX + 20; i += 1) recordHistory(cap, "x" + i);
+    ok(`历史上限 ${HISTORY_MAX}，丢最旧`, cap.undo.length === HISTORY_MAX && cap.undo[0] === "x20", cap.undo[0]);
+}
 
 console.log("__RESULT__" + JSON.stringify(results));
 """

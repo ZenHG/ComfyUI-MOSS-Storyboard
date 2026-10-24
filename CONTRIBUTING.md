@@ -17,7 +17,7 @@ python tools/smoke_nodes.py               # 41 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py         # 4 份示例 + 2 份夹具共 88 项：连线 + 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_editor_ui.py           # 58 项：编辑器接线 / 语法 / 词表纯函数
+python tools/check_editor_ui.py           # 68 项：编辑器接线 / 语法 / 词表纯函数
 python tools/check_release_ready.py       # 31 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 ```
 
