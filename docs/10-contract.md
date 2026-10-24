@@ -84,6 +84,7 @@ MossLayoutEditor
 | 3 | 不自己算 `width/height`（几何归后端；前端只显示/接收用户输入） |
 | 4 | 不改 `widgets_values` 顺序；不重排 widget |
 | 5 | 单文件 `web/moss_sb_editor.js`，不拆本地 ES module |
+| 6 | 撤销/重做历史只在内存，不写进 widget；外部改 `editor_state`（打开工作流 / 宿主级撤销）必须清空历史；输入框内不拦截 `Ctrl+Z` |
 
 ---
 

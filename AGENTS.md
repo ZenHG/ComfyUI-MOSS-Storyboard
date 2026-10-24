@@ -88,7 +88,7 @@ python tools/make_edit_workflow.py --out examples               # 「只改一�
 要 GPU + 权重的两条（**人工跑，不进 CI**）：
 
 ```bash
-python tools/e2e_matrix.py             # 端到端 14 用例真跑，逐条断言尺寸/缝色/不雷同
+python tools/e2e_matrix.py             # 端到端 14 用例真跑（整张），逐条断言尺寸/缝色/不雷同
 python tools/ui_smoke.mjs              # 可选诊断：当前环境无头浏览器无 WebGL，结论不可信
 ```
 
