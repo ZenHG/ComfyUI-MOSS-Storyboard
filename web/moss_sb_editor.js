@@ -304,7 +304,9 @@ export function validateState(obj, lang = "zh") {
         else {
             if (!isInt(g.cols) || g.cols < 1 || g.cols > 12) add(E("grid.cols 必须是 1..12 的整数", "grid.cols must be an integer in 1..12"));
             if (!isInt(g.rows) || g.rows < 1 || g.rows > 12) add(E("grid.rows 必须是 1..12 的整数", "grid.rows must be an integer in 1..12"));
-            if (isInt(g.cols) && isInt(g.rows) && g.cols * g.rows !== items.length) {
+            // 1×1 且无 items = 空白宫格占位（与 Python parse_state 同口径）
+            const blank = !items.length && g.cols === 1 && g.rows === 1;
+            if (!blank && isInt(g.cols) && isInt(g.rows) && g.cols * g.rows !== items.length) {
                 add(E(`grid 的 cols×rows=${g.cols * g.rows} 与 items 数量 ${items.length} 不一致`,
                     `grid cols x rows = ${g.cols * g.rows} does not match ${items.length} items`));
             }
@@ -409,7 +411,8 @@ export function readState(raw, lang = "zh") {
         const g = (st.grid && typeof st.grid === "object") ? { ...DEFAULT_GRID, ...st.grid } : { ...DEFAULT_GRID };
         if (JSON.stringify(g) !== JSON.stringify(st.grid)) { st.grid = g; fixed = true; }
     } else if (!st.canvas || !isInt(st.canvas.width) || !isInt(st.canvas.height)
-        || st.canvas.width < 16 || st.canvas.height < 16
+        || st.canvas.width < 64 || st.canvas.height < 64
+        || st.canvas.width > MAX_SIDE || st.canvas.height > MAX_SIDE
         || st.canvas.width % 16 !== 0 || st.canvas.height % 16 !== 0) {
         st.canvas = { ...DEFAULT_CANVAS };
         fixed = true;

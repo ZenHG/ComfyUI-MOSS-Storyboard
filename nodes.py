@@ -4,10 +4,12 @@
 # 第三方出处与许可见 THIRD-PARTY-NOTICES.md
 """V1 节点契约（本包唯一真相源，V3 外壳由 `v3/_compat.py` 从这里生成）。
 
-三个节点：
+五个节点：
+- `MossLayoutEditor`：画布式布局编辑器，state 编译成提示词/几何（零模型）。
 - `MossStoryboardLayout`：算宫格几何、生成 MOSS 原生布局 JSON、出模板图。零模型。
 - `MossStoryboardSampler`：一步到位——布局 + 采样 + 复绘宫格线 + 裁格。
 - `MossStoryboardCrop`：只裁格（给想自己接 KSampler 的人）。
+- `MossStoryboardPaste`：把改好的单格按 spec 坐标贴回整张宫格。
 """
 
 import functools
@@ -164,7 +166,7 @@ class MossStoryboardLayout:
                     "multiline": True, "default": "", "dynamicPrompts": False,
                     "tooltip": "【填什么】故事板稿：开头一段全局描述，然后每格一段用 [PANEL 1] … [PANEL n] 分开。\n"
                                "段数可以少于格数（多余格不约束），也可以多于格数（尾部丢弃）。\n"
-                               "⚠ 没有 [PANEL n] 标记时按普通文生图处理，宫格只靠模板锁定。",
+                               "⚠ 没有 [PANEL n] 标记时只输出普通提示词；模板只是预览，不再参与采样。",
                 }),
                 "panels": ("INT", {
                     "default": 8, "min": 1, "max": 12, "step": 1,
@@ -577,18 +579,21 @@ class MossStoryboardSampler:
 
         pairs, pair_notes = T.pair_captions(caps, lay.cells)
         notes.extend(pair_notes)
-        if not pairs:
-            raise ValueError("逐格模式没有可用的分格描述")
+        if len(pairs) < lay.panels:
+            raise ValueError(
+                "逐格模式要求每格都有一句描述：提示词只有 %d 段，布局有 %d 格。\n"
+                "补足 [PANEL 1]..[PANEL %d]，或把格数改小；逐格模式不会用空白格凑数。"
+                % (len(pairs), lay.panels, lay.panels))
+
+        # 负面提示词与每格无关：编码一次，所有格复用。
+        # 9B 文本编码器编 N 次纯属浪费（8 格就多 7 次前向）。
+        cond_neg = S.encode_text(clip, negative or "")
 
         # 逐格采样
         shots = []
         for i, (caption, _cell) in enumerate(pairs):
-            if init_mode == "layout":
-                text = T.single_panel_json(head, caption, pw, ph, label=label)
-            else:
-                text = caption
+            text = T.panel_prompt(head, caption, pw, ph, init_mode=init_mode, label=label)
             cond_pos = S.encode_text(clip, text)
-            cond_neg = S.encode_text(clip, negative or "")
             latent = S.empty_latent(model, pw, ph)
             out_i = S.sample(model, cond_pos, cond_neg, latent, steps=steps, cfg=cfg,
                              sampler_name=sampler_name, scheduler=scheduler,
@@ -627,12 +632,12 @@ class MossStoryboardSampler:
             "%d 步｜cfg %.2f｜%s/%s｜种子 %d（每格 +格号）｜denoise 名义 %.2f / 实际 %.2f"
             % (steps, cfg, sampler_name, scheduler, seed,
                denoise, S.effective_denoise(steps, denoise)),
+            "prompt_used = 原始故事板稿（每格实际提示词由 [PANEL n] 段派生）",
             "输出：grid %s，panels %s" % (
                 "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
         ] + notes) + _mp_note(lay, per_panel=True)
 
-        text_all = T.single_panel_json(head, pairs[0][0], pw, ph, label=label)
-        return (grid, panels_img, None, lay.spec(), text_all, report)
+        return (grid, panels_img, None, lay.spec(), (positive or "").strip(), report)
 
 
 def _assemble_per_panel(shots, lay, reborder=True, border_px=0, shave=0):
@@ -641,14 +646,23 @@ def _assemble_per_panel(shots, lay, reborder=True, border_px=0, shave=0):
 
 
 def _match_layout_to_image(lay, width, height):
-    """解码尺寸与布局不一致时，按同一套比例重建几何（保持格数/列行）。"""
-    kw = {
-        "panels": lay.panels, "cols": lay.cols, "rows": lay.rows,
-        "gutter": lay.gutter, "margin": lay.margin,
-        "panel_w": max(64, (width - 2 * lay.margin - (lay.cols - 1) * lay.gutter) // lay.cols),
-        "panel_h": max(64, (height - 2 * lay.margin - (lay.rows - 1) * lay.gutter) // lay.rows),
-    }
-    return L.build_layout(**kw)
+    """解码尺寸与布局不一致时，按同一套比例重建几何（保持格数/列行）。
+
+    必须保证重建后的 `width/height` **正好等于解码尺寸**：`build_layout` 默认会把
+    对齐余量补到 16 的倍数，而解码结果不一定对齐，补出来的画布会比输入大几像素，
+    下一步 `crop_panels` 就会因尺寸不符直接报错。这里把差额显式写进 pad。
+    """
+    pw = max(1, (width - 2 * lay.margin - (lay.cols - 1) * lay.gutter) // lay.cols)
+    ph = max(1, (height - 2 * lay.margin - (lay.rows - 1) * lay.gutter) // lay.rows)
+    raw_w = lay.cols * pw + (lay.cols - 1) * lay.gutter + 2 * lay.margin
+    raw_h = lay.rows * ph + (lay.rows - 1) * lay.gutter + 2 * lay.margin
+    pad_x, pad_y = width - raw_w, height - raw_h
+    if pad_x < 0 or pad_y < 0:
+        raise ValueError("解码尺寸 %dx%d 小于布局下限 %dx%d；无法重建裁切几何"
+                         % (width, height, raw_w, raw_h))
+    return L.build_layout(panels=lay.panels, cols=lay.cols, rows=lay.rows,
+                          gutter=lay.gutter, margin=lay.margin,
+                          panel_w=pw, panel_h=ph, pad_x=pad_x, pad_y=pad_y)
 
 
 class MossStoryboardCrop:

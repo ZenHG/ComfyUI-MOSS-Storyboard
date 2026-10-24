@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: MIT
 """批量出图：一组**预设提示词**，覆盖不同风格 / 比例 / 格数。
 
 用途是让别人拿到同样的输入就能复现同样的结果：换机器、换权重、报 bug 时

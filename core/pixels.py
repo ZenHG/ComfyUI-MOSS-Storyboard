@@ -11,6 +11,8 @@
 import torch
 import torch.nn.functional as F
 
+from . import layout as L
+
 
 def _border_mask(layout, thickness=None, device=None, dtype=torch.float32):
     """1 = 需要画线的像素（外框 + 内缝），0 = 单格内容区。
@@ -45,6 +47,11 @@ def render_template(layout, cell_gray=25, invert=False):
     - 缝是纯白，任何 denoise 档位下都比周围更"硬"，最先被保住。
     """
     gray = max(0, min(255, int(cell_gray))) / 255.0
+    if layout.width * layout.height > L.MAX_CANVAS_PIXELS:
+        raise ValueError(
+            "模板图 %d×%d = %.1fMP，超过上限 %.0fMP；按原尺寸分配会耗尽宿主内存。"
+            "请减少格数或调小 panel_edge。"
+            % (layout.width, layout.height, layout.megapixels, L.MAX_CANVAS_PIXELS / 1e6))
     plane = torch.full((layout.height, layout.width), 1.0, dtype=torch.float32)
     for cell in layout.cells:
         plane[cell.y: cell.y + cell.h, cell.x: cell.x + cell.w] = gray

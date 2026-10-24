@@ -310,7 +310,7 @@ def report(state):
         lay = geometry(state)
         g = state["grid"]
         items = sorted(state["items"], key=lambda s: s["no"])
-        out.append("宫格 %d 格 = %d 列 × %d 行" % (len(items), g["cols"], g["rows"]))
+        out.append("宫格 %d 格 = %d 列 × %d 行" % (len(items) or lay.panels, g["cols"], g["rows"]))
         out.append("画布 %d × %d（%.2fMP）｜单格 %d × %d（%.2fMP）"
                    % (lay.width, lay.height, lay.megapixels,
                       lay.panel_w, lay.panel_h, lay.panel_megapixels))

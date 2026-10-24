@@ -159,6 +159,12 @@ def test_errors(V1):
     plain = lay.build(**{**base, "prompt": "没有面板标记的一句话"})
     check("Layout: 无标记时退回纯文本", plain[5] == "没有面板标记的一句话", plain[5][:40])
 
+    sampler = V1.MossStoryboardSampler()
+    expect_raise("Sampler: 逐格段数 < 格数 → 明确报错（不靠拼版兜底）",
+                 lambda: sampler._run_per_panel(None, None, None, base["prompt"], "", 4, 1.0,
+                                                "euler", "simple", 0, 1.0, parse_spec(spec), "test"),
+                 "每格")
+
     img = torch.zeros(1, 576, 1024, 3)
     expect_raise("Crop: 无 spec 且无 columns → 报错",
                  lambda: crop.run(image=img, target_aspect="keep", padding_mode="crop",

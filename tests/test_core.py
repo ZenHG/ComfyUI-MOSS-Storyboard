@@ -99,6 +99,14 @@ check("spec 往返几何一致",
 check("spec 往返格子坐标一致", [c.bbox_px() for c in back.cells] == [c.bbox_px() for c in lay.cells])
 expect_raise("坏 spec → ValueError", lambda: L.parse_spec("hello"), "spec")
 expect_raise("缺字段 spec → ValueError", lambda: L.parse_spec("MOSS-SB1 w=100"), "缺字段")
+expect_raise("spec 单格超大 → ValueError",
+             lambda: L.parse_spec("MOSS-SB1 panels=1 w=64 h=64 cols=1 rows=1 "
+                                  "pw=999999999 ph=999999999 gutter=0 margin=0 padx=0 pady=0"),
+             "越界")
+expect_raise("spec 超长 → ValueError", lambda: L.parse_spec("MOSS-SB1 " + "panels=1 " * 600), "字符")
+_pad = L.build_layout(panels=4, cols=2, rows=2, panel_w=250, panel_h=140, gutter=8, margin=8)
+_bad_spec = _pad.spec().replace(" w=%d " % _pad.width, " w=%d " % (_pad.width + 16))
+expect_raise("spec 的 w/h 与字段不自洽 → ValueError", lambda: L.parse_spec(_bad_spec), "自相矛盾")
 
 print("\n== 4. 模板与边框复绘 ==")
 tpl = P.render_template(lay, cell_gray=25)
@@ -109,6 +117,8 @@ gx = lay.margin + lay.panel_w + 4            # 第一条竖缝中间
 check("模板缝 = 1.0", abs(float(tpl[0, 10, gx, 0]) - 1.0) < 1e-6, "x=%d, val=%.3f" % (gx, float(tpl[0, 10, gx, 0])))
 inv = P.render_template(lay, cell_gray=25, invert=True)
 check("反相模板格内 = 1-25/255", abs(float(inv[0, c0.y + 2, c0.x + 2, 0]) - (1 - 25 / 255)) < 1e-6)
+_huge = L.build_layout(panels=144, cols=12, rows=12, panel_edge=4096)
+expect_raise("超大画布（1368MP）模板 → ValueError", lambda: P.render_template(_huge), "上限")
 
 img = torch.rand(1, lay.height, lay.width, 3)
 fixed = P.composite_borders(img, lay)
@@ -227,6 +237,16 @@ check("character_boxes 生效", json.loads(chars)["items"][1]["label"] == "chara
 check("无面板时退回纯文本", T.layout_json_text(head, [], []) == head)
 expect_raise("非法 label → 报错",
              lambda: T.layout_json_text(head, pairs, lay.boxes_abs_centered(), label="region"), "label")
+
+print("\n== 8b. 逐格提示词 ==")
+plain = T.panel_prompt("4 个面板的故事板，雨夜咖啡店，35mm 胶片", "中景，两人对坐",
+                       512, 288, init_mode="plain")
+check("plain 保留全局段", "雨夜咖啡店" in plain and "35mm" in plain, plain)
+check("plain 清掉裸计数多格措辞", "4 个面板" not in plain, plain)
+check("plain 带本格描述", "两人对坐" in plain, plain)
+panel_json = T.panel_prompt("雨夜咖啡店", "中景，两人对坐", 512, 288, init_mode="layout")
+check("layout 模式给单格 JSON",
+      json.loads(panel_json)["items"][0]["caption"].endswith("两人对坐"), panel_json[:80])
 
 print("\n== 9. 分块约束（3 格 / 9 格 / 极端格数）==")
 for panels in (3, 9):

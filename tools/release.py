@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: MIT
 """一条命令，把本仓**同时**推到两个渠道（GitHub 仓库 + Comfy Registry），并交叉验证。
 
 🔴 **为什么必须有它**：本仓有两个发布渠道，而它们**各自都会静默地成功一半** ——

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: MIT
 """发布前**开源卫生**检查（唯一真相源在 `RELEASING.md` §2）。
 
 为什么单独一条门：`test_contract.py` 的「仓库卫生」只管**代码能不能跑**（无绝对路径、无死代码），

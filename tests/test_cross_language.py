@@ -45,7 +45,7 @@ def find_node():
 def js_runner():
     return r"""
 import {
-    PRESET_IDS, PRESET_SPECS, presetItems, validateState, emptyState,
+    PRESET_IDS, PRESET_SPECS, presetItems, validateState, readState, emptyState,
     DEFAULT_GRID, DEFAULT_CANVAS, ASPECT_IDS, MAX_ITEMS, MAX_SIDE, MAX_STATE_CHARS,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
@@ -59,6 +59,11 @@ for (const [cols, rows] of [[1,1],[2,1],[2,2],[3,2],[3,3]]) {
     out.grid[cols + "x" + rows] = presetItems("grid", { cols, rows, lang: "zh" });
 }
 for (const st of fixtures) out.validations.push(validateState(st).errors.length === 0);
+out.read_canvas = [32, 4112].map((w) => {
+    const r = readState(JSON.stringify({ version: 3, preset: "free", style: "",
+                                         canvas: { width: w, height: 864 }, items: [] }));
+    return { canvas: r.state.canvas, warnings: r.warnings.length };
+});
 console.log("__RESULT__" + JSON.stringify(out));
 """
 
@@ -138,7 +143,10 @@ def fixtures():
         {"version": 3, "preset": "nope", "style": "", "items": []},
         [],
     ]
-    return [base, grid] + bad
+    blank_grid = {"version": 3, "preset": "grid", "style": "",
+                  "grid": {**GRID, "cols": 1, "rows": 1}, "items": []}
+    bad.append({**blank_grid, "grid": {**GRID, "cols": 2, "rows": 1}})
+    return [base, grid, blank_grid] + bad
 
 
 def main():
@@ -193,6 +201,14 @@ def main():
             py_ok = False
         if i < len(js_ok):
             check(f"validate #{i}", py_ok == js_ok[i], f"py={py_ok} js={js_ok[i]}")
+    check("validate 数量一致", len(js_ok) == len(fx), f"{len(js_ok)} vs {len(fx)}")
+
+    # 宽容读取：Python 会拒的画布，JS 必须修回默认值而不是留着再报警告
+    read_canvas = data.get("read_canvas") or []
+    check("readState 结果数量", len(read_canvas) == 2, str(read_canvas))
+    for w, r in zip((32, 4112), read_canvas, strict=False):
+        check(f"readState canvas width={w} → 修回默认",
+              r.get("canvas") == E.empty_state()["canvas"] and r.get("warnings") == 0, str(r))
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:

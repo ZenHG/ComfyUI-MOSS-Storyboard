@@ -161,6 +161,13 @@ def main():
         got = S.effective_denoise(steps, den)
         check("%s ⇒ 实际 %.2f" % (tag, got), abs(got - want) < 1e-9, "期望 %.2f" % want)
 
+    print("\n== 7. 空 latent 的面积上限 ==")
+    try:
+        S.empty_latent(None, 8192, 8192)
+        check("超大画布 → 应报错", False, "未抛异常")
+    except ValueError as e:
+        check("超大画布 → 提到上限", "上限" in str(e), str(e)[:80])
+
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:
         for f in FAIL:

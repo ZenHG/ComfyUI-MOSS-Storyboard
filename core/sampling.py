@@ -13,6 +13,8 @@ MOSS-Image 事实（`comfy/latent_formats.py::Flux2`）：latent 128 通道、�
 
 import torch
 
+from . import layout as L
+
 
 _PROBED = {"ok": False}
 
@@ -55,11 +57,17 @@ def empty_latent(model, width, height, batch=1):
     直接 `torch.zeros([B,128,...])` 会写死 MOSS，换成别家 16 通道模型就崩；
     走 `fix_empty_latent_channels` 才是与 `EmptyLatentImage` 同一条路径。
     """
+    width, height = int(width), int(height)
+    if width % 16 or height % 16:
+        raise ValueError("画布必须能被 16 整除（收到 %dx%d）" % (width, height))
+    if width * height > L.MAX_CANVAS_PIXELS:
+        raise ValueError(
+            "画布 %d×%d = %.1fMP，超过上限 %.0fMP；宿主无法为它分配 latent。"
+            "请减少格数或调小 panel_edge。"
+            % (width, height, width * height / 1e6, L.MAX_CANVAS_PIXELS / 1e6))
     import comfy.model_management
     import comfy.sample
 
-    if width % 16 or height % 16:
-        raise ValueError("画布必须能被 16 整除（收到 %dx%d）" % (width, height))
     samples = torch.zeros([int(batch), 4, height // 16, width // 16],
                           device=comfy.model_management.intermediate_device())
     samples = comfy.sample.fix_empty_latent_channels(model, samples)
