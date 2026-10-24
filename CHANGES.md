@@ -84,15 +84,15 @@
   用 `tools/make_ui_workflow.py` 重新生成即可。
 
 ### 文档
-- README / README_EN「这一版做不到的」改为直说"不做图生图"，并补一条实测：
-  **官方非蒸馏配方（50 步 / cfg 3）在本机跑出来是崩坏扭曲的**，原因未确认、社区有能跑通的报告。
-  `steps` / `cfg` 的 tooltip 同步这句，不再写成"可以试试更高保真"。
+- README / README_EN「这一版做不到的」改为直说"不做图生图"；`steps` / `cfg` 的 tooltip 按两档配方写
+  （官方模型 30–50 步 / cfg 3–5；4 步蒸馏 LoRA 4–8 步 / cfg 1.0）。
 - `denoise` 的说明改写成"没有图生图，调 <1 只会少跑几步"，删掉原先"模板初始化时必须 <1"那句。
 
 ### 计数
-`test_core 282` · `test_contract 48`（--no-host）· `test_sampling_contract 18` · `test_i18n 54` ·
-`smoke_nodes 25` · `host_loader_check 16` · `check_ui_workflow 15/文件` · `check_frontend 9` ·
-`check_release_ready 29`
+`test_core 294` · `test_editor 102` · `test_contract 129`（--no-host 113）· `test_sampling_contract 18` ·
+`test_i18n 54` · `test_cross_language 50` · `test_panel_assembly 5` · `smoke_nodes 41` ·
+`host_loader_check 19` · `check_ui_workflow 4 示例 + 2 夹具共 88` · `check_frontend 9` ·
+`check_editor_ui 58` · `check_release_ready 31`
 
 
 ## 0.1.1 — 2026-10-23

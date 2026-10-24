@@ -5,8 +5,7 @@
 > Condensed English version of [README.md](README.md) (Chinese is the source of truth).
 > No section-level hash sync gate yet — see `AGENTS.md` §六.
 
-**Layout** nodes for **MOSS-Image**: place elements on a canvas (people / objects / text), generate
-in one pass.
+**Layout** nodes for **MOSS-Image**: place elements on a canvas (people / objects / text) and output one image (grid or single).
 
 Two uses, one mechanism:
 
@@ -26,13 +25,17 @@ Two uses, one mechanism:
 
 ## Three things that prevent most misunderstandings
 
-1. **It does not generate n images and stitch them.** It generates **one canvas** split into n
-   panels — so more panels means fewer pixels per panel (≈496×272 each at 8 panels).
-2. **The grid lines are not drawn by the model.** After decoding, the node **redraws** them from
-   the same coordinates — width and position are exact, so they never wobble or break.
-3. **What goes in each panel is up to MOSS's own layout capability.** Panel captions are converted
-   into MOSS's native JSON layout boxes. That capability is officially marked *experimental*;
-   **strict per-panel compliance is not guaranteed**. This pack does not score it quantitatively.
+1. **By default one canvas is generated in one pass; the optional Per-panel mode samples every
+   panel separately and assembles the board.** Default is fast; per-panel is more consistent across
+   panels and gives each panel a higher sampling resolution, at about N× the time. More panels means
+   fewer pixels per panel in the default mode (≈496×272 each at 8 panels).
+2. **Grid lines are redrawn by default (`reborder` on) from the same coordinates after decoding —
+   position and width are exact.** Turn it off only if you want the model to draw the lines itself
+   (they may wobble or break).
+3. **There is no quantitative score for layout-box adherence.** MOSS's layout capability is
+   officially marked *experimental*; strict per-panel compliance is not guaranteed. This pack
+   guarantees geometry, wiring and crops; composition needs visual review. Text rendering has a
+   small-sample measurement (see Known limits).
 
 ---
 
@@ -44,8 +47,8 @@ Two uses, one mechanism:
 | **Per-panel captions** | `[PANEL 1]`…`[PANEL n]` blocks become native MOSS layout boxes |
 | **Visual layout** | A canvas inside the node: drag boxes to decide which region each element occupies, then fill in its description. Text elements take the literal string to render |
 | **8 layout presets** | grid / split-v / split-h / title-body / three-col / center / stack / blank |
-| **Text posters** | Chinese, English, mixed, and two-line text all render (measured — see Known limits) |
-| **Deterministic grid lines** | Redrawn from coordinates after decoding |
+| **Text posters** | Chinese, English, mixed, and two-line text have small-sample measurements (see Known limits) |
+| **Deterministic grid lines** | Redrawn from coordinates after decoding (`reborder` on by default) |
 | **Per-panel crops** | Row-major, pixel-aligned to the canvas; `spec` carries all geometry in one wire |
 | **Bilingual UI (zh / en)** | A 中 / EN button on each of our nodes; display-only, never touches saved values |
 
@@ -82,9 +85,9 @@ Weights are **not** bundled. The optional 4-step distilled LoRA is **not** part 
 the shipped workflow includes a `LoraLoaderModelOnly` node **bypassed by default** —
 un-bypass it (`Ctrl+B`) once you have the file.
 
-> **Host version also changes VRAM.** In stable releases **v0.42.1 and earlier**, the Flux2 VAE
-> decode reserves **4×** the memory it actually needs. Fixed in master after 2026-10-23
-> (commit `d07dff4`, not yet in any release) — `git pull` once if you installed via git.
+> **Host version also changes VRAM.** The fix is commit `d07dff4` (2026-10-23). Hosts that contain
+> it use the **New** column; older hosts (including **v0.42.1 and earlier**) use the **Old** column.
+> `git pull` once if you installed via git; if unsure, budget for the Old column.
 > Numbers, and how to tell which column you are in → [How much VRAM](#how-much-vram).
 
 ---
@@ -150,8 +153,8 @@ No `[PANEL n]` blocks — place boxes instead:
    scene, style, camera). Writing `[STYLE]:` is optional — it is just a readable label; the parser
    goes by position.
 2. Each `[PANEL n]` block describes **that panel**: shot size + subject + action.
-3. **Numbers need not be consecutive** and need not start at 1; the **order of appearance** decides
-   the mapping (row-major: left→right, then top→bottom).
+3. **Numbers decide the order: captions are sorted by panel number and paired with cells in that
+   order.** Gaps are allowed, but do not write out of order; keep 1..N.
 
 | You write | Result |
 |---|---|
@@ -170,7 +173,7 @@ No `[PANEL n]` blocks — place boxes instead:
 | 8 | **wide** (2 rows of 4) | 2032 × 576 | 1.17 | 496 × 272 |
 | 9 | **3 × 3** | 1520 × 848 | 1.29 | 496 × 272 |
 
-All within MOSS's 1–2 MP training range. Portrait panels (`panel_aspect = 9:16`) rotate the whole
+8/9 panels land in MOSS's 1–2 MP training range; 3/4/6 are below it (usable, but outside the trained range). Portrait panels (`panel_aspect = 9:16`) rotate the whole
 layout by 90°: 3 panels become a horizontal strip (848 × 512), 6 become 2 × 3 (576 × 1520),
 8 become 2 × 4 (576 × 2032); 4 and 9 are unchanged.
 
@@ -191,12 +194,12 @@ depending on your host version.
 | 1520 × 848 | 9 | ~1.3 GB | ~5.2 GB |
 | 2096 × 608 | 8 (512 band) | ~1.3 GB | ~5.2 GB |
 
-**Which column are you in?** The fix is commit `d07dff4` (2026-10-23) and is **not in any stable
-release yet**.
+**Which column are you in?** The fix is commit `d07dff4` (2026-10-23). Check whether your host
+build contains it; if unsure, use the **Old** column.
 
 | How you installed | Column |
 |---|---|
-| Desktop / portable / pip | **Old** — wait for a release |
+| Desktop / portable / pip | Depends on the build; if unsure, **Old** |
 | `git clone` + `git pull` after 2026-10-23 | **New** |
 | `git clone` but not pulled recently | **Old** |
 
@@ -409,6 +412,9 @@ out, correct it however you like, then paste it back at the exact `spec` coordin
   pixel-exact round trip use Crop with `resize_edge=0`, `target_aspect=keep`, and the same `shave`.
 - To fix several panels, chain Paste nodes: the first `grid` output feeds the next `grid` input.
 
+> Ready-made graph: `examples/moss-storyboard-4panels-edit.json` (needs the `Moss-Image-Edit` LoRA /
+edit node; the node contains instructions).
+
 Recommended wiring (no manual panel numbers anywhere):
 
 ```
@@ -476,7 +482,7 @@ This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or
 | 3/4/6/8/9 panels · landscape/portrait · no gutter · thick gutter · small canvas · `plain` | base + 4-step LoRA / **4 steps** | sizes pixel-exact vs. theory | 15 runs |
 | Grid lines | same | pure white after redraw | per case |
 | Random seed | same | different seed → different md5 | 2 controls |
-| **Element boxes constrain composition** | base + 4-step LoRA / **4 steps**; base + 8-step LoRA / **8 steps** | boxes only changed: the bicycle went from cropped out to fully visible with its front wheel in the lower-left. Reproduced on 3 seeds | 11 images |
+| **Element boxes constrain composition** | base + 4-step LoRA / **4 steps**; base + 8-step LoRA / **8 steps** | boxes only changed: the bicycle went from cropped out to fully visible with its front wheel in the lower-left. Reproduced on 3 seeds | 36 images (docs/08 §8) |
 | **Four Chinese characters** (1024×576) | base + 8-step LoRA / **8 steps** | all correct | 1 image |
 | **Four Chinese characters** (2048×1152) | base + 4-step LoRA / **4 steps** | all correct, softer strokes | 1 image |
 | **Four Chinese characters** (2048×1152) | base + 8-step LoRA / **8 steps** | all correct, sharp strokes | 2 images |
@@ -497,8 +503,8 @@ This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or
 | **Box height does not control size** | A 43 px box produced ≈130 px glyphs — **text overflows its box**. Control size with box **width** and caption length | — |
 | **Edge-adjacent boxes get clipped** | Box top at 5% → glyphs overflowed and the canvas cut them, both seeds | 2048×1152 / 8 steps |
 
-> Sample size is small (1–2 images per item). "Four characters correct" held across several configs,
-> so it is reasonably solid. Clipping was only reproduced in the red-colour group — **other colours
+> Sample size is small (1–2 images per item). "Four characters correct" repeated across several
+> configs, but it is **not a guarantee**. Clipping was only reproduced in the red-colour group — **other colours
 > were not tested**. Presets keep text boxes at 10%, but **10% is not verified as safe** either; it is
 > just a more conservative starting point than 5%.
 
@@ -560,7 +566,9 @@ Console diagnostics: [`docs/04`](docs/04-i18n-and-widgets.md).
 **Can I use my own negative prompt?** Yes — raise `CFG` above 1, then expand **Advanced** on the
 node. At `cfg=1.0` the negative branch never enters the graph.
 
-**Can I generate a plain (non-grid) image?** Yes: set panels to 1, or `init = plain`.
+**Can I generate a plain (non-grid) image?** Use the Layout Editor's single mode (recommended), or set
+`panels = 1` on the Sampler. `init = plain` only changes how the prompt is sent; it does not remove
+the grid geometry.
 
 ---
 

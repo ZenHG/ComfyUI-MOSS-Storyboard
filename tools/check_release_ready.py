@@ -191,7 +191,7 @@ def s4_package(files: list[str]) -> None:
     must_keep = ["__init__.py", "nodes.py", "core/layout.py", "core/sampling.py",
                  "core/editor.py", "core/presets.py",
                  "v3/_compat.py", "web/moss_sb_i18n.js", "web/moss_sb_editor.js",
-                 "pyproject.toml", "LICENSE", "README.md", "requirements.txt",
+                 "pyproject.toml", "LICENSE", "README.md", "requirements.txt", "THIRD-PARTY-NOTICES.md",
                  "examples/moss-storyboard-4panels-ui.json",
                  "examples/moss-layout-editor-poster.json",
                  "examples/moss-layout-editor-storyboard.json"]

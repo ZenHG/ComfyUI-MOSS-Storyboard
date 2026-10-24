@@ -71,8 +71,8 @@ new parameters and outputs are appended.
   实测这三组参数只会得到纯黑或模板残影，留着只会让你白跑一次。
 - 采样器不再有「模板图」输入。起点永远从纯噪声开始。
 - 如果你之前接过模板线：工作流还能打开，但那根线会失效，重新生成一次工作流即可。
-- 另外补一条实测：官方非蒸馏配方（50 步 / cfg 3）在我们机器上跑出来是崩坏扭曲的画面，
-  原因未确认，有人能跑通。想试请先出单张小样，别直接批量跑。
+- **更正（2026-10-24）**：此前关于官方非蒸馏配方（50 步 / cfg 3）“崩坏扭曲”的结论已过时；
+  复核可正常跑。当前配方见 0.2.0 的两档建议（官方模型 30–50 步 / cfg 3–5）。
 
 **升级动作**：从 Manager 更新到 0.1.2。建议重新生成一次示例工作流，避免旧的模板线残留。
 
@@ -87,8 +87,9 @@ new parameters and outputs are appended.
 - The sampler no longer has a template input; the latent always starts from pure noise.
 - If you had a template wire connected: the workflow still opens, but that wire becomes inert.
   Regenerate the workflow once to clean it up.
-- Also documented: the official non-distilled recipe (50 steps / cfg 3) produced corrupted frames
-  on our machine. Cause unconfirmed, others report it works — sample one image before running a batch.
+- **Correction (2026-10-24)**: the earlier claim that the official non-distilled recipe
+  (50 steps / cfg 3) produced corrupted frames is outdated; a re-check runs normally.
+  See the two-band recipe in 0.2.0 (base model: 30–50 steps / cfg 3–5).
 
 **Action required**: Update to 0.1.2 from the Manager. Regenerating the example workflow is
 recommended so the old template wire does not linger.

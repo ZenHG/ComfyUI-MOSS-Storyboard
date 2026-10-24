@@ -49,7 +49,7 @@
    反过来，用户操作步骤也不许只写在 AGENTS 里。判据：**一个只用画布的用户，读完 README 能不能跑通**。
 9. **仓库是公开的，读者只有代码，没有人**。文档、注释、提交信息里：
    - 不写内部沟通（谁提的、什么时候提的、讨论过程）；
-   - 不写本机环境（盘符、用户名、家目录、其它机器的路径）—— 要举例就 `<ComfyUI>` / `/path/to/...`；
+   - 不写本地环境（盘符、用户名、家目录、其它机器的路径）—— 要举例就 `<ComfyUI>` / `/path/to/...`；
    - 不写情绪化的过程叙述；需要溯源时给**条件 + 结论**，不写叙事；
    - 结论必须区分「已验证 / 未验证」。
    判据：**交给一个陌生人，他能否只凭这些文字把事做对，且看不出这是谁的机器。**
@@ -68,10 +68,13 @@ python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项（零浏览器）
 python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点真跑，41 项
 python tools/host_loader_check.py      # 走宿主 load_custom_node，19 项
-python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，6 份示例共 88 项
+python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，4 示例 + 2 夹具共 88 项
 python tools/check_frontend.py         # 前端词表/语法/接线/标题可换语言，9 项
 python tools/check_editor_ui.py        # 编辑器前端：接线/语法/词表纯函数，58 项
 ```
+
+CI 另跑 `release-preview`（`check_release_ready.py` + `make_dist.py --zip`，只构建/上传 artifact，不发布）；
+`host` job 用 `make_dist.py --verify` 从干净副本独立加载并跑编辑器/宫格/裁格。
 
 改了参数表还要重生成示例（槽位会变）：
 
@@ -86,7 +89,7 @@ python tools/make_edit_workflow.py --out examples               # 「只改一�
 
 ```bash
 python tools/e2e_matrix.py             # 端到端 14 用例真跑，逐条断言尺寸/缝色/不雷同
-python tools/ui_smoke.mjs              # 可选诊断：本机无头浏览器无 WebGL，结论不可信
+python tools/ui_smoke.mjs              # 可选诊断：当前环境无头浏览器无 WebGL，结论不可信
 ```
 
 全部应是「失败 0」。**不要用 `| tail -n` 看这些脚本**——退出码会被吃掉。
@@ -131,5 +134,5 @@ curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
   ⇒ 改了中文 README 必须人肉看一眼英文版。这条是当前最大的文档漂移风险。
 - CI（`.github/workflows/ci.yml`）只跑 ruff + CPU 单测 + 前端一致性；
   **`e2e_matrix.py` 要 GPU + 权重，不在 CI**，靠人跑。
-- 前端"看得见"没有自动化闸：本机无头 chromium 无 WebGL，画布不渲染，`ui_smoke.mjs`
+- 前端"看得见"没有自动化闸：当前环境无头 chromium 无 WebGL，画布不渲染，`ui_smoke.mjs`
   的结论不可信（已降级为诊断）。现在靠控制台两行日志 + `MOSS_SB_LANG.where()` + 人眼。

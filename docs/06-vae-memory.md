@@ -71,12 +71,12 @@ grep -c fused_norm comfy/ldm/modules/diffusionmodules/model.py
 grep -n "memory_used_decode.*4.0" comfy/sd.py
 ```
 
-> **本机（2026-10-24 实测，`v0.42.0-44-gfb3befd16`）已包含该提交**：
+> **当前环境（2026-10-24 实测，`v0.42.0-44-gfb3befd16`）已包含该提交**：
 > `git merge-base --is-ancestor d07dff4 HEAD` 通过；`model.py` 里 `fused_norm` 命中 **25** 处；
 > `sd.py:698` 已是条件式 `* (1.0 if fused_norm_served(...) else 4.0)`。
 > 运行时判据同样通过：`comfy.quant_ops.ck` 可用、设备 cuda:0、
 > `fused_norm_served(fp16)=True` / `(bf16)=True` / `(fp32)=False`
-> ⇒ **本机走 ×1 那一列**，下面复算表的「新宿主」列就是本机实际值。
+> ⇒ **当前环境走 ×1 那一列**，下面复算表的「新宿主」列就是实测值。
 >
 > 但 `git tag --contains d07dff4` **无输出** —— 这个优化还没进任何正式 tag。
 > ⇒ 用 pip / release 包装的用户仍在 ×4 那一列；只有 `git clone` 且 pull 到 10-23 之后的才有。
@@ -109,8 +109,8 @@ def fused_norm_served(device, dtype):
 
 ## 五、复算表
 
-公式套进去，`dtype = fp16`（本机实测 `vae_dtype = torch.float16`，与 bf16 同占 2 字节，数值相同）。
-**「新宿主 ×1」列已用本机 VAE 实例逐格复算吻合**（1024×576→0.60、2096×608→1.29、
+公式套进去，`dtype = fp16`（当前环境实测 `vae_dtype = torch.float16`，与 bf16 同占 2 字节，数值相同）。
+**「新宿主 ×1」列已用测试 VAE 实例逐格复算吻合**（1024×576→0.60、2096×608→1.29、
 2336×1328→3.15、3120×896→2.84 GB）。
 
 | 画布 | 格数（496 档） | 旧宿主 ×4 | 新宿主 ×1 |
