@@ -31,8 +31,11 @@ CI 的 `release-preview` job 会构建干净分发包（`tools/make_dist.py --zi
 
 ```bash
 python tools/make_gallery.py   # 8 组预设提示词（换机器复现用）
-python tools/e2e_matrix.py     # 14 用例真跑
+python tools/e2e_matrix.py     # 14 用例真跑（整张模式）
 ```
+
+> 发布前：逐格模式（`mode=逐格`）目前**不在**矩阵里，需另跑 layout / plain 两例
+> （`sample_edge=512`，约 2 min GPU），把耗时与结果记进 `CHANGES.md`；跑法 = 复用 `e2e_matrix.run_case`，over 传 `5.mode` / `5.sample_edge`。
 
 > ⚠️ **别用 `| tail -n` 跑这些脚本** —— 管道会把退出码吃掉，你会看到"通过"却拿到 0。
 
@@ -51,13 +54,22 @@ python tools/e2e_matrix.py     # 14 用例真跑
    绝不碰 `name`/`value`/`options.values`；中文提示只在 `nodes.py` 写一份，
    `web/moss_sb_i18n.js` 的 `TIPS` 只存 `en`。新增参数忘了补英文 → `test_contract.py` 红。
 
-## 改完要同步的三处数字
+## 改完要同步的项数
 
-断言数写在这三个地方，改了测试就必须一起改，否则下一个人会被旧数字误导：
+断言数散在 5 个已入仓文件里，改了测试就必须一起改，否则下一个人会被旧数字误导：
 
 - 本文件上面的命令注释
 - `.github/workflows/ci.yml` 文件头的期望值
 - `AGENTS.md` §三 的命令清单
+- `docs/08-visual-editor-plan.md` §九 的验收命令
+- `docs/11-editor-ui.md` §八（开头的项数与「总计 N 项」）
+
+`docs/10-task-split.md` 是本地台账、不入仓，不在此列；`CHANGES.md` 里已发布版本的历史数字不动。
+
+## 测试纪律
+
+- **跨语言差分必须断言条数守恒**：JS runner 少返回结果时，`zip` 会把两侧静默截断成"全绿"。
+  `test_cross_language.py` 已用「readState 结果数量」封住；新增 runner 照此办理。
 
 ## PR 期望
 
