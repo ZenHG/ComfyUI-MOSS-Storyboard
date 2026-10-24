@@ -49,7 +49,7 @@ def main():
     import torch
     from moss_sb import nodes as V1
     from moss_sb.core import layout as L
-    check("V1 注册 4 个节点", len(V1.NODE_CLASS_MAPPINGS) == 4, str(sorted(V1.NODE_CLASS_MAPPINGS)))
+    check("V1 注册 5 个节点", len(V1.NODE_CLASS_MAPPINGS) == 5, str(sorted(V1.NODE_CLASS_MAPPINGS)))
     for name, cls in V1.NODE_CLASS_MAPPINGS.items():
         it = cls.INPUT_TYPES()
         req = list(it.get("required") or {})
@@ -63,7 +63,7 @@ def main():
 
     print("\n== 3. V3 出口 ==")
     from moss_sb.v3.nodes_v3 import NODES
-    check("V3 清单 4 个节点", len(NODES) == 4, str([c.__name__ for c in NODES]))
+    check("V3 清单 5 个节点", len(NODES) == 5, str([c.__name__ for c in NODES]))
     for cls in NODES:
         try:
             sch = cls.GET_SCHEMA()
@@ -85,7 +85,7 @@ def main():
     lay_node = V1.MossStoryboardLayout()
     blob = ("[STYLE]: 雨夜咖啡店，35mm 胶片\n" + "\n".join(
         "[PANEL %d]: 第 %d 格的中景描述" % (i, i) for i in range(1, 9)))
-    w, h, cols, rows, spec, text, tpl, report = lay_node.build(
+    w, h, cols, rows, spec, text, tpl, report, elements = lay_node.build(
         prompt=blob, panels=8, panel_aspect="16:9", panel_edge=512, canvas_aspect="auto",
         columns=0, rows=0, gutter=8, margin=8, cell_gray=25, invert=False, label="object")
     check("Layout: 8 格 = 2 行 4 列", (rows, cols) == (2, 4), "%d行%d列" % (rows, cols))

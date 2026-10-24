@@ -17,7 +17,7 @@ body:
     attributes:
       label: 版本
       description: ComfyUI 版本（启动日志第一行）+ 本包版本（`[MOSS SB] v...` 那行）
-      placeholder: "ComfyUI 0.42.0 / MOSS SB 0.1.0"
+      placeholder: "ComfyUI 0.42.0 / MOSS SB 0.2.0"
     validations:
       required: true
   - type: dropdown
@@ -44,7 +44,7 @@ body:
     id: report
     attributes:
       label: 采样器 report 输出
-      description: ③ 生成节点的 `report` 输出（0.1.0 起会打印几何来源、单格尺寸、denoise 名义/实际）
+      description: ③ 生成节点的 `report` 输出（会打印几何来源、单格尺寸、denoise 名义/实际）
       render: text
   - type: checkboxes
     id: checks
@@ -53,4 +53,4 @@ body:
       options:
         - label: 我已确认 CLIPLoader 的 type 是 `moss_image`
         - label: 我已确认 `denoise = 1.0`（本包不做图生图，调低只会少跑几步）
-        - label: 我已确认没有把 `cfg` 调到 >1 或 `steps` 调到 50（本机实测画面崩坏）
+        - label: 我已确认步数/CFG 与所用模型匹配（叠 4 步蒸馏 LoRA：4–8 步 / cfg 1.0；官方模型：30–50 步 / cfg 3–5）

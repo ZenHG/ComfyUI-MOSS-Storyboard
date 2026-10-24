@@ -20,6 +20,9 @@ PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COMFY = host_root()
 #: 这些类型在画布上只以**输入槽**出现，不占 widgets_values 的位置。
 LINK_ONLY = {"MODEL", "CLIP", "VAE", "IMAGE", "LATENT", "CONDITIONING", "MASK", "SIGMAS"}
+#: 0.2.0 追加在末尾的 widget。0.1.x 存的工作流只有前 20 个值（positive … shave），
+#: 尾部两个按默认走。**只认这个后缀**：别的位置少值/错位一律判红 —— 错位比缺省危险。
+LEGACY_TAIL = {"MossStoryboardSampler": ("mode", "sample_edge")}
 
 PASS, FAIL = [], []
 
@@ -71,6 +74,14 @@ def widget_specs(cls):
                 continue
             out[name] = (t, opts if isinstance(opts, dict) else {})
     return out
+
+
+def legacy_tail(node_type, want, got):
+    """该节点的 `got` 是否正好是「当前顺序去掉末尾追加项」。是则返回被省掉的尾部名。"""
+    tail = LEGACY_TAIL.get(node_type, ())
+    if tail and len(got) == len(want) - len(tail) and tuple(want[-len(tail):]) == tail:
+        return tail
+    return ()
 
 
 def value_ok(typ, opts, v):
@@ -138,13 +149,23 @@ def check_file(path, mappings):
         ours += 1
         want = expected_widgets(cls)
         got = n.get("widgets_values") or []
-        check("%s(id=%d) 槽位数 %d" % (n["type"], n["id"], len(want)), len(got) == len(want),
-              "" if len(got) == len(want) else "widgets=%d 期望=%d %s" % (len(got), len(want), want))
-        if len(got) != len(want):
+        tail = legacy_tail(n["type"], want, got)
+        if tail:
+            # 0.1.x 存的布局：前 20 个位置必须仍是当前名字，缺的只能是末尾追加项。
+            check("%s(id=%d) 槽位数 %d（0.1.x 尾部默认：%s）" % (n["type"], n["id"], len(got), "/".join(tail)),
+                  True, "0.1.x 尾部默认")
+        else:
+            check("%s(id=%d) 槽位数 %d" % (n["type"], n["id"], len(want)), len(got) == len(want),
+                  "" if len(got) == len(want) else "widgets=%d 期望=%d %s" % (len(got), len(want), want))
+        if tail:
+            names = want[: len(got)]
+        elif len(got) == len(want):
+            names = want
+        else:
             continue
         specs = widget_specs(cls)
         bad = []
-        for name, val in zip(want, got, strict=False):
+        for name, val in zip(names, got, strict=False):
             if name == "<control_after_generate>":
                 if val not in ("fixed", "increment", "decrement", "randomize"):
                     bad.append("seed 控制项=%r" % (val,))
@@ -154,8 +175,8 @@ def check_file(path, mappings):
                 bad.append("%s=%r 不符合 %s%s" % (name, val, typ, opts.get("min") and "[%s,%s]" % (opts.get("min"), opts.get("max")) or ""))
         # 逐位值域校验：槽位错一位几乎必然在这里翻红（例如 16:9 落进 panels）
         check("%s(id=%d) 每个 widget 值都在值域内" % (n["type"], n["id"]), not bad, "；".join(bad[:3]))
-        pv = dict(zip(want, got, strict=False)).get("panels")
-        if "panels" in want:
+        pv = dict(zip(names, got, strict=False)).get("panels")
+        if "panels" in names:
             check("%s(id=%d) panels 合理" % (n["type"], n["id"]), pv in (3, 4, 6, 8, 9), str(pv))
     check("文件里含本包节点（%d 个）" % ours, ours > 0)
 
@@ -202,8 +223,10 @@ def check_file(path, mappings):
     for n in wf["nodes"]:
         if n["type"] != "MossStoryboardSampler":
             continue
-        kv = dict(zip(expected_widgets(mappings["MossStoryboardSampler"]),
-                      n.get("widgets_values") or [], strict=False))
+        want = expected_widgets(mappings["MossStoryboardSampler"])
+        got = n.get("widgets_values") or []
+        names = want[: len(got)] if legacy_tail(n["type"], want, got) else want
+        kv = dict(zip(names, got, strict=False))
         init, den = kv.get("init"), kv.get("denoise")
         check("init=%s 时 denoise=1（本包无图生图）" % init,
               isinstance(den, (int, float)) and abs(den - 1.0) < 1e-9, str(den))

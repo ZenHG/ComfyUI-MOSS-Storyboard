@@ -424,6 +424,22 @@
      }
     },
     {
+     "name": "mode",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "mode"
+     }
+    },
+    {
+     "name": "sample_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "sample_edge"
+     }
+    },
+    {
      "name": "seed",
      "type": "INT",
      "link": null,
@@ -533,7 +549,9 @@
     "object",
     true,
     0,
-    0
+    0,
+    "整张",
+    1024
    ]
   },
   {

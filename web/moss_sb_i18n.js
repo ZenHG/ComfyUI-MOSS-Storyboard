@@ -55,6 +55,10 @@ export function defaultLang(readHostLang) {
 // 老工作流里节点标题就是它 —— 不把它算进"默认名"，就会被当成**用户自定义标题**，
 // 中英切换对这类节点永久失效（2026-10-23 真机踩到）。
 export const NODES = {
+    MossLayoutEditor: {
+        zh: "🎬 布局编辑器", en: "🎬 Layout Editor",
+        legacy: "MOSS Layout Editor",
+    },
     MossStoryboardLayout: {
         zh: "🎬 故事板 · 宫格几何", en: "🎬 Storyboard · Grid Layout",
         legacy: "MOSS Storyboard Layout",
@@ -166,6 +170,12 @@ export const COMBOS = {
 // 🔴 中文的唯一来源是 `nodes.py` 的 tooltip —— 别在这里加 zh。
 // ---------------------------------------------------------------------------
 export const TIPS = {
+    // ===== 布局编辑器 =====
+    "MossLayoutEditor.editor_state": {
+        en: "[Do not type here] The editor's save file: the whole layout state as JSON.\n"
+            + "Edit it on the node's canvas; this field updates itself.\n"
+            + "Hand-editing works but the JSON must match schema v3, otherwise the node raises.",
+    },
     // ===== 宫格几何 =====
     "MossStoryboardLayout.prompt": {
         en: "[What to enter] Leave this empty. The storyboard script belongs in the Generate node.\n"
@@ -267,6 +277,21 @@ export const TIPS = {
             + "auto / layout = panel captions are turned into native JSON layout boxes (recommended);\n"
             + "plain = raw prompt, no layout boxes.\n"
             + "⚠ This pack does not do img2img: the latent starts empty, MOSS does not condition on reference images.",
+    },
+    "MossStoryboardSampler.mode": {
+        en: "[What to enter] How the panels are produced.\n"
+            + "Whole grid (default) = one sampling pass for the entire board: fast, but the same\n"
+            + "character can look different across panels.\n"
+            + "Per panel = every panel is sampled on its own and then assembled: N times slower,\n"
+            + "but the character stays consistent across panels and each panel can be given\n"
+            + "far more pixels (measured: the red beret and the face match noticeably better).",
+    },
+    "MossStoryboardSampler.sample_edge": {
+        en: "[What to enter] In per-panel mode, how many times larger the sampled resolution of\n"
+            + "each panel is compared to its final size. 2.0 = sample at 2x and downscale,\n"
+            + "which makes every panel noticeably sharper.\n"
+            + "⚠ Only used in per-panel mode; ignored in whole-grid mode.\n"
+            + "Cost: VRAM and time scale with it.",
     },
     "MossStoryboardSampler.label": { en: "[Advanced] Layout box type, same as the Layout node." },
     "MossStoryboardSampler.reborder": {

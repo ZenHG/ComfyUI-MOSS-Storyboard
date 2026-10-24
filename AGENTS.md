@@ -4,8 +4,11 @@
 
 ## 一、这个仓是什么
 
-给 MOSS-Image 用的故事板宫格节点包。三个节点（Layout / Sampler / Crop），
+给 MOSS-Image 用的**布局**节点包。五个节点（LayoutEditor / Layout / Sampler / Crop / Paste），
 两条 API 出口（V3 默认、V1 回退），零第三方依赖。
+
+两种用法同一套机制：**宫格**（N 格 + 每格一段描述）与**单张**（元素框 + 文字块）。
+几何永远从 `core/layout.py` 出；`core/editor.py` 只做 state ↔ 提示词的确定性编译。
 
 ## 二、铁律（每条都有事故来源）
 
@@ -21,7 +24,7 @@
 5. **不静默兜底**。尺寸不符、spec 不合、整除失败 —— 一律 raise 带操作指引的中文错误。
    唯一允许的"降级"是带出声的成功路径（例如解码尺寸不符时按解码结果重建几何，并写进 report）。
 6. **画布与单格必须 16 的倍数**。对齐余量只加到右/下外边距，绝不改单格尺寸。
-7. **i18n 只改显示，不改存档**（抄 H 仓铁律）：
+7. **i18n 只改显示，不改存档**：
    - 只碰 `label` / `title` / `tooltip` / `placeholder`，**绝不碰 `name` / `value` / `options.values`**；
    - 中文提示**只在 `nodes.py` 写一份**，`web/moss_sb_i18n.js` 的 `TIPS` 只存 `en`；
    - 用户自定义标题不许覆盖；只换默认名前缀、后缀保留；
@@ -32,7 +35,7 @@
    - 🔴 **`negative` 必须保持 `advanced: True`** —— cfg=1 时宿主跳过负面分支
      （`comfy/samplers.py::sampling_function`），放普通区等于骗用户"写了会生效"。
      `test_contract.py::test_sampler_shape` 锁这条，别"好心"挪回去。
-8. **文档分工不许混**（照 H 仓 `ComfyUI-H3-Latent-Relay`）：
+8. **文档分工不许混**：
 
    | 文件 | 写给谁 | 只许写 |
    |---|---|---|
@@ -57,13 +60,17 @@
 
 ```bash
 python tests/test_core.py              # 几何/提示词/像素，零 GPU，294 项
-python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，64 项
+python tests/test_editor.py            # state v3 编译层 / 预设 / 错误路径 / 上限，零 GPU，102 项
+python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，129 项（--no-host 113 项）
+python tests/test_cross_language.py     # JS ↔ Python 预设/校验差分，零 GPU，50 项
+python tests/test_panel_assembly.py     # 逐格拼版 reborder 语义，零 GPU，5 项
 python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，18 项
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项（零浏览器）
-python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点真跑，37 项
-python tools/host_loader_check.py      # 走宿主 load_custom_node，16 项
-python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，15 项/文件
+python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点真跑，41 项
+python tools/host_loader_check.py      # 走宿主 load_custom_node，19 项
+python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，6 份示例共 88 项
 python tools/check_frontend.py         # 前端词表/语法/接线/标题可换语言，9 项
+python tools/check_editor_ui.py        # 编辑器前端：接线/语法/词表纯函数，58 项
 ```
 
 改了参数表还要重生成示例（槽位会变）：
@@ -104,10 +111,10 @@ curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
 |---|---|
 | 只验几何数学 | `python tests/test_core.py` |
 | 验 V1/V3 双出口 | `python tools/smoke_nodes.py` |
-| 换宿主路径 | `COMFYUI_PATH=D:/ComfyUI python tools/smoke_nodes.py` |
+| 换宿主路径 | `COMFYUI_PATH=/path/to/ComfyUI python tools/smoke_nodes.py` |
 | 强制用 V1 出口 | `MOSSSB_NODE_API=v1 python tools/smoke_nodes.py` |
 | 打印某种格数的几何 | `python -c "from core import layout as L; print(L.build_layout(panels=9,panel_edge=512,panel_aspect='16:9',canvas_aspect='auto').spec())"` |
-| 起宿主并等就绪 | `I:/python/python.exe I:/start_comfyui.py --kill-existing --verify` |
+| 起宿主并等就绪 | `python /path/to/ComfyUI/main.py`（另开终端，等端口 8188 就绪） |
 | 一次真跑交付工作流 | `python tools/ui_to_api.py "<workflow>.json" --run` |
 
 ## 五、禁区
@@ -120,7 +127,7 @@ curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
 ## 六、已知薄弱点
 
 - 模板 img2img 与布局框的**成片效果都未量化评测**；本仓只保证几何与接线正确。
-- `README_EN.md` 是**节选翻译**，没有节级 hash 同步闸（H 仓那套 `en_sync.py` 未移植）
+- `README_EN.md` 是**节选翻译**，没有节级 hash 同步闸（`en_sync.py` 那类工具未移植）
   ⇒ 改了中文 README 必须人肉看一眼英文版。这条是当前最大的文档漂移风险。
 - CI（`.github/workflows/ci.yml`）只跑 ruff + CPU 单测 + 前端一致性；
   **`e2e_matrix.py` 要 GPU + 权重，不在 CI**，靠人跑。

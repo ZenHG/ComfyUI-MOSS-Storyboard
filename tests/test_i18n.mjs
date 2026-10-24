@@ -55,7 +55,7 @@ check("1.4 defaultLang：非法语言码 ⇒ en（宿主常见 fr/ja）",
 
 // ---- 2. 词表完整性 ----
 const types = Object.keys(NODES);
-check("2.1 四个节点都有 zh/en", types.length === 4 && types.every((t) => NODES[t].zh && NODES[t].en),
+check("2.1 五个节点都有 zh/en", types.length === 5 && types.every((t) => NODES[t].zh && NODES[t].en),
     types.join(","));
 check("2.2 标题 zh 与 en 不相同", types.every((t) => NODES[t].zh !== NODES[t].en));
 const tipKeys = Object.keys(TIPS);
@@ -63,7 +63,7 @@ check("2.3 提示条数 > 30", tipKeys.length > 30, String(tipKeys.length));
 check("2.4 每条提示都有 en、且**没有 zh**（中文唯一源在后端）",
     tipKeys.every((k) => TIPS[k].en && TIPS[k].zh === undefined && TIPS[k].cn === undefined));
 check("2.5 提示键都是 `类型.参数` 或 `*.参数` 形式",
-    tipKeys.every((k) => /^(\*|MossStoryboard\w+)\.\w+$/.test(k)));
+    tipKeys.every((k) => /^(\*|Moss\w+)\.\w+$/.test(k)));
 check("2.6 提示键里的节点类型都真实存在",
     tipKeys.every((k) => k.startsWith("*.") || NODES[k.split(".")[0]]));
 check("2.7 LABELS 都是非空中文串",

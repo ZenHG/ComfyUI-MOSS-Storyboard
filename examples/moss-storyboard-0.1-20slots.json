@@ -1,0 +1,716 @@
+{
+ "id": "moss-storyboard-0.1-legacy",
+ "revision": 0,
+ "last_node_id": 7,
+ "last_link_id": 6,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "UNETLoader",
+   "pos": [
+    -900,
+    -100
+   ],
+   "size": [
+    340,
+    82
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "unet_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "unet_name"
+     }
+    },
+    {
+     "name": "weight_dtype",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "weight_dtype"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      1
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "model.safetensors",
+    "default"
+   ],
+   "title": "① MOSS-Image"
+  },
+  {
+   "id": 2,
+   "type": "CLIPLoader",
+   "pos": [
+    -900,
+    30
+   ],
+   "size": [
+    340,
+    106
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "clip_name"
+     }
+    },
+    {
+     "name": "type",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "type"
+     }
+    },
+    {
+     "name": "device",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "device"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      2
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "clip.safetensors",
+    "moss_image",
+    "default"
+   ],
+   "title": "① 文本编码器"
+  },
+  {
+   "id": 3,
+   "type": "VAELoader",
+   "pos": [
+    -900,
+    190
+   ],
+   "size": [
+    340,
+    58
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "vae_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "vae_name"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      3
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "vae.safetensors"
+   ],
+   "title": "① VAE"
+  },
+  {
+   "id": 4,
+   "type": "MossStoryboardLayout",
+   "pos": [
+    -500,
+    -100
+   ],
+   "size": [
+    470,
+    620
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "prompt"
+     }
+    },
+    {
+     "name": "panels",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panels"
+     }
+    },
+    {
+     "name": "panel_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "panel_aspect"
+     }
+    },
+    {
+     "name": "panel_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panel_edge"
+     }
+    },
+    {
+     "name": "canvas_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "canvas_aspect"
+     }
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "columns"
+     }
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "rows"
+     }
+    },
+    {
+     "name": "gutter",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "gutter"
+     }
+    },
+    {
+     "name": "margin",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "margin"
+     }
+    },
+    {
+     "name": "cell_gray",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "cell_gray"
+     }
+    },
+    {
+     "name": "invert",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "invert"
+     }
+    },
+    {
+     "name": "label",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "label"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "width",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "links": [
+      4
+     ]
+    },
+    {
+     "name": "layout_json",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "template",
+     "type": "IMAGE",
+     "links": [
+      5
+     ]
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardLayout"
+   },
+   "widgets_values": [
+    "",
+    4,
+    "16:9",
+    496,
+    "auto",
+    0,
+    0,
+    8,
+    8,
+    25,
+    false,
+    "object"
+   ]
+  },
+  {
+   "id": 5,
+   "type": "MossStoryboardSampler",
+   "pos": [
+    -20,
+    -100
+   ],
+   "size": [
+    520,
+    760
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 1
+    },
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 2
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 3
+    },
+    {
+     "name": "positive",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "positive"
+     }
+    },
+    {
+     "name": "negative",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "negative"
+     }
+    },
+    {
+     "name": "steps",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "steps"
+     }
+    },
+    {
+     "name": "cfg",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "cfg"
+     }
+    },
+    {
+     "name": "sampler_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "sampler_name"
+     }
+    },
+    {
+     "name": "scheduler",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "scheduler"
+     }
+    },
+    {
+     "name": "seed",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "seed"
+     }
+    },
+    {
+     "name": "denoise",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "denoise"
+     }
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "link": 4
+    },
+    {
+     "name": "panels",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panels"
+     }
+    },
+    {
+     "name": "panel_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "panel_aspect"
+     }
+    },
+    {
+     "name": "panel_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panel_edge"
+     }
+    },
+    {
+     "name": "canvas_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "canvas_aspect"
+     }
+    },
+    {
+     "name": "gutter",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "gutter"
+     }
+    },
+    {
+     "name": "margin",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "margin"
+     }
+    },
+    {
+     "name": "init",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "init"
+     }
+    },
+    {
+     "name": "label",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "label"
+     }
+    },
+    {
+     "name": "reborder",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "reborder"
+     }
+    },
+    {
+     "name": "border_px",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "border_px"
+     }
+    },
+    {
+     "name": "shave",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "shave"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "grid",
+     "type": "IMAGE",
+     "links": [
+      6
+     ]
+    },
+    {
+     "name": "panels",
+     "type": "IMAGE",
+     "links": []
+    },
+    {
+     "name": "latent",
+     "type": "LATENT",
+     "links": []
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "prompt_used",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardSampler"
+   },
+   "widgets_values": [
+    "A four-panel storyboard of a cat walking through a garden.",
+    "",
+    4,
+    1.0,
+    "euler",
+    "simple",
+    42,
+    "fixed",
+    1.0,
+    4,
+    "16:9",
+    496,
+    "auto",
+    8,
+    8,
+    "layout",
+    "object",
+    true,
+    0,
+    0
+   ]
+  },
+  {
+   "id": 6,
+   "type": "PreviewImage",
+   "pos": [
+    -500,
+    560
+   ],
+   "size": [
+    470,
+    260
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 5
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "PreviewImage"
+   },
+   "widgets_values": [],
+   "title": "模板预览"
+  },
+  {
+   "id": 7,
+   "type": "SaveImage",
+   "pos": [
+    560,
+    -100
+   ],
+   "size": [
+    500,
+    620
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 6
+    },
+    {
+     "name": "filename_prefix",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "filename_prefix"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "moss/storyboard/grid"
+   ],
+   "title": "④ 存整张"
+  }
+ ],
+ "links": [
+  [
+   1,
+   1,
+   0,
+   5,
+   0,
+   "MODEL"
+  ],
+  [
+   2,
+   2,
+   0,
+   5,
+   1,
+   "CLIP"
+  ],
+  [
+   3,
+   3,
+   0,
+   5,
+   2,
+   "VAE"
+  ],
+  [
+   4,
+   4,
+   4,
+   5,
+   11,
+   "STRING"
+  ],
+  [
+   5,
+   4,
+   6,
+   6,
+   0,
+   "IMAGE"
+  ],
+  [
+   6,
+   5,
+   0,
+   7,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.7,
+   "offset": [
+    1000,
+    500
+   ]
+  }
+ },
+ "version": 0.4
+}

@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: MIT
 """契约与可移植性测试（零 GPU）。开源前的"别人能不能用"检查。
 
-五组：
+六组：
 1. **参数表自洽**：类型/默认值/上下限/下拉候选/工具提示 —— 错一个就是用户界面上无法操作。
 2. **V1↔V3 双出口等价**：入参名与顺序、输出数量、显示名。
 3. **错误路径**：坏参数必须给中文可操作报错，不许静默兜底、不许抛裸异常。
 4. **依赖边界**：`core.layout` / `core.prompt` 不许 import torch（纯 Python 可跑）。
 5. **仓库卫生**：无机器专属绝对路径、无大文件、必需文件齐全。
+6. **editor state v3 契约**：默认值 / 预设表 / 严格校验 / 几何上限（docs/10-contract.md）。
 
 跑法：python tests/test_contract.py            # 全部
       python tests/test_contract.py --no-host  # 不碰宿主（CI 无 ComfyUI 时用）
@@ -16,6 +17,7 @@
 import argparse
 import importlib.machinery
 import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -137,10 +139,22 @@ def test_errors(V1):
                  lambda: lay.build(**{**base, "panel_aspect": "7:3"}), "宽高比")
 
     ok = lay.build(**base)
-    w, h, cols, rows, spec, text, tpl, report = ok
+    w, h, cols, rows, spec, text, tpl, report, elements = ok
     check("Layout: 4 格 2x2 / 1024x576", (w, h, cols, rows) == (1024, 576, 2, 2), "%dx%d %dx%d" % (w, h, cols, rows))
     check("Layout: 2 段描述 < 4 格时 report 出声", "后 2 格" in report, report.splitlines()[3][:60])
     check("Layout: 模板形状", tuple(tpl.shape) == (1, h, w, 3), str(tuple(tpl.shape)))
+    # elements：官方画布节点能吃的格式（0-1000 归一化 bbox）
+    try:
+        els = json.loads(elements)
+    except Exception as e:
+        els = None
+        check("Layout: elements 是合法 JSON", False, "%s: %s" % (type(e).__name__, e))
+    if els is not None:
+        check("Layout: elements 是合法 JSON", True)
+        check("Layout: elements 每格一个", len(els) == 4, str(len(els)))
+        check("Layout: elements bbox 是 0-1000", all(len(e["bbox"]) == 4 and
+              all(0 <= v <= 1000 for v in e["bbox"]) for e in els), str(els[0]["bbox"]))
+        check("Layout: elements 带 desc", all("desc" in e for e in els))
 
     plain = lay.build(**{**base, "prompt": "没有面板标记的一句话"})
     check("Layout: 无标记时退回纯文本", plain[5] == "没有面板标记的一句话", plain[5][:40])
@@ -267,9 +281,9 @@ def test_i18n_completeness(V1):
     check("TIPS 表可解析", bool(tips_block))
     if not tips_block:
         return
-    keys = set(re.findall(r'"(\*|MossStoryboard\w+)\.(\w+)":\s*\{', tips_block.group(1)))
+    keys = set(re.findall(r'"(\*|Moss\w+)\.(\w+)":\s*\{', tips_block.group(1)))
     check("TIPS 条目数 > 30", len(keys) > 30, str(len(keys)))
-    entry_zones = re.findall(r'"(?:\*|MossStoryboard\w+)\.\w+":\s*\{[^}]*\}', tips_block.group(1), re.S)
+    entry_zones = re.findall(r'"(?:\*|Moss\w+)\.\w+":\s*\{[^}]*\}', tips_block.group(1), re.S)
     check("TIPS 里没有 zh 字段（中文唯一源在后端）",
           not any(re.search(r"\bzh\s*:", z) for z in entry_zones))
 
@@ -303,6 +317,129 @@ def test_sampler_shape(V1):
     check("positive 默认空", popts.get("default") == "")
 
 
+def test_editor_state_contract():
+    """state v3 跨语言契约：默认值 / 预设表 / 严格校验 / 几何上限。
+
+    真值 = `docs/10-contract.md` + `docs/11-editor-ui.md` §五 + 前端
+    `web/moss_sb_editor.js::PRESET_SPECS`。Python 侧任何一项漂移都算发布阻断。
+    """
+    from moss_sb_c.core import editor as E
+    from moss_sb_c.core import layout as L
+    from moss_sb_c.core import presets as P
+
+    def dump(obj):
+        return json.dumps(obj, ensure_ascii=False)
+
+    def mutate(state, fn):
+        copy = json.loads(json.dumps(state))
+        fn(copy)
+        return dump(copy)
+
+    check("默认画布 = 1536×864",
+          E.empty_state()["canvas"] == {"width": 1536, "height": 864},
+          str(E.empty_state().get("canvas")))
+    blank = E.parse_state(dump(E.empty_state("grid")))
+    check("空白宫格 state 合法（1×1 / 0 项）",
+          blank["grid"]["cols"] == 1 and blank["grid"]["rows"] == 1 and blank["items"] == [])
+    check("presets.build 默认画布 = 1536×864",
+          P.build()["canvas"] == {"width": 1536, "height": 864})
+    g = P.build("grid")
+    check("presets.build('grid') 默认 4×2 = 8 格",
+          (g["grid"]["cols"], g["grid"]["rows"], len(g["items"])) == (4, 2, 8),
+          str((g["grid"]["cols"], g["grid"]["rows"], len(g["items"]))))
+    check("默认首格 bbox = [0,0,0.25,0.5]",
+          [round(v, 4) for v in g["items"][0]["bbox"]] == [0, 0, 0.25, 0.5],
+          str(g["items"][0]["bbox"]))
+    check("4×2 景别铺满 8 档", [it["size"] for it in g["items"]] == list(E.SIZES))
+    g32 = P.build("grid", grid={"cols": 3, "rows": 2})
+    check("3×2 景别序列 = 前端公式（一半向上）",
+          [it["size"] for it in g32["items"]]
+          == ["大远景", "远景", "中景", "中近景", "特写", "大特写"],
+          str([it["size"] for it in g32["items"]]))
+    check("n=1 用中景",
+          P.build("grid", grid={"cols": 1, "rows": 1})["items"][0]["size"] == "中景")
+
+    tb = P.build("title-body")["items"]
+    check("title-body 标题/副标 palette",
+          tb[0].get("palette") == ["#c8a15a"] and tb[2].get("palette") == ["#ffffff"])
+    check("title-body 标题 y0=0.10 / 副标 y1=0.90",
+          tb[0]["bbox"][1] == 0.10 and tb[2]["bbox"][3] == 0.90)
+    check("split-v / split-h 文字元素带 palette（与 PRESET_SPECS 一致）",
+          P.build("split-v")["items"][1].get("palette") == ["#c8a15a"]
+          and P.build("split-h")["items"][1].get("palette") == ["#ffffff"])
+    check("split-v 文字 caption 是短占位，不是 text 兜底",
+          P.build("split-v")["items"][1]["caption"] == "粗体无衬线标题")
+
+    for name in E.PRESETS:
+        st = P.build(name, grid={"cols": 3, "rows": 2} if name == "grid" else None)
+        detail = ""
+        try:
+            E.parse_state(dump(st))
+            ok = True
+        except ValueError as exc:
+            ok, detail = False, str(exc)
+        check("预设 %s 生成的 state 通过严格校验" % name, ok, detail)
+
+    base = P.build("title-body")
+    expect_raise("label 必填：删掉 label → 报错",
+                 lambda: E.parse_state(mutate(base, lambda s: s["items"][1].pop("label"))),
+                 "label")
+    expect_raise("palette=null → 报错",
+                 lambda: E.parse_state(mutate(base, lambda s: s["items"][0].update(palette=None))),
+                 "palette")
+    expect_raise("palette 8 位 → 报错",
+                 lambda: E.parse_state(
+                     mutate(base, lambda s: s["items"][0].update(palette=["#c8a15aff"]))),
+                 "palette")
+    expect_raise("palette 非十六进制 → 报错",
+                 lambda: E.parse_state(
+                     mutate(base, lambda s: s["items"][0].update(palette=["#nothex"]))),
+                 "palette")
+    expect_raise("bbox 布尔 → 报错",
+                 lambda: E.parse_state(
+                     mutate(base, lambda s: s["items"][1].update(bbox=[False, 0.1, 0.9, 0.8]))),
+                 "bbox")
+    expect_raise("bbox 字符串 → 报错",
+                 lambda: E.parse_state(
+                     mutate(base, lambda s: s["items"][1].update(bbox=["0.1", 0.1, "0.9", 0.8]))),
+                 "bbox")
+    expect_raise("canvas 32（<64）→ 报错",
+                 lambda: E.parse_state(mutate(base, lambda s: s["canvas"].update(width=32))),
+                 "canvas")
+    expect_raise("canvas 4112（>4096）→ 报错",
+                 lambda: E.parse_state(mutate(base, lambda s: s["canvas"].update(width=4112))),
+                 "canvas")
+    expect_raise("state 超过 1,000,000 字符 → 报错",
+                 lambda: E.parse_state(dump({**base, "style": "x" * 1_000_001})), "上限")
+    many = {"version": 3, "preset": "free", "style": "",
+            "canvas": {"width": 1536, "height": 864},
+            "items": [{"id": "i%d" % i} for i in range(257)]}
+    expect_raise("items 超过 256 → 报错", lambda: E.parse_state(dump(many)), "上限")
+
+    gbase = P.build("grid")
+    expect_raise("grid.cols=13 → 报错",
+                 lambda: E.parse_state(
+                     mutate(gbase, lambda s: s["grid"].update(cols=13))), "grid.cols")
+    expect_raise("panel_edge=4112 → 报错",
+                 lambda: E.parse_state(
+                     mutate(gbase, lambda s: s["grid"].update(panel_edge=4112))), "panel_edge")
+    expect_raise("gutter=-1 → 报错",
+                 lambda: E.parse_state(
+                     mutate(gbase, lambda s: s["grid"].update(gutter=-1))), "gutter")
+    expect_raise("margin=257（>256）→ 报错",
+                 lambda: E.parse_state(
+                     mutate(gbase, lambda s: s["grid"].update(margin=257))), "margin")
+
+    check("3/4/6/8/9 格几何照常",
+          all(L.build_layout(panels=n, panel_edge=512).panels == n for n in (3, 4, 6, 8, 9)))
+    expect_raise("layout panels=1,000,000 → 报错",
+                 lambda: L.build_layout(panels=1_000_000, panel_edge=512), "上限")
+    expect_raise("layout panels=145 → 报错",
+                 lambda: L.build_layout(panels=145, panel_edge=512), "上限")
+    expect_raise("layout cols=13 → 报错",
+                 lambda: L.build_layout(panels=13, cols=13, panel_edge=512), "不能超过")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-host", action="store_true")
@@ -330,8 +467,11 @@ def main():
     print("\n== 6. 采样器输入形状（negative 必须折叠）==")
     test_sampler_shape(V1)
 
+    print("\n== 7. editor state v3 契约 ==")
+    test_editor_state_contract()
+
     if not args.no_host:
-        print("\n== 7. V1↔V3 双出口等价 ==")
+        print("\n== 8. V1↔V3 双出口等价 ==")
         test_v3(V1)
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

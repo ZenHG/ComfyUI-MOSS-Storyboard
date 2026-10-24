@@ -77,7 +77,7 @@ MOSS-SB1 panels=8 w=2096 h=608 cols=4 rows=2 pw=512 ph=288 gutter=8 margin=8 pad
 
 - `parse_spec()` 只认前缀 `MOSS-SB1`，缺字段直接 `ValueError`（不猜、不兜底）。
 - 输出侧 `Layout.spec()` 与输入侧 `parse_spec()` 是一对；`tests` 里有往返一致性断言。
-- 四个节点（Layout / Sampler / Crop / Paste）都认它；Sampler、Crop 与 Paste 的 `spec` 是 `forceInput` 槽，
+- 五个节点都涉及它：Layout 与 Editor 产出 `spec`；Sampler、Crop 与 Paste 的 `spec` 是 `forceInput` 槽，
   接了就以它为准，并在 `report` 里写明"几何来源 = spec 接线"。
 
 ---

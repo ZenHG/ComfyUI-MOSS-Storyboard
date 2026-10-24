@@ -19,50 +19,46 @@
 
 ---
 
-## 0.1.3 — 2026-10-24
+## 0.2.0 — 2026-10-24
 
-**新节点「贴回」：只改一格，不用重跑整张。**
+**一句话变版式，也能精确出故事板。**
 
-- 🆕 新增 `MossStoryboardPaste`（界面显示「🎬 故事板 · 贴回」）。把裁出来改好的那一格，
-  按 `spec` 的坐标**逐像素**贴回宫格，输出改好的整张图，宫格线与其它格不动。
-  适合"九格里有一格不对"——重跑会让所有格的种子一起变。
-- 🆕 裁格节点多了一个可选参数 `index` 和一个输出 `index`。填 -1（默认）行为完全不变；
-  填 0 起的格号就只输出那一格，并把格号送到输出上。**把这个输出接给贴回节点，
-  格号全程不用手打。**
-- ⚠ 贴回时 `shave` 必须和裁格时填的一样。不一致会让内容整体偏移几个像素且不报错——
-  `report` 会写出实际写入的矩形，请核对一眼。
-- 输入尺寸与格子不符会自动重采样，`report` 会说明。要逐像素一致：裁格 `resize_edge` 留 0、
-  `target_aspect` 选 `keep`、`shave` 与本节点相同。
-- 📌 **更正 0.1.2 的一条说法**：那版写「官方配方（50 步 / cfg 3）本机会崩坏」。
-  本轮按「高步数 + cfg 3–5 + 2MP 以上」复测（最高 4.0MP / 50 步 / cfg 3 与 5，
-  叠与不叠蒸馏 LoRA）**均正常出图，未能复现**，改为按下面的两档表使用。
+- 🆕 新节点「🎨 布局编辑器」（`MossLayoutEditor`）：在画布上摆人物/物体/文字，8 个预设；
+  单张出海报/封面，宫格出故事板。编辑状态存进节点，改完直接重跑；不加载模型，零额外依赖。
+  示例：`examples/moss-layout-editor-poster.json` / `-storyboard.json`。
+- 🆕 生成节点多一个 `mode`：`逐格` = 每格独立采样再拼版。整张生成时角色描述被摊薄到每格，
+  帽子颜色/脸型会飘；逐格每格完整读一遍。**实测（`sample_edge=512`）人脸一致度 93.1 → 99.1**；
+  黑猫场景整张是"四只不同的猫"、逐格是"同一只猫"。代价：耗时约 N 倍。
+- 🆕 生成节点多一个 `sample_edge`（逐格时每格的采样长边，默认 1024）⇒ 每格更清晰。
+  ⚠ 越大不一定越好：496 最统一但偏糊。
+- 🆕 新节点「🎬 故事板 · 贴回」：把改好的那一格按 `spec` 坐标逐像素贴回，宫格线与其它格不动。
+- 🆕 裁格节点多可选 `index` 与输出 `index`：接给贴回，格号全程不用手打。
+- 🔴 画质瓶颈是**每格自己的像素量**，不是整图：9 格 1:1 每格只有 0.26MP。`report` 同时报两个数。
 
-**升级动作**：重启 ComfyUI 后刷新浏览器页面（F5）。已有工作流无需改动；裁格新输出追加在末尾，旧接线不受影响。
+**升级动作**：重启 ComfyUI 后刷新浏览器页面（F5）。已有工作流无需改动；新参数/新输出都追加在末尾。
 
 <!-- EN -->
 
-**New "Paste Panel" node: fix one panel without re-running the whole board.**
+**One sentence to a layout; storyboards stay exact.**
 
-- New `MossStoryboardPaste` (shown as "🎬 Storyboard · Paste Panel"). It writes a corrected
-  panel back into the board at the exact `spec` coordinates, pixel for pixel, and returns the
-  full corrected board. Grid lines and every other panel stay byte-identical.
-  Built for "one of nine panels is wrong" — re-running moves every panel's seed at once.
-- The Crop node gains an optional `index` parameter and an `index` output. Leave it at -1 and
-  nothing changes; a 0-based panel number outputs just that panel and emits the number.
-  **Wire that output into Paste and you never type a panel number**, so it can never disagree
-  with the panel you actually cut.
-- On Paste, `shave` must match what you used on Crop. A mismatch shifts content by a few pixels
-  **without erroring** — `report` prints the exact rectangle written, so check it once.
-- If the incoming panel is not cell-sized it is resampled and `report` says so. For a
-  pixel-exact round trip: Crop with `resize_edge=0`, `target_aspect=keep`, and the same `shave`.
-- 📌 **Correction to a 0.1.2 claim.** That version said the official non-distilled recipe
-  (50 steps / cfg 3) corrupted frames on our machine. Re-tested across the stated conditions
-  (high steps + cfg 3–5 + above 2MP, up to 4.0MP / 50 steps / cfg 3 and 5, with and without
-  the distilled LoRA): **all rendered normally, corruption did not reproduce.** Use the two
-  bands above instead.
+- NEW 🎨 Layout Editor (`MossLayoutEditor`): place people, objects and text on a canvas with 8 presets;
+  single mode makes posters/covers, grid mode makes storyboards. The state lives in the node and stays
+  editable; no model is loaded and there are no extra dependencies. Examples:
+  `examples/moss-layout-editor-poster.json` / `-storyboard.json`.
+- NEW `mode` on the Generate node: `Per panel` samples every panel on its own, then assembles the board.
+  In one pass the description is spread thin and hat colour / face shape drift; per panel each reads it
+  in full. **Measured (`sample_edge=512`): face identity 93.1 → 99.1**; a black-cat scene gives four
+  different cats in one pass and the same cat per panel. Cost: about N times the time.
+- NEW `sample_edge` on the Generate node (each panel's sampling long edge, default 1024) ⇒ sharper panels.
+  Not always better: 496 is more uniform but soft.
+- NEW `MossStoryboardPaste`: writes a corrected panel back at its exact `spec` coordinates, pixel for
+  pixel; grid lines and other panels stay untouched.
+- NEW optional `index` parameter and output on Crop: wire it into Paste and never type a panel number.
+- 🔴 The quality bottleneck is the pixels **each panel** gets, not the board total: a 1:1 nine-panel board
+  gives every panel 0.26MP. `report` prints both.
 
-**Action required**: restart ComfyUI, then refresh the browser page (F5). Existing graphs need
-no changes; Crop's new output is appended, so existing wiring is unaffected.
+**Action required**: restart ComfyUI, then hard-refresh the browser (F5). Existing graphs need no changes;
+new parameters and outputs are appended.
 
 ---
 

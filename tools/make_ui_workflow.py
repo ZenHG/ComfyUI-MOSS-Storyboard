@@ -186,6 +186,9 @@ def build():
         ("reborder", "BOOLEAN", True, True),
         ("border_px", "INT", True, 0),
         ("shave", "INT", True, 0),
+        # 0.2.0 新增：只能追加在旧 widget 之后（widgets_values 按位置存）
+        ("mode", "COMBO", True, "整张"),
+        ("sample_edge", "INT", True, 1024),
     ])
     smp.decl_outputs([("grid", "IMAGE"), ("panels", "IMAGE"), ("latent", "LATENT"),
                       ("spec", "STRING"), ("prompt_used", "STRING"), ("report", "STRING")])
