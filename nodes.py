@@ -220,7 +220,10 @@ class MossStoryboardSampler:
                 "model": ("MODEL", {"tooltip": "【接线】UNETLoader 输出的 MOSS-Image 模型（可先过 LoRA）。"}),
                 "clip": ("CLIP", {"tooltip": "【接线】CLIPLoader，type 必须是 moss_image。\n"
                                              "⚠ 用错 type 会静默拿到错误嵌入，画面语义跑飞。"}),
-                "vae": ("VAE", {"tooltip": "【接线】FLUX.2 VAE（moss 的 latent 空间就是它）。"}),
+                "vae": ("VAE", {"tooltip": "【接线】FLUX.2 VAE（moss 的 latent 空间就是它）。\n"
+                                           "解码精度由你用的 VAE 加载器决定，本节点不干预。\n"
+                                           "⚠ 精度跑成 fp32 会让宿主把解码显存预估放大到 4 倍（不报错），\n"
+                                           "可能因此触发分块解码。要省显存请用 fp16 / bf16。"}),
                 "positive": ("STRING", {
                     "multiline": True, "default": "",
                     "tooltip": "【填什么】故事板稿：[STYLE] 全局描述 + 每格 [PANEL n]。\n"
@@ -239,15 +242,18 @@ class MossStoryboardSampler:
                 }),
                 "steps": ("INT", {
                     "default": 35, "min": 1, "max": 200, "step": 1,
-                    "tooltip": "【填什么】采样步数。默认 35 = 本地已实测可用的官方节点配置。\n"
-                               "⚠ 官方文档另有非蒸馏配方（50 步 / cfg 3）。本机实测该组合画面崩坏扭曲，\n"
-                               "原因未确认；社区有能跑通的报告。想试请自行出小样对比，别直接量产。",
+                    "tooltip": "【填什么】采样步数。按「有没有叠 LoRA」分两档：\n"
+                               "· 官方模型（不叠 LoRA）：建议 30–50 步，配 cfg 3–5；\n"
+                               "· 叠加 LoRA（4 步蒸馏类）：建议 4–8 步，配 cfg 1.0 —— 调高会破坏蒸馏效果。\n"
+                               "默认 35 落在官方模型那档的区间中段。",
                 }),
                 "cfg": ("FLOAT", {
                     "default": 1.0, "min": 0.0, "max": 30.0, "step": 0.1,
-                    "tooltip": "【填什么】引导强度。默认 1.0 = 本地已实测可用的配置。\n"
+                    "tooltip": "【填什么】引导强度。跟着步数那档走：\n"
+                               "· 官方模型（不叠 LoRA）：建议 3–5；\n"
+                               "· 叠加 LoRA：建议 1.0。\n"
                                "⚠ 1.0 时宿主跳过负面分支 ⇒ 负面提示词（在「高级」里）填了也不生效。\n"
-                               "要让负面生效必须 >1；官方非蒸馏配方给 3（本机实测崩坏，见 steps 的说明）。",
+                               "要让负面生效必须 >1。",
                 }),
                 "sampler_name": (["euler", "euler_ancestral", "heun", "dpmpp_2m", "dpmpp_2m_sde",
                                   "dpmpp_3m_sde", "res_multistep", "er_sde", "lms"], {
@@ -296,7 +302,9 @@ class MossStoryboardSampler:
                                "auto（默认）= 把每格描述转成布局框再送，纯生成；\n"
                                "layout = 同上，显式写法；\n"
                                "plain = 原样送提示词，不加布局框（等于普通 txt2img）。\n"
-                               "⚠ 本包不做图生图：MOSS 不以参考图条件化，起点恒为空 latent。",
+                               "⚠ 本包不做图生图：起点恒为空 latent。实测模板 latent 起点\n"
+                               "（35 步/0.85 纯黑，12/0.6 与 4/0.5 残影）在 MOSS 上不成立，\n"
+                               "所以这条通路已移除。想改已有图见 README「只改一格」。",
                 }),
                 "label": (list(T.LABELS), {
                     "default": "object", "tooltip": "【进阶】布局框类型，同 Layout 节点。",
@@ -444,19 +452,25 @@ class MossStoryboardCrop:
                     "default": False,
                     "tooltip": "【调试】在 preview 输出上把裁切线画成红色，用来目检对齐。",
                 }),
+                "index": ("INT", {
+                    "default": -1, "min": -1, "max": 64, "step": 1,
+                    "tooltip": "【可留 -1】-1 = 输出全部格子（默认，行为不变）。\n"
+                               "填 0 起的格子号 = 只输出那一格，并把格号送到第 4 个输出 index 上。\n"
+                               "接给 MossStoryboardPaste 就不用手打格号，不会错位。",
+                }),
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE", "STRING")
-    RETURN_NAMES = ("panels", "preview", "report")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "STRING", "INT")
+    RETURN_NAMES = ("panels", "preview", "report", "index")
     FUNCTION = "run"
     CATEGORY = CATEGORY
     DESCRIPTION = "把整张宫格图按几何参数精确切成逐格。接了 Layout 的 spec 就与生成时逐像素一致。"
     SEARCH_ALIASES = ["crop", "split", "裁格", "切图", "分格", "panel crop", "grid crop"]
 
-    @_node_errors("columns", "rows", "shave")
+    @_node_errors("columns", "rows", "shave", "index")
     def run(self, image, target_aspect, padding_mode, resize_edge, shave,
-            spec="", columns=0, rows=0, show_guides=False):
+            spec="", columns=0, rows=0, show_guides=False, index=-1):
         if spec and str(spec).strip():
             lay = L.parse_spec(spec)
             src = "spec 接线"
@@ -477,25 +491,116 @@ class MossStoryboardCrop:
                                    padding_mode=padding_mode, resize_edge=resize_edge)
         preview = P.guide_preview(image, lay) if show_guides else image
 
+        picked = int(index)
+        if picked >= 0:
+            if picked >= panels_img.shape[0]:
+                raise ValueError("index=%d 越界：共 %d 格（0 起）" % (picked, panels_img.shape[0]))
+            panels_img = panels_img[picked:picked + 1]
+
         report = "\n".join([
             "几何来源：%s" % src,
             "%d 格 = %d 列 × %d 行，单格 %d × %d" % (lay.panels, lay.cols, lay.rows,
                                                 lay.panel_w, lay.panel_h),
             "输出 %d 张，尺寸 %s" % (panels_img.shape[0], "×".join(str(v) for v in panels_img.shape[1:])),
-        ])
-        return (panels_img, preview, report)
+        ] + (["只取第 %d 格（0 起）= 第 %d 行第 %d 列" % (picked, lay.cell(picked).row + 1,
+                                                    lay.cell(picked).col + 1)] if picked >= 0 else []))
+        return (panels_img, preview, report, picked)
+
+
+class MossStoryboardPaste:
+    """把改过的单格贴回宫格：`MossStoryboardCrop` 的逆运算。
+
+    用途是"只改一格、不重跑整张"。宫格采样一次要几十秒到几分钟，而某一格不对时
+    重跑会把所有格的种子一起动掉；先用官方 MOSS 编辑节点改那一格，再用本节点
+    按 `spec` 的坐标逐像素贴回去，其它格与宫格线一个字节都不动。
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "grid": ("IMAGE", {
+                    "tooltip": "【接线】整张宫格图（Sampler 的 grid 输出，或上一级 Paste 的输出）。",
+                }),
+                "panel": ("IMAGE", {
+                    "tooltip": "【接线】改好的那一格（单张）。接 Crop 只取一格后的输出最稳。",
+                }),
+                "index": ("INT", {
+                    "default": 0, "min": 0, "max": 64, "step": 1,
+                    "tooltip": "【填什么 / 可接线】贴到第几格，**0 起、行主序**（从左到右、从上到下）。\n"
+                               "接了 Crop 的 index 输出就以它为准，不用手打，也不会和裁的那格对不上。",
+                }),
+                "shave": ("INT", {
+                    "default": 0, "min": 0, "max": 64, "step": 1,
+                    "tooltip": "【可留 0】必须与当初 Crop 的 shave 一致。裁的时候缩了 s 像素，\n"
+                               "贴回就要写在缩过的矩形里，否则内容整体偏移 s 像素且不报错。",
+                }),
+                "show_guides": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "【调试】在 marked 输出上把贴回区域框成纯红，用来目检「贴进了哪一格」。",
+                }),
+            },
+            "optional": {
+                "spec": ("STRING", {
+                    "default": "", "forceInput": True,
+                    "tooltip": "【接线】接 Layout/Sampler 的 spec，贴回位置才与生成时逐像素一致。",
+                }),
+                "columns": ("INT", {
+                    "default": 0, "min": 0, "max": 20, "step": 1,
+                    "tooltip": "【未接 spec 时必填】列数。填 0 且无 spec 会报错，不会瞎猜。",
+                }),
+                "rows": ("INT", {
+                    "default": 0, "min": 0, "max": 20, "step": 1,
+                    "tooltip": "【未接 spec 时必填】行数。",
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "IMAGE", "STRING")
+    RETURN_NAMES = ("grid", "marked", "report")
+    FUNCTION = "run"
+    CATEGORY = CATEGORY
+    DESCRIPTION = ("把改好的单格按 spec 坐标逐像素贴回宫格，输出改好的整张宫格。"
+                   "只动目标格的内容区，宫格线与其他格不受影响；可串联多次改多格。")
+    SEARCH_ALIASES = ["paste", "merge", "贴回", "合回", "回填", "panel paste", "grid paste"]
+
+    @_node_errors("index", "shave")
+    def run(self, grid, panel, index, shave, show_guides=False,
+            spec="", columns=0, rows=0):
+        if spec and str(spec).strip():
+            lay = L.parse_spec(spec)
+            src = "spec 接线"
+        else:
+            if columns <= 0 or rows <= 0:
+                raise ValueError("没接 spec 时必须填 columns 和 rows（都 >0），否则无法确定贴回位置")
+            h, w = int(grid.shape[1]), int(grid.shape[2])
+            if w % columns or h % rows:
+                raise ValueError("图像 %dx%d 不能被 %dx%d 整除：会得到差 1px 的格子，"
+                                 "下游拼接必崩。请改用被整除的画布，或接 spec 让几何一致。"
+                                 % (w, h, columns, rows))
+            lay = L.build_layout(panels=columns * rows, cols=columns, rows=rows, gutter=0, margin=0,
+                                 panel_w=w // columns, panel_h=h // rows)
+            src = "columns/rows 均分（无外边距）"
+
+        out, notes = P.paste_panel(grid, lay, index, panel, shave=shave)
+        marked = P.paste_marker(grid, lay, index, shave=shave) if show_guides else grid
+
+        report = "\n".join(["几何来源：%s" % src] + notes)
+        return (out, marked, report)
 
 
 NODE_CLASS_MAPPINGS = {
     "MossStoryboardLayout": MossStoryboardLayout,
     "MossStoryboardSampler": MossStoryboardSampler,
     "MossStoryboardCrop": MossStoryboardCrop,
+    "MossStoryboardPaste": MossStoryboardPaste,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "MossStoryboardLayout": "MOSS Storyboard Layout",
     "MossStoryboardSampler": "MOSS Storyboard Sampler",
     "MossStoryboardCrop": "MOSS Storyboard Crop",
+    "MossStoryboardPaste": "MOSS Storyboard Paste",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

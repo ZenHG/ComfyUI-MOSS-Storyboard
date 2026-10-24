@@ -161,9 +161,19 @@ def check_file(path, mappings):
 
     # 节点类型是否存在（前端独有节点不在宿主的 NODE_CLASS_MAPPINGS 里）
     FRONTEND_ONLY = {"MarkdownNote", "Note", "Reroute", "PrimitiveNode", "GroupNode"}
+    # 宿主 comfy_extras 注册的官方节点：顶层 `nodes.py` 单独 import 时不会加载它们
+    # （`init_extra_nodes()` 是 main.py 调的），所以这里补一份静态集 + 在线查询。
+    HOST_EXTRAS = {"EmptyFlux2LatentImage", "TextEncodeMOSSImageEdit", "VAEDecode",
+                   "EmptySD3LatentImage", "VAEEncode"}
     try:
         import nodes as host_nodes
-        known = set(host_nodes.NODE_CLASS_MAPPINGS) | FRONTEND_ONLY | set(mappings)
+        known = set(host_nodes.NODE_CLASS_MAPPINGS) | FRONTEND_ONLY | HOST_EXTRAS | set(mappings)
+        try:  # 在线查询最权威：跑着的宿主认识什么，就用什么
+            import urllib.request
+            with urllib.request.urlopen("http://127.0.0.1:8188/object_info", timeout=10) as r:
+                known |= set(json.load(r))
+        except Exception:
+            pass
         unknown = sorted({n["type"] for n in wf["nodes"]} - known)
         check("全部节点类型宿主都认识", not unknown, "未知：%s" % unknown)
     except Exception as e:

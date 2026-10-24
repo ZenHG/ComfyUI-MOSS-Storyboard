@@ -6,11 +6,11 @@
 
 ```bash
 python -m ruff check .                    # 静态检查（CI 第一道）
-python tests/test_core.py                 # 282 项：几何 / 提示词 / 像素（零 GPU）
-python tests/test_contract.py             # 58 项：参数表 / 错误路径 / 依赖 / 卫生 / 词表
+python tests/test_core.py                 # 294 项：几何 / 提示词 / 像素（零 GPU）
+python tests/test_contract.py             # 64 项：参数表 / 错误路径 / 依赖 / 卫生 / 词表
 python tests/test_sampling_contract.py    # 18 项：宿主采样 API 的入参类型
-node   tests/test_i18n.mjs                # 46 项：中英切换纯函数
-python tools/smoke_nodes.py               # 25 项：自加载 + 纯节点真跑
+node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
+python tools/smoke_nodes.py               # 37 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 16 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py         # 15 项/文件：工作流连线 + widget 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言

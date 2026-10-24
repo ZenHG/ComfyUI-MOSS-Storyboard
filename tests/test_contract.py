@@ -120,6 +120,7 @@ def expect_raise(name, fn, needle):
 
 def test_errors(V1):
     import torch
+    from moss_sb_c.core.layout import parse_spec
     lay = V1.MossStoryboardLayout()
     crop = V1.MossStoryboardCrop()
 
@@ -161,6 +162,34 @@ def test_errors(V1):
     good = crop.run(image=img, target_aspect="keep", padding_mode="crop", resize_edge=0,
                     shave=0, spec=spec)
     check("Crop: 4 格 / 496x272", tuple(good[0].shape) == (4, 272, 496, 3), str(tuple(good[0].shape)))
+
+    # ---- Paste：Crop 的逆运算，接线口径由 Crop.index 保证 ----
+    paste = V1.MossStoryboardPaste()
+    expect_raise("Paste: 无 spec 且无行列 → 报错",
+                 lambda: paste.run(grid=img, panel=good[0][0:1], index=0, shave=0,
+                                   spec="", columns=0, rows=0), "必须填")
+    expect_raise("Paste: index 越界 → 报错",
+                 lambda: paste.run(grid=img, panel=good[0][0:1], index=4, shave=0, spec=spec), "越界")
+    expect_raise("Paste: panel 批次 >1 → 报错",
+                 lambda: paste.run(grid=img, panel=good[0][0:2], index=0, shave=0, spec=spec),
+                 "一次只贴一格")
+
+    out, marked, prep = paste.run(grid=img, panel=good[0][1:2] * 0.5, index=1, shave=0, spec=spec)
+    check("Paste: 画布尺寸不变", tuple(out.shape) == (1, 576, 1024, 3), str(tuple(out.shape)))
+    tgt = parse_spec(spec).cell(1)
+    check("Paste: 目标格被写入",
+          torch.equal(out[0, tgt.y:tgt.y + tgt.h, tgt.x:tgt.x + tgt.w, :], (good[0][1] * 0.5)))
+    check("Paste: 其它格未动",
+          torch.equal(out[0, :tgt.y, :, :], img[0, :tgt.y, :, :]))
+    check("Paste: guides 关闭时 marked == grid", torch.equal(marked, img))
+    check("Paste: report 说明贴回位置", "第 1 行第 2 列" in prep, prep.splitlines()[2][:50])
+
+    # index 可以从 Crop 接过来，不必手打 —— 这是默认推荐路径
+    one, _, _, idx = crop.run(image=img, target_aspect="keep", padding_mode="crop",
+                              resize_edge=0, shave=0, spec=spec, index=1)
+    wired, _, _ = paste.run(grid=img, panel=one, index=idx, shave=0, spec=spec)
+    check("Paste: 用 Crop 回传 index 内容一致",
+          torch.equal(wired[0, tgt.y:tgt.y + tgt.h, tgt.x:tgt.x + tgt.w, :], one[0]))
 
 
 def test_import_boundary():

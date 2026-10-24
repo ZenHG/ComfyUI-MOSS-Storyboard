@@ -10,7 +10,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.1.2** |
+| Version | **0.1.3** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*` |
@@ -40,7 +40,7 @@
 | **Per-panel crops** | Row-major, pixel-aligned to the canvas; `spec` carries all geometry in one wire |
 | **Bilingual UI (zh / en)** | A 中 / EN button on each of our nodes; display-only, never touches saved values |
 
-**Three nodes — a minimal graph needs only the Sampler**, which carries the full set of geometry
+**Four nodes — a minimal graph needs only the Sampler**, which carries the full set of geometry
 parameters. The Layout node is an optional front-end: use it to preview the grid shape, or to
 freeze the geometry into one `spec` wire for several downstream nodes.
 
@@ -49,8 +49,9 @@ freeze the geometry into one `spec` wire for several downstream nodes.
 | 🎬 故事板 · 生成 | `MossStoryboardSampler` | **Yes** | `model + clip + vae + positive` → canvas + panels. Computes geometry from its own parameters when `spec` is absent |
 | 🎬 故事板 · 宫格几何 | `MossStoryboardLayout` | Optional (recommended) | Geometry + layout JSON + grid template. **No model loaded**, instant |
 | 🎬 故事板 · 裁格 | `MossStoryboardCrop` | Optional | Crops only; feed `spec` for pixel-exact panels |
+| 🎬 故事板 · 贴回 | `MossStoryboardPaste` | Optional | Pastes a corrected panel back at the `spec` coordinates, returning the full corrected board |
 
-> In an English UI the nodes read `MOSS Storyboard Layout` / `Sampler` / `Crop`.
+> In an English UI the nodes read `MOSS Storyboard Layout` / `Sampler` / `Crop` / `Paste`.
 > **When `spec` is connected it wins** — the Sampler's own geometry parameters are ignored.
 > That is the most common trap.
 
@@ -69,6 +70,11 @@ freeze the geometry into one `spec` wire for several downstream nodes.
 Weights are **not** bundled. The optional 4-step distilled LoRA is **not** part of this pack:
 the shipped workflow includes a `LoraLoaderModelOnly` node **bypassed by default** —
 un-bypass it (`Ctrl+B`) once you have the file.
+
+> **Host version also changes VRAM.** In stable releases **v0.42.1 and earlier**, the Flux2 VAE
+> decode reserves **4×** the memory it actually needs. Fixed in master after 2026-10-23
+> (commit `d07dff4`, not yet in any release) — `git pull` once if you installed via git.
+> Numbers, and how to tell which column you are in → [How much VRAM](#how-much-vram).
 
 ---
 
@@ -147,6 +153,37 @@ layout by 90°: 3 panels become a horizontal strip (848 × 512), 6 become 2 × 3
 - **Force a layout**: set 列数 (`columns`); leave `rows = 0` to fill in (`columns × rows == panels`).
   3 panels default to a vertical strip because three 16:9 panels in a row would make a 5.2:1 canvas.
 
+### How much VRAM
+
+VAE decode — not sampling — is the memory peak, and the same canvas can cost **4×** more or less
+depending on your host version.
+
+| Canvas | Panels | New host | Old host |
+|---|---|---|---|
+| 1024 × 576 | 4 | ~0.6 GB | ~2.4 GB |
+| 2032 × 576 | 8 | ~1.2 GB | ~4.8 GB |
+| 1520 × 848 | 9 | ~1.3 GB | ~5.2 GB |
+| 2096 × 608 | 8 (512 band) | ~1.3 GB | ~5.2 GB |
+
+**Which column are you in?** The fix is commit `d07dff4` (2026-10-23) and is **not in any stable
+release yet**.
+
+| How you installed | Column |
+|---|---|
+| Desktop / portable / pip | **Old** — wait for a release |
+| `git clone` + `git pull` after 2026-10-23 | **New** |
+| `git clone` but not pulled recently | **Old** |
+
+**When memory runs short**, the host tries the full-image decode first, then falls back to
+**tiled decode** — and tile seams can cut straight through your panels. Look for
+`retrying with tiled VAE decoding` in the log.
+
+**Fixes, cheapest first**: ① `git pull` the host; ② lower `panel_edge` (half the edge → ¼ the
+decode memory); ③ use fewer panels (8 → 4 halves the canvas area).
+
+> ⚠ The saving only applies when the VAE runs in fp16 or bf16. `--fp32-vae`, or a host that
+> falls back to fp32, silently disables it.
+
 ### Bilingual UI
 
 Each of **our** nodes has a **中 / EN** button switching titles, labels, combo display and tooltips.
@@ -197,16 +234,91 @@ edge 496**, so you can run it as-is.
 `plain` = raw prompt, no layout boxes.
 
 > **No img2img in this pack.** The latent always starts empty; keep `denoise` at 1.0.
-> MOSS does not condition on reference images (the official limitation says "no editing").
-> The template image is only an `IMAGE` output of `MossStoryboardLayout` for eyeballing the grid
-> geometry — it never enters the sampler. To rework an existing image, use a model that supports
-> img2img instead of lowering `denoise` here.
+> Template-latent initialisation was measured and does not work: 35 steps / denoise 0.85 → fully
+> black; 12 steps / 0.6 and 4 steps / 0.5 → template ghosting. Whenever sigma is actually
+> truncated, the model leaves the latent untouched. The template image is only an `IMAGE` output
+> of `MossStoryboardLayout` for eyeballing the grid geometry — it never enters the sampler.
+> To rework an **existing** image, see "Fixing one panel" below — that path does work, and it
+> does not require re-running the whole board.
 
 ### 🎬 故事板 · 裁格 (`MossStoryboardCrop`)
 
-Outputs `panels` (per-panel images), `preview` (crop lines drawn on the full canvas) and `report`.
+Outputs `panels` (per-panel images), `preview` (crop lines drawn on the full canvas), `report`
+and `index` (the panel number).
 With `spec` → pixel-identical to generation. Without `spec` → requires `columns × rows` to divide
 the image evenly and **raises** otherwise.
+`index` left at -1 (the default) outputs every panel, exactly as before. A 0-based panel number
+outputs just that one and emits it on the `index` output — wire that into Paste and you never
+type a panel number by hand.
+
+### 🎬 故事板 · 贴回 (`MossStoryboardPaste`)
+
+Inputs `grid` (the full board), `panel` (the corrected panel) and `index` (which panel to write).
+Outputs `grid` (the corrected board), `marked` (debug: frames the pasted region in red) and `report`.
+
+**Purpose: fix one panel without re-running the whole board.** Sampling a board takes tens of
+seconds to minutes, and re-running moves the seed of every panel at once. Instead: cut the panel
+out, correct it however you like, then paste it back at the exact `spec` coordinates.
+
+- `index` is 0-based, row-major (left to right, top to bottom). Wiring Crop's `index` output
+  overrides the widget, so it can never disagree with the panel you actually cut.
+- Only the target panel's content area is touched: gutters, margins and every other panel stay
+  byte-identical, and the grid lines are preserved.
+- `shave` must match what you used on Crop. Cutting inset s pixels, so pasting writes into the
+  inset rectangle; a mismatch shifts content by s pixels **without erroring** — check `report`.
+- If the input size differs from the cell it is resampled, and `report` says so. For a
+  pixel-exact round trip use Crop with `resize_edge=0`, `target_aspect=keep`, and the same `shave`.
+- To fix several panels, chain Paste nodes: the first `grid` output feeds the next `grid` input.
+
+Recommended wiring (no manual panel numbers anywhere):
+
+```
+Crop (index set) ──panel──→ your edit chain ──→ Paste
+Crop ──index──────────────────────────────────→ Paste
+Sampler ──grid────────────────────────────────→ Paste
+Sampler ──spec────────────────────────────────→ Paste / Crop
+```
+
+#### How to build "your edit chain" (optional — this pack needs no LoRA at all)
+
+This pack only does geometry: cut a panel out, paste it back. **What you edit with is up to you** —
+any node pack you already like, external retouching, or even hand-editing the file and reloading it.
+
+If you want MOSS's own instruction editing, the host's official nodes are enough — no third-party
+node pack required:
+
+```
+Crop (index) ──→ Text Encode MOSS-Image Edit ──→ KSampler ──→ VAEDecode ──→ Paste
+                     ↑ needs the LoRA below
+```
+
+Steps:
+
+1. Download the community edit LoRA **Moss-Image-Edit** (~285 MB, bf16, rank 64) — either source,
+   same files:
+   - Hugging Face: <https://huggingface.co/chinoll/Moss-Image-Edit>
+   - ModelScope: <https://www.modelscope.cn/models/ChenkinLab/Moss-Image-Edit>
+2. Put `adapter_model.safetensors` and `adapter_config.json` into
+   **`models/loras/Moss-Image-Edit/`** (create the subdirectory, both files together).
+3. Use the host's **`Text Encode MOSS-Image Edit`** node:
+   - `clip` → your CLIPLoader (`type=moss_image`)
+   - `images` → the panel you cut out
+   - `edit_format` → `Moss-Image-Edit`
+   - **`vae` may be left unwired**: then the reference only reaches the text encoder, which costs
+     far less VRAM and does not force the reference's spatial structure onto the result. Wiring it
+     adds reference latents — stronger composition preservation, more memory.
+4. Follow it with a plain `KSampler` (30 steps / cfg 4 works) → `VAEDecode` → this pack's Paste.
+
+**What it can and cannot do** (measured locally): colour, outfit, lighting, season and style
+instructions are followed well. Composition preservation comes from the reference image itself and
+weakens when `vae` is unwired. **It is not good at "re-shoot from another angle"** — that still
+belongs to the layout-prompt route.
+
+> **Licensing and scope**: that LoRA is third-party community weights, **not distributed with this
+> pack** and not maintained by it. Its model card marks the code portion as GPLv3; the weight
+> licence is whatever the card states. This pack only links to it — it does not copy, modify or
+> redistribute any weight file. This pack itself (MIT) does not depend on it: storyboard generation
+> and Paste work fully without downloading anything.
 
 ---
 
@@ -222,14 +334,16 @@ the image evenly and **raises** otherwise.
 
 **Not possible in this version**
 
-- 🔴 **No img2img.** MOSS is not conditioned on reference images (the official limitation says
-  "no editing"). Three runs measured: 35 steps / denoise 0.85 → fully black; 12 steps / 0.6 and
-  4 steps / 0.5 → template ghosting. Whenever sigma is actually truncated, the model leaves the
-  image untouched. Since 0.1.2 the path is removed: `init` has no `template` / `both`, and the
-  sampler no longer takes a template input.
-- ⚠ **The official non-distilled recipe (50 steps / cfg 3) produced corrupted frames on our machine.**
-  Cause unconfirmed; others report it works. Defaults are 4 steps (with a distill LoRA) or
-  35 steps at `cfg=1`; if you try 50/3, do a small sample first instead of a full batch.
+- 🔴 **No img2img.** Template-latent initialisation was measured across three parameter sets:
+  35 steps / denoise 0.85 → fully black; 12 steps / 0.6 and 4 steps / 0.5 → template ghosting.
+  Whenever sigma is actually truncated, the model leaves the image untouched. Since 0.1.2 the path
+  is removed: `init` has no `template` / `both`, and the sampler no longer takes a template input.
+  Instruction editing of an existing panel *is* possible — see "Fixing one panel" — it just is not
+  img2img.
+- ⚠ **Steps and cfg come in two bands, split by whether a LoRA is loaded.**
+  Base model, no LoRA: 30–50 steps with cfg 3–5. With a 4-step distilled LoRA: 4–8 steps with
+  cfg 1.0 — the distill LoRA was trained at cfg 1, so raising it breaks the distillation.
+  Mixing the bands (a LoRA loaded but 35 steps) will not error, it just wastes the run.
 - ⚠ **At low step counts denoise is silently clamped.** The host recomputes sigmas as
   `int(steps / denoise)`, so at 4 steps `int(4/0.85)=4` truncates nothing (equivalent to 1.0).
   `report` prints nominal vs. effective — trust the effective value. There is no img2img, so keep
@@ -243,14 +357,28 @@ the image evenly and **raises** otherwise.
 
 - Canvas and panel dimensions must be multiples of **16** (enforced; hand-edited `spec` is rejected).
 - >2 MP warns, >4 MP warns loudly: MOSS trains at 1–2 MP, official extrapolation ≈4 MP.
+- **VAE decode precision is decided by ComfyUI, not by the weight file.** The host casts the VAE
+  to `fp16` at load time (falling back to `bf16`/`fp32` only if your GPU cannot do fp16), so
+  `flux2-vae.safetensors` (F32) and `flux2-vae_BF16.safetensors` (BF16) run at the **same
+  precision with near-identical speed** — the file's dtype is normalised away on load, leaving
+  only disk usage and load-time RAM as the difference. For true fp32 decoding use the host flag
+  `--fp32-vae`; this pack deliberately does not implement a second precision path, which would
+  diverge from the host's own `VAEDecode`. A general escape hatch also exists: the Sampler node
+  has a `latent` output, so you can wire your own `VAEDecode` and use whatever VAE and precision
+  you like.
 
 ---
 
 ## FAQ
 
-**All black.** Check `report` for nominal vs. effective denoise, and the step count. Usual causes:
-① `cfg` pushed above 1 or `steps` raised to 50 (corrupted on our machine, see "Not possible");
-② 4-step LoRA with 35 steps, or no LoRA with 4 steps.
+**OOM during VAE decode, or faint horizontal seams in the output.** Same cause: not enough
+memory → the host falls back to tiled decode → seams at the tile borders. Check the log for
+`retrying with tiled VAE decoding`, then follow [How much VRAM](#how-much-vram). The cheapest
+fix is `git pull` on the host.
+
+**All black.** Check `report` for nominal vs. effective denoise, and the step count. The most
+common cause is **mismatched bands**: a 4-step distilled LoRA loaded but 35 steps / cfg 3 used,
+or no LoRA but 4 steps / cfg 1.0. Match the two bands listed under "Not possible".
 
 **Right panel count, wrong content / everything crammed into one panel.** Layout boxes are
 advisory. Shorten each caption to one shot, and check that `report` parsed as many captions as
@@ -282,5 +410,6 @@ runtime.
 
 Deep dives live in [`docs/`](docs/) (**written in Chinese**):
 [`01`](docs/01-layout-and-panels.md) geometry · [`02`](docs/02-e2e-matrix.md) e2e matrix ·
-[`03`](docs/03-open-source-readiness.md) readiness audit · [`04`](docs/04-i18n-and-widgets.md) i18n internals.
+[`03`](docs/03-open-source-readiness.md) readiness audit · [`04`](docs/04-i18n-and-widgets.md) i18n internals ·
+[`05`](docs/05-local-development.md) local development · [`06`](docs/06-vae-memory.md) VAE memory budget.
 Developer rules: [`AGENTS.md`](AGENTS.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md).

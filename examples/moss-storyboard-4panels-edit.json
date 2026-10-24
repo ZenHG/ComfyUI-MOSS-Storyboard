@@ -1,0 +1,1636 @@
+{
+ "id": "moss-storyboard-edit",
+ "revision": 0,
+ "last_node_id": 17,
+ "last_link_id": 24,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "UNETLoader",
+   "pos": [
+    -1500,
+    -120
+   ],
+   "size": [
+    350,
+    82
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "unet_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "unet_name"
+     }
+    },
+    {
+     "name": "weight_dtype",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "weight_dtype"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      1
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "moss_image_sft_bf16.safetensors",
+    "default"
+   ],
+   "title": "① MOSS-Image"
+  },
+  {
+   "id": 2,
+   "type": "CLIPLoader",
+   "pos": [
+    -1500,
+    -20
+   ],
+   "size": [
+    350,
+    106
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "clip_name"
+     }
+    },
+    {
+     "name": "type",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "type"
+     }
+    },
+    {
+     "name": "device",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "device"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      4,
+      5
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "qwen3.5_9b_int8_convrot.safetensors",
+    "moss_image",
+    "default"
+   ],
+   "title": "① 文本编码器"
+  },
+  {
+   "id": 3,
+   "type": "VAELoader",
+   "pos": [
+    -1500,
+    110
+   ],
+   "size": [
+    350,
+    58
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "vae_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "vae_name"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      6,
+      7,
+      8
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "flux2-vae.safetensors"
+   ],
+   "title": "① VAE"
+  },
+  {
+   "id": 4,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    -1500,
+    196
+   ],
+   "size": [
+    350,
+    82
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 4,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 1
+    },
+    {
+     "name": "lora_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "lora_name"
+     }
+    },
+    {
+     "name": "strength_model",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "strength_model"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      2,
+      3
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "loras_moss_image_sft_4_steps_lora_v2_600_avg_rank_72_bf16.safetensors",
+    1.0
+   ],
+   "title": "① LoRA · 4 步蒸馏（可选）"
+  },
+  {
+   "id": 5,
+   "type": "MossStoryboardLayout",
+   "pos": [
+    -1100,
+    -120
+   ],
+   "size": [
+    460,
+    640
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "prompt"
+     }
+    },
+    {
+     "name": "panels",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panels"
+     }
+    },
+    {
+     "name": "panel_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "panel_aspect"
+     }
+    },
+    {
+     "name": "panel_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panel_edge"
+     }
+    },
+    {
+     "name": "canvas_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "canvas_aspect"
+     }
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "columns"
+     }
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "rows"
+     }
+    },
+    {
+     "name": "gutter",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "gutter"
+     }
+    },
+    {
+     "name": "margin",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "margin"
+     }
+    },
+    {
+     "name": "cell_gray",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "cell_gray"
+     }
+    },
+    {
+     "name": "invert",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "invert"
+     }
+    },
+    {
+     "name": "label",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "label"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "width",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "links": [
+      9,
+      10,
+      11
+     ]
+    },
+    {
+     "name": "layout_json",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "template",
+     "type": "IMAGE",
+     "links": []
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardLayout"
+   },
+   "widgets_values": [
+    "",
+    4,
+    "16:9",
+    496,
+    "auto",
+    0,
+    0,
+    8,
+    8,
+    25,
+    false,
+    "object"
+   ]
+  },
+  {
+   "id": 6,
+   "type": "MossStoryboardSampler",
+   "pos": [
+    -580,
+    -120
+   ],
+   "size": [
+    520,
+    800
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 2
+    },
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 4
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 6
+    },
+    {
+     "name": "positive",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "positive"
+     }
+    },
+    {
+     "name": "negative",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "negative"
+     }
+    },
+    {
+     "name": "steps",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "steps"
+     }
+    },
+    {
+     "name": "cfg",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "cfg"
+     }
+    },
+    {
+     "name": "sampler_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "sampler_name"
+     }
+    },
+    {
+     "name": "scheduler",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "scheduler"
+     }
+    },
+    {
+     "name": "seed",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "seed"
+     }
+    },
+    {
+     "name": "denoise",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "denoise"
+     }
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "link": 9
+    },
+    {
+     "name": "panels",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panels"
+     }
+    },
+    {
+     "name": "panel_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "panel_aspect"
+     }
+    },
+    {
+     "name": "panel_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panel_edge"
+     }
+    },
+    {
+     "name": "canvas_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "canvas_aspect"
+     }
+    },
+    {
+     "name": "gutter",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "gutter"
+     }
+    },
+    {
+     "name": "margin",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "margin"
+     }
+    },
+    {
+     "name": "init",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "init"
+     }
+    },
+    {
+     "name": "label",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "label"
+     }
+    },
+    {
+     "name": "reborder",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "reborder"
+     }
+    },
+    {
+     "name": "border_px",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "border_px"
+     }
+    },
+    {
+     "name": "shave",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "shave"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "grid",
+     "type": "IMAGE",
+     "links": [
+      12,
+      13,
+      14
+     ]
+    },
+    {
+     "name": "panels",
+     "type": "IMAGE",
+     "links": []
+    },
+    {
+     "name": "latent",
+     "type": "LATENT",
+     "links": []
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "prompt_used",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardSampler"
+   },
+   "widgets_values": [
+    "[STYLE]: 单一故事板画布分割为严格对称网格，恰好 4 个面板，每个面板展示雨夜咖啡店叙事的顺序推进，所有面板由细白边框线整齐分隔，完全没有粗框、黑边或跨面板全景溢出；苏晚：黑发低马尾、米白高领针织衫、哑光织物、自然裸肤毛孔；陈屿：深灰外套、黑衬衫、短发、修长手指、哑光面料；固定环境：雨夜咖啡店靠窗双人桌、湿街反光、玻璃雨痕、暖黄吊灯、柠檬水杯、咖啡杯；相机规格：35mm 胶片摄影、真实演员、自然原始皮肤纹理、有机胶片颗粒、锐利光学镜头焦点、浅景深、近距取景\n\n[PANEL 1]: 画面为中景腰以上构图，相机位于双人桌侧前方，苏晚与陈屿同框对坐，苏晚把柠檬水杯向两人正中轻推，暖黄吊灯主光照亮桌面与玻璃雨痕\n\n[PANEL 2]: 画面为 Choker 特写裁切额头与下巴，相机位于苏晚正前方偏三分法，苏晚面部神情克制、嘴唇微启、眼睑微垂，陈屿在背景中虚化\n\n[PANEL 3]: 画面为胸以上中近景，相机位于陈屿侧前方低角度，陈屿修长手指在咖啡杯上收紧、视线压在杯口、眉骨微紧\n\n[PANEL 4]: 画面为特写，相机位于苏晚眼部与手部之间，苏晚眼睛看向桌面、睫毛投下细影、手指搭在柠檬水杯旁",
+    "多余面板，错位拼贴，粗黑边框，跨格溢出，文字水印，畸变手指，塑料皮肤",
+    4,
+    1.0,
+    "euler",
+    "simple",
+    555,
+    "randomize",
+    1.0,
+    4,
+    "16:9",
+    496,
+    "auto",
+    8,
+    8,
+    "layout",
+    "object",
+    true,
+    0,
+    0
+   ]
+  },
+  {
+   "id": 7,
+   "type": "SaveImage",
+   "pos": [
+    -580,
+    720
+   ],
+   "size": [
+    520,
+    560
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 13
+    },
+    {
+     "name": "filename_prefix",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "filename_prefix"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "moss/storyboard/edit-orig"
+   ],
+   "title": "⑥ 原图（贴回前存一份）"
+  },
+  {
+   "id": 8,
+   "type": "MossStoryboardCrop",
+   "pos": [
+    20,
+    -120
+   ],
+   "size": [
+    400,
+    400
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 12
+    },
+    {
+     "name": "target_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "target_aspect"
+     }
+    },
+    {
+     "name": "padding_mode",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "padding_mode"
+     }
+    },
+    {
+     "name": "resize_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "resize_edge"
+     }
+    },
+    {
+     "name": "shave",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "shave"
+     }
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "link": 10
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "columns"
+     }
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "rows"
+     }
+    },
+    {
+     "name": "show_guides",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "show_guides"
+     }
+    },
+    {
+     "name": "index",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "index"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "panels",
+     "type": "IMAGE",
+     "links": [
+      15
+     ]
+    },
+    {
+     "name": "preview",
+     "type": "IMAGE",
+     "links": []
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "index",
+     "type": "INT",
+     "links": [
+      16
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardCrop"
+   },
+   "widgets_values": [
+    "keep",
+    "crop",
+    0,
+    0,
+    0,
+    0,
+    false,
+    1
+   ],
+   "title": "🎬 故事板 · 裁格（要改的那格）"
+  },
+  {
+   "id": 9,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    20,
+    330
+   ],
+   "size": [
+    400,
+    82
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 4,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 3
+    },
+    {
+     "name": "lora_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "lora_name"
+     }
+    },
+    {
+     "name": "strength_model",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "strength_model"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      17
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "Moss-Image-Edit\\adapter_model.safetensors",
+    1.0
+   ],
+   "title": "④ LoRA · 编辑（必需）"
+  },
+  {
+   "id": 10,
+   "type": "TextEncodeMOSSImageEdit",
+   "pos": [
+    20,
+    440
+   ],
+   "size": [
+    400,
+    300
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 5
+    },
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "prompt"
+     }
+    },
+    {
+     "name": "edit_format",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "edit_format"
+     }
+    },
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 15
+    },
+    {
+     "name": "image_strength",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "image_strength"
+     }
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 8
+    }
+   ],
+   "outputs": [
+    {
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      18,
+      19
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "TextEncodeMOSSImageEdit"
+   },
+   "widgets_values": [
+    "Change the off-white high-collar knit sweater into a bright emerald-green hooded cloak, and add a tall pointed red hat on her head. Keep the face, the framing, the camera angle, the rainy-night cafe background and the warm yellow lighting exactly the same.",
+    "Moss-Image-Edit",
+    1.0
+   ],
+   "title": "④ 编辑指令"
+  },
+  {
+   "id": 11,
+   "type": "EmptyFlux2LatentImage",
+   "pos": [
+    20,
+    770
+   ],
+   "size": [
+    400,
+    90
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "width",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "width"
+     }
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "height"
+     }
+    },
+    {
+     "name": "batch_size",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "batch_size"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      20
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "EmptyFlux2LatentImage"
+   },
+   "widgets_values": [
+    496,
+    272,
+    1
+   ],
+   "title": "④ 画布（与格子同尺寸）"
+  },
+  {
+   "id": 12,
+   "type": "KSampler",
+   "pos": [
+    480,
+    330
+   ],
+   "size": [
+    400,
+    300
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 17
+    },
+    {
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 18
+    },
+    {
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 19
+    },
+    {
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 20
+    },
+    {
+     "name": "seed",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "seed"
+     }
+    },
+    {
+     "name": "steps",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "steps"
+     }
+    },
+    {
+     "name": "cfg",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "cfg"
+     }
+    },
+    {
+     "name": "sampler_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "sampler_name"
+     }
+    },
+    {
+     "name": "scheduler",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "scheduler"
+     }
+    },
+    {
+     "name": "denoise",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "denoise"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      21
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "KSampler"
+   },
+   "widgets_values": [
+    20261024,
+    "randomize",
+    8,
+    1.0,
+    "euler",
+    "simple",
+    1.0
+   ],
+   "title": "④ 重采样（8 步 / cfg 1）"
+  },
+  {
+   "id": 13,
+   "type": "VAEDecode",
+   "pos": [
+    480,
+    660
+   ],
+   "size": [
+    400,
+    60
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 21
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 7
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      22,
+      23
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAEDecode"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 14,
+   "type": "SaveImage",
+   "pos": [
+    480,
+    750
+   ],
+   "size": [
+    400,
+    500
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 22
+    },
+    {
+     "name": "filename_prefix",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "filename_prefix"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "moss/storyboard/edit-panel"
+   ],
+   "title": "⑥ 改好的单格"
+  },
+  {
+   "id": 15,
+   "type": "MossStoryboardPaste",
+   "pos": [
+    940,
+    -120
+   ],
+   "size": [
+    430,
+    320
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "grid",
+     "type": "IMAGE",
+     "link": 14
+    },
+    {
+     "name": "panel",
+     "type": "IMAGE",
+     "link": 23
+    },
+    {
+     "name": "index",
+     "type": "INT",
+     "link": 16,
+     "widget": {
+      "name": "index"
+     }
+    },
+    {
+     "name": "shave",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "shave"
+     }
+    },
+    {
+     "name": "show_guides",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "show_guides"
+     }
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "link": 11
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "columns"
+     }
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "rows"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "grid",
+     "type": "IMAGE",
+     "links": [
+      24
+     ]
+    },
+    {
+     "name": "marked",
+     "type": "IMAGE",
+     "links": []
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardPaste"
+   },
+   "widgets_values": [
+    1,
+    0,
+    false,
+    0,
+    0
+   ],
+   "title": "🎬 故事板 · 贴回（改好的整张）"
+  },
+  {
+   "id": 16,
+   "type": "SaveImage",
+   "pos": [
+    940,
+    240
+   ],
+   "size": [
+    430,
+    500
+   ],
+   "flags": {},
+   "order": 15,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 24
+    },
+    {
+     "name": "filename_prefix",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "filename_prefix"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "moss/storyboard/edit-final"
+   ],
+   "title": "⑥ 最终宫格"
+  },
+  {
+   "id": 17,
+   "type": "MarkdownNote",
+   "pos": [
+    -1500,
+    320
+   ],
+   "size": [
+    350,
+    620
+   ],
+   "flags": {},
+   "order": 16,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "MarkdownNote"
+   },
+   "widgets_values": [
+    "## 这条链干什么\n只改一格，不重跑整张。某一格不满意时，重跑会让**所有格的种子一起变**；\n这条链把那一格裁出来、单独改好、再按 `spec` 坐标贴回去。\n\n## 五步\n1. **① 装两个 LoRA**（都没有也能跑，只是慢/不像编辑）：\n   - `4-step` 蒸馏 LoRA —— 让宫格 4 步出图\n   - `Moss-Image-Edit` —— 编辑能力全部来自它（约 285 MB）\n     Hugging Face `huggingface.co/chinoll/Moss-Image-Edit`\n     魔搭 `modelscope.cn/models/ChenkinLab/Moss-Image-Edit`\n     两个文件放 `models/loras/Moss-Image-Edit/`\n2. **② 取消旁路**：选中两个 LoRA 节点，按 `Ctrl+B`（默认旁路是怕你没装而报红）。\n3. **③ 改哪一格**：`MossStoryboardCrop` 的 `index`，**0 起、行主序**\n   （从左到右、从上到下）。默认 1 = 右上那格。它的 `index` 输出直接接给贴回节点，\n   **不用手打第二遍**。\n4. **④ 编辑指令**：`TextEncodeMOSSImageEdit` 的 prompt，用英文写指令。\n   ⚠ **别在指令里要求换场景**——那不是编辑，是重画。写「把 X 换成 Y，其余保持不变」。\n5. 跑。产物见 ⑥。\n\n## 三个要知道的事\n- **`vae` 必须接线**：`edit_format` 选 `Moss-Image-Edit` 时，参考图**必须**编码成\n  `reference_latents` 才是这个 LoRA 训练时的布局。留空则参考图几乎不起作用，\n  模型会按指令重画——换掉人脸和机位。实测：不接 vae 脸部差异 78.5/255，\n  接上 21.6/255。\n- **编辑也可以叠 4 步 LoRA**：④ 的 `steps` / `cfg` 改成 `8` / `1.0`，\n  并让 4 步 LoRA 串在编辑 LoRA 之前。本机实测 8 步 / cfg 1.0：背景差异 8.1/255，\n  比 30 步 / cfg 4 的 11.4 更稳，且快 8 倍。\n- **贴回去的那格会更亮更锐**：编辑档与宫格档不同，这是两档配方的固有差异，不是 bug。\n  想接近就把 ④ 的 `steps` 调小。\n- **本包自身不需要任何 LoRA**：不装也能完整生成 + 贴回，只是不能用 MOSS 的指令编辑。\n\n## 许可\n`Moss-Image-Edit` 是第三方社区权重，不随本包分发；其代码部分为 GPLv3。\n本包（MIT）只在使用文档里指向它。"
+   ],
+   "title": "使用说明"
+  }
+ ],
+ "links": [
+  [
+   1,
+   1,
+   0,
+   4,
+   0,
+   "MODEL"
+  ],
+  [
+   2,
+   4,
+   0,
+   6,
+   0,
+   "MODEL"
+  ],
+  [
+   3,
+   4,
+   0,
+   9,
+   0,
+   "MODEL"
+  ],
+  [
+   4,
+   2,
+   0,
+   6,
+   1,
+   "CLIP"
+  ],
+  [
+   5,
+   2,
+   0,
+   10,
+   0,
+   "CLIP"
+  ],
+  [
+   6,
+   3,
+   0,
+   6,
+   2,
+   "VAE"
+  ],
+  [
+   7,
+   3,
+   0,
+   13,
+   1,
+   "VAE"
+  ],
+  [
+   8,
+   3,
+   0,
+   10,
+   5,
+   "VAE"
+  ],
+  [
+   9,
+   5,
+   4,
+   6,
+   11,
+   "STRING"
+  ],
+  [
+   10,
+   5,
+   4,
+   8,
+   5,
+   "STRING"
+  ],
+  [
+   11,
+   5,
+   4,
+   15,
+   5,
+   "STRING"
+  ],
+  [
+   12,
+   6,
+   0,
+   8,
+   0,
+   "IMAGE"
+  ],
+  [
+   13,
+   6,
+   0,
+   7,
+   0,
+   "IMAGE"
+  ],
+  [
+   14,
+   6,
+   0,
+   15,
+   0,
+   "IMAGE"
+  ],
+  [
+   15,
+   8,
+   0,
+   10,
+   3,
+   "IMAGE"
+  ],
+  [
+   16,
+   8,
+   3,
+   15,
+   2,
+   "INT"
+  ],
+  [
+   17,
+   9,
+   0,
+   12,
+   0,
+   "MODEL"
+  ],
+  [
+   18,
+   10,
+   0,
+   12,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   19,
+   10,
+   0,
+   12,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   20,
+   11,
+   0,
+   12,
+   3,
+   "LATENT"
+  ],
+  [
+   21,
+   12,
+   0,
+   13,
+   0,
+   "LATENT"
+  ],
+  [
+   22,
+   13,
+   0,
+   14,
+   0,
+   "IMAGE"
+  ],
+  [
+   23,
+   13,
+   0,
+   15,
+   1,
+   "IMAGE"
+  ],
+  [
+   24,
+   15,
+   0,
+   16,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [
+  {
+   "title": "① 模型加载",
+   "bounding": [
+    -1526,
+    -176,
+    402,
+    480
+   ],
+   "color": "#3f789e",
+   "font_size": 26,
+   "flags": {}
+  },
+  {
+   "title": "② 生成宫格",
+   "bounding": [
+    -1126,
+    -176,
+    1092,
+    1482
+   ],
+   "color": "#3f789e",
+   "font_size": 26,
+   "flags": {}
+  },
+  {
+   "title": "③ 裁出那一格",
+   "bounding": [
+    -6,
+    -176,
+    452,
+    482
+   ],
+   "color": "#3f789e",
+   "font_size": 26,
+   "flags": {}
+  },
+  {
+   "title": "④ 编辑",
+   "bounding": [
+    -6,
+    274,
+    912,
+    1002
+   ],
+   "color": "#3f789e",
+   "font_size": 26,
+   "flags": {}
+  },
+  {
+   "title": "⑤ 贴回",
+   "bounding": [
+    914,
+    -176,
+    482,
+    942
+   ],
+   "color": "#3f789e",
+   "font_size": 26,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.62,
+   "offset": [
+    1500,
+    400
+   ]
+  }
+ },
+ "version": 0.4
+}

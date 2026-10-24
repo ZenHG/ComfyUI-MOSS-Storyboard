@@ -39,5 +39,10 @@ class MossStoryboardCrop(_Shell):
     _V1_NAME = "MossStoryboardCrop"
 
 
+class MossStoryboardPaste(_Shell):
+    """MOSS Storyboard Paste：把改好的单格按 spec 贴回宫格。"""
+    _V1_NAME = "MossStoryboardPaste"
+
+
 #: 注册清单（唯一真相源；`__init__.py` 的加载摘要也从这里数）。
-NODES = [MossStoryboardLayout, MossStoryboardSampler, MossStoryboardCrop]
+NODES = [MossStoryboardLayout, MossStoryboardSampler, MossStoryboardCrop, MossStoryboardPaste]

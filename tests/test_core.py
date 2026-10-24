@@ -143,6 +143,44 @@ check("resize_edge=256 → 长边 256", max(rs.shape[1], rs.shape[2]) == 256, st
 prev = P.guide_preview(img2, lay)
 check("预览线为纯红", abs(float(prev[0, 10, gx, 1]) - 0.0) < 1e-6 and abs(float(prev[0, 10, gx, 0]) - 1.0) < 1e-6)
 
+print("\n== 5b. 贴回（crop_panels 的逆运算） ==")
+mid = lay.panels // 2
+cell = lay.cell(mid)
+edited = torch.full((1, lay.panel_h, lay.panel_w, 3), 0.25)
+back, notes = P.paste_panel(img2, lay, mid, edited)
+check("贴回后画布尺寸不变", tuple(back.shape) == tuple(img2.shape), str(tuple(back.shape)))
+check("目标格内容 == 贴入内容",
+      torch.equal(back[0, cell.y:cell.y + cell.h, cell.x:cell.x + cell.w, :], edited[0]))
+other = lay.cell(0 if mid != 0 else lay.panels - 1)
+check("其它格一个字节都没动",
+      torch.equal(back[0, other.y:other.y + other.h, other.x:other.x + other.w, :],
+                  img2[0, other.y:other.y + other.h, other.x:other.x + other.w, :]))
+seam_y = cell.y - 1 if cell.y > 0 else cell.y + cell.h
+check("缝与外边距未触碰", torch.equal(back[0, seam_y, :, :], img2[0, seam_y, :, :]))
+check("报告说明无重采样", any("无重采样" in n for n in notes))
+
+# shave 往返：裁的时候缩了 s，贴回也要缩
+sh = 6
+shaved = P.crop_panels(img2, lay, shave=sh)
+back2, _ = P.paste_panel(img2, lay, mid, shaved[mid] * 0.5, shave=sh)
+check("shave=6 往返内容一致",
+      torch.equal(back2[0, cell.y + sh:cell.y + cell.h - sh, cell.x + sh:cell.x + cell.w - sh, :],
+                  shaved[mid] * 0.5))
+
+# 尺寸不符 → 重采样 + 明确告知
+odd = torch.rand(1, 100, 160, 3)
+back3, notes3 = P.paste_panel(img2, lay, mid, odd)
+check("尺寸不符 → 仍写满目标格",
+      tuple(back3[0, cell.y:cell.y + cell.h, cell.x:cell.x + cell.w, :].shape) == tuple(edited[0].shape))
+check("尺寸不符 → 报告重采样警告", any("重采样" in n for n in notes3), notes3[0][:40])
+expect_raise("index 越界 → 报错", lambda: P.paste_panel(img2, lay, lay.panels, edited), "越界")
+expect_raise("index 为负 → 报错", lambda: P.paste_panel(img2, lay, -1, edited), "越界")
+expect_raise("panel 批次 >1 → 报错",
+             lambda: P.paste_panel(img2, lay, mid, torch.rand(2, 8, 8, 3)), "一次只贴一格")
+
+mk = P.paste_marker(img2, lay, mid)
+check("marker 在目标格有红框", bool((mk[0, cell.y, cell.x:cell.x + cell.w, 0] > 0.99).all()))
+
 print("\n== 6. 提示词解析 ==")
 blob = ("[STYLE]: 雨夜咖啡店，35mm 胶片\n\n[PANEL 1]: 中景，两人对坐\n\n[PANEL 2]: 特写，苏晚眼睫\n\n"
         "[PANEL 3]: 过肩，陈屿抬眼")

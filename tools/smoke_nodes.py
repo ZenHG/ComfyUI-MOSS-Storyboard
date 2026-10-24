@@ -46,8 +46,10 @@ def main():
     check("默认出口 = v3", pkg.NODE_API == "v3", "实际 %s（原因 %s）" % (pkg.NODE_API, pkg.NODE_API_FALLBACK_REASON))
 
     print("\n== 2. V1 契约 ==")
+    import torch
     from moss_sb import nodes as V1
-    check("V1 注册 3 个节点", len(V1.NODE_CLASS_MAPPINGS) == 3, str(sorted(V1.NODE_CLASS_MAPPINGS)))
+    from moss_sb.core import layout as L
+    check("V1 注册 4 个节点", len(V1.NODE_CLASS_MAPPINGS) == 4, str(sorted(V1.NODE_CLASS_MAPPINGS)))
     for name, cls in V1.NODE_CLASS_MAPPINGS.items():
         it = cls.INPUT_TYPES()
         req = list(it.get("required") or {})
@@ -61,7 +63,7 @@ def main():
 
     print("\n== 3. V3 出口 ==")
     from moss_sb.v3.nodes_v3 import NODES
-    check("V3 清单 3 个节点", len(NODES) == 3, str([c.__name__ for c in NODES]))
+    check("V3 清单 4 个节点", len(NODES) == 4, str([c.__name__ for c in NODES]))
     for cls in NODES:
         try:
             sch = cls.GET_SCHEMA()
@@ -95,17 +97,42 @@ def main():
     from moss_sb.core import sampling as S  # noqa: F401  (只为确认宿主 import 链通)
     crop_node = V1.MossStoryboardCrop()
     grid = tpl * 0.5
-    panels_img, preview, creport = crop_node.run(image=grid, target_aspect="keep", padding_mode="crop",
-                                                 resize_edge=0, shave=0, spec=spec,
-                                                 columns=0, rows=0, show_guides=True)
+    panels_img, preview, creport, cidx = crop_node.run(image=grid, target_aspect="keep", padding_mode="crop",
+                                                       resize_edge=0, shave=0, spec=spec,
+                                                       columns=0, rows=0, show_guides=True)
     check("Crop: 8 张", panels_img.shape[0] == 8, str(tuple(panels_img.shape)))
     check("Crop: 单格 512x288", tuple(panels_img.shape[1:3]) == (288, 512), str(tuple(panels_img.shape)))
+    check("Crop: index 默认 -1 时输出全部", cidx == -1, str(cidx))
     try:
         crop_node.run(image=grid, target_aspect="keep", padding_mode="crop", resize_edge=0, shave=0,
                       spec="", columns=0, rows=0, show_guides=False)
         check("Crop: 无 spec 且无行列 → 报错", False, "未抛异常")
     except Exception as e:
         check("Crop: 无 spec 且无行列 → 报错", "必须填 columns" in str(e), str(e).splitlines()[0][:80])
+
+    # ---- Paste：Crop 的逆运算 ----
+    one, _, _, one_idx = crop_node.run(image=grid, target_aspect="keep", padding_mode="crop",
+                                       resize_edge=0, shave=0, spec=spec, index=3)
+    check("Crop: index=3 只出 1 张", one.shape[0] == 1 and one_idx == 3,
+          "%d 张 / idx=%s" % (one.shape[0], one_idx))
+    paste_node = V1.MossStoryboardPaste()
+    pasted, marked, prep = paste_node.run(grid=grid, panel=one * 0.5, index=one_idx, shave=0, spec=spec)
+    check("Paste: 画布尺寸不变", tuple(pasted.shape) == tuple(grid.shape), str(tuple(pasted.shape)))
+    tgt = L.parse_spec(spec).cell(3)
+    check("Paste: 目标格被写入",
+          torch.equal(pasted[0, tgt.y:tgt.y + tgt.h, tgt.x:tgt.x + tgt.w, :], (one * 0.5)[0]))
+    check("Paste: 非目标格未动",
+          torch.equal(pasted[0, :tgt.y, :, :], grid[0, :tgt.y, :, :]))
+    check("Paste: guides 关闭时 marked == grid", torch.equal(marked, grid))
+    try:
+        paste_node.run(grid=grid, panel=one, index=99, shave=0, spec=spec)
+        check("Paste: index 越界 → 报错", False, "未抛异常")
+    except Exception as e:
+        check("Paste: index 越界 → 报错", "越界" in str(e), str(e).splitlines()[0][:80])
+    # 接线方式：Crop.index 直接喂给 Paste.index，不需要手打
+    wired, _, _ = paste_node.run(grid=grid, panel=one, index=one_idx, shave=0, spec=spec)
+    check("Paste: 用 Crop 回传的 index 结果一致",
+          torch.equal(wired[0, tgt.y:tgt.y + tgt.h, tgt.x:tgt.x + tgt.w, :], one[0]))
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:
