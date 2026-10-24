@@ -13,7 +13,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.2.0** |
+| 版本 | **0.2.1** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（MOSS-Image 原生支持自 PR #17095 起） |
 | 依赖 | **零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供） |
@@ -94,7 +94,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 重启 ComfyUI。节点菜单 **`moss/storyboard`** 下出现五个节点，启动日志里有一行：
 
 ```
-[MOSS SB] v0.2.0 已加载｜节点 5 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v0.2.1 已加载｜节点 5 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 **没这行 = 包没加载**，这比任何配置检查都直接。

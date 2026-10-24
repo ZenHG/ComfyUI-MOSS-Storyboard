@@ -1,5 +1,24 @@
 # CHANGES
 
+## 0.2.1 — 2026-10-24
+
+### 修复
+- **`.comfyignore` 不再排除 `THIRD-PARTY-NOTICES.md`**：0.2.0 的 registry 包里 README 指向该文件
+  但文件缺失。`check_release_ready.py` 的 must_keep 与 `make_dist.py` 的必需文件表同步。
+  0.2.0 的 registry changelog 不可改，本版 changelog 承担更正。
+- **README / README_EN 校正**：整张 vs 逐格的默认行为、宫格线由节点重绘、布局遵循度不量化、
+  1–2MP 只适用于 8/9 格、`init=plain` 只改提示词投递；删除已复核推翻的
+  「官方 50 步 / cfg 3 崩坏」旧结论。
+- 示例海报的自拟中文标题改为中性英文，便于直接分享；用户示例收敛为 4 份，
+  旧版 8 格 / 0.1.x 20 槽工作流转为 `tests/fixtures/` 夹具。
+
+### 新增
+- **`tools/make_dist.py`**：按 `git ls-files` + `.comfyignore` 构建干净分发包（可选 `--zip`）；
+  `--verify` 把产出当独立包加载，断言 5 节点注册、前端在位、编辑器 / 宫格 / 裁格可跑、
+  无模块来自原仓。不读工作区临时件。
+- **CI `release-preview` 作业**：发布卫生闸（31 项）→ 构建干净包 → 上传 zip artifact（7 天）；
+  宿主作业增 `make_dist.py --verify`（14 项）。新增 `workflow_dispatch` 手动触发。
+
 ## 0.2.0 — 2026-10-24
 
 ### 新增
