@@ -19,6 +19,42 @@
 
 ---
 
+## 0.2.2 — 2026-10-24
+
+**布局编辑器支持撤销 / 重做；生成节点对写错的参数报得更早、更清楚。**
+
+- 🆕 布局编辑器可撤销 / 重做：`Ctrl+Z` / `Ctrl+Shift+Z`（或 `Ctrl+Y`），工具栏也有 ↶ ↷ 按钮。
+  最多 100 步；连续打字、连续用方向键微调各算一步。打开别的工作流后历史清空，不会和 ComfyUI 自己的撤销混在一起。
+- 🔴 逐格模式下描述段数少于格数时，现在采样前就报错并说明怎么补，不再跑完才在拼版时失败。
+- 🔴 手改过、前后矛盾或尺寸超限的 `spec` 现在直接拒绝；本包节点生成的 `spec` 不受影响。整张画布上限 64MP。
+- 逐格模式不再把「4 个面板」这类格数说法漏进单格描述；拼版尺寸与解码图逐像素对齐。
+- 编辑器里 1×1 空白宫格不再被误判非法；过小或过大的画布宽高会自动修回默认值。
+
+**升级动作**：从 Manager 更新到 0.2.2，重启 ComfyUI 并刷新浏览器（F5）。已有工作流无需改动；
+只有手改过 `spec` 且数值前后不一致时会报错——改回由布局节点或布局编辑器输出的 `spec` 即可。
+
+<!-- EN -->
+
+**Undo / redo in the Layout Editor; the Generate node now rejects bad inputs earlier and more clearly.**
+
+- NEW undo / redo in the Layout Editor: `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`), plus ↶ ↷ toolbar buttons.
+  Up to 100 steps; a run of typing or a run of arrow-key nudges counts as one step. History is cleared when
+  another workflow is loaded, so it never mixes with ComfyUI's own undo.
+- 🔴 In per-panel mode, a prompt with fewer panel lines than panels now fails before sampling, with a message
+  saying how to fix it, instead of failing at assembly after all the sampling time was spent.
+- 🔴 A hand-edited `spec` that contradicts itself or exceeds the size limits is now rejected; every `spec`
+  produced by this pack's nodes still loads. The whole canvas is capped at 64MP.
+- Per-panel mode no longer leaks phrases like "4 panels" into each panel's own description, and the assembled
+  board matches the decoded image pixel for pixel.
+- The editor no longer flags a blank 1×1 grid as invalid, and a canvas width or height outside the allowed range
+  is reset to the default instead of being kept with a warning.
+
+**Action required**: Update to 0.2.2 from the Manager, restart ComfyUI and hard-refresh the browser (F5).
+Existing workflows need no changes; only a hand-edited, inconsistent `spec` now errors — reconnect the `spec`
+output of the Layout node or the Layout Editor.
+
+---
+
 ## 0.2.1 — 2026-10-24
 
 **打包与文档修复：0.2.0 的安装包里缺了一份声明文件，README 里也有几处过时表述。**

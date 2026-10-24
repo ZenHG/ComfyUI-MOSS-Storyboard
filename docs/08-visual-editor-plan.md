@@ -237,7 +237,7 @@ node   tests/test_i18n.mjs             # 中英切换纯函数，54 项
 python tools/smoke_nodes.py            # 节点注册 + 纯节点真跑，41 项
 python tools/host_loader_check.py      # 宿主真实加载器，19 项
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/*.json   # 6 份共 88 项
-python tools/check_editor_ui.py        # 编辑器词表/语法/接线，58 项
+python tools/check_editor_ui.py        # 编辑器词表/语法/接线，68 项
 ```
 
 示例工作流（全部含本包节点、槽位逐位值域、接线完整）：
@@ -266,7 +266,7 @@ python tools/ui_to_api.py examples/moss-layout-editor-storyboard.json --run
 | 在宫格总览上拖格子 | 格位由几何算死，拖了没用（§一） |
 | 参考图输入 | 不在本包范围（§二） |
 | grid 的逐格元素分区 | v3 契约里 grid item = 格位；要做得先改契约 |
-| 撤销 / z 序 / 对齐均布 | P2（docs/09 §六） |
+| z 序 / 对齐均布 | P2（docs/09 §六）；撤销/重做已在 0.2.2 落地 |
 | 编辑器内编译 prompt | 编译是后端的活；前端只维护 state |
 | 在编辑器里算 width/height | 几何归后端（铁律 4）；前端只显示/输入 |
 
