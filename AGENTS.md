@@ -59,12 +59,12 @@
 ## 三、一次改动的最小闭环
 
 ```bash
-python tests/test_core.py              # 几何/提示词/像素，零 GPU，294 项
+python tests/test_core.py              # 几何/提示词/像素，零 GPU，302 项
 python tests/test_editor.py            # state v3 编译层 / 预设 / 错误路径 / 上限，零 GPU，102 项
-python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，129 项（--no-host 113 项）
-python tests/test_cross_language.py     # JS ↔ Python 预设/校验差分，零 GPU，50 项
+python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，130 项（--no-host 114 项）
+python tests/test_cross_language.py     # JS ↔ Python 预设/校验差分，零 GPU，56 项
 python tests/test_panel_assembly.py     # 逐格拼版 reborder 语义，零 GPU，5 项
-python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，18 项
+python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，19 项
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项（零浏览器）
 python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点真跑，41 项
 python tools/host_loader_check.py      # 走宿主 load_custom_node，19 项

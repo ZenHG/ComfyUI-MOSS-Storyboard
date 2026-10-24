@@ -6,10 +6,10 @@
 #   · 只跑"能确定判定"的东西：几何、契约、词表、装载。**成片质量不进 CI**（要 GPU + 权重）。
 #
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
-#   · 294/0  tests/test_core.py               几何 / 提示词 / 像素
+#   · 302/0  tests/test_core.py               几何 / 提示词 / 像素
 #   · 102/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限
-#   · 113/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
-#   ·  18/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
+#   · 114/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
+#   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
 #   ·  41/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
 #   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
@@ -18,7 +18,7 @@
 #                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
 #   ·  58/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表纯函数
-#   ·  50/0  tests/test_cross_language.py     JS ↔ Python 预设/校验差分
+#   ·  56/0  tests/test_cross_language.py     JS ↔ Python 预设/校验差分
 #   ·   5/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义
 #   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #

@@ -35,6 +35,9 @@ MULTI_PANEL_PATTERNS = (
     re.compile(r"(?:细白|白色|细)\s*(?:边框|分割线|分隔线|线条)"),
     re.compile(r"(?:整齐)?分(?:隔|割)(?:成|为)\s*\d+\s*(?:个|幅|张)?\s*(?:面板|分镜|格子|画面)"),
     re.compile(r"(?:没有|无|不含?)\s*(?:粗框|黑边|跨(?:格|面板)(?:全景)?溢出)"),
+    # 裸计数："4 个面板的故事板" 这类没有动词的说法也必须清掉
+    # （英文侧 `\b\d+ panels\b` 早就会清；中文侧此前漏了，逐格时仍会画出多格）。
+    re.compile(r"\d+\s*(?:个|幅|张|格)?\s*(?:面板|分镜|格子|画格)"),
     # 英文：storyboard canvas / split into N panels / panel borders
     re.compile(r"(?i)\b(?:single\s+)?storyboard\s+(?:canvas|image|grid|sheet)\b"),
     re.compile(r"(?i)\bsplit\s+into\s+\d+\s+(?:panels?|frames?|cells?|tiles?)\b"),
@@ -208,6 +211,20 @@ def single_panel_json(global_caption, caption, width, height, label="object", el
         "bbox_format": "yxyx",
     }
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def panel_prompt(global_caption, caption, width, height, init_mode="layout", label="object"):
+    """逐格采样的单格提示词。
+
+    `layout` = 布局 JSON（与整张模式的编码方式一致）；
+    `plain` = 纯文本，但**必须带上全局段**并清掉多格措辞 —— 只发该格 caption
+    会丢掉角色/风格锚点，逐格一致性就没了（此前正是这么丢的）。
+    """
+    if init_mode == "layout":
+        return single_panel_json(global_caption, caption, width, height, label=label)
+    cap = (caption or "").strip()
+    head = strip_multi_panel_words(global_caption)
+    return ("%s %s" % (head, cap)).strip()
 
 
 def layout_json_text(global_caption, pairs, boxes, label="object", char_boxes=""):

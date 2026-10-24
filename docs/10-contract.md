@@ -36,7 +36,7 @@
 | `preset` | str | ✅ | `grid` / `split-v` / `split-h` / `title-body` / `three-col` / `center` / `stack` / `free` |
 | `style` | str | ✅ | 全局段，所有元素共用 |
 | `canvas` | obj | single 必填 | `{width,height}`；≥64、≤4096、16 的倍数 |
-| `grid` | obj | grid 必填 | `cols`/`rows` ∈ [1,12]；`cols×rows == len(items)`；`panel_edge` ≥64、≤4096、16 的倍数；`gutter`/`margin` ∈ [0,256]；`panel_aspect` ∈ `core.layout.ASPECTS` |
+| `grid` | obj | grid 必填 | `cols`/`rows` ∈ [1,12]；`cols×rows == len(items)`（唯一例外：1×1 且 `items` 为空 = 空白占位）；`panel_edge` ≥64、≤4096、16 的倍数；`gutter`/`margin` ∈ [0,256]；`panel_aspect` ∈ `core.layout.ASPECTS` |
 | `items` | list | ✅ | 最多 256 个 |
 | `items[].id` | str | ✅ | 非空、唯一 |
 | `items[].label` | str | ✅ | `object` / `character` / `text` |
@@ -91,6 +91,9 @@ MossLayoutEditor
 
 - **grid**：`[STYLE] {style}` + 每格 `[PANEL n] {size}，{caption}`（按 `no` 升序）；
   几何只走 `core.layout.build_layout()`；`spec` 为 `MOSS-SB1 …`。
+- **spec 读入上限**（`core.layout.parse_spec`，防手改/恶意工作流）：≤4096 字符；单格边长 64..4096；
+  `gutter`/`margin` 0..256；补边 0..15；`w`/`h` 必须等于按其余字段重算的结果，否则报「自相矛盾」。
+- **画布像素上限**：模板与空 latent 都 ≤ 64MP（`core.layout.MAX_CANVAS_PIXELS`），超出直接报错。
 - **single**：一个多元素 layout JSON（`summary` + `items`，bbox 换算成采样画布中心原点像素）；
   `spec` 为空；`template` 为空白占位图。
 - `caption` 是外观描述，`text` 是实际渲染的字；缺 `text` 直接报错。

@@ -51,6 +51,17 @@ MIN_PANEL = 64
 MAX_PANELS = 144
 MAX_AXIS = 12
 
+#: spec 字符串与字段上限。本包自己生成的 spec 约 100 字符；超长或超大字段
+#: 只可能来自手写/上游篡改，必须在分配任何张量之前拒绝。
+MAX_SPEC_CHARS = 4096
+MAX_PANEL_PX = 4096
+MAX_GAP = 256
+
+#: 整张画布的像素上限（模板图 / 空 latent 在分配前用它硬拦）。
+#: 本包节点参数能产生的最大值约 29MP；64MP 留一倍余量，同时挡住
+#: 12×12@4096（约 1368MP）这类会让宿主一次申请十几 GB 的极端 state。
+MAX_CANVAS_PIXELS = 64_000_000
+
 
 def snap16(value):
     """取最近的 16 的倍数，下限 64。"""
@@ -208,20 +219,44 @@ _SPEC_RE = re.compile(r"([A-Za-z_]+)=(-?\d+)")
 
 
 def parse_spec(text):
-    """把 `spec()` 的字符串还原成 `Layout`；不合法就抛 ValueError（不静默兜底）。"""
+    """把 `spec()` 的字符串还原成 `Layout`；不合法就抛 ValueError（不静默兜底）。
+
+    spec 是**外部输入**（可来自任意上游节点），所以字段必须逐项限界：
+    超长字符串、超大单格/缝/边距、以及 `w/h` 与字段不自洽的 spec 都在这里拒绝，
+    否则下游 `empty_latent` / `render_template` 会按伪造的尺寸申请 TB 级张量。
+    """
     if not text or SPEC_PREFIX not in text:
         raise ValueError("spec 不是 %s 格式：%r" % (SPEC_PREFIX, (text or "")[:60]))
+    if len(text) > MAX_SPEC_CHARS:
+        raise ValueError("spec 有 %d 个字符，超过上限 %d；这不像本包生成的 spec。"
+                         % (len(text), MAX_SPEC_CHARS))
     kv = {k: int(v) for k, v in _SPEC_RE.findall(text)}
     need = ("panels", "w", "h", "cols", "rows", "pw", "ph", "gutter", "margin")
     missing = [k for k in need if k not in kv]
     if missing:
         raise ValueError("spec 缺字段：%s" % ", ".join(missing))
-    return build_layout(
+    for key in ("pw", "ph"):
+        if not MIN_PANEL <= kv[key] <= MAX_PANEL_PX:
+            raise ValueError("spec.%s=%d 越界：必须在 %d..%d 像素（本包生成的 spec 不会超出）。"
+                             % (key, kv[key], MIN_PANEL, MAX_PANEL_PX))
+    for key in ("gutter", "margin"):
+        if not 0 <= kv[key] <= MAX_GAP:
+            raise ValueError("spec.%s=%d 越界：必须在 0..%d。" % (key, kv[key], MAX_GAP))
+    for key in ("padx", "pady"):
+        if not 0 <= kv.get(key, 0) < SNAP:
+            raise ValueError("spec.%s=%d 越界：必须在 0..%d（对齐余量）。"
+                             % (key, kv.get(key, 0), SNAP - 1))
+    lay = build_layout(
         panels=kv["panels"], cols=kv["cols"], rows=kv["rows"],
         panel_w=kv["pw"], panel_h=kv["ph"],
         gutter=kv["gutter"], margin=kv["margin"],
         pad_x=kv.get("padx", 0), pad_y=kv.get("pady", 0), note="来自 spec",
     )
+    if (lay.width, lay.height) != (kv["w"], kv["h"]):
+        raise ValueError("spec 自相矛盾：字段算出的画布是 %d×%d，但 spec 写着 %d×%d。"
+                         "请重新接一次上游节点的 spec。"
+                         % (lay.width, lay.height, kv["w"], kv["h"]))
+    return lay
 
 
 def build_layout(panels, panel_w=None, panel_h=None, cols=0, rows=0, gutter=8, margin=8,
@@ -255,6 +290,9 @@ def build_layout(panels, panel_w=None, panel_h=None, cols=0, rows=0, gutter=8, m
         if ratio is None:
             raise ValueError("未知单格宽高比：%r（可选 %s）" % (panel_aspect, ", ".join(ASPECTS)))
         panel_w, panel_h = panel_size(panel_edge, ratio)
+    panel_w, panel_h = int(panel_w), int(panel_h)
+    if panel_w < 1 or panel_h < 1:
+        raise ValueError("单格尺寸必须为正（收到 %d×%d）" % (panel_w, panel_h))
 
     if cols <= 0 and rows <= 0:
         rows, cols, note = pick_grid(panels, panel_w, panel_h, gutter, margin, canvas_aspect)
@@ -279,6 +317,9 @@ def build_layout(panels, panel_w=None, panel_h=None, cols=0, rows=0, gutter=8, m
         pad_x = (-raw_w) % SNAP
     if pad_y is None:
         pad_y = (-raw_h) % SNAP
+    pad_x, pad_y = int(pad_x), int(pad_y)
+    if pad_x < 0 or pad_y < 0:
+        raise ValueError("对齐余量不能为负（收到 padx=%d pady=%d）" % (pad_x, pad_y))
     width = raw_w + pad_x
     height = raw_h + pad_y
 
