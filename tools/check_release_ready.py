@@ -116,6 +116,10 @@ def s1_secrets(files: list[str]) -> None:
 # --------------------------------------------------------------------------- S2 绝对路径
 #: 会被打进发布包的目录 / 文件（`.comfyignore` 之外的部分）。
 SHIPPED_PREFIX = ("core/", "v3/", "web/", "examples/")
+#: 文档不随 registry 包发，但**随仓库发**（README 逐篇链接 `docs/`）⇒ 同样是公开面。
+#: 只认盘符路径（`I:/` · `C:\` · `D:\` …）；`<ComfyUI>` / `/path/to` 这类占位符不在此列。
+#: 前一位不能是字母数字（`https://` 的冒号前是 `s`，不能误判成 `s:` 盘符）。
+DOC_DRIVE_RE = re.compile(r"(?<![A-Za-z0-9+.\-])[A-Za-z]:[\\/]")
 
 
 def s2_abs_paths(files: list[str]) -> None:
@@ -129,6 +133,17 @@ def s2_abs_paths(files: list[str]) -> None:
             if re.search(r"['\"][A-Za-z]:[\\/]", line):
                 hits.append("%s:%d" % (rel, i))
     check("发布范围无硬编码盘符路径", not hits, "；".join(hits[:5]))
+
+    # 文档按**磁盘**扫，不看 git 索引：`docs/07` 的泄漏正是在未跟踪时写下的。
+    docs_dir = os.path.join(ROOT, "docs")
+    names = sorted(n for n in os.listdir(docs_dir) if n.endswith(".md")) if os.path.isdir(docs_dir) else []
+    doc_hits = []
+    for name in names:
+        rel = "docs/" + name
+        for i, line in enumerate(read(rel).splitlines(), 1):
+            if DOC_DRIVE_RE.search(line):
+                doc_hits.append("%s:%d" % (rel, i))
+    check("文档（docs/*.md）里无本机盘符路径", not doc_hits, "；".join(doc_hits[:6]))
 
 
 # --------------------------------------------------------------------------- S3 临时/备份
@@ -174,15 +189,24 @@ def s4_package(files: list[str]) -> None:
     must_exclude = ["tests/test_core.py", "tools/smoke_nodes.py", "docs/01-layout-and-panels.md",
                     ".github/workflows/ci.yml", "CHANGES.md", "AGENTS.md"]
     must_keep = ["__init__.py", "nodes.py", "core/layout.py", "core/sampling.py",
-                 "v3/_compat.py", "web/moss_sb_i18n.js", "pyproject.toml", "LICENSE",
-                 "README.md", "examples/moss-storyboard-4panels-ui.json", "requirements.txt"]
+                 "core/editor.py", "core/presets.py",
+                 "v3/_compat.py", "web/moss_sb_i18n.js", "web/moss_sb_editor.js",
+                 "pyproject.toml", "LICENSE", "README.md", "requirements.txt",
+                 "examples/moss-storyboard-4panels-ui.json",
+                 "examples/moss-layout-editor-poster.json",
+                 "examples/moss-layout-editor-storyboard.json"]
     bad_ex = [f for f in must_exclude if not ignored(f, rules)]
     bad_keep = [f for f in must_keep if ignored(f, rules)]
     check("开发件全部被排除", not bad_ex, "漏排：%s" % bad_ex[:5] if bad_ex else "")
     check("运行期文件全部保留", not bad_keep, "误排：%s" % bad_keep[:5] if bad_keep else "")
 
     shipped = [f for f in files if not ignored(f, rules)]
-    say("  包内 %d 个文件（受控 %d）" % (len(shipped), len(files)))
+    say("  包内 %d 个文件（受控 %d；运行期必留 %d 项）" % (len(shipped), len(files), len(must_keep)))
+    # 🔴 未跟踪 = 根本不在 `git ls-files` 里 = 不进包，而 `.comfyignore` 检查看不出来
+    #    （2026-10-24 实测：`core/editor.py` 等运行期文件未跟踪，门却 29/0 全绿）。
+    missing = [f for f in must_keep if f not in shipped]
+    check("运行期清单 %d 项全部在包内（未跟踪 ⇒ 不进包）" % len(must_keep), not missing,
+          "缺：%s" % "；".join(missing[:5]) if missing else "")
     leaked = [f for f in shipped if JUNK_RE.search(f)]
     check("包内无临时件", not leaked, "；".join(leaked[:4]))
     # 🔴 中文文件名必须**判红**，不是警告：`comfy node pack` 按 latin-1 解路径，

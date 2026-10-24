@@ -107,7 +107,9 @@ def build():
         inp("gutter", "INT", widget="gutter"), inp("margin", "INT", widget="margin"),
         inp("init", "COMBO", widget="init"), inp("label", "COMBO", widget="label"),
         inp("reborder", "BOOLEAN", widget="reborder"), inp("border_px", "INT", widget="border_px"),
-        inp("shave", "INT", widget="shave"), inp("seed", "INT", widget="seed"),
+        inp("shave", "INT", widget="shave"),
+        inp("mode", "COMBO", widget="mode"), inp("sample_edge", "INT", widget="sample_edge"),
+        inp("seed", "INT", widget="seed"),
         inp("steps", "INT", widget="steps"), inp("cfg", "FLOAT", widget="cfg"),
         inp("sampler_name", "COMBO", widget="sampler_name"), inp("scheduler", "COMBO", widget="scheduler"),
         inp("denoise", "FLOAT", widget="denoise"),
@@ -116,8 +118,10 @@ def build():
         out("grid", "IMAGE"), out("panels", "IMAGE"), out("latent", "LATENT"),
         out("spec", "STRING"), out("prompt_used", "STRING"), out("report", "STRING"),
     ]
+    # ⚠ widgets_values 按**位置**存：顺序必须与节点 INPUT_TYPES 的 widget 顺序一致
+    #   （seed 后面跟一个"生成后控制"槽位）。少一个就整体错位。
     sampler_widgets = [PROMPT, NEGATIVE, 35, 1.0, "euler", "simple", 0, "fixed", denoise,
-                       8, "16:9", 512, "auto", 8, 8, init, "object", True, 0, 0]
+                       8, "16:9", 512, "auto", 8, 8, init, "object", True, 0, 0, "整张", 1024]
     nodes.append(node(5, "MossStoryboardSampler", (-60, -120), (480, 700), sampler_widgets,
                       inputs=sampler_inputs, outputs=sampler_outputs,
                       title=None, order=6))

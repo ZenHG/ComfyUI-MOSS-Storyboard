@@ -66,6 +66,67 @@ def composite_borders(image, layout, thickness=None, level=1.0):
     return image * (1.0 - mask) + line * mask
 
 
+def assemble_grid(panels, layout, order=None, border=None, level=1.0, background=0.0):
+    """把 N 张单格图按 `Layout` 坐标拼成整张宫格，返回 `[1, H, W, C]`。
+
+    逐格生成的工作流用它做拼版：每格独立采样（各自足量分辨率、跨格角色一致），
+    最后按几何坐标拼起来。
+
+    - `panels`：`[N, h, w, C]` 的张量（或 IMAGE batch），顺序 = 格号。
+    - `order`：可选，长度 N 的排列，指定"第 i 张图放进第 order[i] 格"。
+      默认顺序放入（0→格0, 1→格1, …）。
+    - `border`：>0 时在缝里画宽 `border` 像素的宫格线（`level` 控制亮度）。
+    - `background`：没被填满的格的底色（默认 0 = 黑）。
+    """
+    if panels is None:
+        raise ValueError("panels 为 None")
+    if panels.ndim != 4:
+        raise ValueError("panels 必须是 [N, h, w, C]（收到 %r）" % (getattr(panels, "shape", None),))
+    n, ph, pw, pc = panels.shape
+    if n != layout.panels:
+        raise ValueError("格数不符：panels 有 %d 张，布局要 %d 格" % (n, layout.panels))
+
+    order = list(range(n)) if order is None else list(order)
+    if sorted(order) != list(range(n)):
+        raise ValueError("order 必须是 0..%d 的排列（收到 %r）" % (n - 1, order))
+
+    device, dtype = panels.device, panels.dtype
+    out = torch.full((1, layout.height, layout.width, pc), float(background),
+                     device=device, dtype=dtype)
+    for src_idx, cell_idx in enumerate(order):
+        cell = layout.cell(cell_idx)
+        img = panels[src_idx]
+        # 尺寸不符就中心裁切（不缩放，避免拉伸变形）
+        ih, iw = img.shape[0], img.shape[1]
+        if (ih, iw) != (cell.h, cell.w):
+            ih2, iw2 = min(ih, cell.h), min(iw, cell.w)
+            top = (ih - ih2) // 2
+            left = (iw - iw2) // 2
+            img = img[top:top + ih2, left:left + iw2]
+            if ih2 != cell.h or iw2 != cell.w:
+                pad = torch.full((cell.h, cell.w, pc), float(background),
+                                 device=device, dtype=dtype)
+                pad[:ih2, :iw2] = img
+                img = pad
+        out[0, cell.y:cell.y + cell.h, cell.x:cell.x + cell.w, :] = img
+
+    if border and border > 0:
+        out = composite_borders(out, layout, thickness=border, level=level)
+    return out
+
+
+def assemble_panels(panels, layout, reborder=True, border_px=0, shave=0):
+    """逐格拼版 → 可选复绘宫格线 → 裁格。
+
+    与整张生成共用同一套 `reborder` 语义：`False` 时一条线都不画；
+    `True` 时按 `border_px`（0 = 铺满整条缝）复绘。
+    """
+    grid = assemble_grid(panels, layout)
+    if reborder:
+        grid = composite_borders(grid, layout, thickness=(border_px or None))
+    return grid, crop_panels(grid, layout, shave=shave)
+
+
 def crop_panels(image, layout, shave=0, target_aspect=None, padding_mode="crop", resize_edge=0):
     """按 `Layout` 精确裁成 N 格，返回 `[N, h, w, C]`。
 

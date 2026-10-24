@@ -46,6 +46,11 @@ MAX_CANVAS_RATIO = 4.0
 SNAP = 16
 MIN_PANEL = 64
 
+#: 直调 API 的硬上限（防恶意/误用一次建百万格）。节点侧的 panels/columns/rows
+#: 本来就只到 12；144 = 12×12，是「单轴 12 以内」能表达的最大格数。
+MAX_PANELS = 144
+MAX_AXIS = 12
+
 
 def snap16(value):
     """取最近的 16 的倍数，下限 64。"""
@@ -165,6 +170,16 @@ class Layout:
     def megapixels(self):
         return self.width * self.height / 1e6
 
+    @property
+    def panel_megapixels(self):
+        """单格有效像素（MP）。
+
+        故事板的画质真因是**每格自身的像素量**，不是整图像素量：
+        MOSS 在 1–2MP 训练时，每格只分到 `panel_megapixels`。
+        9 格 1:1 时单格仅 0.26MP，远低于训练区间 ⇒ 每格细节明显糊。
+        """
+        return self.panel_w * self.panel_h / 1e6
+
     def cell(self, index):
         return self.cells[index]
 
@@ -216,10 +231,20 @@ def build_layout(panels, panel_w=None, panel_h=None, cols=0, rows=0, gutter=8, m
 
     `cols`/`rows` 都为 0 时按 `canvas_aspect` 自动挑分解；只填一个时另一个由
     `panels` 反推。
+
+    上限（直调 API 的防爆闸）：`panels <= 144`、`cols`/`rows <= 12`。常用
+    3/4/6/8/9 不受影响；超过就明确报错，不分配。
     """
     panels = int(panels)
     if panels < 1:
         raise ValueError("panels 必须 >= 1（收到 %r）" % (panels,))
+    if panels > MAX_PANELS:
+        raise ValueError("panels=%d 超过上限 %d（单轴最多 %d 格）"
+                         % (panels, MAX_PANELS, MAX_AXIS))
+    cols, rows = int(cols), int(rows)
+    if cols > MAX_AXIS or rows > MAX_AXIS:
+        raise ValueError("cols/rows 不能超过 %d（收到 cols=%d rows=%d）"
+                         % (MAX_AXIS, cols, rows))
     gutter = max(0, int(gutter))
     margin = max(0, int(margin))
 
@@ -231,7 +256,6 @@ def build_layout(panels, panel_w=None, panel_h=None, cols=0, rows=0, gutter=8, m
             raise ValueError("未知单格宽高比：%r（可选 %s）" % (panel_aspect, ", ".join(ASPECTS)))
         panel_w, panel_h = panel_size(panel_edge, ratio)
 
-    cols, rows = int(cols), int(rows)
     if cols <= 0 and rows <= 0:
         rows, cols, note = pick_grid(panels, panel_w, panel_h, gutter, margin, canvas_aspect)
     elif cols <= 0:
@@ -242,6 +266,10 @@ def build_layout(panels, panel_w=None, panel_h=None, cols=0, rows=0, gutter=8, m
         if panels % cols:
             raise ValueError("panels=%d 不能被 columns=%d 整除" % (panels, cols))
         rows = panels // cols
+    if cols > MAX_AXIS or rows > MAX_AXIS:
+        raise ValueError("panels=%d 只能分解成 %d 列 × %d 行，超过单轴上限 %d；"
+                         "请减少格数或显式指定 cols/rows"
+                         % (panels, cols, rows, MAX_AXIS))
     if cols * rows != panels:
         raise ValueError("columns×rows=%d 与 panels=%d 不一致" % (cols * rows, panels))
 

@@ -1,6 +1,6 @@
 # 本地开发与维护
 
-面向**改这个包的人**。用户只需要 [`README.md`](README.md)。
+面向**改这个包的人**。用户只需要 [`README.md`](../README.md)。
 
 ---
 
@@ -9,7 +9,7 @@
 推荐**单一副本 + 目录联接**：仓库放在任意位置，`custom_nodes` 下只放一个联接。
 
 ```bat
-mklink /J <ComfyUI>\custom_nodes\ComfyUI-MOSS-Storyboard D:\work\ComfyUI-MOSS-Storyboard
+mklink /J <ComfyUI>\custom_nodes\ComfyUI-MOSS-Storyboard <path\to\repo>
 ```
 
 - **不要**在 `custom_nodes` 里放第二份拷贝：两份会被宿主各加载一次，后加载的那份静默覆盖节点定义，

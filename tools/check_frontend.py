@@ -27,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PASS, FAIL = [], []
@@ -90,11 +91,22 @@ def f2_syntax(node):
     bad = []
     for f in files:
         p = os.path.join(ROOT, "web", f)
-        # --experimental-default-type=module：.js 按 ESM 解析，import 语法才合法
+        # --experimental-default-type=module：.js 按 ESM 解析，import 语法才合法。
+        # Node >= 22 已移除该 flag（报 bad option）⇒ 退到 .mjs 副本，仍按 ESM 解析。
         r = subprocess.run([node, "--check", "--experimental-default-type=module", p],
                            capture_output=True, text=True)
+        err = (r.stderr or "") + (r.stdout or "")
+        if r.returncode != 0 and "bad option" in err:
+            tmp = tempfile.mkdtemp(prefix="mosssb_syntax_")
+            try:
+                dst = os.path.join(tmp, "check.mjs")
+                shutil.copyfile(p, dst)
+                r = subprocess.run([node, "--check", dst], capture_output=True, text=True)
+                err = (r.stderr or "") + (r.stdout or "")
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
         if r.returncode != 0:
-            bad.append("%s: %s" % (f, (r.stderr or "").strip().splitlines()[:1]))
+            bad.append("%s: %s" % (f, err.strip().splitlines()[:1]))
     check("F2 web/*.js 语法可解析（%d 个文件）" % len(files), not bad, str(bad))
 
 

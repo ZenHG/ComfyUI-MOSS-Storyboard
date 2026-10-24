@@ -21,8 +21,26 @@ GLOBAL_RE = re.compile(r"\[\s*(?:STYLE|GLOBAL|风格|全局)\s*\]", re.IGNORECAS
 LABELS = ("object", "character", "text")
 
 #: 标记后面常见的分隔符（中英冒号、逗号、顿号）。不剥掉会让 caption 以 ": " 开头，
-#: 直接送去文本编码时会多一段无意义符号。
+#: 直接送去文本编码时会多出一段无意义符号。
 _SEP = ":：,，、;；"
+
+#: 全局描述里的"多格"措辞。逐格生成时必须清掉，否则模型照样画多格
+#: （2026-10-24 实测：给 1 个 bbox + 「恰好 4 个面板」⇒ 输出仍是 4 格）。
+#: 只匹配明确的"分格"说法，不碰"画面/镜头/景别/全景"这类正常描述。
+MULTI_PANEL_PATTERNS = (
+    re.compile(r"[^，,。；;、]{0,24}?(?:恰好|正好|共|分为|切成|划分成?|分割成?|剪成)"
+               r"[^，,。；;、]{0,12}?\d+\s*(?:个|幅|张)?\s*(?:面板|分镜|格子|画面|镜头|画格|小图)"),
+    re.compile(r"(?:单一|一张|单张)\s*故事板(?:画布|图|格)"),
+    re.compile(r"严格对称(?:网格|分格)"),
+    re.compile(r"(?:细白|白色|细)\s*(?:边框|分割线|分隔线|线条)"),
+    re.compile(r"(?:整齐)?分(?:隔|割)(?:成|为)\s*\d+\s*(?:个|幅|张)?\s*(?:面板|分镜|格子|画面)"),
+    re.compile(r"(?:没有|无|不含?)\s*(?:粗框|黑边|跨(?:格|面板)(?:全景)?溢出)"),
+    # 英文：storyboard canvas / split into N panels / panel borders
+    re.compile(r"(?i)\b(?:single\s+)?storyboard\s+(?:canvas|image|grid|sheet)\b"),
+    re.compile(r"(?i)\bsplit\s+into\s+\d+\s+(?:panels?|frames?|cells?|tiles?)\b"),
+    re.compile(r"(?i)\b(?:thin\s+white\s+|white\s+)?(?:panel\s+)?borders?\b"),
+    re.compile(r"(?i)\b\d+\s+panels?\b"),
+)
 
 
 def _clean(text):
@@ -72,6 +90,124 @@ def pair_captions(captions, cells):
     for i in range(min(n_cap, n_cell)):
         pairs.append((captions[i][1], cells[i]))
     return pairs, notes
+
+
+def strip_multi_panel_words(text):
+    """去掉全局描述里的"多格"措辞，只留风格/角色/环境。
+
+    🔴 为什么要这一步（2026-10-24 实测）：MOSS 是靠**语义**画宫格的，不是靠 bbox。
+    实测给 1 个 bbox、但 summary 里仍写着「恰好 4 个面板」⇒ 模型照样画出 4 格。
+    逐格生成时若不清理，模型会继续画多格，逐格就失去意义。
+
+    实现按**分句**判断：整句含多格词就整句删掉。
+    早先用正则逐词替换，残留过"分割为""所有面板由""跨面板"这类碎片，
+    反而给模型送了乱码般的提示 —— 宁可整句删干净。
+
+    不动"画面/镜头/景别/全景"这类正常描述。
+    """
+    if not text:
+        return ""
+    # 先按中英文标点分句（保留分隔符，方便判断逗号级从句）
+    parts = re.split(r"([，,。；;、\n])", text)
+    # parts 是 [句, 分隔, 句, 分隔, ...]；每 2 个一组
+    kept = []
+    for i in range(0, len(parts), 2):
+        seg = parts[i]
+        sep = parts[i + 1] if i + 1 < len(parts) else ""
+        if _is_multi_panel_clause(seg):
+            continue
+        kept.append(seg + sep)
+    out = "".join(kept)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    out = re.sub(r"[，,、；;]\s*[，,、；;]", "", out)
+    out = re.sub(r"^[，,、；;、\s]+", "", out)
+    return out.strip()
+
+
+def _is_multi_panel_clause(clause):
+    """这一句/从句是否在描述"多格宫格"本身（而不是画面内容）。"""
+    if not clause:
+        return False
+    for pat in MULTI_PANEL_PATTERNS:
+        if pat.search(clause):
+            return True
+    # 「每个面板」「所有面板」「面板之间」「跨面板」这类纯分格指代
+    if re.search(r"(?:每个|所有|各|相邻|跨|整个)\s*(?:面板|分镜|格子|画格)", clause):
+        return True
+    # 「每格」「逐格」「分 N 格」这类分格说法（数字与单位之间允许空格）
+    if re.search(r"(?:每|逐)\s*(?:格|个面板|幅面板)", clause):
+        return True
+    if re.search(r"(?:分割|划分|切|分)(?:成|为)\s*\d+\s*(?:格|个面板|幅|张|画面|镜头)", clause):
+        return True
+    # 「分割为」「分成」后面没跟着具体内容，说明就是在讲分格结构
+    if re.search(r"(?:分割|划分|切)(?:成|为)\s*$", clause):
+        return True
+    return False
+
+
+def cell_bbox_to_centered(bbox, width, height):
+    """格内归一化 `[u0, v0, u1, v1]` → 画布中心原点的像素 `[y0, x0, y1, x1]`。
+
+    为什么是**格内归一化**而不是像素：单格的像素尺寸由 `panel_edge` 决定，
+    用户改 `panel_edge` 时不该重画所有元素框。归一化后几何一变框自动跟着缩放。
+
+    `width` / `height` 是**该格的采样画布**（逐格模式下的 `pw` / `ph`），
+    不是整张宫格 —— 逐格采样时一张图就是一格。
+    """
+    u0, v0, u1, v1 = (float(v) for v in bbox)
+    hx, hy = int(width) // 2, int(height) // 2
+    return [round(v0 * height) - hy, round(u0 * width) - hx,
+            round(v1 * height) - hy, round(u1 * width) - hx]
+
+
+def single_panel_json(global_caption, caption, width, height, label="object", elements=None):
+    """单格模式的布局提示词 JSON。
+
+    与 `layout_json_text` 的差别有两处，都是实测逼出来的：
+    1. `summary.caption` 先过 `strip_multi_panel_words` ⇒ 不再暗示"多格"；
+    2. bbox **覆盖整幅画布** ⇒ 实测这决定构图粒度（只给 1/4 区域会让模型
+       把主体塞进那一块、周围留白），整幅覆盖时模型按 caption 的景别自由构图。
+
+    `elements` 非空时改为**元素分区**：每个元素一个 bbox，模型按区域摆放。
+    此时 `summary.caption` = 全局段 + 该格 caption（整格描述进 summary），
+    `items` = 元素列表。`elements` 为空 ⇒ 与旧行为逐字节相同。
+    """
+    if label not in LABELS:
+        raise ValueError("label 只能是 %s（收到 %r）" % ("/".join(LABELS), label))
+    cap = (caption or "").strip()
+    g = strip_multi_panel_words(global_caption)
+
+    if elements:
+        items = []
+        for i, el in enumerate(elements):
+            el_label = el.get("label", "object")
+            if el_label not in LABELS:
+                raise ValueError("元素 %d 的 label 只能是 %s（收到 %r）"
+                                 % (i + 1, "/".join(LABELS), el_label))
+            el_cap = (el.get("caption") or "").strip()
+            if not el_cap:
+                raise ValueError("元素 %d 没有描述（caption 不能为空）" % (i + 1))
+            item = {"label": el_label, "caption": el_cap,
+                    "bbox": cell_bbox_to_centered(el["bbox"], width, height)}
+            if el_label == "text":
+                item["text"] = (el.get("text") or el_cap).strip()
+            items.append(item)
+        summary = (g.rstrip("。") + "。" + cap) if cap else g
+        payload = {"summary": {"caption": summary}, "items": items,
+                   "bbox_coord_space": "abs_centralized", "bbox_format": "yxyx"}
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+    if not cap:
+        return g
+    hx, hy = int(width) // 2, int(height) // 2
+    payload = {
+        "summary": {"caption": g},
+        "items": [{"label": label, "caption": cap,
+                   "bbox": [-hy, -hx, int(height) - hy, int(width) - hx]}],
+        "bbox_coord_space": "abs_centralized",
+        "bbox_format": "yxyx",
+    }
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 def layout_json_text(global_caption, pairs, boxes, label="object", char_boxes=""):

@@ -5,12 +5,19 @@
 > Condensed English version of [README.md](README.md) (Chinese is the source of truth).
 > No section-level hash sync gate yet — see `AGENTS.md` §六.
 
-**Storyboard grid** nodes for **MOSS-Image**: one run produces **one canvas** divided into
-**3, 4, 6, 8 or 9 panels**, plus each panel cropped out separately.
+**Layout** nodes for **MOSS-Image**: place elements on a canvas (people / objects / text), generate
+in one pass.
+
+Two uses, one mechanism:
+
+- **Storyboard grid** — one canvas divided into **3, 4, 6, 8 or 9 panels**, each panel with its own
+  caption, every panel cropped out.
+- **Poster / cover / product shot** — subject and text blocks each own a region; text is given
+  verbatim.
 
 | Item | Value |
 |---|---|
-| Version | **0.1.3** |
+| Version | **0.2.0** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*` |
@@ -25,8 +32,7 @@
    the same coordinates — width and position are exact, so they never wobble or break.
 3. **What goes in each panel is up to MOSS's own layout capability.** Panel captions are converted
    into MOSS's native JSON layout boxes. That capability is officially marked *experimental*;
-   **strict per-panel compliance is not guaranteed**. This is the one thing this pack does not
-   score quantitatively.
+   **strict per-panel compliance is not guaranteed**. This pack does not score it quantitatively.
 
 ---
 
@@ -36,22 +42,27 @@
 |---|---|
 | **3 / 4 / 6 / 8 / 9 panels** | Panel count is an input (`panels`); layout and canvas size are derived, 16-aligned |
 | **Per-panel captions** | `[PANEL 1]`…`[PANEL n]` blocks become native MOSS layout boxes |
+| **Visual layout** | A canvas inside the node: drag boxes to decide which region each element occupies, then fill in its description. Text elements take the literal string to render |
+| **8 layout presets** | grid / split-v / split-h / title-body / three-col / center / stack / blank |
+| **Text posters** | Chinese, English, mixed, and two-line text all render (measured — see Known limits) |
 | **Deterministic grid lines** | Redrawn from coordinates after decoding |
 | **Per-panel crops** | Row-major, pixel-aligned to the canvas; `spec` carries all geometry in one wire |
 | **Bilingual UI (zh / en)** | A 中 / EN button on each of our nodes; display-only, never touches saved values |
 
-**Four nodes — a minimal graph needs only the Sampler**, which carries the full set of geometry
-parameters. The Layout node is an optional front-end: use it to preview the grid shape, or to
-freeze the geometry into one `spec` wire for several downstream nodes.
+**Five nodes — a minimal storyboard graph needs only the Sampler**, which carries the full set of
+geometry parameters. The Layout Editor is the other entry point: no `[PANEL n]` blocks, you place
+boxes instead — for posters, covers and product shots.
 
 | Node (Chinese UI) | Type | Required? | Role |
 |---|---|---|---|
-| 🎬 故事板 · 生成 | `MossStoryboardSampler` | **Yes** | `model + clip + vae + positive` → canvas + panels. Computes geometry from its own parameters when `spec` is absent |
+| 🎨 布局编辑器 | `MossLayoutEditor` | Optional (posters / custom layouts) | Canvas + elements → layout prompt + sampling size. **No model loaded**, instant |
+| 🎬 故事板 · 生成 | `MossStoryboardSampler` | **Yes** (storyboards) | `model + clip + vae + positive` → canvas + panels. Computes geometry from its own parameters when `spec` is absent |
 | 🎬 故事板 · 宫格几何 | `MossStoryboardLayout` | Optional (recommended) | Geometry + layout JSON + grid template. **No model loaded**, instant |
 | 🎬 故事板 · 裁格 | `MossStoryboardCrop` | Optional | Crops only; feed `spec` for pixel-exact panels |
 | 🎬 故事板 · 贴回 | `MossStoryboardPaste` | Optional | Pastes a corrected panel back at the `spec` coordinates, returning the full corrected board |
 
-> In an English UI the nodes read `MOSS Storyboard Layout` / `Sampler` / `Crop` / `Paste`.
+> In an English UI the nodes read `MOSS Layout Editor` / `MOSS Storyboard Layout` / `Sampler` /
+> `Crop` / `Paste`.
 > **When `spec` is connected it wins** — the Sampler's own geometry parameters are ignored.
 > That is the most common trap.
 
@@ -88,7 +99,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 Restart ComfyUI. Nodes appear under **`moss/storyboard`**, and the startup log shows:
 
 ```
-[MOSS SB] v0.1.0 已加载｜节点 3 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v0.2.0 已加载｜节点 5 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 No such line = the pack did not load. Force the legacy V1 exit with `MOSSSB_NODE_API=v1`.
@@ -117,6 +128,21 @@ Rainy-night cafe, one canvas divided into a strict grid of 4 panels, thin white 
 5. Run. Outputs: `grid` (the canvas) + `panels` (one image per panel).
 
 A ready-made graph is in `examples/moss-storyboard-4panels-ui.json`.
+Editor examples: `examples/moss-layout-editor-poster.json` (poster) and
+`examples/moss-layout-editor-storyboard.json` (4-panel storyboard).
+
+**The other path: poster / cover / product shot**
+
+No `[PANEL n]` blocks — place boxes instead:
+
+1. Add 🎨 Layout Editor and pick a preset (e.g. `title-body`).
+2. Drag boxes on the canvas: one for the title, one for the subject, one for the subtitle.
+3. Fill each box's **caption**; text boxes also get the **literal string**.
+4. Wire `prompt` → `CLIPTextEncode.text`, `width`/`height` → `EmptyFlux2LatentImage`.
+5. Follow with a plain `KSampler` (4 steps + 4-step distilled LoRA, or base model 30–50 steps / cfg 3–5).
+
+> ⚠ In single mode do **not** chain the storyboard Sampler — it would re-parse the layout JSON as
+> caption blocks. Use a plain `KSampler`.
 
 ### Prompt rules (three, no more)
 
@@ -199,12 +225,85 @@ Default follows the host locale.
 
 ## Node reference
 
+### 🎨 Layout Editor (`MossLayoutEditor`, no model)
+
+**Start here for posters, covers, product shots, or any free-form layout.**
+
+The node is a canvas: place boxes on the left, fill in descriptions on the right.
+Where the box sits is where the element is drawn.
+
+Outputs: `prompt` `width` `height` `spec` `template` `report`
+
+| Input | Notes |
+|---|---|
+| `editor_state` | **Do not type here.** This is the canvas save file and updates itself. Hand-editing works but must match schema v3; a bad field raises with the field name |
+
+Two modes, switched by preset:
+
+| Mode | Presets | Output | Wire to |
+|---|---|---|---|
+| **Single** | split-v / split-h / title-body / three-col / center / stack / blank | One multi-element layout JSON, **one sampling pass** | `CLIPTextEncode.text`, then a plain `KSampler` |
+| **Grid** | grid | `[STYLE]` + `[PANEL n]` | the Sampler's `positive` + `spec`; default `mode=whole grid`, switch to `per panel` for cross-panel consistency |
+
+> In single mode the `prompt` output is **already layout JSON** — feed it straight to
+> `CLIPTextEncode`. Do **not** chain the storyboard Sampler there; it would parse the JSON as
+> caption blocks again.
+
+**Canvas controls**
+
+| Action | Result |
+|---|---|
+| Drag on empty space | Draw a new box (a new element) |
+| Drag a box / its corners | Move / resize |
+| Click a box | Edit type (object / character / text), description, coordinates on the right |
+| Drag near another box's edge, the canvas centre line, or the rule-of-thirds lines | Snaps |
+| `Delete` / arrow keys / `Ctrl+D` | Delete / nudge / duplicate |
+
+**Text elements have two separate fields — do not mix them**
+
+| Field | What goes in | Example |
+|---|---|---|
+| **caption** | what the text **looks like** | bold sans-serif title, pale gold, slight outline |
+| **text** | the **literal characters to render** | LEGEND |
+
+Swap them and the model will try to draw the words "bold pale gold". Only `text` is rendered verbatim.
+
+> ⚠ **Keep text boxes away from the canvas edge.** Measured: with the box top at 5% of the canvas
+> height, the glyphs overflow upward and get clipped. Presets use 10%, but that is only a more
+> conservative start than 5% — **10% is not verified as safe**.
+
+---
+
 ### 🎬 故事板 · 宫格几何 (`MossStoryboardLayout`, no model)
 
-Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `report`.
+Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `report` `elements`.
 
 - **`spec`** — one string carrying all geometry. Feed it downstream and nothing can drift.
-- **`layout_json`** — same format as the host's native `MOSS-Image Layout Prompt`.
+- **`layout_json`** — same format as the host's native `MOSS-Image Layout Prompt`
+  (`summary` + `items`; bboxes are absolute pixels measured from the canvas centre).
+- **`elements`** — the canvas **element** format (`{type, desc, bbox}`, bbox
+  **normalized to 0–1000**, `[y0, x0, y1, x1]`). Feed it to the `bboxes` string input of the
+  host's `Create Bounding Boxes` to see the cells and edit each cell's description.
+  Verified to match the real cells pixel for pixel.
+
+  Wire **all three** lines. Missing one silently corrupts every box:
+
+  ```
+  width    → Create Bounding Boxes · width
+  height   → Create Bounding Boxes · height
+  elements → Create Bounding Boxes · bboxes
+  ```
+
+  Why: the bbox is normalized 0–1000, and the canvas node needs `width`/`height` to
+  convert it to pixels. The canvas defaults to 1024×1024; an 8-panel strip is
+  2032×576, so leaving them unwired misplaces every box without any error.
+
+  ⚠ **The two formats are not interchangeable.** `elements` is canvas elements (normalized
+  0–1000); `layout_json` is the full layout JSON (`summary` + `items`, absolute pixels).
+
+  ⚠ **Dragging boxes on the canvas does not change the output image.** In `逐格`
+  (per-panel) mode each cell is sampled on its own, so boxes only decide the assembly
+  layout. Only `整张` (whole-canvas) mode lets boxes affect composition. See `docs/07`.
 - **`report`** — human-readable summary (panels, canvas, MP, caption alignment, warnings).
 - Its `prompt` box **is intentionally empty**: this node only computes geometry.
 
@@ -218,6 +317,7 @@ edge 496**, so you can run it as-is.
 | Parameter | Factory default | Notes |
 |---|---|---|
 | 正面提示词 `positive` | empty | See prompt rules above |
+| 生成方式 `mode` | 整张 | `整张` = one sampling pass for the whole board; `逐格` = sample every panel on its own and assemble. See below |
 | 格数 `panels` | 8 | used when `spec` is absent |
 | 单格比例 `panel_aspect` | `16:9` | used when `spec` is absent (10 ratios) |
 | 单格长边 `panel_edge` | 512 | used when `spec` is absent |
@@ -226,9 +326,48 @@ edge 496**, so you can run it as-is.
 | 步数 `steps` | 35 | set to **4 only** with the 4-step distilled LoRA; either mismatch gives blur or black |
 | CFG `cfg` | 1.0 | measured config. Only `>1` makes the negative prompt matter |
 | 锁定方式 `init` | `auto` | see below |
-| 降噪强度 `denoise` | 1.0 | 1.0 = full redraw. Below 1 keeps part of the starting image |
+| 降噪强度 `denoise` | 1.0 | Keep 1.0. The sampler has **no image input**: below 1 references no image, it only makes the host truncate sigma by `int(steps/denoise)` (equivalent to fewer steps); `report` prints nominal vs. effective |
 | 复绘宫格线 `reborder` | on | redraw grid lines after decode |
+| 采样边长 `sample_edge` | 1024 | per-panel mode only, see below |
 | 负面提示词 `negative` | empty | in the **Advanced** fold. ⚠ at `cfg=1.0` the host skips the negative branch entirely |
+
+**`mode` (how the panels are produced)**
+
+| Option | What it does | When to use it |
+|---|---|---|
+| `整张` (whole grid) | **Default.** One sampling pass for the whole board: fast | Exploring ideas, or many panels (8/9) |
+| `逐格` (per panel) | Every panel is **sampled on its own**, then assembled by coordinates: N times slower | When **the same character must stay consistent** across panels |
+
+> **Why per-panel is more consistent**: in one pass the model spreads the global description
+> over N regions and imagines each one separately, so the same character drifts (hat colour,
+> face shape). Per panel, every panel reads the global description in full, and the character
+> stays visibly the same.
+>
+> **Measured here** (4 panels / 16:9 / 8 steps / cfg 1.0 / same prompt): the variance of how
+> much of the red beret appears in each of the four panels drops from `0.0036` (whole grid)
+> to `0.00004` (per panel) — roughly 90× more uniform; the beret itself also comes out more solid.
+>
+> **Cost**: about N times the time (4 panels 27s → 60s). Peak VRAM is set by the per-panel
+> `sample_edge` and the board size.
+
+**`sample_edge` (sampling long edge)**
+
+The big advantage of per-panel mode: a panel's **sampled** resolution is not bound by the
+board size. `1024` samples each panel at 1024×N and downscales it into its final cell.
+
+It is an **absolute pixel count**, not a multiplier — matching the host's
+`Empty Flux 2 Latent`, and keeping the quality knob independent of the layout knob.
+
+> Measured here (4 panels / 16:9 / 8 steps): `496` looks soft → `992` is the sweet spot
+> (+45% sharpness) → `1984` actually goes **sloppy** (composition loosens).
+> So bigger is not better; `1024` is a safe default.
+
+Cost: VRAM and time scale with the pixel count. Ignored in whole-grid mode.
+
+> ⚠ **Per-panel resolution is the real quality bottleneck.** MOSS trains at 1–2MP, while a
+> 1:1 nine-panel board gives each panel only **0.26MP** — the canvas looks fine, every panel
+> is visibly soft. The node's `report` prints both numbers. With many panels and a near-square
+> ratio, prefer `逐格`.
 
 `init` values: `auto` / `layout` = panel captions become layout boxes (default);
 `plain` = raw prompt, no layout boxes.
@@ -314,6 +453,12 @@ instructions are followed well. Composition preservation comes from the referenc
 weakens when `vae` is unwired. **It is not good at "re-shoot from another angle"** — that still
 belongs to the layout-prompt route.
 
+⚠ **It is not a cross-panel consistency solution.** Pushing one panel toward the others makes the
+shot sizes converge — every panel drifts toward the same image, while a storyboard needs
+"same character, different shot sizes". Cross-panel consistency comes only from
+**per-panel sampling + global-section anchoring** (see [`docs/07`](docs/07-consistency.md)).
+This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or light, then paste back.
+
 > **Licensing and scope**: that LoRA is third-party community weights, **not distributed with this
 > pack** and not maintained by it. Its model card marks the code portion as GPLv3; the weight
 > licence is whatever the card states. This pack only links to it — it does not copy, modify or
@@ -324,30 +469,49 @@ belongs to the layout-prompt route.
 
 ## Known limits (read before filing a bug)
 
-**Verified** (machine-asserted; evidence in [`docs/02`](docs/02-e2e-matrix.md))
+**Verified** — every row below except the first uses a distilled LoRA. Config is stated per row.
 
-| Item | Result | Runs |
+| Item | Config | Result | Sample |
+|---|---|---|---|
+| 3/4/6/8/9 panels · landscape/portrait · no gutter · thick gutter · small canvas · `plain` | base + 4-step LoRA / **4 steps** | sizes pixel-exact vs. theory | 15 runs |
+| Grid lines | same | pure white after redraw | per case |
+| Random seed | same | different seed → different md5 | 2 controls |
+| **Element boxes constrain composition** | base + 4-step LoRA / **4 steps**; base + 8-step LoRA / **8 steps** | boxes only changed: the bicycle went from cropped out to fully visible with its front wheel in the lower-left. Reproduced on 3 seeds | 11 images |
+| **Four Chinese characters** (1024×576) | base + 8-step LoRA / **8 steps** | all correct | 1 image |
+| **Four Chinese characters** (2048×1152) | base + 4-step LoRA / **4 steps** | all correct, softer strokes | 1 image |
+| **Four Chinese characters** (2048×1152) | base + 8-step LoRA / **8 steps** | all correct, sharp strokes | 2 images |
+| **Mixed zh/en · two lines · explicit colour** | base + 8-step LoRA / **8 steps** | all correct; line break honoured; colour applied | 3 images |
+
+> **Base model only, no LoRA**: one control run at 2048×1152 / 30 steps / cfg 3.5 produced a normal
+> image, but its text was **not checked character by character**, so it is not a result. Verify it yourself.
+
+**Text: what works, what does not**
+
+| Item | Result | Config |
 |---|---|---|
-| 3/4/6/8/9 panels · landscape/portrait · no gutter · thick gutter · small canvas · `plain` | all rendered; sizes pixel-exact vs. theory | 15 real runs |
-| Grid lines | pure white after redraw | sampled per case |
-| Random seed | different seed → different canvas md5 | 2 controls |
+| Resolution | 1024×576 is enough; 2048 only sharpens strokes | 8-step LoRA / 8 steps |
+| Steps | 4 steps: correct but soft. 8 steps: visibly sharper. 16 steps: no further gain | matching LoRA |
+| Size | Still correct with the box at 1/20 of canvas height (≈43 px) | 1536×864 and 2048×1152 |
+| Line breaks | `\n` inside `text` is honoured; two lines form separately | 2048×1152 / 8 steps |
+| Colour | `palette: ["#d92b2b"]` takes effect | 2048×1152 / 8 steps |
+| **Box height does not control size** | A 43 px box produced ≈130 px glyphs — **text overflows its box**. Control size with box **width** and caption length | — |
+| **Edge-adjacent boxes get clipped** | Box top at 5% → glyphs overflowed and the canvas cut them, both seeds | 2048×1152 / 8 steps |
+
+> Sample size is small (1–2 images per item). "Four characters correct" held across several configs,
+> so it is reasonably solid. Clipping was only reproduced in the red-colour group — **other colours
+> were not tested**. Presets keep text boxes at 10%, but **10% is not verified as safe** either; it is
+> just a more conservative starting point than 5%.
 
 **Not possible in this version**
 
-- 🔴 **No img2img.** Template-latent initialisation was measured across three parameter sets:
-  35 steps / denoise 0.85 → fully black; 12 steps / 0.6 and 4 steps / 0.5 → template ghosting.
-  Whenever sigma is actually truncated, the model leaves the image untouched. Since 0.1.2 the path
-  is removed: `init` has no `template` / `both`, and the sampler no longer takes a template input.
-  Instruction editing of an existing panel *is* possible — see "Fixing one panel" — it just is not
-  img2img.
+- 🔴 **No img2img.** This pack always starts from an empty canvas. To edit an existing image with a
+  reference, use the host's `Text Encode MOSS-Image Edit` (see "Fixing one panel") — a separate path.
 - ⚠ **Steps and cfg come in two bands, split by whether a LoRA is loaded.**
   Base model, no LoRA: 30–50 steps with cfg 3–5. With a 4-step distilled LoRA: 4–8 steps with
   cfg 1.0 — the distill LoRA was trained at cfg 1, so raising it breaks the distillation.
   Mixing the bands (a LoRA loaded but 35 steps) will not error, it just wastes the run.
-- ⚠ **At low step counts denoise is silently clamped.** The host recomputes sigmas as
-  `int(steps / denoise)`, so at 4 steps `int(4/0.85)=4` truncates nothing (equivalent to 1.0).
-  `report` prints nominal vs. effective — trust the effective value. There is no img2img, so keep
-  `denoise` at 1.0.
+- ⚠ **Keep `denoise` at 1.0.** There is no image to reference; lowering it only truncates sigma
+  (fewer steps). `report` prints nominal vs. effective — trust the effective value.
 - **Per-panel composition is only approximate.** MOSS's layout capability is *experimental*; this
   pack does no quality scoring.
 - **At 8/9 panels each panel is ≈496×272.** Small text and fine texture degrade first — a
@@ -411,5 +575,8 @@ runtime.
 Deep dives live in [`docs/`](docs/) (**written in Chinese**):
 [`01`](docs/01-layout-and-panels.md) geometry · [`02`](docs/02-e2e-matrix.md) e2e matrix ·
 [`03`](docs/03-open-source-readiness.md) readiness audit · [`04`](docs/04-i18n-and-widgets.md) i18n internals ·
-[`05`](docs/05-local-development.md) local development · [`06`](docs/06-vae-memory.md) VAE memory budget.
+[`05`](docs/05-local-development.md) local development · [`06`](docs/06-vae-memory.md) VAE memory budget ·
+[`07`](docs/07-consistency.md) cross-panel consistency · [`08`](docs/08-visual-editor-plan.md) editor design
+and element-box measurements · [`09`](docs/09-layout-breadth.md) use cases, layout paradigms, text measurements ·
+[`10`](docs/10-contract.md) state v3 frozen contract · [`11`](docs/11-editor-ui.md) editor front-end internals.
 Developer rules: [`AGENTS.md`](AGENTS.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md).

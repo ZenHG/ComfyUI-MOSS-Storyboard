@@ -2,24 +2,34 @@
 
 ## 一句话
 
-改代码 → 跑下面 7 道闸 → 全绿再提 PR。**没有任何一道闸是可以"这次先跳过"的。**
+改代码 → 跑下面这些闸 → 全绿再提 PR。**没有任何一道闸是可以"这次先跳过"的。**
 
 ```bash
 python -m ruff check .                    # 静态检查（CI 第一道）
 python tests/test_core.py                 # 294 项：几何 / 提示词 / 像素（零 GPU）
-python tests/test_contract.py             # 64 项：参数表 / 错误路径 / 依赖 / 卫生 / 词表
+python tests/test_editor.py               # 102 项：state v3 编译层 / 预设 / 错误路径 / 上限（零 GPU）
+python tests/test_contract.py             # 129 项（--no-host 113 项）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
+python tests/test_cross_language.py       # 50 项：JS ↔ Python 预设/默认值/校验差分
+python tests/test_panel_assembly.py       # 5 项：逐格拼版 reborder 语义
 python tests/test_sampling_contract.py    # 18 项：宿主采样 API 的入参类型
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
-python tools/smoke_nodes.py               # 37 项：自加载 + 纯节点真跑
-python tools/host_loader_check.py         # 16 项：走宿主 load_custom_node
-python tools/check_ui_workflow.py         # 15 项/文件：工作流连线 + widget 槽位
+python tools/smoke_nodes.py               # 41 项：自加载 + 纯节点真跑
+python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
+python tools/check_ui_workflow.py         # 6 份示例共 88 项：工作流连线 + widget 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_release_ready.py       # 29 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
+python tools/check_editor_ui.py           # 58 项：编辑器接线 / 语法 / 词表纯函数
+python tools/check_release_ready.py       # 31 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 ```
 
-后三条需要宿主：设 `COMFYUI_PATH=/path/to/ComfyUI`，或写进仓库根的 `.comfyui_path`（本地文件，已忽略）。
-端到端（要 GPU + 权重，不进 CI）：`python tools/make_gallery.py             # 8 组预设提示词（换机器复现用，要 GPU）
-python tools/e2e_matrix.py`。
+`smoke_nodes.py` / `host_loader_check.py` / `check_ui_workflow.py` 需要宿主：
+设 `COMFYUI_PATH=/path/to/ComfyUI`，或写进仓库根的 `.comfyui_path`（本地文件，已忽略）。
+
+端到端（要 GPU + 权重，不进 CI）：
+
+```bash
+python tools/make_gallery.py   # 8 组预设提示词（换机器复现用）
+python tools/e2e_matrix.py     # 14 用例真跑
+```
 
 > ⚠️ **别用 `| tail -n` 跑这些脚本** —— 管道会把退出码吃掉，你会看到"通过"却拿到 0。
 
@@ -44,7 +54,7 @@ python tools/e2e_matrix.py`。
 
 - 本文件上面的命令注释
 - `.github/workflows/ci.yml` 文件头的期望值
-- `README.md` §九 的命令清单
+- `AGENTS.md` §三 的命令清单
 
 ## PR 期望
 

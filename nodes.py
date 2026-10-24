@@ -12,8 +12,10 @@
 
 import functools
 import inspect
+import json
 import os
 
+from .core import editor as E
 from .core import layout as L
 from .core import pixels as P
 from .core import prompt as T
@@ -21,12 +23,21 @@ from .core import prompt as T
 CATEGORY = "moss/storyboard"
 
 _INIT_MODES = ["auto", "layout", "plain"]
+
+#: 生成方式：整张（一次采样）vs 逐格（每格独立采样后拼版）。
+#: 后者慢 N 倍，但跨格角色一致、每格可给足分辨率（实测结论，见 docs/07）。
+_GEN_MODES = ["整张", "逐格"]
 _ASPECT_KEYS = list(L.ASPECTS)
 _CROP_ASPECTS = ["keep", "1:1", "16:9", "4:3", "9:16", "21:9"]
 
 # MOSS-Image 训练区间 1–2MP，官方声明外推到 ~4MP。超了只警告，不拦。
 _MP_COMFORT = 2.0
 _MP_LIMIT = 4.0
+
+# 单格有效像素的阈值。故事板每格只分到这么多 ⇒ 低于 0.15MP 明显糊，
+# 低于 0.08MP 很糊（MOSS 训练在 1–2MP，整张 4 格时每格约 0.15MP 是"及格线"）。
+_PM_PANEL_OK = 0.15
+_PM_PANEL_LOW = 0.08
 
 
 # ---------------------------------------------------------------------------
@@ -93,15 +104,34 @@ def _node_errors(*keys):
     return deco
 
 
-def _mp_note(layout):
+def _mp_note(layout, per_panel=False):
+    """画布与单格的分辨率告警。
+
+    🔴 两个维度都要看（2026-10-24 修正）：之前只看画布 MP，漏掉了真正的画质瓶颈。
+    故事板每格只分到 `panel_megapixels`，9 格 1:1 时单格仅 0.26MP ——
+    远低于 MOSS 的训练区间 ⇒ 每格细节明显糊，但画布 MP 看着还挺正常。
+    """
     mp = layout.megapixels
+    pm = layout.panel_megapixels
+    out = ""
     if mp > _MP_LIMIT:
-        return ("\n⚠ 画布 %.2fMP 已超出 MOSS-Image 官方外推上限（≈4MP）：文字与布局退化风险高。"
-                "把 panel_edge 调小，或改用「逐格生成 + 拼版」。" % mp)
-    if mp > _MP_COMFORT:
-        return ("\n⚠ 画布 %.2fMP 高于训练区间（1–2MP）：可跑，但小字与细节开始不稳。"
+        out += ("\n⚠ 画布 %.2fMP 已超出 MOSS-Image 官方外推上限（≈4MP）：文字与布局退化风险高。"
+                "把 panel_edge 调小，或改用「逐格」模式。" % mp)
+    elif mp > _MP_COMFORT:
+        out += ("\n⚠ 画布 %.2fMP 高于训练区间（1–2MP）：可跑，但小字与细节开始不稳。"
                 "建议 panel_edge 降到能压进 2MP 的值。" % mp)
-    return ""
+    if pm < _PM_PANEL_LOW:
+        out += ("\n⚠ 单格只有 %.2fMP（%d×%d）：**这才是画质瓶颈** —— "
+                "9 格 1:1 时每格只分到 0.26MP，远低于 MOSS 的训练区间，每格会明显糊。\n"
+                "  解法：① 改「逐格」模式（每格独立给足分辨率）；"
+                "② 减少格数；③ 加大 panel_edge（但会顶高画布 MP）。"
+                % (pm, layout.panel_w, layout.panel_h))
+    elif pm < _PM_PANEL_OK:
+        out += ("\n· 单格 %.2fMP（%d×%d）：偏小，细节会偏软。改「逐格」模式可显著改善。"
+                % (pm, layout.panel_w, layout.panel_h))
+    if per_panel and out:
+        out = out.replace("解法：① 改「逐格」模式（每格独立给足分辨率）；", "解法：① ")
+    return out
 
 
 def _resolve_layout(panels, panel_aspect, panel_edge, canvas_aspect, gutter, margin, columns=0, rows=0):
@@ -185,8 +215,9 @@ class MossStoryboardLayout:
             },
         }
 
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "STRING", "STRING", "IMAGE", "STRING")
-    RETURN_NAMES = ("width", "height", "columns", "rows", "spec", "layout_json", "template", "report")
+    RETURN_TYPES = ("INT", "INT", "INT", "INT", "STRING", "STRING", "IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("width", "height", "columns", "rows", "spec", "layout_json", "template",
+                    "report", "elements")
     FUNCTION = "build"
     CATEGORY = CATEGORY
     DESCRIPTION = "算 3/4/6/8/9 宫格的尺寸与每格坐标，输出布局提示词与宫格模板图。不加载模型，秒出。"
@@ -203,11 +234,87 @@ class MossStoryboardLayout:
             "布局 %d 格 = %d 列 × %d 行（%s）" % (lay.panels, lay.cols, lay.rows, lay.note or "手工指定"),
             "画布 %d × %d（%.2fMP，对齐余量 右%d/下%d）" % (lay.width, lay.height, lay.megapixels,
                                                     lay.pad_x, lay.pad_y),
-            "单格 %d × %d，缝 %dpx，外边距 %dpx" % (lay.panel_w, lay.panel_h, lay.gutter, lay.margin),
+            "单格 %d × %d（%.2fMP/格）｜缝 %dpx｜外边距 %dpx"
+            % (lay.panel_w, lay.panel_h, lay.panel_megapixels, lay.gutter, lay.margin),
             "提示词：%s" % info,
             "布局文本 %d 字%s" % (len(text), _mp_note(lay)),
         ])
-        return (lay.width, lay.height, lay.cols, lay.rows, lay.spec(), text, template, report)
+        return (lay.width, lay.height, lay.cols, lay.rows, lay.spec(), text, template, report,
+                _elements_json(lay, prompt))
+
+
+def _elements_json(lay, prompt):
+    """把宫格转成官方 `Create Bounding Boxes` / `MossImagePromptBuilderKJ` 能吃的元素格式。
+
+    格式：`{"type": "obj", "desc": "...", "bbox": [y0, x0, y1, x1]}`，bbox 是 **0–1000 归一化**。
+    用户可以把它接给官方的画布节点做可视化微调，再把调好的结果喂回来。
+
+    ⚠ 与我们的 `layout_json` 不是同一套坐标：那套是绝对像素 + 画布中心原点，
+    这套是 0–1000 归一化 + 左上角原点（官方 `elements_to_boxes` 的规定）。
+    """
+    head, caps = T.split_panels(prompt)
+    descs = [c[1] for c in caps] if caps else []
+    boxes = lay.boxes_1000()
+    items = []
+    for i, bx in enumerate(boxes):
+        desc = descs[i] if i < len(descs) else ""
+        items.append({"type": "obj", "desc": desc, "bbox": bx})
+    return json.dumps(items, ensure_ascii=False, separators=(",", ":"))
+
+
+def _blank_image(width, height, gray=25):
+    """单张模式的模板占位图。宫格有 `render_template`，单张没有格子可画。"""
+    import torch
+    level = max(0.0, min(1.0, float(gray) / 255.0))
+    return torch.full((1, int(height), int(width), 3), level)
+
+
+class MossLayoutEditor:
+    """布局编辑器：把编辑器 state 编译成提示词与几何。零模型。
+
+    两种模式共用一套 state：`preset=grid` 出宫格稿（`[STYLE]` + `[PANEL n]`），
+    其他预设出单张多元素 layout JSON。state 结构见 `docs/10-contract.md`。
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "editor_state": ("STRING", {
+                    "default": json.dumps(E.empty_state(), ensure_ascii=False),
+                    "multiline": False, "dynamicPrompts": False,
+                    "tooltip": "【不用手填】编辑器的存档：整份布局状态序列化成的 JSON。\n"
+                               "在节点里用画布改，这里会自动更新。\n"
+                               "手改也行，但字段必须符合 v3 结构，否则会报错。",
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "INT", "INT", "STRING", "IMAGE", "STRING")
+    RETURN_NAMES = ("prompt", "width", "height", "spec", "template", "report")
+    FUNCTION = "build"
+    CATEGORY = CATEGORY
+    DESCRIPTION = ("在画布上摆元素（人物 / 物体 / 文字），一键出 MOSS 布局提示词。\n"
+                   "宫格模式出故事板稿；单张模式出海报 / 封面 / 概念图的多元素布局。")
+    SEARCH_ALIASES = ["layout editor", "布局编辑", "可视化编辑", "海报", "poster",
+                      "storyboard", "故事板", "分镜", "封面"]
+
+    @_node_errors("editor_state")
+    def build(self, editor_state):
+        state = E.parse_state(editor_state)
+        width, height = E.canvas_size(state)
+
+        if E.is_grid(state):
+            lay = E.geometry(state)
+            prompt = E.compile_prompt(state)
+            spec = lay.spec()
+            template = P.render_template(lay)
+        else:
+            prompt = E.layout_json(state)
+            spec = ""
+            template = _blank_image(width, height)
+
+        return (prompt, width, height, spec, template, E.report(state))
 
 
 class MossStoryboardSampler:
@@ -322,6 +429,25 @@ class MossStoryboardSampler:
                     "default": 0, "min": 0, "max": 32, "step": 1,
                     "tooltip": "【可留 0】裁格时每格四边内缩像素。线已复绘在缝里，正常留 0。",
                 }),
+                # ⚠ 新增 widget 只能追加在末尾：`widgets_values` 按位置存。
+                # `mode` / `sample_edge` 是 0.2.0 新增的，必须排在旧参数之后，
+                # 否则 0.1.x 存的工作流会整体错位（实测：mode=4、panels="16:9"）。
+                "mode": (_GEN_MODES, {
+                    "default": "整张",
+                    "tooltip": "【填什么】怎么生成：\n"
+                               "整张（默认）= 一次采样出整张宫格，快；跨格角色一致性较弱。\n"
+                               "逐格 = 每格独立采样再拼版，慢 N 倍，但**跨格角色一致、每格更清晰**"
+                               "（每格画布可给到 4 倍像素）。\n"
+                               "实测：4 格里同一角色的帽子颜色、脸型，逐格明显比整张统一。",
+                }),
+                "sample_edge": ("INT", {
+                    "default": 1024, "min": 256, "max": 4096, "step": 16,
+                    "tooltip": "【填什么】逐格模式下，**每格采样时**的画布长边像素。\n"
+                               "1024 = 每格按 1024×N 采样，缩回最终格子后更清晰。\n"
+                               "⚠ 只在「逐格」模式生效；「整张」模式忽略它。\n"
+                               "本机实测（4 格 / 16:9）：496 → 偏糊，992 → 最优，1984 → 反而变松。\n"
+                               "代价：显存与耗时按像素平方涨。",
+                }),
             },
         }
 
@@ -336,7 +462,7 @@ class MossStoryboardSampler:
     def run(self, model, clip, vae, positive, negative, steps, cfg, sampler_name, scheduler,
             seed, denoise, spec="", panels=8, panel_aspect="16:9", panel_edge=512,
             canvas_aspect="auto", gutter=8, margin=8, init="auto", label="object",
-            reborder=True, border_px=0, shave=0):
+            reborder=True, border_px=0, shave=0, mode="整张", sample_edge=1024):
         from .core import sampling as S
 
         S.probe_host_api()   # 宿主内核指纹：版本不匹配时给出"改了什么"，而不是 AttributeError
@@ -349,12 +475,22 @@ class MossStoryboardSampler:
             geom_src = "本节点参数"
 
         notes = []
-        mode = init if init in _INIT_MODES else "auto"
-        if mode == "auto":
-            mode = "layout"
+        init_mode = init if init in _INIT_MODES else "auto"
+        if init_mode == "auto":
+            init_mode = "layout"
+
+        # `mode` 是「整张 / 逐格」，`init_mode` 是「auto / layout / plain」——
+        # 两个都用 mode 会互相覆盖（踩过一次：逐格分支永远进不去）。
+        gen_mode = mode if mode in _GEN_MODES else "整张"
+
+        if gen_mode == "逐格":
+            return self._run_per_panel(model, clip, vae, positive, negative, steps, cfg,
+                                       sampler_name, scheduler, seed, denoise, lay, geom_src,
+                                       init_mode=init_mode, label=label, reborder=reborder,
+                                       border_px=border_px, shave=shave, sample_edge=sample_edge)
 
         # ---- 提示词：layout 时转成布局 JSON ----
-        if mode == "layout":
+        if init_mode == "layout":
             text, info = _prompt_for_layout(positive, lay, label)
             notes.append("布局提示词：%s" % info)
         else:
@@ -389,13 +525,119 @@ class MossStoryboardSampler:
             "单格 %d × %d，缝 %dpx，外边距 %dpx，对齐余量 右%d/下%d"
             % (lay.panel_w, lay.panel_h, lay.gutter, lay.margin, lay.pad_x, lay.pad_y),
             "init=%s｜%d 步｜cfg %.2f｜%s/%s｜种子 %d｜denoise 名义 %.2f / 实际 %.2f"
-            % (mode, steps, cfg, sampler_name, scheduler, seed, denoise,
+            % (init_mode, steps, cfg, sampler_name, scheduler, seed, denoise,
                S.effective_denoise(steps, denoise)),
             "输出：grid %s，panels %s" % (
                 "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
         ] + notes) + _mp_note(lay)
 
         return (grid, panels_img, out, lay.spec(), text, report)
+
+    def _run_per_panel(self, model, clip, vae, positive, negative, steps, cfg,
+                       sampler_name, scheduler, seed, denoise, lay, geom_src,
+                       init_mode="layout", label="object", reborder=True, border_px=0,
+                       shave=0, sample_edge=1024):
+        """逐格生成：每格独立采样，再按几何坐标拼成宫格。
+
+        为什么值得多花 N 倍时间（2026-10-24 实测）：
+        - 整张生成时，4 格里同一角色的帽子颜色、脸型**不统一**（模型把全局描述
+          摊薄到 4 个区域，每格各"想象"一遍）；
+        - 逐格生成时每格独立完整地读一遍全局描述 ⇒ 角色特征明显统一，
+          且每格画布可以给到 4 倍像素 ⇒ 更清晰。
+
+        关键实现点：提示词里必须去掉「恰好 N 个面板」这类多格语义，
+        否则模型照样画多格（实测：给 1 个 bbox 也会画出 4 格）。
+        """
+        from .core import sampling as S
+        import torch
+
+        notes = []
+        head, caps = T.split_panels(positive)
+        if not caps:
+            raise ValueError(
+                "逐格模式需要 [PANEL n] 分段描述（现在只有全局描述）。\n"
+                "写法：先写一段全局风格/角色/环境，然后每格一段 [PANEL 1] … [PANEL n]。")
+
+        # 单格采样画布：长边 = sample_edge（绝对像素）。
+        # ⚠ 逐格模式最大的优势就在这里——单格的**采样**分辨率不受整张宫格尺寸约束，
+        #   可以比最终格子大几倍，采样完再缩小 ⇒ 每格更清晰。
+        #   绝对像素而不是"倍数"：与宿主 `EmptyFlux2LatentImage` 的心智一致，
+        #   且「画质需求」与「排版需求」互不绑架（倍数会让后者决定前者）。
+        #   不小于最终格子：否则是插值放大，白费算力还更糊。
+        edge = max(int(sample_edge), lay.panel_w, lay.panel_h)
+        cell_ratio = lay.panel_w / float(lay.panel_h)
+        if cell_ratio >= 1:
+            pw = int(round(edge / 16.0)) * 16
+            ph = max(16, int(round(pw / cell_ratio / 16.0)) * 16)
+        else:
+            ph = int(round(edge / 16.0)) * 16
+            pw = max(16, int(round(ph * cell_ratio / 16.0)) * 16)
+        if (pw, ph) == (lay.panel_w, lay.panel_h):
+            notes.append("采样画布与最终格子同尺寸（%d×%d）：不会更清晰。" % (pw, ph))
+
+        pairs, pair_notes = T.pair_captions(caps, lay.cells)
+        notes.extend(pair_notes)
+        if not pairs:
+            raise ValueError("逐格模式没有可用的分格描述")
+
+        # 逐格采样
+        shots = []
+        for i, (caption, _cell) in enumerate(pairs):
+            if init_mode == "layout":
+                text = T.single_panel_json(head, caption, pw, ph, label=label)
+            else:
+                text = caption
+            cond_pos = S.encode_text(clip, text)
+            cond_neg = S.encode_text(clip, negative or "")
+            latent = S.empty_latent(model, pw, ph)
+            out_i = S.sample(model, cond_pos, cond_neg, latent, steps=steps, cfg=cfg,
+                             sampler_name=sampler_name, scheduler=scheduler,
+                             denoise=denoise, seed=seed + i)
+            img = S.decode(vae, out_i)
+            if img.ndim == 3:
+                img = img.unsqueeze(0)
+            shots.append(img[0])
+            notes.append("格 %d：%d×%d，种子 %d" % (i + 1, pw, ph, seed + i))
+
+        shots_t = torch.stack(shots, dim=0)
+
+        # ⚠ 缩放顺序很重要：**先每格缩到最终格子尺寸，再拼版**。
+        #   反过来（先拼成大图再整张缩小）会让宫格线也一起被缩放变细，
+        #   而且多一次全图重采样。
+        if (pw, ph) != (lay.panel_w, lay.panel_h):
+            # ⚠ 不能用 lanczos+antialias：PyTorch 的抗锯齿下采样只对 float32 实现，
+            #   fp16 + CUDA 会抛 NotImplementedError("compute_index_ranges_weights")。
+            #   `area` 对下采样是正确选择（面积平均），且全精度可用。
+            shots_t = torch.nn.functional.interpolate(
+                shots_t.permute(0, 3, 1, 2), size=(lay.panel_h, lay.panel_w),
+                mode="area").permute(0, 2, 3, 1)
+
+        # 拼版目标：最终布局的画布（单格 = 布局单格尺寸）。
+        # 宫格线由 _assemble_per_panel 统一处理：只拼版，再按 reborder 决定是否复绘。
+        grid, panels_img = _assemble_per_panel(
+            shots_t, lay, reborder=reborder, border_px=border_px, shave=shave)
+
+        report = "\n".join([
+            "几何来源：%s" % geom_src,
+            "逐格生成：%d 格各自独立采样后拼版" % lay.panels,
+            "单格画布 %d × %d（%.2fMP）｜整张 %d × %d（%.2fMP）"
+            % (pw, ph, pw * ph / 1e6, lay.width, lay.height, lay.megapixels),
+            "布局 %d 格 = %d 列 × %d 行，单格 %d × %d，缝 %dpx，外边距 %dpx"
+            % (lay.panels, lay.cols, lay.rows, lay.panel_w, lay.panel_h, lay.gutter, lay.margin),
+            "%d 步｜cfg %.2f｜%s/%s｜种子 %d（每格 +格号）｜denoise 名义 %.2f / 实际 %.2f"
+            % (steps, cfg, sampler_name, scheduler, seed,
+               denoise, S.effective_denoise(steps, denoise)),
+            "输出：grid %s，panels %s" % (
+                "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
+        ] + notes) + _mp_note(lay, per_panel=True)
+
+        text_all = T.single_panel_json(head, pairs[0][0], pw, ph, label=label)
+        return (grid, panels_img, None, lay.spec(), text_all, report)
+
+
+def _assemble_per_panel(shots, lay, reborder=True, border_px=0, shave=0):
+    """逐格拼版 → 可选复绘宫格线 → 裁格。与整张模式共用同一套 reborder 语义。"""
+    return P.assemble_panels(shots, lay, reborder=reborder, border_px=border_px, shave=shave)
 
 
 def _match_layout_to_image(lay, width, height):
@@ -590,6 +832,7 @@ class MossStoryboardPaste:
 
 
 NODE_CLASS_MAPPINGS = {
+    "MossLayoutEditor": MossLayoutEditor,
     "MossStoryboardLayout": MossStoryboardLayout,
     "MossStoryboardSampler": MossStoryboardSampler,
     "MossStoryboardCrop": MossStoryboardCrop,
@@ -597,6 +840,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "MossLayoutEditor": "MOSS Layout Editor",
     "MossStoryboardLayout": "MOSS Storyboard Layout",
     "MossStoryboardSampler": "MOSS Storyboard Sampler",
     "MossStoryboardCrop": "MOSS Storyboard Crop",

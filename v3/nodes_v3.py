@@ -24,6 +24,11 @@ class _Shell(io.ComfyNode):
         return call_v1(cls._V1_NAME, kwargs)
 
 
+class MossLayoutEditor(_Shell):
+    """MOSS Layout Editor：画布上摆元素，出 MOSS 布局提示词。"""
+    _V1_NAME = "MossLayoutEditor"
+
+
 class MossStoryboardLayout(_Shell):
     """MOSS Storyboard Layout：宫格几何 + 布局提示词 + 模板。"""
     _V1_NAME = "MossStoryboardLayout"
@@ -45,4 +50,5 @@ class MossStoryboardPaste(_Shell):
 
 
 #: 注册清单（唯一真相源；`__init__.py` 的加载摘要也从这里数）。
-NODES = [MossStoryboardLayout, MossStoryboardSampler, MossStoryboardCrop, MossStoryboardPaste]
+NODES = [MossLayoutEditor, MossStoryboardLayout, MossStoryboardSampler,
+         MossStoryboardCrop, MossStoryboardPaste]

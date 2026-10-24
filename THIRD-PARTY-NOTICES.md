@@ -34,6 +34,9 @@
 - **MOSS-Image 原生 JSON 布局提示词**：格式（`summary` / `items` / `bbox_coord_space=abs_centralized`
   / `bbox_format=yxyx`）来自宿主 `comfy_extras/nodes_moss_image.py::MOSSImageLayoutPrompt`。
   本包按其**产出格式**生成同样的字符串，使本节点可以直接替换该节点的下游接线。
+- **编辑器 state-in-widget 架构**：`web/moss_sb_editor.js` 的「整份 state 序列化进一个 STRING widget，
+  再在节点内挂 DOM 覆盖层」做法参考 `ComfyUI-NewBie-LLM-Formatter`（MIT，许可见其仓库 LICENSE）。
+  本包**未复制其源码**；CSS、交互、state v3 字段与编译规则均为本包自写。
 
 ## 四、本包依赖
 
