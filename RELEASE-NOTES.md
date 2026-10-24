@@ -19,6 +19,34 @@
 
 ---
 
+## 0.2.1 — 2026-10-24
+
+**打包与文档修复：0.2.0 的安装包里缺了一份声明文件，README 里也有几处过时表述。**
+
+- Manager 安装包补齐「第三方声明」，包内 README 指向它时不再落空。
+- README 校正：整张 / 逐格两种模式的默认行为、宫格线由节点重绘、布局遵循度不作数量承诺，
+  以及文字能力的实测边界；删掉一条已被复核推翻的旧结论。
+- 示例工作流精简为 4 份，示例海报里的自拟中文标题换成中性英文，方便直接分享。
+- 节点功能与上一个版本相同，工作流和参数都不用动。
+
+**升级动作**：从 Manager 更新到 0.2.1；已有工作流无需改动，重启 ComfyUI 即可。
+
+<!-- EN -->
+
+**Packaging and documentation fixes: the 0.2.0 install package was missing one notice file, and the README carried a few outdated statements.**
+
+- The Manager package now includes the third-party notices, so the README link resolves inside the package.
+- README corrected: default whole-board vs per-panel behaviour, that grid lines are redrawn by the node,
+  that per-panel layout adherence is not promised, and the measured limits of text rendering; one claim
+  that a re-check disproved has been removed.
+- The example set is down to four workflows, and the poster example uses neutral English titles so it
+  can be shared as-is.
+- Node behaviour is unchanged; existing workflows and parameters need no edits.
+
+**Action required**: Update to 0.2.1 from the Manager; restart ComfyUI. Existing workflows need no changes.
+
+---
+
 ## 0.2.0 — 2026-10-24
 
 **一句话变版式，也能精确出故事板。**
