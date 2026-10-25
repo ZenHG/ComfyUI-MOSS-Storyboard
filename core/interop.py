@@ -18,6 +18,7 @@
 """
 
 import json
+import math
 import re
 
 from . import editor as E
@@ -103,6 +104,11 @@ def _palette(el, where):
         if not (isinstance(c, str) and _HEX_RE.match(c)):
             _fail("%s 的 palette 颜色必须是 #rrggbb（收到 %r）。" % (where, c))
     return list(pal)
+
+
+def _quantize(v):
+    """0–1 → 0–1000，保留 3 位小数。与前端 `Math.round(v * 1e6) / 1000` 同式。"""
+    return math.floor(v * UNITS * 1000 + 0.5) / 1000
 
 
 def _gen_id(role, used):
@@ -235,7 +241,7 @@ def from_state(state):
     for it in state["items"]:
         el = {"id": it["id"], "role": it["label"],
               "desc": it["caption"],
-              "bbox": [round(float(v) * UNITS, 3) for v in it["bbox"]]}
+              "bbox": [_quantize(float(v)) for v in it["bbox"]]}
         if it["label"] == "text":
             el["text"] = it["text"]
         if it.get("palette"):

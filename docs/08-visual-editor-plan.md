@@ -230,14 +230,14 @@ MossLayoutEditor
 python tests/test_core.py              # 几何 / 提示词 / 像素，302 项
 python tests/test_contract.py          # 参数表 / 错误路径 / 词表，130 项（--no-host 114 项）
 python tests/test_editor.py            # state v3 编译层，102 项
-python tests/test_cross_language.py    # JS ↔ Python 契约差分，56 项
+python tests/test_cross_language.py    # JS ↔ Python 契约差分，66 项
 python tests/test_panel_assembly.py    # 逐格拼版 reborder 语义，5 项
 python tests/test_sampling_contract.py # 采样 API 契约，19 项
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项
 python tools/smoke_nodes.py            # 节点注册 + 纯节点真跑，41 项
 python tools/host_loader_check.py      # 宿主真实加载器，19 项
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/*.json   # 6 份共 88 项
-python tools/check_editor_ui.py        # 编辑器词表/语法/接线，68 项
+python tools/check_editor_ui.py        # 编辑器词表/语法/接线/互操作，80 项
 ```
 
 示例工作流（全部含本包节点、槽位逐位值域、接线完整）：

@@ -10,7 +10,7 @@ python tests/test_core.py                 # 302 项：几何 / 提示词 / 像�
 python tests/test_editor.py               # 102 项：state v3 编译层 / 预设 / 错误路径 / 上限（零 GPU）
 python tests/test_interop.py              # 83 项：elements-v1 互操作 / 往返 / CLI（零 GPU）
 python tests/test_contract.py             # 130 项（--no-host 114 项）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
-python tests/test_cross_language.py       # 56 项：JS ↔ Python 预设/默认值/校验差分
+python tests/test_cross_language.py       # 66 项：JS ↔ Python 预设/默认值/校验/elements 差分
 python tests/test_panel_assembly.py       # 5 项：逐格拼版 reborder 语义
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
@@ -18,7 +18,7 @@ python tools/smoke_nodes.py               # 41 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py         # 4 份示例 + 2 份夹具共 88 项：连线 + 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_editor_ui.py           # 68 项：编辑器接线 / 语法 / 词表纯函数
+python tools/check_editor_ui.py           # 80 项：编辑器接线 / 语法 / 词表 / 互操作纯函数
 python tools/check_release_ready.py       # 31 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 ```
 

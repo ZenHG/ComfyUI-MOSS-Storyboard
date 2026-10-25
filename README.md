@@ -284,6 +284,10 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 | 拖到接近其他框的边、画布中线、三分线 | 自动吸附 |
 | `Delete` / 方向键 / `Ctrl+D` | 删除 / 微移 / 复制 |
 | `Ctrl+Z` / `Ctrl+Shift+Z`（或 `Ctrl+Y`） | 撤销 / 重做（工具栏 `↶` `↷` 同效） |
+| 工具栏「导入 / 导出」 | 导入 elements-v1（0–1000 bbox）或 state v3 JSON；导出 elements-v1（宫格不能导出） |
+
+> 外部 planner 产出的元素 JSON 可以直接「导入」成可编辑元素；命令行校验/转换见
+> [`docs/12`](docs/12-interop.md)（不需要装 ComfyUI）。
 
 **文字元素有两个框，别填混**
 

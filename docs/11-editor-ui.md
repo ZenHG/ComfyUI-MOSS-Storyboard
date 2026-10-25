@@ -1,7 +1,7 @@
 # 11 · Layout Editor 前端（state v3）
 
 > **状态**：F1–F6 前端完成，真实节点、grid 端到端、真节点海报示例均已验证；
-> `python tools/check_editor_ui.py` 68 项全过。
+> `python tools/check_editor_ui.py` 80 项全过。
 > **剩余**：宿主重启后复验修好的 widget 顺序。**Nodes 2.0 已验证**（Vue 模式下编辑器挂载、渲染、state 正确；无页面错误）。
 >
 > 契约以 [`docs/10`](10-contract.md) 为准；本文只写前端**怎么实现**、**怎么测**、**和后端约定了什么**。
@@ -145,12 +145,16 @@ grid:   { "version":3, "preset":"grid", "style":"…",
 | 预设说明行 | 选中预设时显示"它服务什么"，不用猜 |
 | 画布预设 | 16:9 / 9:16 / 1:1 / 4:3 / 3:4 常用尺寸；也可手改宽高（必须 16 的倍数） |
 | `↶` / `↷` | 撤销 / 重做（编辑器内部历史，最多 100 步；同一元素连续输入或微调合并为一步；外部改了 `editor_state`——打开工作流、宿主级撤销——时清空） |
+| 导入 / 导出 | elements-v1（0–1000 bbox）与 state v3 互转；导入替换当前元素（可撤销），导出一个 `moss-elements-*.json`；宫格不能导出（格位不是元素） |
 | `?` 帮助 | 快捷键与字段含义（`caption` vs `text`） |
 | 快捷键 | `Delete/Backspace` 删除 · 方向键微调 1px（`Shift` ×10）· `Ctrl/⌘+D` 复制 · `Esc` 取消选择 · `Ctrl/⌘+Z` 撤销 · `Ctrl/⌘+Shift+Z`（或 `Ctrl+Y`）重做 |
 | 复制 / 居中 | 属性面板按钮；grid 模式禁用（格位由几何算死） |
 | 悬浮提示 | 画布上的框带 `<title>`（类型 + 描述 + text） |
 
 > 所有快捷键只在编辑器有焦点时生效；在输入框内不会抢 `Delete` / 方向键 / `Ctrl+Z`（输入框里的撤销归浏览器）。
+
+> 导入接受 elements-v1 与 state v3 两种 JSON，单文件 ≤1,000,000 字符；elements 一律落到**单张模式**
+> （默认 `free`），`x_ext` 原样保留。导入是一次可撤销的提交——按 `Ctrl/⌘+Z` 能退回导入前的 state。
 
 ---
 
@@ -236,8 +240,10 @@ python tools/check_editor_ui.py
   覆盖 8 预设生成、数量、非重叠、格位、id 唯一、text 必带 text、7 条拒绝路径、宽容读取、吸附；
   另查预设说明 8 条中英齐全、类型色覆盖三类、画布预设都是 16 的倍数、英文校验/致命文案无 CJK；
   撤销栈（`makeHistory` / `recordHistory` / `stepHistory`）：撤销/重做顺序、新改动清空重做、
-  同元素连续输入/微调合并为一步、不同元素与撤销后不合并、上限 100 步丢最旧。
-- 总计 **68 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
+  同元素连续输入/微调合并为一步、不同元素与撤销后不合并、上限 100 步丢最旧；
+  互操作（`elementsToState` / `stateToElements` / `sniffLayoutDoc`）：0–1000 映射、role 别名、
+  自动 id、z 排序、未知字段 `x_ext`、grid 拒绝、导出往返。
+- 总计 **80 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
 
 ### 无头浏览器冒烟（未入仓，实测 38/38）
 
@@ -269,6 +275,13 @@ python tools/check_editor_ui.py
 （4 步蒸馏 LoRA / seed 555）→ 整张 **1024×576** + 逐格 **4 × 496×272**，18.0 s，
 4 格内容互异；编辑器 `spec` 与旧 `MossStoryboardLayout` 逐字相同。
 详见 `docs/08` §8.2。
+
+### 导入 / 导出真机验证（2026-10-26）
+
+真实宿主里新建 `MossLayoutEditor`：导入 elements 文档（text + person 别名、z、未知字段）→ 2 个元素、
+生成 id `t1` / `c1`、画布 1024、`style` 与 `x_ext` 保留、`editor_state` 同步；导出得到 2 个元素，
+bbox 逐字回到 `80,100,920,190`；`Ctrl+Z` 退回到导入前的空 state；非法 bbox 只报错、不改 state；
+导入 state v3 成功切换 `preset` / `style`；宫格点导出只提示「没有元素」，不产文件。
 
 ### 撤销 / 重做真机验证（2026-10-24）
 

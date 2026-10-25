@@ -63,7 +63,7 @@ python tests/test_core.py              # 几何/提示词/像素，零 GPU，302
 python tests/test_editor.py            # state v3 编译层 / 预设 / 错误路径 / 上限，零 GPU，102 项
 python tests/test_interop.py           # elements-v1 ⇄ state v3 映射 / 往返 / CLI，零 GPU，83 项
 python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，130 项（--no-host 114 项）
-python tests/test_cross_language.py     # JS ↔ Python 预设/校验差分，零 GPU，56 项
+python tests/test_cross_language.py     # JS ↔ Python 预设/校验/elements 差分，零 GPU，66 项
 python tests/test_panel_assembly.py     # 逐格拼版 reborder 语义，零 GPU，5 项
 python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，19 项
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项（零浏览器）
@@ -71,7 +71,7 @@ python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点
 python tools/host_loader_check.py      # 走宿主 load_custom_node，19 项
 python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，4 示例 + 2 夹具共 88 项
 python tools/check_frontend.py         # 前端词表/语法/接线/标题可换语言，9 项
-python tools/check_editor_ui.py        # 编辑器前端：接线/语法/词表纯函数，68 项
+python tools/check_editor_ui.py        # 编辑器前端：接线/语法/词表/互操作纯函数，80 项
 ```
 
 CI 另跑 `release-preview`（`check_release_ready.py` + `make_dist.py --zip`，只构建/上传 artifact，不发布）；

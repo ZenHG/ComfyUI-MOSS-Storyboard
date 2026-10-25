@@ -140,10 +140,23 @@ const STR = {
     help: { zh: "帮助", en: "Help" },
     undo: { zh: "撤销", en: "Undo" },
     redo: { zh: "重做", en: "Redo" },
+    importBtn: { zh: "导入", en: "Import" },
+    exportBtn: { zh: "导出", en: "Export" },
+    importTitle: { zh: "导入 elements-v1 或 state v3 JSON", en: "Import elements-v1 or state v3 JSON" },
+    exportTitle: { zh: "导出 elements-v1 JSON（单张模式）", en: "Export elements-v1 JSON (single-canvas mode)" },
+    importConfirm: { zh: "导入会替换当前 {n} 个元素，确定？", en: "Import replaces the current {n} items. Continue?" },
+    importOk: { zh: "已导入 {n} 个元素", en: "Imported {n} items" },
+    importFail: { zh: "导入失败：", en: "Import failed: " },
+    importTooBig: { zh: "文件超过 1,000,000 字符", en: "File exceeds 1,000,000 characters" },
+    importUnknown: { zh: "既不是 elements-v1 也不是 state v3", en: "Neither elements-v1 nor state v3" },
+    exportOk: { zh: "已导出 elements JSON", en: "Exported elements JSON" },
+    exportFail: { zh: "导出失败：", en: "Export failed: " },
+    exportGrid: { zh: "宫格没有元素，不能导出 elements", en: "Grid mode has no elements to export" },
+    exportNoState: { zh: "没有可导出的 state", en: "No state to export" },
     helpTitle: { zh: "操作提示", en: "Controls" },
     helpKeys: {
-        zh: "点选：单击框　拖动：按住框　画框：在空白处拖\n缩放：八个把手　删除：Delete / Backspace　微调：方向键（Shift ×10）\n复制：Ctrl/⌘ + D　取消选择：Esc\n撤销：Ctrl/⌘ + Z　重做：Ctrl/⌘ + Shift + Z（或 Ctrl + Y）",
-        en: "Select: click a box · Move: drag it · Draw: drag on empty canvas\nResize: 8 handles · Delete: Delete/Backspace · Nudge: arrow keys (Shift x10)\nDuplicate: Ctrl/Cmd + D · Deselect: Esc\nUndo: Ctrl/Cmd + Z · Redo: Ctrl/Cmd + Shift + Z (or Ctrl + Y)",
+        zh: "点选：单击框　拖动：按住框　画框：在空白处拖\n缩放：八个把手　删除：Delete / Backspace　微调：方向键（Shift ×10）\n复制：Ctrl/⌘ + D　取消选择：Esc\n撤销：Ctrl/⌘ + Z　重做：Ctrl/⌘ + Shift + Z（或 Ctrl + Y）\n导入 / 导出：工具栏按钮（elements-v1 JSON）",
+        en: "Select: click a box · Move: drag it · Draw: drag on empty canvas\nResize: 8 handles · Delete: Delete/Backspace · Nudge: arrow keys (Shift x10)\nDuplicate: Ctrl/Cmd + D · Deselect: Esc\nUndo: Ctrl/Cmd + Z · Redo: Ctrl/Cmd + Shift + Z (or Ctrl + Y)\nImport / Export: toolbar buttons (elements-v1 JSON)",
     },
     helpFields: {
         zh: "描述 = 元素长什么样；文字 = 实际渲染的字。二者不能混用。",
@@ -518,6 +531,244 @@ export function stageAspect(state) {
 }
 
 // ---------------------------------------------------------------------------
+// 互操作层（elements-v1 ⇄ state v3；与 core/interop.py 逐项对齐）
+// ---------------------------------------------------------------------------
+export const ELEMENTS_VERSION = 1;
+export const ELEMENTS_UNITS = 1000;
+
+const ROLE_ALIASES = {
+    text: "text", object: "object", obj: "object", character: "character", person: "character",
+};
+const ELEMENT_KEYS = new Set(["id", "role", "type", "text", "desc", "caption", "bbox", "palette", "z", "x_ext"]);
+const DOC_KEYS = new Set(["version", "canvas", "style", "elements", "x_ext"]);
+const ID_PREFIX = { text: "t", object: "o", character: "c" };
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+const interopLang = (lang) => (lang === "en" ? "en" : "zh");
+const hasKey = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+function nextInteropId(role, used) {
+    const prefix = ID_PREFIX[role];
+    for (let n = 1; ; n += 1) {
+        const id = prefix + n;
+        if (!used.has(id)) { used.add(id); return id; }
+    }
+}
+
+function interopRole(el, where, E) {
+    const raw = hasKey(el, "role") ? el.role : el.type;
+    if (raw == null) {
+        throw new Error(E(`${where} 缺 role（可选 text / object / character；也可用 type 字段）。`,
+            `${where} is missing role (text / object / character; type is accepted as an alias)`));
+    }
+    if (hasKey(el, "role") && hasKey(el, "type") && el.role !== el.type) {
+        throw new Error(E(`${where} 的 role=${el.role} 与 type=${el.type} 冲突，只留一个。`,
+            `${where} has conflicting role=${el.role} and type=${el.type}; keep one`));
+    }
+    if (typeof raw !== "string" || !(raw in ROLE_ALIASES)) {
+        throw new Error(E(`${where} 的 role=${raw} 不认识，可选：text、object、character（别名 obj、person）。`,
+            `${where} has an unknown role ${raw}; use text, object or character (aliases: obj, person)`));
+    }
+    return ROLE_ALIASES[raw];
+}
+
+function interopExtras(el, where, E) {
+    const out = {};
+    if (hasKey(el, "x_ext")) {
+        if (!el.x_ext || typeof el.x_ext !== "object" || Array.isArray(el.x_ext)) {
+            throw new Error(E(`${where} 的 x_ext 必须是对象。`, `${where} x_ext must be an object`));
+        }
+        Object.assign(out, el.x_ext);
+    }
+    for (const key of Object.keys(el)) {
+        if (!ELEMENT_KEYS.has(key)) out[key] = el[key];
+    }
+    return out;
+}
+
+/**
+ * elements-v1 文档 → state v3（单张模式）。与 `core.interop.to_state` 同一套规则：
+ * bbox 0–1000、role 别名、id 生成、z 稳定排序、未知字段进 x_ext、最终过 validateState。
+ */
+export function elementsToState(doc, opts = {}) {
+    const lang = interopLang(opts.lang);
+    const E = (zh, en) => (lang === "en" ? en : zh);
+    if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+        throw new Error(E("elements 文档必须是 JSON 对象。", "the elements document must be a JSON object"));
+    }
+    if (doc.version !== ELEMENTS_VERSION) {
+        throw new Error(E(`elements 版本是 ${doc.version}，本版只认 ${ELEMENTS_VERSION}。`,
+            `elements version is ${doc.version}; this build accepts ${ELEMENTS_VERSION} only`));
+    }
+    const preset = opts.preset || "free";
+    if (preset === "grid") {
+        throw new Error(E("grid 不支持导入：宫格的 item 是格位，不是元素。请用单张模式（free 等）。",
+            "grid import is not supported: grid items are panels, not elements; use a single-canvas preset"));
+    }
+    if (!PRESET_IDS.includes(preset)) {
+        throw new Error(E(`preset=${preset} 不认识。`, `unknown preset: ${preset}`));
+    }
+    if (!Array.isArray(doc.elements)) {
+        throw new Error(E("文档缺 elements 数组。", "the document is missing the elements array"));
+    }
+    if (doc.elements.length > MAX_ITEMS) {
+        throw new Error(E(`elements 有 ${doc.elements.length} 个，超过上限 ${MAX_ITEMS}。请拆成多张画布。`,
+            `too many elements: ${doc.elements.length} (max ${MAX_ITEMS})`));
+    }
+    const canvas = doc.canvas == null ? DEFAULT_CANVAS : doc.canvas;
+    if (!canvas || typeof canvas !== "object" || Array.isArray(canvas)) {
+        throw new Error(E("canvas 必须是对象 {width,height}。", "canvas must be an object {width,height}"));
+    }
+    const style = opts.style != null ? opts.style : (doc.style == null ? "" : doc.style);
+    if (typeof style !== "string") {
+        throw new Error(E("style 必须是字符串。", "style must be a string"));
+    }
+
+    const used = new Set();
+    const rows = doc.elements.map((el, i) => {
+        const where = lang === "en" ? `element ${i + 1}` : `第 ${i + 1} 个元素`;
+        if (!el || typeof el !== "object" || Array.isArray(el)) {
+            throw new Error(E(`${where} 必须是对象。`, `${where} must be an object`));
+        }
+        const role = interopRole(el, where, E);
+
+        let id;
+        if (!hasKey(el, "id") || el.id == null) id = nextInteropId(role, used);
+        else if (typeof el.id !== "string" || !el.id) {
+            throw new Error(E(`${where} 的 id 必须是非空字符串。`, `${where} id must be a non-empty string`));
+        } else if (used.has(el.id)) {
+            throw new Error(E(`${where} 的 id=${el.id} 重复了；id 必须唯一。`, `${where} id ${el.id} is duplicated`));
+        } else id = el.id;
+        used.add(id);
+
+        const desc = hasKey(el, "desc") ? el.desc : el.caption;
+        if (typeof desc !== "string" || !desc.trim()) {
+            throw new Error(E(`${where} 缺 desc（这个元素长什么样，必填，不能为空）。`,
+                `${where} is missing desc (what it looks like; required)`));
+        }
+
+        const b = el.bbox;
+        if (!Array.isArray(b) || b.length !== 4) {
+            throw new Error(E(`${where} 的 bbox 必须是 4 个数 [x0,y0,x1,y1]（单位 0–${ELEMENTS_UNITS}）。`,
+                `${where} bbox must be 4 numbers [x0,y0,x1,y1] in 0–${ELEMENTS_UNITS}`));
+        }
+        if (b.some((v) => typeof v !== "number" || !Number.isFinite(v))) {
+            throw new Error(E(`${where} 的 bbox 必须全是数字，不收字符串/布尔。`,
+                `${where} bbox must contain numbers only`));
+        }
+        const [x0, y0, x1, y1] = b;
+        if (!(x0 >= 0 && x0 < x1 && x1 <= ELEMENTS_UNITS && y0 >= 0 && y0 < y1 && y1 <= ELEMENTS_UNITS)) {
+            throw new Error(E(`${where} 的 bbox 越界或反向：需要 0 ≤ x0 < x1 ≤ ${ELEMENTS_UNITS}、0 ≤ y0 < y1 ≤ ${ELEMENTS_UNITS}；单位不是 0–1。`,
+                `${where} bbox is out of range or inverted: need 0 <= x0 < x1 <= ${ELEMENTS_UNITS}, 0 <= y0 < y1 <= ${ELEMENTS_UNITS}; units are not 0–1`));
+        }
+
+        const item = {
+            id, label: role, caption: desc,
+            bbox: [x0 / ELEMENTS_UNITS, y0 / ELEMENTS_UNITS, x1 / ELEMENTS_UNITS, y1 / ELEMENTS_UNITS],
+        };
+        if (role === "text") {
+            if (typeof el.text !== "string" || !el.text.trim()) {
+                throw new Error(E(`${where} 是 text 元素，必须填 text（实际渲染的字；desc 不能当 text 用）。`,
+                    `${where} is a text element and needs text (the exact glyphs; desc is not a fallback)`));
+            }
+            item.text = el.text;
+        } else if (hasKey(el, "text")) {
+            throw new Error(E(`${where} 的 role=${role} 不支持 text；要渲染文字请用 role=text。`,
+                `${where} role=${role} does not support text; use role=text to render glyphs`));
+        }
+        if (hasKey(el, "palette")) {
+            const pal = el.palette;
+            if (!Array.isArray(pal) || pal.length > 5 || pal.some((c) => typeof c !== "string" || !HEX_RE.test(c))) {
+                throw new Error(E(`${where} 的 palette 必须是 ≤5 个 #rrggbb。`,
+                    `${where} palette must be at most 5 #rrggbb values`));
+            }
+            item.palette = pal.slice();
+        }
+        const ext = interopExtras(el, where, E);
+        if (Object.keys(ext).length) item.x_ext = ext;
+
+        const z = hasKey(el, "z") ? el.z : i;
+        if (typeof z !== "number" || !Number.isFinite(z)) {
+            throw new Error(E(`${where} 的 z 必须是数字。`, `${where} z must be a number`));
+        }
+        return { z, i, item };
+    });
+
+    rows.sort((a, b) => (a.z - b.z) || (a.i - b.i));
+    const state = {
+        version: STATE_VERSION,
+        preset,
+        style,
+        canvas: { width: canvas.width, height: canvas.height },
+        items: rows.map((r) => r.item),
+    };
+    if (hasKey(doc, "x_ext")) {
+        if (!doc.x_ext || typeof doc.x_ext !== "object" || Array.isArray(doc.x_ext)) {
+            throw new Error(E("文档级 x_ext 必须是对象。", "document-level x_ext must be an object"));
+        }
+        state.x_ext = { ...doc.x_ext };
+    }
+    for (const key of Object.keys(doc)) {
+        if (DOC_KEYS.has(key)) continue;
+        if (!state.x_ext) state.x_ext = {};
+        state.x_ext[key] = doc[key];
+    }
+    const errors = validateState(state, lang).errors;
+    if (errors.length) throw new Error(errors.join(" | "));
+    return state;
+}
+
+/** state v3（单张模式）→ elements-v1 文档；bbox 量化到 0.001，element 顺序即 z 序。 */
+export function stateToElements(state, lang = "zh") {
+    const L = interopLang(lang);
+    const E = (zh, en) => (L === "en" ? en : zh);
+    if (!state || typeof state !== "object" || Array.isArray(state)) {
+        throw new Error(E("state 必须是 JSON 对象。", "state must be a JSON object"));
+    }
+    if (state.preset === "grid") {
+        throw new Error(E("宫格 state 不能导出成 elements：每格是格位，不是元素。",
+            "a grid state cannot be exported as elements: every item is a panel, not an element"));
+    }
+    const errors = validateState(state, L).errors;
+    if (errors.length) throw new Error(errors.join(" | "));
+    const canvas = state.canvas || DEFAULT_CANVAS;
+    const out = {
+        version: ELEMENTS_VERSION,
+        canvas: { width: canvas.width, height: canvas.height },
+        style: state.style || "",
+        elements: [],
+    };
+    for (const it of state.items || []) {
+        const el = {
+            id: it.id, role: it.label, desc: it.caption,
+            bbox: (it.bbox || []).map((v) => Math.round(Number(v) * ELEMENTS_UNITS * 1000) / 1000),
+        };
+        if (it.label === "text") el.text = it.text;
+        if (Array.isArray(it.palette) && it.palette.length) el.palette = it.palette.slice();
+        if (it.x_ext && typeof it.x_ext === "object" && !Array.isArray(it.x_ext)) el.x_ext = { ...it.x_ext };
+        out.elements.push(el);
+    }
+    const ext = state.x_ext;
+    if (ext && typeof ext === "object" && !Array.isArray(ext)) {
+        for (const [key, val] of Object.entries(ext)) {
+            if (!hasKey(out, key)) out[key] = val;
+            else {
+                if (!out.x_ext) out.x_ext = {};
+                out.x_ext[key] = val;
+            }
+        }
+    }
+    return out;
+}
+
+export function sniffLayoutDoc(obj) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+    if (hasKey(obj, "elements")) return "elements";
+    if (obj.version === STATE_VERSION && hasKey(obj, "items")) return "state";
+    return null;
+}
+
+// ---------------------------------------------------------------------------
 // DOM / SVG 工具
 // ---------------------------------------------------------------------------
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -556,6 +807,8 @@ function ensureStyle() {
 .mossed-linkbtn:hover{opacity:1}
 .mossed-spacer{flex:1 1 auto}
 .mossed-chip{opacity:.68;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mossed-notice{font-size:11px;opacity:.78;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mossed-notice.mossed-err{color:#f88;opacity:.95}
 .mossed-id{font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;opacity:.72}
 .mossed-typedot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:0 0 auto;box-shadow:0 0 0 1px #0007,0 0 8px currentColor}
 .mossed-hintline{flex:0 0 auto;font-size:11px;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;margin-top:-3px}
@@ -673,8 +926,18 @@ function buildUI() {
     applyBtn.type = "button";
     applyBtn.title = t("apply");
     bar.appendChild(applyBtn);
+    const importBtn = h("button", "mossed-btn", t("importBtn"));
+    importBtn.type = "button";
+    importBtn.title = t("importTitle");
+    bar.appendChild(importBtn);
+    const exportBtn = h("button", "mossed-btn", t("exportBtn"));
+    exportBtn.type = "button";
+    exportBtn.title = t("exportTitle");
+    bar.appendChild(exportBtn);
     const chip = h("span", "mossed-chip", "");
     bar.appendChild(chip);
+    const notice = h("span", "mossed-notice", "");
+    bar.appendChild(notice);
     const spacer = h("span", "mossed-spacer", "");
     bar.appendChild(spacer);
     const undoBtn = h("button", "mossed-iconbtn", "↶");
@@ -691,6 +954,12 @@ function buildUI() {
     helpBtn.setAttribute("aria-label", t("help"));
     bar.appendChild(helpBtn);
     root.appendChild(bar);
+
+    const fileIn = document.createElement("input");
+    fileIn.type = "file";
+    fileIn.accept = ".json,application/json";
+    fileIn.hidden = true;
+    root.appendChild(fileIn);
 
     const presetHint = h("div", "mossed-hintline", "");
     root.appendChild(presetHint);
@@ -868,6 +1137,7 @@ function buildUI() {
 
     return {
         root, bar, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
+        importBtn, exportBtn, fileIn, notice,
         gridRow, colsIn, rowsIn, aspectSel, gridAdvBtn, gridAdvRow, edgeIn, gutterIn, marginIn,
         canvasRow, canvasPresetSel, wIn, hIn, aspectChip,
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
@@ -1116,6 +1386,10 @@ function syncStatic(ui) {
 
     ui.applyBtn.textContent = t("apply");
     ui.applyBtn.title = t("apply");
+    ui.importBtn.textContent = t("importBtn");
+    ui.importBtn.title = t("importTitle");
+    ui.exportBtn.textContent = t("exportBtn");
+    ui.exportBtn.title = t("exportTitle");
     ui.helpBtn.title = t("help");
     ui.helpBtn.setAttribute("aria-label", t("help"));
     ui.undoBtn.title = t("undo") + " (Ctrl/Cmd + Z)";
@@ -1333,6 +1607,18 @@ function resetHistory(ui) {
 function syncHistoryButtons(ui) {
     ui.undoBtn.disabled = !ui.state || !ui.hist.undo.length;
     ui.redoBtn.disabled = !ui.state || !ui.hist.redo.length;
+}
+
+function flash(ui, msg, isErr = false) {
+    if (!ui.notice) return;
+    ui.notice.textContent = msg;
+    ui.notice.title = msg;
+    ui.notice.classList.toggle("mossed-err", !!isErr);
+    clearTimeout(ui.noticeTimer);
+    ui.noticeTimer = setTimeout(() => {
+        ui.notice.textContent = "";
+        ui.notice.classList.remove("mossed-err");
+    }, 6000);
 }
 
 function stepUndo(ui, dir) {
@@ -1793,6 +2079,74 @@ function wire(ui) {
             if (n && !window.confirm(t("confirmApply").replace("{n}", String(n)))) return;
         } catch (err) { /* 无 confirm */ }
         regenerate(ui);
+    });
+
+    ui.importBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        ui.fileIn.value = "";
+        ui.fileIn.click();
+    });
+    ui.fileIn.addEventListener("change", async () => {
+        const file = ui.fileIn.files && ui.fileIn.files[0];
+        if (!file) return;
+        try {
+            if (file.size > MAX_STATE_CHARS) throw new Error(t("importTooBig"));
+            const text = await file.text();
+            if (text.length > MAX_STATE_CHARS) throw new Error(t("importTooBig"));
+            let obj;
+            try {
+                obj = JSON.parse(text);
+            } catch (err) {
+                throw new Error("JSON · " + err.message);
+            }
+            const kind = sniffLayoutDoc(obj);
+            let st;
+            if (kind === "elements") st = elementsToState(obj, { lang: uiLang(), preset: "free" });
+            else if (kind === "state") {
+                const res = readState(text, uiLang());
+                if (res.fatal) throw new Error(res.fatal);
+                st = res.state;
+            } else {
+                throw new Error(t("importUnknown"));
+            }
+            const n = ui.state?.items?.length || 0;
+            if (n) {
+                try {
+                    if (!window.confirm(t("importConfirm").replace("{n}", String(n)))) return;
+                } catch (err) { /* 无 confirm */ }
+            }
+            ui.state = st;
+            ui.sel = st.items[0]?.id || null;
+            commit(ui, "import");
+            syncPanel(ui, true);
+            syncStatic(ui);
+            flash(ui, t("importOk").replace("{n}", String(st.items.length)));
+        } catch (err) {
+            flash(ui, t("importFail") + (err && err.message ? err.message : String(err)), true);
+        } finally {
+            ui.fileIn.value = "";
+        }
+    });
+    ui.exportBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const st = ui.state;
+        if (!st) { flash(ui, t("exportNoState"), true); return; }
+        if (st.preset === "grid") { flash(ui, t("exportGrid"), true); return; }
+        try {
+            const doc = stateToElements(st, uiLang());
+            const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `moss-elements-${st.preset}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            flash(ui, t("exportOk"));
+        } catch (err) {
+            flash(ui, t("exportFail") + (err && err.message ? err.message : String(err)), true);
+        }
     });
 
     ui.helpBtn.addEventListener("click", (e) => {
