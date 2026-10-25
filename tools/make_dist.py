@@ -36,7 +36,7 @@ import check_release_ready as R  # noqa: E402
 PKG = "ComfyUI-MOSS-Storyboard"
 REQUIRED = [
     "__init__.py", "nodes.py", "pyproject.toml", "requirements.txt", "LICENSE",
-    "README.md", "THIRD-PARTY-NOTICES.md",
+    "README.md", "README_ZH.md", "THIRD-PARTY-NOTICES.md", "assets/hero-storyboard.png",
     "core/editor.py", "core/presets.py", "core/layout.py", "core/prompt.py",
     "core/pixels.py", "core/sampling.py",
     "v3/_compat.py", "v3/nodes_v3.py", "v3/entrypoint.py",

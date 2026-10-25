@@ -224,7 +224,8 @@ def test_import_boundary():
 
 
 def test_repo_hygiene():
-    must = ["__init__.py", "nodes.py", "pyproject.toml", "LICENSE", "README.md",
+    must = ["__init__.py", "nodes.py", "pyproject.toml", "LICENSE", "README.md", "README_ZH.md",
+            "assets/hero-storyboard.png",
             "requirements.txt", "core/__init__.py", "v3/entrypoint.py"]
     missing = [m for m in must if not os.path.exists(os.path.join(ROOT, m))]
     check("必需文件齐全", not missing, str(missing))

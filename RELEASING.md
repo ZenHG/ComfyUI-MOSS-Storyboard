@@ -43,7 +43,7 @@ python tools/release.py --set-token     # 轮换 registry PAT（从 stdin 读，
 1. **工作树干净** —— 发出去的必须是**提交态**（`release.py` 会拦）。
 2. **版本号五处一致**（`check_release_ready.py` 的 S5 盯着）：
    `__init__.py` 的 `__version__` · `pyproject.toml` 的 `version` · `CHANGES.md` 顶部 `## x.y.z` ·
-   `README.md` 的 `| 版本 | **x.y.z** |` · `README_EN.md` 的 `| Version | **x.y.z** |`。
+   `README.md` 的 `| Version | **x.y.z** |` · `README_ZH.md` 的 `| 版本 | **x.y.z** |`。
 3. **两份记录都写了本版**：
    - `CHANGES.md` 顶部那一节（面向开发者）
    - `RELEASE-NOTES.md` 有本版一节、**中英双语**（面向用户；registry changelog 与 GitHub Release 正文都取它）。
