@@ -100,6 +100,7 @@ python tools/check_elements.py plan.json                  # 校验 + 摘要（�
 python tools/check_elements.py plan.json --emit state     # 输出 state v3 JSON（可管道）
 python tools/check_elements.py state.json --in-format state --emit elements
 cat plan.json | python tools/check_elements.py -          # 从 stdin 读
+python tools/check_elements.py planner.md --extract       # 从散文/代码块里取 JSON
 python tools/check_elements.py a.json b.json c.json       # 批量校验
 ```
 
@@ -109,6 +110,7 @@ python tools/check_elements.py a.json b.json c.json       # 批量校验
 | `--style` | 文档里的值 | 覆盖全局风格段 |
 | `--emit` | 无（只打印摘要） | `state` / `elements`；一次只能处理一个文件 |
 | `--in-format` | `auto` | `auto` / `elements` / `state` |
+| `--extract` | 关 | 输入不是纯 JSON 时，从散文/代码块里提取第一个 JSON 对象/数组；默认严格 |
 
 退出码：`0` 全过 · `1` 内容不合法 · `2` 读不到文件或参数错误。
 
@@ -121,7 +123,43 @@ python tools/check_elements.py a.json b.json c.json       # 批量校验
 5. **状态里保留 `x_ext`**：v3 编译层与前端渲染都会忽略它，仅用于往返不丢数据。
    它不是 v3 契约字段，不承诺被其它消费者使用。
 
-## 六、版本策略
+## 六、brief → elements（确定性模板）
+
+不想手写 elements 时，可以只写一张「说什么」的 brief，由模板落到 `title-body` 版式。
+**不接 LLM、不联网**；几何只来自 `core/presets.py`，与编辑器预设同一真相源。
+
+```json
+{
+  "title": "夜雨咖啡馆",
+  "subtitle": "第一集",
+  "subject": "主角半身，侧对镜头",
+  "style": "电影感，暖黄吊灯",
+  "canvas": "16:9",
+  "palette": ["#c8a15a"],
+  "title_desc": "粗体无衬线标题",
+  "bottom_desc": "细体副标题"
+}
+```
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `title` | ✅ | 标题文字 |
+| `subtitle` / `body` | ❌ | 底部文字块；**二选一**（只有一个框） |
+| `subject` | ❌ | 主体外观描述；给了才生成人物框 |
+| `style` | ❌ | 全局风格段 |
+| `canvas` | ❌ | `16:9` / `9:16` / `1:1` / `4:3` / `3:4`，或 `{width,height}`；默认 16:9 |
+| `palette` | ❌ | 覆盖文字颜色（≤5 个 `#rrggbb`） |
+| `title_desc` / `bottom_desc` | ❌ | 覆盖文字的外观描述（默认取预设） |
+| `layout` | ❌ | v1 只接受 `title-body`；其它版式请在编辑器里选预设 |
+
+```bash
+python tools/brief_to_elements.py brief.json            # 输出 elements
+python tools/brief_to_elements.py brief.json --state    # 输出 state v3
+```
+
+退出码与 `check_elements.py` 一致（0 / 1 / 2）。同一份 brief 永远产出同一份 elements。
+
+## 七、版本策略
 
 - `elements.version` 与 `state.version` **各自独立**；本版固定为 `1`。
 - 未来改格式时新增 `version` 与迁移器，**不允许静默猜测**（与 `docs/10` 的 state 策略一致）。

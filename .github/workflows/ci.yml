@@ -9,6 +9,8 @@
 #   · 302/0  tests/test_core.py               几何 / 提示词 / 像素
 #   · 102/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限
 #   ·  83/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
+#   ·  21/0  tests/test_extract.py            从散文/代码块提取 JSON、上限
+#   ·  26/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
 #   · 114/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
@@ -19,7 +21,7 @@
 #                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
 #   ·  93/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
-#   ·  66/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements 差分
+#   ·  67/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas 差分
 #   ·   5/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义
 #   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #
@@ -76,6 +78,10 @@ jobs:
         run: python tests/test_editor.py
       - name: elements-v1 互操作
         run: python tests/test_interop.py
+      - name: JSON 提取
+        run: python tests/test_extract.py
+      - name: brief 模板
+        run: python tests/test_planner.py
       - name: 逐格拼版宫格线语义
         run: python tests/test_panel_assembly.py
       - name: 契约（不碰宿主）

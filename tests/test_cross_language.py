@@ -22,6 +22,7 @@ sys.path.insert(0, ROOT)
 
 from core import editor as E  # noqa: E402
 from core import interop as I  # noqa: E402
+from core import planner as PL  # noqa: E402
 from core import presets as P  # noqa: E402
 
 PASS, FAIL = [], []
@@ -47,7 +48,7 @@ def js_runner():
     return r"""
 import {
     PRESET_IDS, PRESET_SPECS, presetItems, validateState, readState, emptyState,
-    DEFAULT_GRID, DEFAULT_CANVAS, ASPECT_IDS, MAX_ITEMS, MAX_SIDE, MAX_STATE_CHARS,
+    DEFAULT_GRID, DEFAULT_CANVAS, ASPECT_IDS, MAX_ITEMS, MAX_SIDE, MAX_STATE_CHARS, CANVAS_PRESETS,
     elementsToState, stateToElements, ELEMENTS_VERSION,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
@@ -56,7 +57,8 @@ const fixtures = JSON.parse(readFileSync("./fixtures.json", "utf8"));
 const elements = JSON.parse(readFileSync("./elements.json", "utf8"));
 const out = { presets: {}, grid: {}, empty: emptyState(), default_grid: DEFAULT_GRID,
               default_canvas: DEFAULT_CANVAS, aspects: ASPECT_IDS, max_items: MAX_ITEMS,
-              max_side: MAX_SIDE, max_state_chars: MAX_STATE_CHARS, validations: [] };
+              max_side: MAX_SIDE, max_state_chars: MAX_STATE_CHARS, canvas_presets: CANVAS_PRESETS,
+              validations: [] };
 for (const id of PRESET_IDS) out.presets[id] = presetItems(id, { lang: "zh" });
 for (const [cols, rows] of [[1,1],[2,1],[2,2],[3,2],[3,3]]) {
     out.grid[cols + "x" + rows] = presetItems("grid", { cols, rows, lang: "zh" });
@@ -220,6 +222,9 @@ def main():
           f"{E.empty_state()['canvas']} vs {data.get('default_canvas')}")
     check("aspect ids", list(__import__("core.layout", fromlist=["ASPECTS"]).ASPECTS) ==
           data.get("aspects"), f"{data.get('aspects')}")
+    js_canvas = {p["id"]: [p["width"], p["height"]] for p in (data.get("canvas_presets") or [])}
+    check("canvas presets", js_canvas == {k: list(v) for k, v in PL.CANVAS_PRESETS.items()},
+          f"{js_canvas} vs {PL.CANVAS_PRESETS}")
 
     # 校验 fixtures：接受/拒绝必须一致
     fx = fixtures()

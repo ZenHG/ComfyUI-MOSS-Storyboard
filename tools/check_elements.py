@@ -9,6 +9,7 @@
     python tools/check_elements.py plan.json              # 校验并打印摘要
     python tools/check_elements.py plan.json --emit state # 输出 state v3 JSON（可管道）
     python tools/check_elements.py state.json --in-format state --emit elements
+    python tools/check_elements.py planner.md --extract   # 从散文/代码块里取 JSON
     cat plan.json | python tools/check_elements.py -      # 从 stdin 读
 
 退出码：0 全过；1 内容不合法（版本 / 字段 / 越界）；2 读不到文件或参数错误。
@@ -23,6 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from core import editor as E   # noqa: E402
+from core import extract as X  # noqa: E402
 from core import interop as I  # noqa: E402
 
 
@@ -36,10 +38,19 @@ def load(path):
             raw = fh.read()
     if len(raw) > E.MAX_STATE_CHARS:
         raise ValueError("文件有 %d 个字符，超过上限 %d。" % (len(raw), E.MAX_STATE_CHARS))
+    return raw
+
+
+def parse_text(raw, allow_extract):
     try:
         return json.loads(raw)
     except ValueError as exc:
-        raise ValueError("不是合法 JSON：%s" % exc) from None
+        if not allow_extract:
+            raise ValueError("不是合法 JSON：%s（文本可能带说明，可加 --extract）" % exc) from None
+        try:
+            return X.extract_json(raw)
+        except ValueError as exc2:
+            raise ValueError("提取失败：%s（原始 JSON 错误：%s）" % (exc2, exc)) from None
 
 
 def convert(obj, in_format, preset, style):
@@ -52,7 +63,7 @@ def convert(obj, in_format, preset, style):
 
 
 def run_one(path, args):
-    obj = load(path)
+    obj = parse_text(load(path), args.extract)
     state = convert(obj, args.in_format, args.preset, args.style)
     if args.emit == "state":
         print(json.dumps(state, ensure_ascii=False, indent=2))
@@ -73,6 +84,8 @@ def main():
                     help="输出转换结果（默认只打印摘要）")
     ap.add_argument("--in-format", choices=("auto", "elements", "state"), default="auto",
                     help="输入类型（默认按内容判断）")
+    ap.add_argument("--extract", action="store_true",
+                    help="输入不是纯 JSON 时，从文本里提取第一个 JSON 对象/数组")
     args = ap.parse_args()
 
     if len(args.files) > 1 and args.emit:
