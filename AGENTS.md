@@ -62,8 +62,10 @@
 python tests/test_core.py              # 几何/提示词/像素，零 GPU，302 项
 python tests/test_editor.py            # state v3 编译层 / 预设 / 错误路径 / 上限，零 GPU，102 项
 python tests/test_interop.py           # elements-v1 ⇄ state v3 映射 / 往返 / CLI，零 GPU，83 项
+python tests/test_extract.py           # 从散文/代码块提取 JSON、上限，零 GPU，21 项
+python tests/test_planner.py           # brief → elements 模板 / 错误路径 / CLI，零 GPU，26 项
 python tests/test_contract.py          # 参数表/错误路径/依赖/卫生/词表/输入形状，零 GPU，130 项（--no-host 114 项）
-python tests/test_cross_language.py     # JS ↔ Python 预设/校验/elements 差分，零 GPU，66 项
+python tests/test_cross_language.py     # JS ↔ Python 预设/校验/elements/canvas 差分，零 GPU，67 项
 python tests/test_panel_assembly.py     # 逐格拼版 reborder 语义，零 GPU，5 项
 python tests/test_sampling_contract.py # 采样 API 契约（latent 必须是张量），零 GPU，19 项
 node   tests/test_i18n.mjs             # 中英切换纯函数，54 项（零浏览器）
