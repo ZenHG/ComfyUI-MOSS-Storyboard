@@ -10,12 +10,12 @@
 [project]
 name = "moss-storyboard"
 version = "0.2.2"
-description = "Storyboard grid nodes for MOSS-Image: 3, 4, 6, 8 or 9 panels in one generation, with per-panel layout control and exact panel crops."
+description = "Storyboard, comic and poster layout nodes for MOSS-Image: 3, 4, 6, 8 or 9 panels in one generation, per-panel captions, exact crops, and a visual bbox editor. No extra dependencies."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [{ name = "ComfyUI-MOSS-Storyboard contributors" }]
-keywords = ["comfyui", "moss", "moss-image", "storyboard", "grid", "panels", "text-to-image"]
+keywords = ["comfyui", "moss", "moss-image", "storyboard", "comic", "manga", "poster", "layout", "grid", "panels", "text-to-image"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -53,7 +53,7 @@ requires-comfyui = ">=0.42.0"
 # PublisherId：在 registry.comfy.org 注册发布者后获得（全局唯一、**发布后不可更改**）。
 # 与同账号的 ComfyUI-H3-Latent-Relay 同一个发布者。
 PublisherId = "zenhg"
-DisplayName = "MOSS Storyboard"
+DisplayName = "MOSS Storyboard & Layout"
 # 与画布节点分类同名，Manager 卡片与菜单一致。
 # Icon / Banner 需公网可取；首次发布前把 400×400 方图与 21:9 横幅推到 main 再填 raw 直链。
 # ⚠️ 直链要等这两个文件**推到 main 之后**才有效 —— 只提交不推 ⇒ registry 页面上是空图。

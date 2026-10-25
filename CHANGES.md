@@ -1,5 +1,16 @@
 # CHANGES
 
+## Unreleased
+
+### 文档 / 分发
+- **英文 README 成为主文档**（`README.md`），中文全文移至 `README_ZH.md`；`README_EN.md` 留跳转桩。
+- **首屏重排**：真实 4 格 hero 图、与官方 MOSS 布局的差异对照、Manager / CLI / git 三种安装、
+  3 分钟快速路径与「不适合谁」边界。
+- `pyproject.toml` 增补 comic / manga / poster / layout 等检索词；
+  DisplayName 改为 `MOSS Storyboard & Layout`。
+- 发布工具链同步：版本行、`check_release_ready`、`release.py`、`make_dist`、`test_contract`
+  与文档锚点。
+
 ## 0.2.2 — 2026-10-24
 
 ### 新增

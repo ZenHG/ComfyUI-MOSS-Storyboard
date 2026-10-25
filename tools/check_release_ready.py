@@ -192,7 +192,8 @@ def s4_package(files: list[str]) -> None:
     must_keep = ["__init__.py", "nodes.py", "core/layout.py", "core/sampling.py",
                  "core/editor.py", "core/presets.py",
                  "v3/_compat.py", "web/moss_sb_i18n.js", "web/moss_sb_editor.js",
-                 "pyproject.toml", "LICENSE", "README.md", "requirements.txt", "THIRD-PARTY-NOTICES.md",
+                 "pyproject.toml", "LICENSE", "README.md", "README_ZH.md", "requirements.txt",
+                 "THIRD-PARTY-NOTICES.md", "assets/hero-storyboard.png",
                  "examples/moss-storyboard-4panels-ui.json",
                  "examples/moss-layout-editor-poster.json",
                  "examples/moss-layout-editor-storyboard.json"]
@@ -231,8 +232,8 @@ def s5_version() -> str:
         "__init__.py": grab("__init__.py", r'__version__\s*=\s*"([^"]+)"'),
         "pyproject.toml": grab("pyproject.toml", r'^version\s*=\s*"([^"]+)"'),
         "CHANGES.md": grab("CHANGES.md", r"^## ([\d.]+)"),
-        "README.md": grab("README.md", r"^\|\s*版本\s*\|\s*\*\*([\d.]+)\*\*"),
-        "README_EN.md": grab("README_EN.md", r"^\|\s*Version\s*\|\s*\*\*([\d.]+)\*\*"),
+        "README.md": grab("README.md", r"^\|\s*Version\s*\|\s*\*\*([\d.]+)\*\*"),
+        "README_ZH.md": grab("README_ZH.md", r"^\|\s*版本\s*\|\s*\*\*([\d.]+)\*\*"),
     }
     vals = set(found.values())
     check("五处版本号一致", len(vals) == 1 and None not in vals, str(found))

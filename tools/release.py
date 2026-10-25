@@ -131,7 +131,8 @@ def local_facts() -> dict:
         "__init__.py": re.search(r'__version__\s*=\s*"([^"]+)"', _read("__init__.py")),
         "pyproject.toml": re.search(r'^version\s*=\s*"([^"]+)"', _read("pyproject.toml"), re.M),
         "CHANGES.md": re.search(r"^## ([\d.]+)", _read("CHANGES.md"), re.M),
-        "README.md": re.search(r"^\|\s*版本\s*\|\s*\*\*([\d.]+)\*\*", _read("README.md"), re.M),
+        "README.md": re.search(r"^\|\s*Version\s*\|\s*\*\*([\d.]+)\*\*", _read("README.md"), re.M),
+        "README_ZH.md": re.search(r"^\|\s*版本\s*\|\s*\*\*([\d.]+)\*\*", _read("README_ZH.md"), re.M),
     }
     vals = {k: (m.group(1) if m else None) for k, m in v.items()}
     head = (git("rev-parse", "HEAD", quiet=True).stdout or "").strip()

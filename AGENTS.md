@@ -39,7 +39,7 @@
 
    | 文件 | 写给谁 | 只许写 |
    |---|---|---|
-   | `README.md` / `README_EN.md` | **开源用户** | 这是什么、怎么装、怎么用、参数表、已知边界、许可 |
+   | `README.md` / `README_ZH.md` | **开源用户** | 这是什么、怎么装、怎么用、参数表、已知边界、许可（英文主 / 中文全文） |
    | `AGENTS.md`（本文） | AI / 维护者 | 铁律、改动闭环、命令、禁区、薄弱点 |
    | `CONTRIBUTING.md` | 外部贡献者 | 怎么跑机检、提交前必须过哪几条 |
    | `docs/NN-*.md` | 想深挖的人 | 机理、实测记录、几何数学 |
@@ -133,8 +133,8 @@ curl -s http://127.0.0.1:8188/extensions | tr ',' '\n' | grep MOSS-Storyboard
 ## 六、已知薄弱点
 
 - 模板 img2img 与布局框的**成片效果都未量化评测**；本仓只保证几何与接线正确。
-- `README_EN.md` 是**节选翻译**，没有节级 hash 同步闸（`en_sync.py` 那类工具未移植）
-  ⇒ 改了中文 README 必须人肉看一眼英文版。这条是当前最大的文档漂移风险。
+- `README.md` 是**英文主文档**，`README_ZH.md` 是**中文全文**；没有节级 hash 同步闸
+  ⇒ 改任一侧都要人肉对照另一侧。这条是当前最大的文档漂移风险。
 - CI（`.github/workflows/ci.yml`）只跑 ruff + CPU 单测 + 前端一致性；
   **`e2e_matrix.py` 要 GPU + 权重，不在 CI**，靠人跑。
 - 前端"看得见"没有自动化闸：当前环境无头 chromium 无 WebGL，画布不渲染，`ui_smoke.mjs`
