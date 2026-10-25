@@ -12,8 +12,9 @@
 4. 宫格线真的是白的、格内真的不是白的、各格内容互不相同（防"全黑/全同"）。
 
 跑法：
-    python tools/e2e_matrix.py                 # 全矩阵
-    python tools/e2e_matrix.py --only 9格      # 只跑名字含该串的用例
+    python tools/e2e_matrix.py                 # 全矩阵（会重写 docs/02）
+    python tools/e2e_matrix.py --only 9格      # 只跑名字含该串的用例（不写报告）
+    python tools/e2e_matrix.py --no-doc        # 全矩阵但不重写报告
 """
 
 import argparse
@@ -55,6 +56,8 @@ CASES = [
     ("4格 粗缝 32px", {"4.gutter": 32, "4.margin": 32}),
     ("4格 init=plain", {"5.init": "plain"}),
     ("4格 小画布 edge=256", {"4.panel_edge": 256}),
+    ("4格 逐格 layout", {"5.mode": "逐格", "5.sample_edge": 512}),
+    ("4格 逐格 plain", {"5.mode": "逐格", "5.init": "plain", "5.sample_edge": 512}),
 ]
 
 #: 随机种子池。固定 seed 会让整张矩阵出一模一样的图，等于只测了一张。
@@ -215,6 +218,7 @@ def run_case(name, over, wf, infos, seed=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
+    ap.add_argument("--no-doc", action="store_true", help="不重写 docs/02")
     args = ap.parse_args()
 
     with open(WF, encoding="utf-8") as fh:
@@ -256,14 +260,18 @@ def main():
             r["用例"], r["结果"], r.get("种子", "-"), r.get("画布", "-"), r.get("格", "-"),
             r.get("耗时", "-"), r.get("细节", "-")))
     table = "\n".join(lines)
-    with open(DOC, "w", encoding="utf-8") as fh:
+    write_doc = not (args.only or args.no_doc)
+    with open(DOC if write_doc else os.devnull, "w", encoding="utf-8") as fh:
         fh.write("# 02 · 端到端矩阵（真跑）\n\n")
         fh.write("宿主 %s ｜ 工作流 `%s`\n\n" % (get(API + "/system_stats")["system"]["comfyui_version"],
                                             os.path.basename(WF)))
         fh.write("判定：任务成功 + 整图尺寸 == 理论值 + 逐格数量/尺寸 == 理论值 + 宫格线为白 + "
                  "格内非白 + 各格内容不雷同。\n\n")
         fh.write(table + "\n")
-    print("报告已写出 %s" % DOC)
+    if write_doc:
+        print("报告已写出 %s" % DOC)
+    else:
+        print("（部分运行 / --no-doc：未重写 %s）" % DOC)
     return 0 if ok == len(rows) else 1
 
 
