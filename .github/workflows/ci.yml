@@ -8,6 +8,7 @@
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
 #   · 302/0  tests/test_core.py               几何 / 提示词 / 像素
 #   · 102/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限
+#   ·  83/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
 #   · 114/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
@@ -73,6 +74,8 @@ jobs:
         run: python tests/test_core.py
       - name: 编辑器 state v3 编译层
         run: python tests/test_editor.py
+      - name: elements-v1 互操作
+        run: python tests/test_interop.py
       - name: 逐格拼版宫格线语义
         run: python tests/test_panel_assembly.py
       - name: 契约（不碰宿主）

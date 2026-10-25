@@ -651,6 +651,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/09`](docs/09-layout-breadth.md) | 广度：六类用途、七种定位范式、原子+预设机制、文字实测（维护者向） |
 | [`docs/10`](docs/10-contract.md) | state v3 冻结契约（实现、示例与测试的唯一真相源） |
 | [`docs/11`](docs/11-editor-ui.md) | 编辑器前端实现：挂载、吸附、预设表（维护者向） |
+| [`docs/12`](docs/12-interop.md) | 互操作：elements-v1（0–1000 bbox）⇄ state v3、命令行校验器 |
 | [`AGENTS.md`](AGENTS.md) | **本仓开发规范**：改动入口、铁律、验收清单 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](CHANGES.md) | 变更记录 |
