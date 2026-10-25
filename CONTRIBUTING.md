@@ -34,11 +34,11 @@ CI 的 `release-preview` job 会构建干净分发包（`tools/make_dist.py --zi
 
 ```bash
 python tools/make_gallery.py   # 8 组预设提示词（换机器复现用）
-python tools/e2e_matrix.py     # 14 用例真跑（整张模式）
+python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 ```
 
-> 发布前：逐格模式（`mode=逐格`）目前**不在**矩阵里，需另跑 layout / plain 两例
-> （`sample_edge=512`，约 2 min GPU），把耗时与结果记进 `CHANGES.md`；跑法 = 复用 `e2e_matrix.run_case`，over 传 `5.mode` / `5.sample_edge`。
+> 发布前：全矩阵（16 例）至少跑一次；只改编辑器时可 `--only 逐格` 或 `--only 4格` 抽查，
+> 部分运行不重写 `docs/02`（要更新报告请跑全矩阵）。
 
 > ⚠️ **别用 `| tail -n` 跑这些脚本** —— 管道会把退出码吃掉，你会看到"通过"却拿到 0。
 

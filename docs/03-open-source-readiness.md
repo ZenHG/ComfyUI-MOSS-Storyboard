@@ -13,7 +13,7 @@
 | 2 | 用户搜不到节点 | 五个节点都加 `SEARCH_ALIASES`（每个 7–9 条，中英混合），V3 由 `_compat` 透传 | `/object_info` 可查 |
 | 3 | 界面中英混排 | `web/*.js` 四张表 + 只改显示不改存档；抗汉化插件覆盖 | `test_i18n.mjs` 54 项 + `check_frontend.py` F1/F4 |
 | 4 | 工作流参数串位 | `spec` 单线传几何；`widgets_values` 逐位值域校验 | `check_ui_workflow.py` 15 项 |
-| 5 | "别人机器上真能出图" | 端到端矩阵 14 用例（格数/朝向/无缝/粗缝/极小画布/plain）+ 随机种对照；逐格两例单独真跑 | `e2e_matrix.py` 14/14（0.2.1 时点）+ 逐格两例 OK（0.2.2） |
+| 5 | "别人机器上真能出图" | 端到端矩阵 16 用例（格数/朝向/无缝/粗缝/极小画布/plain/逐格）+ 随机种对照 | `e2e_matrix.py` **16/16**（2026-10-26） |
 | 6 | 新增参数忘了翻译 | Python 侧拿 `INPUT_TYPES` 对 `TIPS` 键 | `test_contract.py`「每个参数都有英文提示」 |
 | 7 | 只在键盘上"看起来对" | CI：ruff + 3 个 Python 版本 + node + 宿主装载 | `.github/workflows/ci.yml` |
 | 8 | 仓库资产许可不明 | 图标/横幅由 `tools/make_brand.py` 纯几何生成，可复跑 | 无外部素材 |
