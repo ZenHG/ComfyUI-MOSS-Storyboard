@@ -587,5 +587,6 @@ Deep dives live in [`docs/`](docs/) (**written in Chinese**):
 [`05`](docs/05-local-development.md) local development · [`06`](docs/06-vae-memory.md) VAE memory budget ·
 [`07`](docs/07-consistency.md) cross-panel consistency · [`08`](docs/08-visual-editor-plan.md) editor design
 and element-box measurements · [`09`](docs/09-layout-breadth.md) use cases, layout paradigms, text measurements ·
-[`10`](docs/10-contract.md) state v3 frozen contract · [`11`](docs/11-editor-ui.md) editor front-end internals.
+[`10`](docs/10-contract.md) state v3 frozen contract · [`11`](docs/11-editor-ui.md) editor front-end internals ·
+[`12`](docs/12-interop.md) elements-v1 interchange (0–1000 bbox) ⇄ state v3, plus a CLI validator.
 Developer rules: [`AGENTS.md`](AGENTS.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md).
