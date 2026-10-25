@@ -246,6 +246,18 @@ ok("interop 非 text 带 text 拒绝", (() => {
 ok("interop sniff", sniffLayoutDoc(edoc) === "elements" && sniffLayoutDoc(emptyState()) === "state"
     && sniffLayoutDoc({}) === null);
 ok("interop 版本常量", ELEMENTS_VERSION === 1);
+const protoDoc = JSON.parse('{"version":1,"elements":[{"role":"object","desc":"d","bbox":[0,0,10,10],"x_ext":{"__proto__":{"polluted":1},"ok":2}}],"x_ext":{"__proto__":{"p":1},"keep":3}}');
+const pst = elementsToState(protoDoc, { lang: "zh" });
+ok("interop 危险键丢弃", pst.items[0].x_ext.ok === 2 && pst.x_ext.keep === 3
+    && !Object.prototype.hasOwnProperty.call(pst.items[0].x_ext, "__proto__")
+    && ({}).polluted === undefined, JSON.stringify(pst.x_ext));
+ok("interop 文档 x_ext=null 拒绝", (() => {
+    try { elementsToState({ version: 1, elements: [], x_ext: null }); return false; }
+    catch (e) { return /x_ext/.test(e.message); }
+})());
+const backProto = stateToElements(pst, "zh");
+ok("interop 危险键不回流", !Object.prototype.hasOwnProperty.call(backProto, "__proto__")
+    && ({}).polluted === undefined);
 
 // --- 层级 / 对齐 ---
 const BB = [0.2, 0.1, 0.6, 0.5];

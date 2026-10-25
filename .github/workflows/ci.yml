@@ -8,9 +8,9 @@
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
 #   · 302/0  tests/test_core.py               几何 / 提示词 / 像素
 #   · 102/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限
-#   ·  83/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
+#   ·  88/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
 #   ·  21/0  tests/test_extract.py            从散文/代码块提取 JSON、上限
-#   ·  26/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
+#   ·  27/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
 #   · 114/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
@@ -20,8 +20,8 @@
 #                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑
 #                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
-#   ·  93/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
-#   ·  67/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas 差分
+#   ·  96/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
+#   ·  69/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas 差分
 #   ·   5/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义
 #   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #

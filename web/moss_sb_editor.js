@@ -594,6 +594,8 @@ const ELEMENT_KEYS = new Set(["id", "role", "type", "text", "desc", "caption", "
 const DOC_KEYS = new Set(["version", "canvas", "style", "elements", "x_ext"]);
 const ID_PREFIX = { text: "t", object: "o", character: "c" };
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const UNSAFE_EXT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const safeExtKey = (key) => !UNSAFE_EXT_KEYS.has(key);
 
 const interopLang = (lang) => (lang === "en" ? "en" : "zh");
 const hasKey = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
@@ -629,10 +631,12 @@ function interopExtras(el, where, E) {
         if (!el.x_ext || typeof el.x_ext !== "object" || Array.isArray(el.x_ext)) {
             throw new Error(E(`${where} 的 x_ext 必须是对象。`, `${where} x_ext must be an object`));
         }
-        Object.assign(out, el.x_ext);
+        for (const [key, val] of Object.entries(el.x_ext)) {
+            if (safeExtKey(key)) out[key] = val;
+        }
     }
     for (const key of Object.keys(el)) {
-        if (!ELEMENT_KEYS.has(key)) out[key] = el[key];
+        if (!ELEMENT_KEYS.has(key) && safeExtKey(key)) out[key] = el[key];
     }
     return out;
 }
@@ -757,10 +761,14 @@ export function elementsToState(doc, opts = {}) {
         if (!doc.x_ext || typeof doc.x_ext !== "object" || Array.isArray(doc.x_ext)) {
             throw new Error(E("文档级 x_ext 必须是对象。", "document-level x_ext must be an object"));
         }
-        state.x_ext = { ...doc.x_ext };
+        for (const [key, val] of Object.entries(doc.x_ext)) {
+            if (!safeExtKey(key)) continue;
+            if (!state.x_ext) state.x_ext = {};
+            state.x_ext[key] = val;
+        }
     }
     for (const key of Object.keys(doc)) {
-        if (DOC_KEYS.has(key)) continue;
+        if (DOC_KEYS.has(key) || !safeExtKey(key)) continue;
         if (!state.x_ext) state.x_ext = {};
         state.x_ext[key] = doc[key];
     }
@@ -796,12 +804,19 @@ export function stateToElements(state, lang = "zh") {
         };
         if (it.label === "text") el.text = it.text;
         if (Array.isArray(it.palette) && it.palette.length) el.palette = it.palette.slice();
-        if (it.x_ext && typeof it.x_ext === "object" && !Array.isArray(it.x_ext)) el.x_ext = { ...it.x_ext };
+        if (it.x_ext && typeof it.x_ext === "object" && !Array.isArray(it.x_ext)) {
+            const ext = {};
+            for (const [key, val] of Object.entries(it.x_ext)) {
+                if (safeExtKey(key)) ext[key] = val;
+            }
+            if (Object.keys(ext).length) el.x_ext = ext;
+        }
         out.elements.push(el);
     }
     const ext = state.x_ext;
     if (ext && typeof ext === "object" && !Array.isArray(ext)) {
         for (const [key, val] of Object.entries(ext)) {
+            if (!safeExtKey(key)) continue;
             if (!hasKey(out, key)) out[key] = val;
             else {
                 if (!out.x_ext) out.x_ext = {};
