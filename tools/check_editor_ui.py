@@ -116,6 +116,7 @@ import {
     presetItems, validateState, readState, snapAxis, stageAspect, makeItemId, emptyState,
     makeHistory, recordHistory, stepHistory, HISTORY_MAX,
     elementsToState, stateToElements, sniffLayoutDoc, ELEMENTS_VERSION,
+    alignBbox, moveItemInArray,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
@@ -246,6 +247,30 @@ ok("interop sniff", sniffLayoutDoc(edoc) === "elements" && sniffLayoutDoc(emptyS
     && sniffLayoutDoc({}) === null);
 ok("interop 版本常量", ELEMENTS_VERSION === 1);
 
+// --- 层级 / 对齐 ---
+const BB = [0.2, 0.1, 0.6, 0.5];
+ok("对齐 left", alignBbox(BB, "left").join(",") === "0,0.1,0.4,0.5", alignBbox(BB, "left").join(","));
+ok("对齐 hcenter", alignBbox(BB, "hcenter").join(",") === "0.3,0.1,0.7,0.5",
+    alignBbox(BB, "hcenter").join(","));
+ok("对齐 right", alignBbox(BB, "right").join(",") === "0.6,0.1,1,0.5",
+    alignBbox(BB, "right").join(","));
+ok("对齐 top", alignBbox(BB, "top").join(",") === "0.2,0,0.6,0.4",
+    alignBbox(BB, "top").join(","));
+ok("对齐 vcenter", alignBbox(BB, "vcenter").join(",") === "0.2,0.3,0.6,0.7",
+    alignBbox(BB, "vcenter").join(","));
+ok("对齐 bottom", alignBbox(BB, "bottom").join(",") === "0.2,0.6,0.6,1",
+    alignBbox(BB, "bottom").join(","));
+ok("对齐保持尺寸", ["left", "hcenter", "right", "top", "vcenter", "bottom"].every((m) => {
+    const b = alignBbox(BB, m);
+    return Math.abs((b[2] - b[0]) - 0.4) < 1e-9 && Math.abs((b[3] - b[1]) - 0.4) < 1e-9;
+}));
+ok("未知对齐返回 null", alignBbox(BB, "diag") === null);
+const ZARR = [{ id: "a" }, { id: "b" }, { id: "c" }];
+ok("层级上移", moveItemInArray(ZARR, "b", -1).map((x) => x.id).join("") === "bac");
+ok("层级下移", moveItemInArray(ZARR, "b", 1).map((x) => x.id).join("") === "acb");
+ok("层级边界不动", moveItemInArray(ZARR, "a", -1) === ZARR && moveItemInArray(ZARR, "c", 1) === ZARR);
+ok("层级找不到原样", moveItemInArray(ZARR, "z", 1) === ZARR);
+
 // 撤销 / 重做（纯函数）：状态用字符串代表
 {
     const hst = makeHistory();
@@ -347,6 +372,8 @@ def check_wiring(contract, src):
           and "ui.exportBtn.addEventListener" in src and 'fileIn.type = "file"' in src)
     check("W13 导入走 sniff + elementsToState", "sniffLayoutDoc(obj)" in src
           and "elementsToState(obj" in src)
+    check("W14 有 Queue 接线且不改值", "ui.queueBtn.addEventListener" in src
+          and "app.queuePrompt(0, 1)" in src and "widgets_values" not in src)
 
 
 def main():

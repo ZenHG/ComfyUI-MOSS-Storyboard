@@ -1,7 +1,7 @@
 # 11 · Layout Editor 前端（state v3）
 
 > **状态**：F1–F6 前端完成，真实节点、grid 端到端、真节点海报示例均已验证；
-> `python tools/check_editor_ui.py` 80 项全过。
+> `python tools/check_editor_ui.py` 93 项全过。
 > **剩余**：宿主重启后复验修好的 widget 顺序。**Nodes 2.0 已验证**（Vue 模式下编辑器挂载、渲染、state 正确；无页面错误）。
 >
 > 契约以 [`docs/10`](10-contract.md) 为准；本文只写前端**怎么实现**、**怎么测**、**和后端约定了什么**。
@@ -146,6 +146,9 @@ grid:   { "version":3, "preset":"grid", "style":"…",
 | 画布预设 | 16:9 / 9:16 / 1:1 / 4:3 / 3:4 常用尺寸；也可手改宽高（必须 16 的倍数） |
 | `↶` / `↷` | 撤销 / 重做（编辑器内部历史，最多 100 步；同一元素连续输入或微调合并为一步；外部改了 `editor_state`——打开工作流、宿主级撤销——时清空） |
 | 导入 / 导出 | elements-v1（0–1000 bbox）与 state v3 互转；导入替换当前元素（可撤销），导出一个 `moss-elements-*.json`；宫格不能导出（格位不是元素） |
+| 排队 | 只调用宿主 `app.queuePrompt(0, 1)`；不改 state、不改 seed、不改下游 |
+| 上移 / 下移 | 调整元素层级（数组顺序 = z 序）；grid 模式禁用 |
+| 六向对齐 | 左 / 水平居中 / 右 / 上 / 垂直居中 / 下；只改 bbox，保持尺寸；grid 禁用 |
 | `?` 帮助 | 快捷键与字段含义（`caption` vs `text`） |
 | 快捷键 | `Delete/Backspace` 删除 · 方向键微调 1px（`Shift` ×10）· `Ctrl/⌘+D` 复制 · `Esc` 取消选择 · `Ctrl/⌘+Z` 撤销 · `Ctrl/⌘+Shift+Z`（或 `Ctrl+Y`）重做 |
 | 复制 / 居中 | 属性面板按钮；grid 模式禁用（格位由几何算死） |
@@ -243,7 +246,7 @@ python tools/check_editor_ui.py
   同元素连续输入/微调合并为一步、不同元素与撤销后不合并、上限 100 步丢最旧；
   互操作（`elementsToState` / `stateToElements` / `sniffLayoutDoc`）：0–1000 映射、role 别名、
   自动 id、z 排序、未知字段 `x_ext`、grid 拒绝、导出往返。
-- 总计 **80 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
+- 总计 **93 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
 
 ### 无头浏览器冒烟（未入仓，实测 38/38）
 
@@ -275,6 +278,12 @@ python tools/check_editor_ui.py
 （4 步蒸馏 LoRA / seed 555）→ 整张 **1024×576** + 逐格 **4 × 496×272**，18.0 s，
 4 格内容互异；编辑器 `spec` 与旧 `MossStoryboardLayout` 逐字相同。
 详见 `docs/08` §8.2。
+
+### 层级 / 对齐 / 排队真机验证（2026-10-26）
+
+title-body 3 元素：选中间元素对齐左边 → `x0=0`（尺寸不变）；垂直居中 → y 对称；
+上移后顺序 `t1,c1,t2` → `c1,t1,t2`，下移复原；栅格模式三个控件全部禁用；
+排队按钮调用宿主 `app.queuePrompt(0, 1)`（测试中打桩捕获），提示 `Queued`，state 不变。
 
 ### 导入 / 导出真机验证（2026-10-26）
 

@@ -140,6 +140,15 @@ const STR = {
     help: { zh: "帮助", en: "Help" },
     undo: { zh: "撤销", en: "Undo" },
     redo: { zh: "重做", en: "Redo" },
+    moveUp: { zh: "上移", en: "Raise" },
+    moveDown: { zh: "下移", en: "Lower" },
+    alignLeft: { zh: "对齐左边缘", en: "Align left" },
+    alignH: { zh: "水平居中", en: "Center horizontally" },
+    alignRight: { zh: "对齐右边缘", en: "Align right" },
+    alignTop: { zh: "对齐上边缘", en: "Align top" },
+    alignV: { zh: "垂直居中", en: "Center vertically" },
+    alignBottom: { zh: "对齐下边缘", en: "Align bottom" },
+    order: { zh: "层级 / 对齐", en: "Order / align" },
     importBtn: { zh: "导入", en: "Import" },
     exportBtn: { zh: "导出", en: "Export" },
     importTitle: { zh: "导入 elements-v1 或 state v3 JSON", en: "Import elements-v1 or state v3 JSON" },
@@ -153,6 +162,11 @@ const STR = {
     exportFail: { zh: "导出失败：", en: "Export failed: " },
     exportGrid: { zh: "宫格没有元素，不能导出 elements", en: "Grid mode has no elements to export" },
     exportNoState: { zh: "没有可导出的 state", en: "No state to export" },
+    queueBtn: { zh: "排队", en: "Queue" },
+    queueTitle: { zh: "按当前工作流排队（不改任何值）", en: "Queue the current workflow (changes nothing)" },
+    queueOk: { zh: "已加入队列", en: "Queued" },
+    queueFail: { zh: "排队失败：", en: "Queue failed: " },
+    queueNoState: { zh: "没有可排队的 state", en: "No state to queue" },
     helpTitle: { zh: "操作提示", en: "Controls" },
     helpKeys: {
         zh: "点选：单击框　拖动：按住框　画框：在空白处拖\n缩放：八个把手　删除：Delete / Backspace　微调：方向键（Shift ×10）\n复制：Ctrl/⌘ + D　取消选择：Esc\n撤销：Ctrl/⌘ + Z　重做：Ctrl/⌘ + Shift + Z（或 Ctrl + Y）\n导入 / 导出：工具栏按钮（elements-v1 JSON）",
@@ -190,6 +204,11 @@ export const PRESET_HINTS = {
 
 /** 元素类型的颜色（画布与属性面板共用，便于一眼区分）。 */
 export const TYPE_COLORS = { object: "#5aa9ff", character: "#5fd39a", text: "#ffc857" };
+
+const ALIGN_LABELS = {
+    left: "alignLeft", hcenter: "alignH", right: "alignRight",
+    top: "alignTop", vcenter: "alignV", bottom: "alignBottom",
+};
 
 /** 常用画布尺寸（16 的倍数；用户仍可手改宽高）。 */
 export const CANVAS_PRESETS = [
@@ -515,6 +534,38 @@ function commonTargets(items, excludeId) {
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const round3 = (v) => Math.round(v * 1000) / 1000;
 
+/** 对齐画布：mode = left / hcenter / right / top / vcenter / bottom；尺寸不变。 */
+export function alignBbox(bbox, mode) {
+    if (!Array.isArray(bbox) || bbox.length !== 4) return null;
+    const [x0, y0, x1, y1] = bbox;
+    const w = x1 - x0;
+    const h = y1 - y0;
+    let nx = x0;
+    let ny = y0;
+    if (mode === "left") nx = 0;
+    else if (mode === "hcenter") nx = (1 - w) / 2;
+    else if (mode === "right") nx = 1 - w;
+    else if (mode === "top") ny = 0;
+    else if (mode === "vcenter") ny = (1 - h) / 2;
+    else if (mode === "bottom") ny = 1 - h;
+    else return null;
+    return [round3(nx), round3(ny), round3(nx + w), round3(ny + h)];
+}
+
+/** 数组顺序即 z 序：把 id 上移 / 下移一位；越界或找不到就原样返回。 */
+export function moveItemInArray(items, id, dir) {
+    if (!Array.isArray(items)) return items;
+    const i = items.findIndex((it) => it && it.id === id);
+    if (i < 0) return items;
+    const j = i + (dir < 0 ? -1 : 1);
+    if (j < 0 || j >= items.length) return items;
+    const out = items.slice();
+    const t = out[i];
+    out[i] = out[j];
+    out[j] = t;
+    return out;
+}
+
 /** 画布宽高比（grid 模式由 cols/rows × 单格比例推出来，只用于显示）。 */
 export function stageAspect(state) {
     if (!state) return 16 / 9;
@@ -803,6 +854,7 @@ function ensureStyle() {
 .mossed-iconbtn{width:24px;height:24px;border-radius:50%;border:1px solid var(--border-color,#4a4f59);background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);cursor:pointer;font:600 13px/1 system-ui,sans-serif;padding:0}
 .mossed-iconbtn:hover{filter:brightness(1.2)}
 .mossed-iconbtn:disabled{opacity:.35;cursor:default;filter:none}
+.mossed-alignbtn{width:22px;height:22px;border-radius:6px;font-size:13px}
 .mossed-linkbtn{border:0;background:none;color:var(--input-text,#ddd);opacity:.65;cursor:pointer;font:inherit;text-decoration:underline;text-underline-offset:2px;padding:0}
 .mossed-linkbtn:hover{opacity:1}
 .mossed-spacer{flex:1 1 auto}
@@ -934,6 +986,10 @@ function buildUI() {
     exportBtn.type = "button";
     exportBtn.title = t("exportTitle");
     bar.appendChild(exportBtn);
+    const queueBtn = h("button", "mossed-btn", t("queueBtn"));
+    queueBtn.type = "button";
+    queueBtn.title = t("queueTitle");
+    bar.appendChild(queueBtn);
     const chip = h("span", "mossed-chip", "");
     bar.appendChild(chip);
     const notice = h("span", "mossed-notice", "");
@@ -1118,6 +1174,27 @@ function buildUI() {
     boxRow.appendChild(centerBtn);
     form.appendChild(boxRow);
 
+    const orderRow = h("div", "mossed-row mossed-orderrow");
+    orderRow.appendChild(h("span", "mossed-field-label", t("order")));
+    const upBtn = h("button", "mossed-btn", t("moveUp"));
+    upBtn.type = "button";
+    const downBtn = h("button", "mossed-btn", t("moveDown"));
+    downBtn.type = "button";
+    orderRow.appendChild(upBtn);
+    orderRow.appendChild(downBtn);
+    const alignRow = h("div", "mossed-row mossed-alignrow");
+    const alignBtns = {};
+    for (const [mode, glyph] of [["left", "⇤"], ["hcenter", "↔"], ["right", "⇥"],
+        ["top", "⤒"], ["vcenter", "↕"], ["bottom", "⤓"]]) {
+        const b = h("button", "mossed-iconbtn mossed-alignbtn", glyph);
+        b.type = "button";
+        b.dataset.mode = mode;
+        alignBtns[mode] = b;
+        alignRow.appendChild(b);
+    }
+    form.appendChild(orderRow);
+    form.appendChild(alignRow);
+
     const gridOnly = h("div", "mossed-row");
     const sizeSel = h("select", "mossed-size");
     for (const v of SIZES) {
@@ -1137,13 +1214,14 @@ function buildUI() {
 
     return {
         root, bar, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
-        importBtn, exportBtn, fileIn, notice,
+        importBtn, exportBtn, queueBtn, fileIn, notice,
         gridRow, colsIn, rowsIn, aspectSel, gridAdvBtn, gridAdvRow, edgeIn, gutterIn, marginIn,
         canvasRow, canvasPresetSel, wIn, hIn, aspectChip,
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
         fatalBox: fatal, status, panel,
         empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, capTa, textRow, textIn,
-        palIn, swatches, boxRow, bx, centerBtn, gridOnly, sizeSel, noChip, warn,
+        palIn, swatches, boxRow, bx, centerBtn, upBtn, downBtn, alignBtns,
+        gridOnly, sizeSel, noChip, warn,
     };
 }
 
@@ -1390,6 +1468,8 @@ function syncStatic(ui) {
     ui.importBtn.title = t("importTitle");
     ui.exportBtn.textContent = t("exportBtn");
     ui.exportBtn.title = t("exportTitle");
+    ui.queueBtn.textContent = t("queueBtn");
+    ui.queueBtn.title = t("queueTitle");
     ui.helpBtn.title = t("help");
     ui.helpBtn.setAttribute("aria-label", t("help"));
     ui.undoBtn.title = t("undo") + " (Ctrl/Cmd + Z)";
@@ -1401,6 +1481,12 @@ function syncStatic(ui) {
     ui.dupBtn.title = "Ctrl/Cmd + D";
     ui.delBtn.textContent = t("del");
     ui.centerBtn.textContent = t("center");
+    ui.upBtn.textContent = t("moveUp");
+    ui.downBtn.textContent = t("moveDown");
+    for (const [mode, btn] of Object.entries(ui.alignBtns)) {
+        btn.title = t(ALIGN_LABELS[mode]);
+        btn.setAttribute("aria-label", t(ALIGN_LABELS[mode]));
+    }
     ui.empty.textContent = t("emptySelection");
     ui.capTa.placeholder = t("captionPh");
     ui.textIn.placeholder = t("textPh");
@@ -1534,6 +1620,9 @@ function syncPanel(ui, force) {
     ui.typeDot.style.color = TYPE_COLORS[it.label] || "#9aa4b2";
     ui.dupBtn.disabled = !!isGrid;
     ui.centerBtn.disabled = !!isGrid;
+    ui.upBtn.disabled = !!isGrid;
+    ui.downBtn.disabled = !!isGrid;
+    for (const btn of Object.values(ui.alignBtns)) btn.disabled = !!isGrid;
     if (force || document.activeElement !== ui.labelSel) ui.labelSel.value = ITEM_LABELS.includes(it.label) ? it.label : "object";
     if (force || document.activeElement !== ui.capTa) ui.capTa.value = it.caption || "";
     if (force || document.activeElement !== ui.textIn) ui.textIn.value = it.text || "";
@@ -1607,6 +1696,7 @@ function resetHistory(ui) {
 function syncHistoryButtons(ui) {
     ui.undoBtn.disabled = !ui.state || !ui.hist.undo.length;
     ui.redoBtn.disabled = !ui.state || !ui.hist.redo.length;
+    if (ui.queueBtn) ui.queueBtn.disabled = !ui.state;
 }
 
 function flash(ui, msg, isErr = false) {
@@ -1987,6 +2077,26 @@ function duplicateItem(ui) {
     syncPanel(ui, true);
 }
 
+function moveSelectedZ(ui, dir) {
+    const it = selectedItem(ui);
+    if (!it || ui.state?.preset === "grid") return;
+    const next = moveItemInArray(ui.state.items, it.id, dir);
+    if (next === ui.state.items) return;
+    ui.state.items = next;
+    commit(ui);
+    syncPanel(ui, true);
+}
+
+function alignSelected(ui, mode) {
+    const it = selectedItem(ui);
+    if (!it || ui.state?.preset === "grid") return;
+    const next = alignBbox(it.bbox, mode);
+    if (!next) return;
+    it.bbox = next;
+    commit(ui);
+    syncPanel(ui, true);
+}
+
 function centerItem(ui) {
     const it = selectedItem(ui);
     if (!it || !Array.isArray(it.bbox) || ui.state?.preset === "grid") return;
@@ -2125,6 +2235,19 @@ function wire(ui) {
             flash(ui, t("importFail") + (err && err.message ? err.message : String(err)), true);
         } finally {
             ui.fileIn.value = "";
+        }
+    });
+    ui.queueBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!ui.state) { flash(ui, t("queueNoState"), true); return; }
+        try {
+            if (!app || typeof app.queuePrompt !== "function") {
+                throw new Error("app.queuePrompt is unavailable in this front-end");
+            }
+            app.queuePrompt(0, 1);
+            flash(ui, t("queueOk"));
+        } catch (err) {
+            flash(ui, t("queueFail") + (err && err.message ? err.message : String(err)), true);
         }
     });
     ui.exportBtn.addEventListener("click", (e) => {
@@ -2273,6 +2396,11 @@ function wire(ui) {
     ui.redoBtn.addEventListener("click", (e) => { e.stopPropagation(); stepUndo(ui, 1); });
     ui.dupBtn.addEventListener("click", (e) => { e.stopPropagation(); duplicateItem(ui); });
     ui.centerBtn.addEventListener("click", (e) => { e.stopPropagation(); centerItem(ui); });
+    ui.upBtn.addEventListener("click", (e) => { e.stopPropagation(); moveSelectedZ(ui, -1); });
+    ui.downBtn.addEventListener("click", (e) => { e.stopPropagation(); moveSelectedZ(ui, 1); });
+    for (const [mode, btn] of Object.entries(ui.alignBtns)) {
+        btn.addEventListener("click", (e) => { e.stopPropagation(); alignSelected(ui, mode); });
+    }
 
     ui.svg.addEventListener("pointerdown", (ev) => {
         ev.preventDefault();

@@ -71,7 +71,7 @@ python tools/smoke_nodes.py            # 自加载：注册 + schema + 纯节点
 python tools/host_loader_check.py      # 走宿主 load_custom_node，19 项
 python tools/check_ui_workflow.py      # 示例连线 + widget 槽位逐位值域，4 示例 + 2 夹具共 88 项
 python tools/check_frontend.py         # 前端词表/语法/接线/标题可换语言，9 项
-python tools/check_editor_ui.py        # 编辑器前端：接线/语法/词表/互操作纯函数，80 项
+python tools/check_editor_ui.py        # 编辑器前端：接线/语法/词表/互操作/层级对齐，93 项
 ```
 
 CI 另跑 `release-preview`（`check_release_ready.py` + `make_dist.py --zip`，只构建/上传 artifact，不发布）；
