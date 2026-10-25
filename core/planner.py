@@ -65,7 +65,9 @@ def brief_to_elements(brief):
     subject = _text(brief, "subject")
     title_desc = _text(brief, "title_desc")
     bottom_desc = _text(brief, "bottom_desc")
-    style = brief.get("style") or ""
+    style = brief.get("style", "")
+    if style is None:
+        style = ""
     if not isinstance(style, str):
         raise ValueError("style 必须是字符串。")
     palette = brief.get("palette")

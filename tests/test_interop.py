@@ -186,6 +186,24 @@ def test_unknown():
 
     msg = raises(I.to_state, doc([el(x_ext=[1, 2])]))
     check("x_ext 非对象报错", msg and "x_ext 必须是对象" in msg, msg)
+    msg = raises(I.to_state, doc([el()], x_ext=None))
+    check("文档级 x_ext=null 报错", msg and "x_ext 必须是对象" in msg, msg)
+    msg = raises(I.to_state, {"version": True, "elements": []})
+    check("version 布尔拒绝", msg and "只认 1" in msg, msg)
+    safe = I.to_state(doc([el(x_ext={"__proto__": {"polluted": 1}, "ok": 2})],
+                          x_ext={"__proto__": {"p": 1}, "keep": 3}))
+    check("危险键被丢弃", safe["items"][0]["x_ext"] == {"ok": 2}
+          and safe["x_ext"] == {"keep": 3}, json.dumps(safe, ensure_ascii=False)[:300])
+    back_safe = I.from_state(safe)
+    check("危险键不回流", "__proto__" not in back_safe
+          and "__proto__" not in back_safe["elements"][0])
+    dirty = E.empty_state("free")
+    dirty["items"] = [{"id": "o1", "label": "object", "caption": "d",
+                       "bbox": [0.1, 0.1, 0.9, 0.9],
+                       "x_ext": {"__proto__": {"x": 1}, "keep": 2}}]
+    clean = I.from_state(dirty)
+    check("导出也过滤危险键", clean["elements"][0]["x_ext"] == {"keep": 2},
+          clean["elements"][0].get("x_ext"))
 
 
 def test_export():

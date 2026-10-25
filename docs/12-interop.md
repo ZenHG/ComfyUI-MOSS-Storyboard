@@ -46,7 +46,7 @@
 | `elements` | ✅ | 数组，最多 256 个 |
 | `canvas` | ❌ | `{width,height}`；默认 `1536×864`；64..4096 且为 16 的倍数 |
 | `style` | ❌ | 全局风格段（映射到 `state.style`）；命令行 `--style` 可覆盖 |
-| `x_ext` | ❌ | 透传容器；不认识的**文档级**字段会自动收进这里 |
+| `x_ext` | ❌ | 透传容器；不认识的**文档级**字段会自动收进这里；`__proto__` / `constructor` / `prototype` 会被忽略（防原型污染） |
 | `elements[].role` | ✅ | `text` / `object` / `character`；别名 `obj`→object、`person`→character；可用 `type` 代替 |
 | `elements[].desc` | ✅ | 这个元素**长什么样**；映射到 `caption`；`caption` 可作别名 |
 | `elements[].text` | text 必填 | **实际渲染的字**；`desc` 不能当 `text` 用；非 text 元素带 `text` 直接报错 |
@@ -54,7 +54,7 @@
 | `elements[].palette` | ❌ | ≤5 个 `#rrggbb` |
 | `elements[].id` | ❌ | 非空字符串；缺省按 role 生成（`t1/o1/c1…`）；重复或类型错直接报错 |
 | `elements[].z` | ❌ | 数字；升序排列，同值保持数组顺序；缺省按数组下标 |
-| `elements[].x_ext` | ❌ | 透传容器；不认识的**元素级**字段会自动收进这里 |
+| `elements[].x_ext` | ❌ | 透传容器；不认识的**元素级**字段会自动收进这里；危险键同上会被忽略 |
 
 ### 单位与精度
 

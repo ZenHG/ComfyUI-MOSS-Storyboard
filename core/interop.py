@@ -54,6 +54,13 @@ _ID_PREFIX = {"text": "t", "object": "o", "character": "c"}
 
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
+#: 这些键不进 x_ext：原型污染面，宁可丢也不写进 state。
+_UNSAFE_EXT_KEYS = {"__proto__", "constructor", "prototype"}
+
+
+def _safe_key(key):
+    return key not in _UNSAFE_EXT_KEYS
+
 
 def _fail(msg):
     raise ValueError(msg)
@@ -125,9 +132,11 @@ def _extras(el):
     if "x_ext" in el:
         if not isinstance(el["x_ext"], dict):
             _fail("x_ext 必须是对象（收到 %s）。" % type(el["x_ext"]).__name__)
-        out.update(el["x_ext"])
+        for key, val in el["x_ext"].items():
+            if _safe_key(key):
+                out[key] = val
     for key, val in el.items():
-        if key not in _ELEMENT_KEYS:
+        if key not in _ELEMENT_KEYS and _safe_key(key):
             out[key] = val
     return out
 
@@ -211,13 +220,15 @@ def to_state(doc, preset="free", style=None):
         "canvas": {"width": cw, "height": ch},
         "items": items,
     }
-    doc_ext = doc.get("x_ext")
-    if doc_ext is not None:
+    if "x_ext" in doc:
+        doc_ext = doc["x_ext"]
         if not isinstance(doc_ext, dict):
             _fail("文档级 x_ext 必须是对象（收到 %s）。" % type(doc_ext).__name__)
-        state["x_ext"] = dict(doc_ext)
+        for key, val in doc_ext.items():
+            if _safe_key(key):
+                state.setdefault("x_ext", {})[key] = val
     for key, val in doc.items():
-        if key not in _DOC_KEYS:
+        if key not in _DOC_KEYS and _safe_key(key):
             state.setdefault("x_ext", {})[key] = val
     return E.parse_state(json.dumps(state, ensure_ascii=False))
 
@@ -247,11 +258,15 @@ def from_state(state):
         if it.get("palette"):
             el["palette"] = list(it["palette"])
         if isinstance(it.get("x_ext"), dict):
-            el["x_ext"] = dict(it["x_ext"])
+            ext = {k: v for k, v in it["x_ext"].items() if _safe_key(k)}
+            if ext:
+                el["x_ext"] = ext
         doc["elements"].append(el)
     ext = state.get("x_ext")
     if isinstance(ext, dict):
         for key, val in ext.items():
+            if not _safe_key(key):
+                continue
             if key not in doc:
                 doc[key] = val
             else:

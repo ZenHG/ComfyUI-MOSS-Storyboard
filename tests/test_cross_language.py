@@ -55,6 +55,7 @@ import { readFileSync } from "node:fs";
 
 const fixtures = JSON.parse(readFileSync("./fixtures.json", "utf8"));
 const elements = JSON.parse(readFileSync("./elements.json", "utf8"));
+const states = JSON.parse(readFileSync("./states.json", "utf8"));
 const out = { presets: {}, grid: {}, empty: emptyState(), default_grid: DEFAULT_GRID,
               default_canvas: DEFAULT_CANVAS, aspects: ASPECT_IDS, max_items: MAX_ITEMS,
               max_side: MAX_SIDE, max_state_chars: MAX_STATE_CHARS, canvas_presets: CANVAS_PRESETS,
@@ -67,6 +68,7 @@ for (const st of fixtures) out.validations.push(validateState(st).errors.length 
 out.elements_version = ELEMENTS_VERSION;
 out.elements_states = elements.map((d) => elementsToState(d, { lang: "zh" }));
 out.elements_exports = out.elements_states.map((s) => stateToElements(s, "zh"));
+out.state_exports = states.map((s) => stateToElements(s, "zh"));
 out.read_canvas = [32, 4112].map((w) => {
     const r = readState(JSON.stringify({ version: 3, preset: "free", style: "",
                                          canvas: { width: w, height: 864 }, items: [] }));
@@ -76,7 +78,7 @@ console.log("__RESULT__" + JSON.stringify(out));
 """
 
 
-def run_js(fixtures, elements=None):
+def run_js(fixtures, elements=None, states=None):
     node = find_node()
     if not node:
         return None
@@ -94,6 +96,8 @@ def run_js(fixtures, elements=None):
             json.dump(fixtures, f, ensure_ascii=False)
         with open(os.path.join(tmp, "elements.json"), "w", encoding="utf-8") as f:
             json.dump(elements or [], f, ensure_ascii=False)
+        with open(os.path.join(tmp, "states.json"), "w", encoding="utf-8") as f:
+            json.dump(states or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "run.mjs"), "w", encoding="utf-8") as f:
             f.write(js_runner())
         r = subprocess.run([node, "run.mjs"], cwd=tmp, capture_output=True, text=True,
@@ -181,13 +185,46 @@ def element_docs():
     ]
 
 
+def random_states(n=20):
+    import random
+    rng = random.Random(20261026)
+    out = []
+    for k in range(n):
+        items = []
+        for i in range(rng.randint(1, 6)):
+            x0 = rng.randint(0, 900000) / 1_000_000
+            y0 = rng.randint(0, 900000) / 1_000_000
+            x1 = x0 + rng.randint(1, 99999) / 1_000_000
+            y1 = y0 + rng.randint(1, 99999) / 1_000_000
+            if x1 > 1:
+                x1 = 1.0
+            if y1 > 1:
+                y1 = 1.0
+            label = rng.choice(["object", "character", "text"])
+            item = {"id": "r%d_%d" % (k, i), "label": label,
+                    "caption": "元素 %d" % i,
+                    "bbox": [x0, y0, x1, y1]}
+            if label == "text":
+                item["text"] = "字%d" % i
+            if rng.random() < 0.3:
+                item["palette"] = ["#c8a15a"]
+            items.append(item)
+        out.append({"version": 3, "preset": rng.choice(["free", "title-body"]),
+                    "style": "s%d" % k if rng.random() < 0.5 else "",
+                    "canvas": rng.choice([{"width": 1536, "height": 864},
+                                          {"width": 1024, "height": 1024}]),
+                    "items": items})
+    return out
+
+
 def main():
     node = find_node()
     if not node:
         print("跳过：没有 node")
         return 2
     docs = element_docs()
-    data = run_js(fixtures(), docs)
+    states = random_states()
+    data = run_js(fixtures(), docs, states)
     if data is None:
         print("JS runner 无结果")
         return 1
@@ -255,6 +292,19 @@ def main():
             py_exp = I.from_state(py)
             check(f"elements #{i} export", js_exports[i] == py_exp,
                   json.dumps({"py": py_exp, "js": js_exports[i]}, ensure_ascii=False)[:900])
+
+    # 导出量化：任意 6 位小数 bbox 两侧必须落成同一个 0–1000 值
+    js_state_exports = data.get("state_exports") or []
+    check("state 导出数量一致", len(js_state_exports) == len(states),
+          f"{len(js_state_exports)} vs {len(states)}")
+    bad_q = None
+    for st, js_exp in zip(states, js_state_exports, strict=False):
+        py_exp = I.from_state(st)
+        if js_exp != py_exp:
+            bad_q = {"py": py_exp, "js": js_exp}
+            break
+    check("state 导出量化一致（20 组随机）", bad_q is None,
+          json.dumps(bad_q, ensure_ascii=False)[:900])
 
     # 宽容读取：Python 会拒的画布，JS 必须修回默认值而不是留着再报警告
     read_canvas = data.get("read_canvas") or []

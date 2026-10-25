@@ -1,7 +1,7 @@
 # 11 · Layout Editor 前端（state v3）
 
 > **状态**：F1–F6 前端完成，真实节点、grid 端到端、真节点海报示例均已验证；
-> `python tools/check_editor_ui.py` 93 项全过。
+> `python tools/check_editor_ui.py` 96 项全过。
 > **剩余**：宿主重启后复验修好的 widget 顺序。**Nodes 2.0 已验证**（Vue 模式下编辑器挂载、渲染、state 正确；无页面错误）。
 >
 > 契约以 [`docs/10`](10-contract.md) 为准；本文只写前端**怎么实现**、**怎么测**、**和后端约定了什么**。
@@ -245,8 +245,9 @@ python tools/check_editor_ui.py
   撤销栈（`makeHistory` / `recordHistory` / `stepHistory`）：撤销/重做顺序、新改动清空重做、
   同元素连续输入/微调合并为一步、不同元素与撤销后不合并、上限 100 步丢最旧；
   互操作（`elementsToState` / `stateToElements` / `sniffLayoutDoc`）：0–1000 映射、role 别名、
-  自动 id、z 排序、未知字段 `x_ext`、grid 拒绝、导出往返。
-- 总计 **93 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
+  自动 id、z 排序、未知字段 `x_ext`（危险键丢弃）、grid 拒绝、导出往返；
+  层级 `moveItemInArray` 与六向对齐 `alignBbox`（尺寸不变、边界不动）。
+- 总计 **96 项**。退出码：0 全过；1 有失败；2 没有 node（S/T 跳过，W 仍查）。
 
 ### 无头浏览器冒烟（未入仓，实测 38/38）
 

@@ -81,6 +81,8 @@ def main():
     check("palette 超 5 色报错", msg and "最多 5" in msg, msg)
     msg = raises(PL.brief_to_elements, {"title": "T", "subject": "  "})
     check("subject 空白报错", msg and "非空字符串" in msg, msg)
+    msg = raises(PL.brief_to_elements, {"title": "T", "style": 3})
+    check("style 非字符串报错", msg and "style 必须是字符串" in msg, msg)
     msg = raises(PL.brief_to_elements, [])
     check("brief 非对象报错", msg and "JSON 对象" in msg, msg)
 
