@@ -21,6 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from core import editor as E  # noqa: E402
+from core import interop as I  # noqa: E402
 from core import presets as P  # noqa: E402
 
 PASS, FAIL = [], []
@@ -47,10 +48,12 @@ def js_runner():
 import {
     PRESET_IDS, PRESET_SPECS, presetItems, validateState, readState, emptyState,
     DEFAULT_GRID, DEFAULT_CANVAS, ASPECT_IDS, MAX_ITEMS, MAX_SIDE, MAX_STATE_CHARS,
+    elementsToState, stateToElements, ELEMENTS_VERSION,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
 const fixtures = JSON.parse(readFileSync("./fixtures.json", "utf8"));
+const elements = JSON.parse(readFileSync("./elements.json", "utf8"));
 const out = { presets: {}, grid: {}, empty: emptyState(), default_grid: DEFAULT_GRID,
               default_canvas: DEFAULT_CANVAS, aspects: ASPECT_IDS, max_items: MAX_ITEMS,
               max_side: MAX_SIDE, max_state_chars: MAX_STATE_CHARS, validations: [] };
@@ -59,6 +62,9 @@ for (const [cols, rows] of [[1,1],[2,1],[2,2],[3,2],[3,3]]) {
     out.grid[cols + "x" + rows] = presetItems("grid", { cols, rows, lang: "zh" });
 }
 for (const st of fixtures) out.validations.push(validateState(st).errors.length === 0);
+out.elements_version = ELEMENTS_VERSION;
+out.elements_states = elements.map((d) => elementsToState(d, { lang: "zh" }));
+out.elements_exports = out.elements_states.map((s) => stateToElements(s, "zh"));
 out.read_canvas = [32, 4112].map((w) => {
     const r = readState(JSON.stringify({ version: 3, preset: "free", style: "",
                                          canvas: { width: w, height: 864 }, items: [] }));
@@ -68,7 +74,7 @@ console.log("__RESULT__" + JSON.stringify(out));
 """
 
 
-def run_js(fixtures):
+def run_js(fixtures, elements=None):
     node = find_node()
     if not node:
         return None
@@ -84,6 +90,8 @@ def run_js(fixtures):
             f.write("export const app = { registerExtension() {}, graph: null, canvas: null };\n")
         with open(os.path.join(tmp, "fixtures.json"), "w", encoding="utf-8") as f:
             json.dump(fixtures, f, ensure_ascii=False)
+        with open(os.path.join(tmp, "elements.json"), "w", encoding="utf-8") as f:
+            json.dump(elements or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "run.mjs"), "w", encoding="utf-8") as f:
             f.write(js_runner())
         r = subprocess.run([node, "run.mjs"], cwd=tmp, capture_output=True, text=True,
@@ -149,12 +157,35 @@ def fixtures():
     return [base, grid, blank_grid] + bad
 
 
+def element_docs():
+    return [
+        {"version": 1, "elements": [
+            {"role": "text", "desc": "标题", "text": "字",
+             "bbox": [80, 100, 920, 190], "palette": ["#c8a15a"]},
+            {"role": "obj", "desc": "主体", "bbox": [0, 0, 1000, 1000]},
+        ]},
+        {"version": 1, "canvas": {"width": 1024, "height": 1024}, "style": "胶片",
+         "elements": [
+             {"type": "person", "desc": "人物", "bbox": [100, 100, 900, 900], "z": 2},
+             {"role": "object", "desc": "背景", "bbox": [0, 0, 500, 500], "z": 1,
+              "weight": 3},
+             {"id": "title", "role": "text", "desc": "标题", "text": "夜雨",
+              "bbox": [10, 10, 990, 90]},
+         ]},
+        {"version": 1, "x_ext": {"tool": "planner-x"},
+         "elements": [{"id": "a", "role": "object", "desc": "d",
+                       "bbox": [1, 2, 3, 4], "x_ext": {"n": 1}, "note": "x"}]},
+        {"version": 1, "elements": []},
+    ]
+
+
 def main():
     node = find_node()
     if not node:
         print("跳过：没有 node")
         return 2
-    data = run_js(fixtures())
+    docs = element_docs()
+    data = run_js(fixtures(), docs)
     if data is None:
         print("JS runner 无结果")
         return 1
@@ -202,6 +233,23 @@ def main():
         if i < len(js_ok):
             check(f"validate #{i}", py_ok == js_ok[i], f"py={py_ok} js={js_ok[i]}")
     check("validate 数量一致", len(js_ok) == len(fx), f"{len(js_ok)} vs {len(fx)}")
+
+    # elements-v1 互操作：两侧必须逐字段相同（含生成的 id、z 序、x_ext）
+    js_states = data.get("elements_states") or []
+    js_exports = data.get("elements_exports") or []
+    check("elements 版本一致", data.get("elements_version") == I.ELEMENTS_VERSION,
+          f"{data.get('elements_version')} vs {I.ELEMENTS_VERSION}")
+    check("elements 结果数量一致", len(js_states) == len(docs) == len(js_exports),
+          f"{len(js_states)} / {len(docs)} / {len(js_exports)}")
+    for i, d in enumerate(docs):
+        py = I.to_state(d)
+        if i < len(js_states):
+            check(f"elements #{i} state", js_states[i] == py,
+                  json.dumps({"py": py, "js": js_states[i]}, ensure_ascii=False)[:900])
+        if i < len(js_exports):
+            py_exp = I.from_state(py)
+            check(f"elements #{i} export", js_exports[i] == py_exp,
+                  json.dumps({"py": py_exp, "js": js_exports[i]}, ensure_ascii=False)[:900])
 
     # 宽容读取：Python 会拒的画布，JS 必须修回默认值而不是留着再报警告
     read_canvas = data.get("read_canvas") or []

@@ -262,6 +262,10 @@ Two modes, switched by preset:
 | Drag near another box's edge, the canvas centre line, or the rule-of-thirds lines | Snaps |
 | `Delete` / arrow keys / `Ctrl+D` | Delete / nudge / duplicate |
 | `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`) | Undo / redo (same as the `↶` `↷` toolbar buttons) |
+| Import / Export | Import elements-v1 (0–1000 bbox) or state v3 JSON; export elements-v1 (grid cannot be exported) |
+
+> An external planner's element JSON imports directly as editable items; the CLI validator/converter is in
+> [`docs/12`](docs/12-interop.md) and does not need ComfyUI.
 
 **Text elements have two separate fields — do not mix them**
 

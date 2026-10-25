@@ -115,6 +115,7 @@ import {
     TYPE_COLORS, CANVAS_PRESETS,
     presetItems, validateState, readState, snapAxis, stageAspect, makeItemId, emptyState,
     makeHistory, recordHistory, stepHistory, HISTORY_MAX,
+    elementsToState, stateToElements, sniffLayoutDoc, ELEMENTS_VERSION,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
@@ -206,6 +207,44 @@ const enErrors = validateState({ version: 2, preset: "free", style: "", canvas: 
 ok("英文校验文案无 CJK", enErrors.includes("version must be") && !/[\u4e00-\u9fff]/.test(enErrors), enErrors);
 const enFatal = readState("{}", "en").fatal || "";
 ok("英文 fatal 文案无 CJK", enFatal.includes("version") && !/[\u4e00-\u9fff]/.test(enFatal), enFatal);
+
+// --- elements-v1 互操作（与 core/interop.py 同一套规则） ---
+const edoc = {
+    version: 1,
+    canvas: { width: 1024, height: 1024 },
+    style: "胶片",
+    elements: [
+        { role: "text", desc: "标题", text: "字", bbox: [80, 100, 920, 190], palette: ["#c8a15a"] },
+        { type: "obj", desc: "主体", bbox: [0, 0, 1000, 1000], weight: 2, z: 0 },
+    ],
+};
+const est = elementsToState(edoc, { lang: "zh" });
+ok("interop role 与别名", est.items[0].label === "text" && est.items[1].label === "object",
+    JSON.stringify(est.items.map((x) => x.label)));
+ok("interop bbox 0–1000 → 0–1", est.items[0].bbox.join(",") === "0.08,0.1,0.92,0.19",
+    est.items[0].bbox.join(","));
+ok("interop 自动 id", est.items[0].id === "t1" && est.items[1].id === "o1",
+    est.items.map((x) => x.id).join(","));
+ok("interop 未知字段进 x_ext", est.items[1].x_ext && est.items[1].x_ext.weight === 2,
+    JSON.stringify(est.items[1].x_ext));
+ok("interop 生成 state 合法", validateState(est).errors.length === 0,
+    JSON.stringify(validateState(est).errors));
+const eback = stateToElements(est, "zh");
+ok("interop 导出往返", eback.elements[1].bbox.join(",") === "0,0,1000,1000"
+    && eback.elements[0].text === "字" && eback.style === "胶片", JSON.stringify(eback.elements));
+ok("interop grid 拒绝导入", (() => {
+    try { elementsToState({ version: 1, elements: [] }, { preset: "grid" }); return false; }
+    catch (e) { return /grid/.test(e.message); }
+})());
+ok("interop 非 text 带 text 拒绝", (() => {
+    try {
+        elementsToState({ version: 1, elements: [{ role: "object", desc: "d", text: "x", bbox: [0, 0, 10, 10] }] });
+        return false;
+    } catch (e) { return /text/.test(e.message); }
+})());
+ok("interop sniff", sniffLayoutDoc(edoc) === "elements" && sniffLayoutDoc(emptyState()) === "state"
+    && sniffLayoutDoc({}) === null);
+ok("interop 版本常量", ELEMENTS_VERSION === 1);
 
 // 撤销 / 重做（纯函数）：状态用字符串代表
 {
@@ -304,6 +343,10 @@ def check_wiring(contract, src):
     check("W9 单文件：不 import 本地 module", not local, str(local))
     check("W10 不越权写 widgets_values", "widgets_values" not in src and "widgets.push" not in src)
     check("W11 只找 editor_state 这一个 widget", "w.name === STATE_WIDGET" in src)
+    check("W12 有导入 / 导出接线", "ui.importBtn.addEventListener" in src
+          and "ui.exportBtn.addEventListener" in src and 'fileIn.type = "file"' in src)
+    check("W13 导入走 sniff + elementsToState", "sniffLayoutDoc(obj)" in src
+          and "elementsToState(obj" in src)
 
 
 def main():
