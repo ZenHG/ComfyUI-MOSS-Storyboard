@@ -185,7 +185,7 @@ def element_docs():
     ]
 
 
-def random_states(n=20):
+def random_states(n=100):
     import random
     rng = random.Random(20261026)
     out = []
@@ -303,7 +303,7 @@ def main():
         if js_exp != py_exp:
             bad_q = {"py": py_exp, "js": js_exp}
             break
-    check("state 导出量化一致（20 组随机）", bad_q is None,
+    check("state 导出量化一致（100 组随机）", bad_q is None,
           json.dumps(bad_q, ensure_ascii=False)[:900])
 
     # 宽容读取：Python 会拒的画布，JS 必须修回默认值而不是留着再报警告

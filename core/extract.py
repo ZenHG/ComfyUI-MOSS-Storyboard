@@ -14,6 +14,8 @@ import json
 MAX_INPUT_CHARS = 1_000_000
 MAX_CANDIDATES = 32
 MAX_DEPTH = 64
+#: 所有候选加起来最多扫这么多字符：防"大量未闭合括号"把调用方拖住（0.9MB×32 ≈ 3.4s）。
+MAX_SCAN_CHARS = 4_000_000
 
 _OPEN = {"{": "}", "[": "]"}
 
@@ -33,7 +35,7 @@ def _skip_string(text, i):
 
 
 def _match_end(text, start):
-    """start 指向开括号；返回配对闭括号之后的下标，找不到返回 None。"""
+    """start 指向开括号；返回 (配对闭括号之后的下标, 扫描字符数)，找不到下标为 None。"""
     stack = []
     i = start
     while i < len(text):
@@ -49,14 +51,14 @@ def _match_end(text, start):
             continue
         if ch in "}]":
             if not stack or ch != stack[-1]:
-                return None
+                return None, i - start + 1
             stack.pop()
             i += 1
             if not stack:
-                return i
+                return i, i - start
             continue
         i += 1
-    return None
+    return None, len(text) - start
 
 
 def extract_json(text):
@@ -66,13 +68,18 @@ def extract_json(text):
     if len(text) > MAX_INPUT_CHARS:
         raise ValueError("输入有 %d 个字符，超过上限 %d。" % (len(text), MAX_INPUT_CHARS))
     tried = 0
+    budget = MAX_SCAN_CHARS
     for start, ch in enumerate(text):
         if ch not in _OPEN:
             continue
         tried += 1
         if tried > MAX_CANDIDATES:
             break
-        end = _match_end(text, start)
+        end, scanned = _match_end(text, start)
+        budget -= scanned
+        if budget <= 0:
+            raise ValueError("提取扫描超过 %d 字符上限；文本里的括号结构太多或未闭合。"
+                             % MAX_SCAN_CHARS)
         if end is None:
             continue
         try:
