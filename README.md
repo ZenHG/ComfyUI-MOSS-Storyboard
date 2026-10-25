@@ -285,6 +285,8 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 | `Delete` / 方向键 / `Ctrl+D` | 删除 / 微移 / 复制 |
 | `Ctrl+Z` / `Ctrl+Shift+Z`（或 `Ctrl+Y`） | 撤销 / 重做（工具栏 `↶` `↷` 同效） |
 | 工具栏「导入 / 导出」 | 导入 elements-v1（0–1000 bbox）或 state v3 JSON；导出 elements-v1（宫格不能导出） |
+| 属性面板「上移 / 下移」+ 六向对齐 | 调层级（数组顺序 = z 序）或对齐画布边缘/中线；尺寸不变 |
+| 工具栏「排队」 | 按当前工作流排队，不改任何值 |
 
 > 外部 planner 产出的元素 JSON 可以直接「导入」成可编辑元素；命令行校验/转换见
 > [`docs/12`](docs/12-interop.md)（不需要装 ComfyUI）。

@@ -263,6 +263,8 @@ Two modes, switched by preset:
 | `Delete` / arrow keys / `Ctrl+D` | Delete / nudge / duplicate |
 | `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`) | Undo / redo (same as the `↶` `↷` toolbar buttons) |
 | Import / Export | Import elements-v1 (0–1000 bbox) or state v3 JSON; export elements-v1 (grid cannot be exported) |
+| Raise / Lower + 6-way align | Change stacking (array order = z) or align to canvas edges/center; size is kept |
+| Queue | Queue the current workflow; changes no values |
 
 > An external planner's element JSON imports directly as editable items; the CLI validator/converter is in
 > [`docs/12`](docs/12-interop.md) and does not need ComfyUI.
