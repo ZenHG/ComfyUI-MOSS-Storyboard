@@ -71,6 +71,13 @@ def main():
     many = "{" * (X.MAX_CANDIDATES + 5)
     msg = raises(X.extract_json, many)
     check("候选上限报错", msg and "开括号" in msg, msg)
+    old_budget = X.MAX_SCAN_CHARS
+    X.MAX_SCAN_CHARS = 1000
+    try:
+        msg = raises(X.extract_json, "{" * 5 + "x" * 5000)
+    finally:
+        X.MAX_SCAN_CHARS = old_budget
+    check("扫描预算报错", msg and "扫描" in msg, msg)
     check("空字符串值", X.extract_json('{"a": ""}') == {"a": ""})
 
     print("== CLI ==")

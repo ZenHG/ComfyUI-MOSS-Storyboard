@@ -9,7 +9,7 @@ python -m ruff check .                    # 静态检查（CI 第一道）
 python tests/test_core.py                 # 302 项：几何 / 提示词 / 像素（零 GPU）
 python tests/test_editor.py               # 102 项：state v3 编译层 / 预设 / 错误路径 / 上限（零 GPU）
 python tests/test_interop.py              # 88 项：elements-v1 互操作 / 往返 / CLI（零 GPU）
-python tests/test_extract.py              # 21 项：从散文/代码块提取 JSON、上限（零 GPU）
+python tests/test_extract.py              # 22 项：从散文/代码块提取 JSON、上限/扫描预算（零 GPU）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
 python tests/test_contract.py             # 130 项（--no-host 114 项）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
 python tests/test_cross_language.py       # 69 项：JS ↔ Python 预设/默认值/校验/elements/canvas 差分

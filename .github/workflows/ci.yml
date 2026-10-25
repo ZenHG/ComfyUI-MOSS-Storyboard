@@ -9,7 +9,7 @@
 #   · 302/0  tests/test_core.py               几何 / 提示词 / 像素
 #   · 102/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限
 #   ·  88/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
-#   ·  21/0  tests/test_extract.py            从散文/代码块提取 JSON、上限
+#   ·  22/0  tests/test_extract.py            从散文/代码块提取 JSON、上限/扫描预算
 #   ·  27/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
 #   · 114/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
