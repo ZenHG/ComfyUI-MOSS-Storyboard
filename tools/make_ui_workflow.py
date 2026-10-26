@@ -195,7 +195,8 @@ def build():
         ("sample_edge", "INT", True, 1024),
     ])
     smp.decl_outputs([("grid", "IMAGE"), ("panels", "IMAGE"), ("latent", "LATENT"),
-                      ("spec", "STRING"), ("prompt_used", "STRING"), ("report", "STRING")])
+                      ("spec", "STRING"), ("prompt_used", "STRING"), ("report", "STRING"),
+                      ("prompts_json", "STRING")])
     # seed 的"生成后控制"下拉占一个槽位（V1 自动加；V3 由 _compat 显式声明）。
     # 位置 = 包含 seed 在内的 widget 个数（widgets_values 是按位存的，这里算错就整体错位）。
     seed_slot = smp.slot("seed")

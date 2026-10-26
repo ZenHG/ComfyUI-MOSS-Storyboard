@@ -627,6 +627,11 @@
      "name": "report",
      "type": "STRING",
      "links": []
+    },
+    {
+     "name": "prompts_json",
+     "type": "STRING",
+     "links": []
     }
    ],
    "properties": {

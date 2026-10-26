@@ -17,6 +17,27 @@
   state 画布还须 ≥64（编辑器下限）；超出时节点仍输出 prompt，并把「state 未生成」写进 report。
 - **`docs/13-prompt-enhancer.md`**：官方 skill 的用法、草稿 schema、三条接入路径、置信度与未测项。
 
+### 顶层设计与提示词透明（`docs/14-top-level-design.md`）
+- **编辑器按模式分层**：宫格模式收起类型 / 文字 / 主色 / 框 / 层级 / 对齐这些**不参与宫格提示词**
+  的控件，只留镜号 + 景别 + 描述，并就地说明为什么；画布标签也随模式换语义
+  （宫格显示景别，单张显示元素类型），宫格不再用 palette 给格位上色。
+- **占位守卫**：`core/editor.py` 新增 `find_placeholders` / `find_ignored_grid_fields` /
+  `placeholder_summary` / `compile_final_prompt`。`标题文字`、`第 3 格画面` 这类预设文案原样排队时，
+  `report` 会点出数量与元素 id；文字类占位在**排队前**弹一次确认（它会被逐字渲染进图），
+  描述类占位只警告不拦截。
+- **最终提示词可见**：
+  - `MossStoryboardSampler` 新增第 7 路输出 `prompts_json`（整张 = 1 条、逐格 = 每格 1 条，
+    就是真正送模型的那句话）；旧输出顺序与 `prompt_used` 语义不变，老工作流不受影响。
+  - 编辑器属性面板底部有只读**最终提示词**预览 + 复制按钮，与后端同一套编译口径。
+  - 逐格模式的 `latent` 为 `None` 现在直接写在 `report` 里，不让人接到下游才发现。
+- **纯调试开关归入高级**：Crop / Paste 的 `show_guides` 标 `advanced`（V1/V3 同口径）；
+  会影响像素的参数一律不折叠。
+- **新增机检**：`tests/test_editor.py` +17 项（占位与最终提示词）；`tools/check_editor_ui.py` +24 项
+  （JS 编译与占位判据 + 界面文案中英齐全）；`tests/test_cross_language.py` +19 项 —— 含 `round()` 逢半取偶的平局坐标、
+  键序、镜号乱序、空 palette、style 全空白等容易分叉的地方，JS ↔ Python 逐字节比对。
+- 顺带修掉 `tools/smoke_nodes.py` 的 `check()`：detail 传元组时会 `TypeError` 崩掉整条闸，
+  现在统一 `str()`。
+
 ### 文档 / 分发
 - **英文 README 成为主文档**（`README.md`），中文全文移至 `README_ZH.md`；`README_EN.md` 留跳转桩。
 - **首屏重排**：真实 4 格 hero 图、与官方 MOSS 布局的差异对照、Manager / CLI / git 三种安装、

@@ -104,7 +104,7 @@ export const PRESET_SPECS = {
     free: { mode: "single", label: { zh: "自由", en: "Free" }, boxes: [] },
 };
 
-const STR = {
+export const STR = {
     preset: { zh: "预设", en: "Preset" },
     apply: { zh: "生成初始框", en: "Generate boxes" },
     cols: { zh: "列", en: "Cols" },
@@ -115,6 +115,7 @@ const STR = {
     label: { zh: "类型", en: "Type" },
     caption: { zh: "描述", en: "Caption" },
     captionPh: { zh: "这个元素长什么样（不是要渲染的字）", en: "What it looks like (not the rendered text)" },
+    captionPhGrid: { zh: "这一格拍什么：主体 + 动作 + 空间（宫格只用这一段）", en: "What this panel shows: subject + action + space (the only text grid mode compiles)" },
     text: { zh: "文字", en: "Text" },
     textPh: { zh: "实际要渲染的字（label=text 必填）", en: "The exact text to render (required for text)" },
     palette: { zh: "主色", en: "Palette" },
@@ -195,6 +196,30 @@ const STR = {
     confirmApply: { zh: "用当前预设替换这 {n} 项？", en: "Replace the current {n} items with this preset?" },
     itemsCount: { zh: "{n} 个元素", en: "{n} items" },
     emptySelection: { zh: "未选中元素。", en: "No item selected." },
+    gridOnlyNote: {
+        zh: "宫格模式只用镜号 / 景别 / 描述拼提示词：类型、文字、主色不参与编译。",
+        en: "Grid mode builds the prompt from panel no. / shot size / caption only — type, text and palette are not compiled.",
+    },
+    gridIgnored: {
+        zh: " 这一项还带着 {f}，改它不会改变发给模型的内容。",
+        en: " This panel also carries {f}; editing it changes nothing sent to the model.",
+    },
+    warnPhText: { zh: "文字仍是预设文案：会被逐字画进图里", en: "text is still the preset copy: it will be drawn letter by letter" },
+    warnPhCaption: { zh: "描述仍是预设占位：写具体一点画面才不会雷同", en: "caption is still a placeholder: make it specific or the panels look alike" },
+    promptTitle: { zh: "最终提示词（原样发给模型）", en: "Final prompt (sent to the model as-is)" },
+    copyPrompt: { zh: "复制", en: "Copy" },
+    copyOk: { zh: "已复制", en: "Copied" },
+    copyFail: { zh: "复制失败，请手动选中", en: "Copy failed — select the text manually" },
+    gridPromptHint: {
+        zh: "宫格是逐格采样：这里是拼版用的 `[PANEL n]` 段，每格另出全幅布局 JSON。",
+        en: "Grid mode samples one panel at a time: this is the `[PANEL n]` block for assembly; each panel also gets a full-bleed layout JSON.",
+    },
+    phAsk: {
+        zh: "还有 {n} 个文字框是预设文案（{ids}），模型会把这几个字逐字画进图里。仍要排队？",
+        en: "{n} text box(es) still hold preset copy ({ids}) — the model will render those words literally. Queue anyway?",
+    },
+    phRender: { zh: "{n} 个文字框仍是预设文案，会被逐字渲染", en: "{n} text box(es) still use preset copy and will be rendered literally" },
+    phGeneric: { zh: "{n} 个描述仍是预设占位，画面会雷同", en: "{n} caption(s) are still preset placeholders; the panels will look alike" },
 };
 
 /** 预设的一句话用途（帮助开源用户选对起点）。 */
@@ -872,6 +897,123 @@ export function sniffLayoutDoc(obj) {
 }
 
 // ---------------------------------------------------------------------------
+// 最终提示词与占位守卫（纯函数）
+//
+// `compileFinalPrompt` 必须与 `core/editor.py` 逐字节一致：宫格 → `[STYLE]+[PANEL n]`，
+// 单张 → MOSS 原生布局 JSON。这里只是**预览**，真值仍是节点输出；两边由
+// `tests/test_cross_language.py` 差分。改坐标取整、键序、分隔符任一项都会红。
+// ---------------------------------------------------------------------------
+
+const isGridState = (st) => st?.preset === "grid";
+
+/** Python 的 `round()` 是"逢半取偶"，`Math.round` 遇 .5 一律进位 —— 不写成同一个就会差 1px。 */
+function pyRound(v) {
+    const f = Math.floor(v);
+    const d = v - f;
+    if (d > 0.5) return f + 1;
+    if (d < 0.5) return f;
+    return f % 2 === 0 ? f : f + 1;
+}
+
+/** 归一化 `[x0,y0,x1,y1]` → 画布中心原点的 `[y0,x0,y1,x1]`（= `prompt.cell_bbox_to_centered`）。 */
+function cellBboxToCentered(bbox, width, height) {
+    const [u0, v0, u1, v1] = bbox.map(Number);
+    const hx = Math.floor(width / 2);
+    const hy = Math.floor(height / 2);
+    return [pyRound(v0 * height) - hy, pyRound(u0 * width) - hx,
+        pyRound(v1 * height) - hy, pyRound(u1 * width) - hx];
+}
+
+function sizePrefix(size, caption) {
+    const cap = String(caption ?? "").trim();
+    if (!size || cap.startsWith(size)) return cap;
+    return `${size}，${cap}`;
+}
+
+/** 宫格模式：`[STYLE]` + 逐格 `[PANEL n]`（n 连续 1..N，镜号只用于排序）。 */
+export function gridPromptText(state) {
+    const style = String(state?.style ?? "").trim();
+    const items = (state?.items ?? []).filter(Boolean).slice().sort((a, b) => a.no - b.no);
+    if (!items.length) return "";
+    const lines = [style ? `[STYLE] ${style}` : "[STYLE]", ""];
+    items.forEach((it, i) => lines.push(`[PANEL ${i + 1}] ${sizePrefix(it.size, it.caption)}`));
+    return lines.join("\n").trim();
+}
+
+/** 单张模式：所有元素合成一个 MOSS 原生布局 JSON（一次采样整张）。 */
+export function layoutJsonText(state) {
+    const c = state?.canvas ?? {};
+    const w = Math.trunc(Number(c.width));
+    const h = Math.trunc(Number(c.height));
+    const items = (state?.items ?? []).filter(Boolean).map((it) => {
+        const out = { label: it.label, caption: String(it.caption ?? "").trim(),
+            bbox: cellBboxToCentered(it.bbox, w, h) };
+        if (it.label === "text") out.text = String(it.text ?? "").trim();
+        if (Array.isArray(it.palette) ? it.palette.length : Boolean(it.palette)) {
+            out.palette = [...it.palette];
+        }
+        return out;
+    });
+    if (!items.length) return String(state?.style ?? "").trim();
+    return JSON.stringify({
+        summary: { caption: String(state?.style ?? "").trim() },
+        items,
+        bbox_coord_space: "abs_centralized",
+        bbox_format: "yxyx",
+    });
+}
+
+export function compileFinalPrompt(state) {
+    return isGridState(state) ? gridPromptText(state) : layoutJsonText(state);
+}
+
+// 预设占位文案（与 `core/editor.py::_PLACEHOLDER_*` 同一份清单）。
+const GRID_CAPTION_RE = /^(?:第 \d+ 格画面|Panel \d+)$/;
+const PLACEHOLDER_CAPTIONS = new Set([
+    "主体", "背景元素", "前景主体", "主体，居中，四周留白", "主角半身，侧对镜头",
+    "粗体无衬线标题", "细体说明文字", "粗体无衬线标题，浅金色", "细体小字，白色",
+    "主体（左）", "主体（中）", "主体（右）",
+    "Main subject", "Background element", "Foreground element",
+    "Main subject, centered, generous margins", "Main character, half body, side profile",
+    "Bold sans-serif title", "Light body text", "Bold sans-serif title, pale gold",
+    "Small light text, white", "Subject (left)", "Subject (middle)", "Subject (right)",
+]);
+const PLACEHOLDER_TEXTS = new Set(["标题文字", "正文文字", "副标题文字",
+    "Title", "Body text", "Subtitle"]);
+
+/** `[{id, field, kind}]`：kind=render 会被逐字画进图里，kind=generic 只让画面雷同。 */
+export function findPlaceholders(state) {
+    const grid = isGridState(state);
+    const found = [];
+    for (const it of (state?.items ?? [])) {
+        if (!it || typeof it !== "object") continue;
+        const cap = typeof it.caption === "string" ? it.caption.trim() : "";
+        if (cap && (PLACEHOLDER_CAPTIONS.has(cap) || GRID_CAPTION_RE.test(cap))) {
+            found.push({ id: it.id, field: "caption", kind: "generic" });
+        }
+        if (grid || it.label !== "text") continue;
+        const txt = typeof it.text === "string" ? it.text.trim() : "";
+        if (txt && PLACEHOLDER_TEXTS.has(txt)) found.push({ id: it.id, field: "text", kind: "render" });
+    }
+    return found;
+}
+
+/** 宫格模式不消费 label/text/palette —— 只出声，不动用户存档。 */
+export function findIgnoredGridFields(state) {
+    if (!isGridState(state)) return [];
+    const out = [];
+    for (const it of (state?.items ?? [])) {
+        if (!it || typeof it !== "object") continue;
+        const fields = [];
+        if (it.label !== "object") fields.push("label");
+        if (typeof it.text === "string" && !isBlank(it.text)) fields.push("text");
+        if (Array.isArray(it.palette) ? it.palette.length : Boolean(it.palette)) fields.push("palette");
+        if (fields.length) out.push({ id: it.id, fields });
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
 // DOM / SVG 工具
 // ---------------------------------------------------------------------------
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -961,7 +1103,7 @@ function ensureStyle() {
 .mossed-help-note{font-size:11px;opacity:.65;border-top:1px solid #2a2f38;padding-top:6px}
 .mossed-status{flex:0 0 auto;font-size:11px;opacity:.68;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .mossed-status-warn{color:#f0b35a;opacity:1}
-.mossed-prop{flex:0 0 auto;height:218px;max-height:218px;overflow:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
+.mossed-prop{flex:0 0 auto;height:252px;max-height:252px;overflow:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
 .mossed-empty{opacity:.6;font-size:11px;padding:6px 2px}
 .mossed-empty[hidden]{display:none}
 .mossed-form{display:flex;flex-direction:column;gap:6px}
@@ -970,6 +1112,14 @@ function ensureStyle() {
 .mossed-swatches{display:inline-flex;gap:3px}
 .mossed-swatch{width:16px;height:16px;border-radius:4px;border:1px solid #0006;display:inline-block;box-shadow:0 0 0 1px #ffffff1a}
 .mossed-boxrow{margin-top:2px}
+.mossed-gridnote{color:#8fd0ff;font-size:10px;line-height:1.5;border-left:2px solid #3a4250;padding-left:6px}
+.mossed-gridnote[hidden]{display:none}
+.mossed-prompt{display:flex;flex-direction:column;gap:4px;border-top:1px solid #2a2f38;padding-top:6px;margin-top:2px}
+.mossed-prompt[hidden]{display:none}
+.mossed-prompt-head{display:flex;align-items:center;gap:6px;font-size:10px;opacity:.75}
+.mossed-prompt-head span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mossed-prompt-pre{margin:0;max-height:96px;overflow:auto;padding:6px 7px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-all;user-select:text;cursor:text}
+.mossed-prompt-note{font-size:10px;opacity:.6;line-height:1.45}
 `;
         (document.head || document.documentElement).appendChild(st);
     } catch (e) { /* 样式注入失败不影响功能 */ }
@@ -1184,9 +1334,10 @@ function buildUI() {
     dupBtn.title = "Ctrl/Cmd + D";
     const delBtn = h("button", "mossed-btn mossed-danger", t("del"));
     delBtn.type = "button";
+    const labelField = field(t("label"), labelSel);
     row1.appendChild(typeDot);
     row1.appendChild(idChip);
-    row1.appendChild(field(t("label"), labelSel));
+    row1.appendChild(labelField);
     row1.appendChild(dupBtn);
     row1.appendChild(delBtn);
     form.appendChild(row1);
@@ -1261,12 +1412,39 @@ function buildUI() {
 
     const warn = h("div", "mossed-warn", "");
     form.appendChild(warn);
+
+    // 宫格模式把元素级控件整排收起，换成一句"这一格只有三个字段进提示词"。
+    const gridNote = h("div", "mossed-gridnote", "");
+    gridNote.hidden = true;
+    form.appendChild(gridNote);
+
     panel.appendChild(form);
+
+    // ---- 最终提示词（只读预览） ---------------------------------------
+    // 与节点侧 `core/editor.py::compile_final_prompt` 同口径，差分测试盯着；
+    // 真值仍是节点输出，这里只保证"看到的就是要发的"。
+    const promptBox = h("div", "mossed-prompt");
+    promptBox.hidden = true;
+    const promptHead = h("div", "mossed-prompt-head");
+    const promptTitle = h("span", null, t("promptTitle"));
+    const copyBtn = h("button", "mossed-btn", t("copyPrompt"));
+    copyBtn.type = "button";
+    promptHead.appendChild(promptTitle);
+    promptHead.appendChild(copyBtn);
+    const promptNote = h("div", "mossed-prompt-note", "");
+    promptNote.hidden = true;
+    const promptPre = h("pre", "mossed-prompt-pre");
+    promptBox.appendChild(promptHead);
+    promptBox.appendChild(promptNote);
+    promptBox.appendChild(promptPre);
+    panel.appendChild(promptBox);
     root.appendChild(panel);
 
     return {
         root, bar, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
         importBtn, exportBtn, queueBtn, fileIn, notice,
+        gridNote, promptBox, promptTitle, promptNote, promptPre, copyBtn, labelField,
+        paletteRow, orderRow, alignRow,
         gridRow, colsIn, rowsIn, aspectSel, gridAdvBtn, gridAdvRow, edgeIn, gutterIn, marginIn,
         canvasRow, canvasPresetSel, wIn, hIn, aspectChip,
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
@@ -1300,8 +1478,9 @@ function fitLabel(text, w) {
     return out;
 }
 
-function itemCaption(item) {
-    return `${labelText(item.label)}${item.caption ? " · " + item.caption : ""}`;
+function itemCaption(item, isGrid) {
+    const head = isGrid ? sizeText(item.size || "") : labelText(item.label);
+    return `${head}${item.caption ? " · " + item.caption : ""}`;
 }
 
 function placeItem(rec, b, item, W, H, isGrid) {
@@ -1315,7 +1494,7 @@ function placeItem(rec, b, item, W, H, isGrid) {
     rec.rect.setAttribute("height", String(hh));
     rec.label.setAttribute("x", String(x + (isGrid ? 48 : 26)));
     rec.label.setAttribute("y", String(y + 22));
-    rec.label.textContent = fitLabel(itemCaption(item), w - (isGrid ? 40 : 8));
+    rec.label.textContent = fitLabel(itemCaption(item, isGrid), w - (isGrid ? 40 : 8));
     rec.dot.setAttribute("cx", String(x + 15));
     rec.dot.setAttribute("cy", String(y + 16));
     // grid 左上角已有镜号徽章，类型点让位
@@ -1441,7 +1620,8 @@ function render(ui) {
         const sel = ui.sel === item.id;
         const g = s("g", { class: "mossed-itemg" });
         g.style.setProperty("--type-color", TYPE_COLORS[item.label] || "#9aa4b2");
-        if (Array.isArray(item.palette) && isHex(item.palette[0])) {
+        // 宫格模式 palette 不进提示词，就别用它的颜色给格位上色（假信号）
+        if (!isGrid && Array.isArray(item.palette) && isHex(item.palette[0])) {
             g.style.setProperty("--item-fill", item.palette[0] + "24");
         }
         const rect = s("rect", {
@@ -1540,9 +1720,12 @@ function syncStatic(ui) {
         btn.setAttribute("aria-label", t(ALIGN_LABELS[mode]));
     }
     ui.empty.textContent = t("emptySelection");
-    ui.capTa.placeholder = t("captionPh");
+    ui.capTa.placeholder = t(st && st.preset === "grid" ? "captionPhGrid" : "captionPh");
     ui.textIn.placeholder = t("textPh");
     ui.palIn.placeholder = t("palettePh");
+    ui.copyBtn.textContent = t("copyPrompt");
+    ui.copyBtn.title = t("copyPrompt");
+    ui.promptTitle.textContent = t("promptTitle");
 
     const helpTitle = ui.helpBox.querySelector(".mossed-help-title");
     const helpKeys = ui.helpBox.querySelector(".mossed-help-keys");
@@ -1642,6 +1825,10 @@ function updateStatus(ui) {
         const n = (st.grid?.cols || 0) * (st.grid?.rows || 0);
         if (n !== st.items.length) warns.push(t("warnGrid"));
     }
+    const ph = findPlaceholders(st);
+    const phRender = ph.filter((f) => f.kind === "render").length;
+    if (phRender) warns.push(t("phRender").replace("{n}", String(phRender)));
+    if (ph.length - phRender) warns.push(t("phGeneric").replace("{n}", String(ph.length - phRender)));
     for (const w of ui.warnings || []) {
         if (warns.length >= 3) break;
         if (!warns.includes(w)) warns.push(w);
@@ -1665,6 +1852,7 @@ function syncPanel(ui, force) {
     ui.empty.hidden = !!it;
     ui.gridRow.hidden = !isGrid;
     ui.canvasRow.hidden = !!isGrid;
+    syncPrompt(ui);
     if (!it) return;
 
     ui.idChip.textContent = it.id;
@@ -1681,11 +1869,24 @@ function syncPanel(ui, force) {
     if (force || document.activeElement !== ui.palIn) {
         ui.palIn.value = Array.isArray(it.palette) ? it.palette.join(", ") : "";
     }
-    ui.textRow.hidden = it.label !== "text";
+    // 宫格模式：提示词只由镜号 / 景别 / 描述拼出。元素级控件（类型、文字、主色、
+    // 框、层级、对齐）在那里是假 affordance —— 收起而不是留灰，免得用户改了以为生效。
+    ui.typeDot.hidden = !!isGrid;
+    ui.labelField.hidden = !!isGrid;
+    ui.paletteRow.hidden = !!isGrid;
+    ui.boxRow.hidden = !!isGrid;
+    ui.orderRow.hidden = !!isGrid;
+    ui.alignRow.hidden = !!isGrid;
+    ui.textRow.hidden = !!isGrid || it.label !== "text";
     ui.gridOnly.hidden = !isGrid;
     ui.noChip.textContent = isGrid ? `${t("panelNo")} ${it.no ?? "?"}` : "";
+    ui.gridNote.hidden = !isGrid;
+    ui.capTa.placeholder = t(isGrid ? "captionPhGrid" : "captionPh");
     if (isGrid) {
         if (force || document.activeElement !== ui.sizeSel) ui.sizeSel.value = SIZES.includes(it.size) ? it.size : SIZES[3];
+        const ignored = findIgnoredGridFields({ preset: "grid", items: [it] })[0]?.fields || [];
+        ui.gridNote.textContent = t("gridOnlyNote")
+            + (ignored.length ? t("gridIgnored").replace("{f}", ignored.join(" / ")) : "");
     }
     const b = Array.isArray(it.bbox) ? it.bbox : [0, 0, 0, 0];
     ui.bx.forEach((inp, i) => {
@@ -1701,7 +1902,27 @@ function syncPanel(ui, force) {
     if (Array.isArray(it.palette) && (it.palette.length > 5 || it.palette.some((c) => !isHex(c)))) {
         warns.push(t("warnPalette"));
     }
+    for (const f of findPlaceholders({ preset: ui.state.preset, items: [it] })) {
+        warns.push(f.kind === "render" ? t("warnPhText") : t("warnPhCaption"));
+    }
     ui.warn.textContent = warns.join("；");
+}
+
+/** 只读预览：当前 state 编出来、真正发给模型的那段文本。 */
+function syncPrompt(ui) {
+    if (!ui.promptBox) return;
+    const st = ui.state;
+    const items = st?.items || [];
+    if (!st || !items.length) {
+        ui.promptBox.hidden = true;
+        return;
+    }
+    ui.promptBox.hidden = false;
+    ui.promptTitle.textContent = t("promptTitle");
+    ui.promptNote.hidden = st.preset !== "grid";
+    ui.promptNote.textContent = t("gridPromptHint");
+    const text = compileFinalPrompt(st);
+    if (ui.promptPre.textContent !== text) ui.promptPre.textContent = text;
 }
 
 function renderSwatches(ui, it) {
@@ -1737,6 +1958,7 @@ function commit(ui, historyKey = null) {
     if (raw.length > MAX_STATE_CHARS) ui.warnings.push(t("warnTooBig"));
     render(ui);
     updateStatus(ui);
+    syncPrompt(ui);
     syncHistoryButtons(ui);
 }
 
@@ -2312,6 +2534,15 @@ function wire(ui) {
         if (!ui.state) { flash(ui, t("queueNoState"), true); return; }
         if (ui.queueBusy) return;
         if ((ui.raw || "").length > MAX_STATE_CHARS) { flash(ui, t("queueTooBig"), true); return; }
+        const ph = findPlaceholders(ui.state).filter((f) => f.kind === "render");
+        if (ph.length) {
+            // 只拦会被逐字渲染的那一类：烧一次 GPU 才知道"标题文字"四个字上了图，代价太大。
+            const ids = ph.slice(0, 3).map((f) => f.id).join("、") + (ph.length > 3 ? "…" : "");
+            const msg = t("phAsk").replace("{n}", String(ph.length)).replace("{ids}", ids);
+            try {
+                if (!window.confirm(msg)) return;
+            } catch (err) { /* 没有 confirm：状态栏已经警告过，不再自造兜底 */ }
+        }
         ui.queueBusy = true;
         ui.queueBtn.disabled = true;
         const done = (err) => {
@@ -2349,6 +2580,27 @@ function wire(ui) {
         } catch (err) {
             flash(ui, t("exportFail") + (err && err.message ? err.message : String(err)), true);
         }
+    });
+    ui.copyBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const text = ui.promptPre?.textContent || "";
+        if (!text) return;
+        let ok = false;
+        try {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+        } catch (err) {
+            try {
+                const ta = h("textarea", null);
+                ta.value = text;
+                ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+                document.body.appendChild(ta);
+                ta.select();
+                ok = document.execCommand?.("copy") === true;
+                ta.remove();
+            } catch (e2) { /* 剪贴板不可用：文本仍可手选 */ }
+        }
+        flash(ui, ok ? t("copyOk") : t("copyFail"), !ok);
     });
 
     ui.helpBtn.addEventListener("click", (e) => {
@@ -2674,6 +2926,9 @@ try {
             return true;
         },
         validate: validateState,
+        compile: (st) => compileFinalPrompt(st),
+        placeholders: (st) => findPlaceholders(st),
+        ignored_grid_fields: (st) => findIgnoredGridFields(st),
         presets_json: (preset, opt) => presetItems(preset, opt),
     };
 } catch (e) { /* 无 window */ }

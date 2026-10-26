@@ -54,6 +54,25 @@ def is_blank(text):
     """空白 + 零宽 + 方向控制字符组成的字符串视为空（前端 `isBlank` 同口径）。"""
     return not _INVISIBLE_RE.sub("", text).strip()
 
+
+#: 预设占位文案。这些值来自 `web/moss_sb_editor.js::PRESET_SPECS`，改预设必须两边一起改；
+#: `check_editor_ui.py` 与 `test_cross_language.py` 盯着口径。text 占位会被**逐字渲染**，
+#: 所以前端排队要先确认一次；caption 占位只警告。
+_GRID_CAPTION_RE = re.compile(r"^(?:第 \d+ 格画面|Panel \d+)$")
+_PLACEHOLDER_CAPTIONS = frozenset((
+    "主体", "背景元素", "前景主体", "主体，居中，四周留白", "主角半身，侧对镜头",
+    "粗体无衬线标题", "细体说明文字", "粗体无衬线标题，浅金色", "细体小字，白色",
+    "主体（左）", "主体（中）", "主体（右）",
+    "Main subject", "Background element", "Foreground element",
+    "Main subject, centered, generous margins", "Main character, half body, side profile",
+    "Bold sans-serif title", "Light body text", "Bold sans-serif title, pale gold",
+    "Small light text, white", "Subject (left)", "Subject (middle)", "Subject (right)",
+))
+_PLACEHOLDER_TEXTS = frozenset((
+    "标题文字", "正文文字", "副标题文字",
+    "Title", "Body text", "Subtitle",
+))
+
 #: 预设清单。`grid` 是唯一的宫格模式，其余都是单张模式。
 PRESETS = ("grid", "split-v", "split-h", "title-body",
            "three-col", "center", "stack", "free")
@@ -334,6 +353,77 @@ def shot_layout_json(state, shot, width, height, label="object"):
                                width, height, label=label, elements=None)
 
 
+def compile_final_prompt(state):
+    """当前模式**最终发给模型**的提示词：宫格 → `[STYLE]+[PANEL n]`，单张 → 原生布局 JSON。
+
+    前端属性面板的只读预览走 `web/moss_sb_editor.js::compileFinalPrompt`，两边由
+    `tests/test_cross_language.py` 逐字节比对；不要在其中一边加“好看但不同”的简化版。
+    """
+    if is_grid(state):
+        return compile_prompt(state)
+    return layout_json(state)
+
+
+def find_placeholders(state):
+    """找出仍是预设占位的字段，返回 `[{id, field, kind}]`（保持 items 顺序）。
+
+    `kind=generic` = caption 占位，只警告；`kind=render` = text 占位，会被逐字渲染。
+    网格模式的 `text` 字段根本不进提示词，所以不在这里拦（改由 `find_ignored_grid_fields` 说明）。
+    """
+    grid = is_grid(state)
+    found = []
+    for it in state.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        cap = it.get("caption")
+        cap = cap.strip() if isinstance(cap, str) else ""
+        if cap and (cap in _PLACEHOLDER_CAPTIONS or _GRID_CAPTION_RE.match(cap)):
+            found.append({"id": it.get("id"), "field": "caption", "kind": "generic"})
+        if not grid and it.get("label") == "text":
+            txt = it.get("text")
+            txt = txt.strip() if isinstance(txt, str) else ""
+            if txt and txt in _PLACEHOLDER_TEXTS:
+                found.append({"id": it.get("id"), "field": "text", "kind": "render"})
+    return found
+
+
+def find_ignored_grid_fields(state):
+    """宫格模式不消费的字段（只出声，不改用户存档）。"""
+    if not is_grid(state):
+        return []
+    out = []
+    for it in state.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        fields = []
+        if it.get("label") != "object":
+            fields.append("label")
+        if isinstance(it.get("text"), str) and not is_blank(it["text"]):
+            fields.append("text")
+        if it.get("palette"):
+            fields.append("palette")
+        if fields:
+            out.append({"id": it.get("id"), "fields": fields})
+    return out
+
+
+def placeholder_summary(state):
+    """给 `report` 用的一句话；没有占位返回 None。"""
+    found = find_placeholders(state)
+    if not found:
+        return None
+    render = [f for f in found if f["kind"] == "render"]
+    generic = [f for f in found if f["kind"] == "generic"]
+    parts = []
+    if render:
+        parts.append("%d 个文字框仍是预设文案（会被逐字渲染：%s）"
+                     % (len(render), "、".join(str(f["id"]) for f in render[:3])))
+    if generic:
+        parts.append("%d 个描述仍是预设占位（画面会雷同：%s）"
+                     % (len(generic), "、".join(str(f["id"]) for f in generic[:3])))
+    return "⚠ " + "；".join(parts) + "。"
+
+
 def report(state):
     """给人看的总结：模式、尺寸、元素统计、告警。"""
     out = []
@@ -355,6 +445,13 @@ def report(state):
                        % (len(items), sizes[0]))
         elif len(items) >= 3 and len(set(sizes)) == 2:
             out.append("· 景别只有 2 档，梯度偏平；建议 3 档以上。")
+        ignored = find_ignored_grid_fields(state)
+        if ignored:
+            out.append("⚠ %d 个格位带有 label/text/palette：宫格模式只消费镜号/景别/描述，这些字段不参与提示词。"
+                       % len(ignored))
+        ph = placeholder_summary(state)
+        if ph:
+            out.append(ph)
         return "\n".join(out)
 
     w, h = canvas_size(state)
@@ -369,6 +466,9 @@ def report(state):
         by_label[it["label"]] = by_label.get(it["label"], 0) + 1
     out.append("元素 %d 个：%s" % (len(items),
                                "、".join("%s×%d" % (k, v) for k, v in by_label.items())))
+    ph = placeholder_summary(state)
+    if ph:
+        out.append(ph)
     # 文字安全边距（实测：贴顶会被裁）
     risky = [it for it in items if it["label"] == "text"
              and (it["bbox"][1] < 0.10 or it["bbox"][3] > 0.90)]
