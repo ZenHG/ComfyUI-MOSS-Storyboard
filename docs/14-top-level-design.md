@@ -106,6 +106,8 @@ state v3 用一个 `items` 数组同时承载前两种，所以**模式决定哪
 | `prompts_json` 输出（整张 1 条 / 逐格 N 条） | `MossStoryboardSampler` | `test_contract.py` 输出 arity、`check_ui_workflow.py` 槽位 |
 | 逐格模式 `latent=None` 在 `report` 写明 | `_run_per_panel` | 目检 + `e2e_matrix.py` |
 | 纯调试项 `show_guides` 归入高级（V1/V3 同一口径） | Crop / Paste | `test_contract.py` tooltip 检查 |
+| 真机（无头浏览器 + 活宿主）验：控件随模式收起、预览在可见区内、预览 == JS 编译器、占位确认且取消不入队 | `tools/ui_smoke.mjs` 编辑器段（31 项） | 本机跑，CI 无宿主 |
+
 
 **刻意没有做的渐进披露**：只收起 `show_guides` 这类"改了不影响出图"的调试开关。
 `shave` / `border_px` / `sample_edge` / `label` 都会改像素，把它们塞进折叠区

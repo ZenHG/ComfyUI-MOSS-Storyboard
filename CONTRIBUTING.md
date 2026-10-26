@@ -24,7 +24,11 @@ python tools/check_ui_workflow.py         # 4 份示例 + 2 份夹具共 88 项�
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
 python tools/check_editor_ui.py           # 133 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 31 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
+node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
 ```
+
+`ui_smoke.mjs` 需要**跑着的 ComfyUI**（默认 `http://127.0.0.1:8188`，`--url` 可改）+ 本机 playwright-core 与 chromium；
+它只读界面、**不排 GPU 任务**（排队确认框一律 stub 成"取消"）。CI 里没有宿主，所以这道闸只在本地/发布前跑。
 
 CI 的 `release-preview` job 会构建干净分发包（`tools/make_dist.py --zip`，只上传 artifact，不发布）；
 `host` job 会从干净副本 `--verify` 独立加载并跑编辑器/宫格/裁格。

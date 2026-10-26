@@ -90,6 +90,15 @@ try {
     }
     check("前端扩展已执行（window.MOSS_SB_LANG 存在）", booted);
     if (!booted) throw new Error("扩展未执行");
+    // ⚠ 扩展模块跑得很早，`app.canvas` 却可能还没建好：那时 loadGraphData 会被随后的
+    // 自动恢复覆盖成空图（实测：节点数 0 + "getCanvas: canvas is null"）。等画布再载工作流。
+    let canvasReady = false;
+    for (let i = 0; i < 40; i++) {
+        canvasReady = await page.evaluate(() => !!globalThis.app?.canvas).catch(() => false);
+        if (canvasReady) break;
+        await page.waitForTimeout(1000);
+    }
+    check("宿主画布已就绪（app.canvas）", canvasReady);
 
     const where = await page.evaluate(() => globalThis.MOSS_SB_LANG.where()).catch(() => null);
     console.log("  where =", JSON.stringify(where));
@@ -192,6 +201,109 @@ try {
     check("「生成后」下拉显示为中文（固定/随机）",
         !!boolOk && (boolOk.ctrlRandom === "随机" || boolOk.ctrlName === null),
         `${boolOk?.ctrlName}: randomize→${boolOk?.ctrlRandom} fixed→${boolOk?.ctrlFixed}`);
+
+    // ---- 编辑器：语义分层 / 最终提示词预览 / 占位守卫（真 DOM，纯函数闸覆盖不到） ----
+    {
+        const probe = () => page.evaluate(() => {
+            const root = document.querySelector(".mossed-root");
+            const node = (globalThis.app.graph._nodes || []).find((n) => n.type === "MossLayoutEditor");
+            const hid = (sel, climb) => {
+                const el = root?.querySelector(sel);
+                if (!el) return null;
+                const t = climb ? el.closest(climb) : el;
+                return t ? !!t.hidden : null;
+            };
+            const pr = root?.querySelector(".mossed-prompt")?.getBoundingClientRect();
+            const rr = root?.getBoundingClientRect();
+            const state = node ? node.widgets.find((w) => w.name === "editor_state").value : "{}";
+            return {
+                label: hid(".mossed-label", ".mossed-field"), pal: hid(".mossed-palette", ".mossed-row"),
+                text: hid(".mossed-text", ".mossed-row"), box: hid(".mossed-boxrow"),
+                order: hid(".mossed-orderrow"), align: hid(".mossed-alignrow"),
+                sizeVisible: !!root?.querySelector(".mossed-size")?.getClientRects().length,
+                noteHidden: hid(".mossed-gridnote"),
+                note: root?.querySelector(".mossed-gridnote")?.textContent || "",
+                prompt: root?.querySelector(".mossed-prompt-pre")?.textContent || "",
+                status: root?.querySelector(".mossed-status")?.textContent || "",
+                promptVisible: !!pr && !!rr && pr.top >= rr.top - 1 && pr.bottom <= rr.bottom + 1,
+                compiled: globalThis.MOSS_SB_EDITOR.compile(JSON.parse(state)),
+            };
+        });
+        const edWf = JSON.parse(readFileSync(join(ROOT, "examples", "moss-layout-editor-storyboard.json"), "utf8"));
+        await page.evaluate((g) => globalThis.app.loadGraphData(g), edWf);
+        await page.waitForTimeout(1800);
+        const where = await page.evaluate(() => globalThis.MOSS_SB_EDITOR.where());
+        check("编辑器节点已挂载", !!where?.booted && where.nodes > 0 && where.mounted === where.nodes,
+            JSON.stringify(where));
+
+        const g0 = await probe();
+        check("宫格：预览不被面板裁掉（在 root 可见区内）", g0.promptVisible === true, JSON.stringify(g0.promptVisible));
+        check("宫格：预览是 [STYLE]+[PANEL n] 稿",
+            g0.prompt.startsWith("[STYLE]") && /[PANEL 1]/.test(g0.prompt) && /[PANEL 4]/.test(g0.prompt),
+            g0.prompt.slice(0, 60));
+        check("宫格：预览 == JS 编译器输出", g0.prompt === g0.compiled,
+            `dom=${g0.prompt.length} js=${g0.compiled.length}`);
+        check("宫格手写描述 ⇒ 不报占位", !/预设/.test(g0.status), g0.status.slice(0, 110));
+        check("宫格状态栏数「格」不数「元素」", /格/.test(g0.status) && !/个元素/.test(g0.status),
+            g0.status.slice(0, 60));
+
+        await page.evaluate(() => {
+            const rect = document.querySelector('.mossed-svg [data-role="item"]');
+            const r = rect.getBoundingClientRect();
+            const o = { bubbles: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2,
+                pointerId: 1, isPrimary: true, button: 0 };
+            rect.dispatchEvent(new PointerEvent("pointerdown", o));
+            rect.dispatchEvent(new PointerEvent("pointerup", o));
+        });
+        await page.waitForTimeout(500);
+        const flags = (o) => JSON.stringify({ label: o.label, pal: o.pal, text: o.text,
+            box: o.box, order: o.order, align: o.align, note: o.noteHidden });
+        const g1 = await probe();
+        check("宫格选中项：类型/主色/文字/bbox/层级/对齐控件收起",
+            [g1.label, g1.pal, g1.text, g1.box, g1.order, g1.align].every((v) => v === true), flags(g1));
+        check("宫格选中项：景别与模式说明留下",
+            g1.sizeVisible === true && g1.noteHidden === false && g1.note.includes("宫格模式只用镜号"),
+            g1.note.slice(0, 60));
+
+        await page.evaluate(async () => {
+            const root = document.querySelector(".mossed-root");
+            const sel = root.querySelector(".mossed-bar select");
+            sel.value = "title-body";
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            await new Promise((r) => setTimeout(r, 300));
+            const apply = Array.from(root.querySelectorAll("button")).find((b) => /生成初始框/.test(b.textContent));
+            const orig = window.confirm; window.confirm = () => true;
+            apply.click();
+            await new Promise((r) => setTimeout(r, 600));
+            window.confirm = orig;
+        });
+        const s1 = await probe();
+        check("单张：元素控件全部回来",
+            [s1.label, s1.pal, s1.box, s1.order, s1.align].every((v) => v === false) && s1.noteHidden === true,
+            flags(s1));
+        check("单张：预览是原生布局 JSON 且 == JS 编译器输出",
+            s1.prompt.includes('"bbox_coord_space":"abs_centralized"') && s1.prompt === s1.compiled,
+            s1.prompt.slice(0, 60));
+        check("单张：状态栏报出预设文案与占位", /预设文案/.test(s1.status) && /预设占位/.test(s1.status),
+            s1.status.slice(0, 140));
+
+        // ⚠ confirm 一律返回 false：这条测的是"排队前会问"，绝不能真的把 GPU 任务排进去。
+        const nag = await page.evaluate(async () => {
+            const calls = [];
+            const orig = window.confirm;
+            window.confirm = (m) => { calls.push(m); return false; };
+            const btn = Array.from(document.querySelectorAll(".mossed-bar button")).find((b) => /排队/.test(b.textContent));
+            btn?.click();
+            await new Promise((r) => setTimeout(r, 900));
+            window.confirm = orig;
+            const q = await fetch("/queue").then((r) => r.json()).catch(() => null);
+            return { calls, queue: q ? q.queue_running.length + q.queue_pending.length : null };
+        });
+        check("文字占位在排队前确认一次并点名 id",
+            nag.calls.length === 1 && /预设文案/.test(nag.calls[0]) && /\bt\d/.test(nag.calls[0]),
+            JSON.stringify(nag.calls).slice(0, 160));
+        check("取消确认后没有入队", nag.queue === 0, String(nag.queue));
+    }
 
     await page.evaluate(() => globalThis.MOSS_SB_LANG.set("en"));
     mkdirSync(dirname(OUT), { recursive: true });
