@@ -195,6 +195,7 @@ export const STR = {
     custom: { zh: "自定义", en: "Custom" },
     confirmApply: { zh: "用当前预设替换这 {n} 项？", en: "Replace the current {n} items with this preset?" },
     itemsCount: { zh: "{n} 个元素", en: "{n} items" },
+    panelsCount: { zh: "{n} 格", en: "{n} panels" },
     emptySelection: { zh: "未选中元素。", en: "No item selected." },
     gridOnlyNote: {
         zh: "宫格模式只用镜号 / 景别 / 描述拼提示词：类型、文字、主色不参与编译。",
@@ -1103,7 +1104,7 @@ function ensureStyle() {
 .mossed-help-note{font-size:11px;opacity:.65;border-top:1px solid #2a2f38;padding-top:6px}
 .mossed-status{flex:0 0 auto;font-size:11px;opacity:.68;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .mossed-status-warn{color:#f0b35a;opacity:1}
-.mossed-prop{flex:0 0 auto;height:252px;max-height:252px;overflow:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
+.mossed-prop{flex:0 1 auto;height:218px;max-height:218px;overflow:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
 .mossed-empty{opacity:.6;font-size:11px;padding:6px 2px}
 .mossed-empty[hidden]{display:none}
 .mossed-form{display:flex;flex-direction:column;gap:6px}
@@ -1114,12 +1115,12 @@ function ensureStyle() {
 .mossed-boxrow{margin-top:2px}
 .mossed-gridnote{color:#8fd0ff;font-size:10px;line-height:1.5;border-left:2px solid #3a4250;padding-left:6px}
 .mossed-gridnote[hidden]{display:none}
-.mossed-prompt{display:flex;flex-direction:column;gap:4px;border-top:1px solid #2a2f38;padding-top:6px;margin-top:2px}
+.mossed-prompt{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;border-top:1px solid #2a2f38;padding-top:6px}
 .mossed-prompt[hidden]{display:none}
 .mossed-prompt-head{display:flex;align-items:center;gap:6px;font-size:10px;opacity:.75}
 .mossed-prompt-head span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mossed-prompt-pre{margin:0;max-height:96px;overflow:auto;padding:6px 7px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-all;user-select:text;cursor:text}
-.mossed-prompt-note{font-size:10px;opacity:.6;line-height:1.45}
+.mossed-prompt-pre{margin:0;max-height:58px;overflow:auto;padding:5px 7px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:10px;line-height:1.45;white-space:pre-wrap;word-break:break-all;user-select:text;cursor:text}
+.mossed-prompt-note{font-size:10px;opacity:.6;line-height:1.4}
 `;
         (document.head || document.documentElement).appendChild(st);
     } catch (e) { /* 样式注入失败不影响功能 */ }
@@ -1437,7 +1438,9 @@ function buildUI() {
     promptBox.appendChild(promptHead);
     promptBox.appendChild(promptNote);
     promptBox.appendChild(promptPre);
-    panel.appendChild(promptBox);
+    // 挂在 root 上而不是属性面板里：面板只有 218px 且自带滚动，
+    // 预览塞进去就会被挤到看不见的地方 —— 这条的存在意义就是"不用滚也能看到"。
+    root.appendChild(promptBox);
     root.appendChild(panel);
 
     return {
@@ -1816,10 +1819,12 @@ function updateStatus(ui) {
     const st = ui.state;
     if (!st) { ui.status.textContent = ""; return; }
     const parts = [];
-    parts.push(st.preset === "grid"
+    const grid = st.preset === "grid";
+    parts.push(grid
         ? `${st.grid?.cols ?? "?"}×${st.grid?.rows ?? "?"}`
         : `${st.canvas?.width ?? "?"}×${st.canvas?.height ?? "?"}`);
-    parts.push(t("itemsCount").replace("{n}", String(st.items.length)));
+    // 宫格数的是"格"，单张数的才是"元素"——混着写会让人以为格位是可增删的元素
+    parts.push(t(grid ? "panelsCount" : "itemsCount").replace("{n}", String(st.items.length)));
     const warns = [];
     if (st.preset === "grid") {
         const n = (st.grid?.cols || 0) * (st.grid?.rows || 0);

@@ -37,6 +37,13 @@
   键序、镜号乱序、空 palette、style 全空白等容易分叉的地方，JS ↔ Python 逐字节比对。
 - 顺带修掉 `tools/smoke_nodes.py` 的 `check()`：detail 传元组时会 `TypeError` 崩掉整条闸，
   现在统一 `str()`。
+- **真机验证后回改的两处**（`node tools/ui_smoke.mjs`，无头浏览器 + 活宿主，31 项全绿）：
+  预览条原先挂在属性面板里，被 218px 的滚动区挤到看不见 ⇒ 改挂到编辑器根上，
+  状态栏下方独立一条，选中与否都看得到；宫格模式状态栏把格位叫成「4 个元素」
+  ⇒ 改叫「4 格」（`panelsCount`），免得让人以为格位是能自由增删的元素。
+- **`tools/ui_smoke.mjs` 补两道闸**：等 `app.canvas` 就绪再载工作流（否则会被前端自动恢复覆盖成空图，
+  实测出现过 `getCanvas: canvas is null` + 节点数 0 的假红）；新增编辑器段
+  （宫格收起控件 / 预览在可见区内 / 预览 == JS 编译器输出 / 占位确认且**取消后不入队**）。
 
 ### 文档 / 分发
 - **英文 README 成为主文档**（`README.md`），中文全文移至 `README_ZH.md`；`README_EN.md` 留跳转桩。
