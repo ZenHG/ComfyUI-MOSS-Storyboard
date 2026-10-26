@@ -76,9 +76,10 @@ for downstream editing.
 | **Text posters** | Chinese, English, mixed, and two-line text have small-sample measurements (see Known limits) |
 | **Deterministic grid lines** | Redrawn from coordinates after decoding (`reborder` on by default) |
 | **Per-panel crops** | Row-major, pixel-aligned to the canvas; `spec` carries all geometry in one wire |
+| **Official prompt-enhancer bridge** | Paste a draft from OpenMOSS's MOSS-Image Prompt Enhancer skill: get a validated MOSS prompt, and for layout drafts a state v3 for the Layout Editor |
 | **Bilingual UI (zh / en)** | A 中 / EN button on each of our nodes; display-only, never touches saved values |
 
-**Five nodes, one entry point.** The shipped example wires the full storyboard path. A minimal
+**Six nodes, one entry point.** The shipped example wires the full storyboard path. A minimal
 graph needs only the Sampler, which carries every geometry parameter. The Layout Editor is the
 other entry point: no `[PANEL n]` blocks — place boxes instead, for posters, covers and product shots.
 
@@ -89,6 +90,7 @@ other entry point: no `[PANEL n]` blocks — place boxes instead, for posters, c
 | 🎬 Storyboard Layout / 故事板 · 宫格几何 | `MossStoryboardLayout` | Optional (recommended) | Geometry + layout JSON + grid template. **No model loaded**, instant |
 | 🎬 Storyboard Crop / 故事板 · 裁格 | `MossStoryboardCrop` | Optional | Crops only; feed `spec` for pixel-exact panels |
 | 🎬 Storyboard Paste / 故事板 · 贴回 | `MossStoryboardPaste` | Optional | Pastes a corrected panel back at the `spec` coordinates, returning the full corrected board |
+| 🎬 Prompt Compiler / 提示词 · 草稿编译 | `MossPromptCompiler` | Optional (official skill bridge) | Prompt-enhancer draft → MOSS prompt + editor state. **No model loaded** |
 
 > Node labels switch with the UI language.
 > **When `spec` is connected it wins** — the Sampler's own geometry parameters are ignored.
@@ -143,7 +145,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 Restart ComfyUI. Nodes appear under **`moss/storyboard`**, and the startup log shows:
 
 ```
-[MOSS SB] v0.2.2 已加载｜节点 5 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v0.2.2 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 No such line = the pack did not load. Force the legacy V1 exit with `MOSSSB_NODE_API=v1`.
@@ -336,6 +338,30 @@ Swap them and the model will try to draw the words "bold pale gold". Only `text`
 > ⚠ **Keep text boxes away from the canvas edge.** Measured: with the box top at 5% of the canvas
 > height, the glyphs overflow upward and get clipped. Presets use 10%, but that is only a more
 > conservative start than 5% — **10% is not verified as safe**.
+
+---
+
+### 🎬 Prompt Compiler (`MossPromptCompiler`, no model)
+
+Bridges OpenMOSS's [MOSS-Image Prompt Enhancer skill](https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer)
+to this pack. Paste the skill's **draft** (not its compiled output) and get:
+
+- **`prompt`** — a ready-to-paste MOSS prompt (plain caption, or one-line native layout JSON).
+  Wire it into `CLIPTextEncode.text` or the Sampler's `positive`.
+- **`state`** — for layout drafts, a state v3 JSON you can paste into the Layout Editor import box.
+  The canvas must be 64–4096 px; larger or smaller drafts still compile to `prompt`, and `report`
+  explains why `state` was skipped.
+- **`report`** — type, canvas, item counts, and any field that could not be represented in state.
+
+Draft requirements (the official schema): `width` / `height` positive multiples of 16;
+`bbox_coord_space="abs"`; `bbox_format="xyxy"`; `summary.caption` and a non-empty `items` array.
+Each item is `object` / `character` / `text`; text items must carry the literal `text`.
+Unknown fields, duplicate keys, NaN/Infinity and out-of-bounds boxes are rejected.
+The pack adds a **256-item** cap and a 1 MB draft cap.
+
+The skill itself is external Apache-2.0 content and is **not bundled**; the compiler is an
+independent implementation of the documented schema. Details, limits and the offline confidence
+check: [prompt-enhancer doc](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md).
 
 ---
 
@@ -662,7 +688,8 @@ Selected deep dives live in the GitHub repo's
 [`06`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/06-vae-memory.md) VAE memory budget ·
 [`07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md) cross-panel consistency ·
 [`10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) state v3 frozen contract ·
-[`12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) elements-v1 interchange.
+[`12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) elements-v1 interchange ·
+[`13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) official prompt-enhancer bridge.
 Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) · release history:
 [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md).
 

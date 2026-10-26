@@ -6,13 +6,15 @@
 
 给 MOSS-Image（5B 单流 DiT + Qwen3.5-9B + FLUX.2 VAE）用的故事板宫格与布局节点包。
 
-五个节点（分类 `moss/storyboard`）：
+六个节点（分类 `moss/storyboard`）：
 - **MOSS Layout Editor** 画布式布局编辑器：元素 / 文字 / 宫格，出提示词与几何。零模型。
 - **MOSS Storyboard Layout** 算 3/4/6/8/9 宫格几何，出 MOSS 原生布局提示词与模板预览。零模型。
 - **MOSS Storyboard Sampler** 一步出故事板：布局约束 + 采样 + 复绘宫格线 + 裁格。
   支持「整张」一次采样与「逐格」独立采样后拼版。
 - **MOSS Storyboard Crop** 按 spec 精确裁格，附带裁切线预览。
 - **MOSS Storyboard Paste** 把改好的单格按 spec 坐标贴回整张宫格。
+- **MOSS Prompt Compiler** 把官方 prompt-enhancer 的 caption/layout 草稿编译成
+  MOSS 提示词；layout 草稿另出 state v3（可导入布局编辑器）。零模型。
 
 三步跑通：
 1. 接 `UNETLoader(moss_image_sft_bf16)` / `CLIPLoader(type=moss_image)` / `VAELoader(flux2-vae)`。

@@ -75,6 +75,10 @@ export const NODES = {
         zh: "🎬 故事板 · 贴回", en: "🎬 Storyboard · Paste Panel",
         legacy: "MOSS Storyboard Paste",
     },
+    MossPromptCompiler: {
+        zh: "🎬 提示词 · 草稿编译", en: "🎬 Prompt · Draft Compiler",
+        legacy: "MOSS Prompt Compiler",
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -87,6 +91,7 @@ export const LABELS_EN = {
     panel_edge: "panel long edge",
     cell_gray: "template gray",
     border_px: "line width",
+    draft: "prompt draft",
     show_guides: "show crop lines",
     resize_edge: "output long edge",
     spec: "geometry spec",
@@ -137,6 +142,7 @@ export const LABELS = {
     panel: "改好的单格",
     grid: "整张宫格",
     marked: "标记图",
+    draft: "提示词草稿",
     control_after_generate: "生成后",
 };
 
@@ -364,6 +370,13 @@ export const TIPS = {
         en: "[Required without spec] Column count. 0 with no spec raises an error instead of guessing.",
     },
     "MossStoryboardPaste.rows": { en: "[Required without spec] Row count." },
+    "MossPromptCompiler.draft": {
+        en: "[What to enter] A draft from the official MOSS-Image Prompt Enhancer (not an already-compiled prompt).\n"
+            + "caption: {\"caption\": \"...\"}; layout: width / height / bbox_coord_space=\"abs\" / bbox_format=\"xyxy\" / summary / items.\n"
+            + "The prompt output wires into CLIPTextEncode or the Sampler positive; a layout draft also outputs\n"
+            + "state v3, which can be pasted into the Layout Editor import box.\n"
+            + "⚠ At most 256 items; unknown fields, out-of-bounds boxes and canvases not divisible by 16 are rejected.",
+    },
 };
 
 // ---------------------------------------------------------------------------

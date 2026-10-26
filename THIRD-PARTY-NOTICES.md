@@ -37,6 +37,11 @@
 - **编辑器 state-in-widget 架构**：`web/moss_sb_editor.js` 的「整份 state 序列化进一个 STRING widget，
   再在节点内挂 DOM 覆盖层」做法参考 `ComfyUI-NewBie-LLM-Formatter`（MIT，许可见其仓库 LICENSE）。
   本包**未复制其源码**；CSS、交互、state v3 字段与编译规则均为本包自写。
+- **MOSS-Image Prompt Enhancer skill（Apache-2.0）**：`MossPromptCompiler` 按
+  <https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer>
+  的**公开文档格式**独立实现草稿解析与编译。本包**未打包该 skill，也未复制其代码**；
+  坐标换算（左/上 floor、右/下 ceil、减中心）与字段校验口径按官方文档与公开实现对齐，
+  并用官方示例做了离线回归。skill 的版权归 OpenMOSS 作者所有。
 
 ## 四、本包依赖
 

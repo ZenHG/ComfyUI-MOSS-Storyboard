@@ -74,9 +74,11 @@
 | **中英双语界面** | 每个本包节点上有「中 / EN」按钮，只改显示、不改存档 |
 | **零 GPU 机检** | 全部离线断言（清单见 [`CONTRIBUTING.md`](CONTRIBUTING.md)） |
 
-**五个节点。做故事板最小工作流只需要「生成」一个** —— 它自带全套几何参数。
-「布局编辑器」是另一个入口：不写提示词段落，改在画布上摆框，适合海报、封面、产品图。
-「宫格几何」是可选的前置：用来先看宫格形状，或把几何固化成一根 `spec` 传给多个下游。
+**六个节点，一个入口就够。仓库示例接的是完整故事板链；最小工作流只需要「生成」一个** ——
+它自带全套几何参数。「布局编辑器」是另一个入口：不写提示词段落，改在画布上摆框，
+适合海报、封面、产品图。「宫格几何」是可选的前置：用来先看宫格形状，或把几何固化成
+一根 `spec` 传给多个下游。「提示词 · 草稿编译」是官方提示词 skill 的桥：贴官方草稿，
+出 MOSS 提示词，布局草稿另出一份可导入布局编辑器的 state。
 
 | 节点（中文界面显示） | 代码名 | 必需？ | 作用 |
 |---|---|---|---|
@@ -85,9 +87,10 @@
 | 🎬 故事板 · 宫格几何 | `MossStoryboardLayout` | 可选（推荐） | 算尺寸和每格坐标，出布局提示词与宫格模板图。**不加载模型**，秒出 |
 | 🎬 故事板 · 裁格 | `MossStoryboardCrop` | 可选 | 只裁格。接 `spec` 就与生成时逐像素一致，也能切已有的宫格图 |
 | 🎬 故事板 · 贴回 | `MossStoryboardPaste` | 可选 | 把改好的单格按 `spec` 贴回宫格，输出改好的整图。改一格不用重跑整张 |
+| 🎬 提示词 · 草稿编译 | `MossPromptCompiler` | 可选（官方 skill 桥） | 贴官方 prompt-enhancer 草稿 → MOSS 提示词 + 布局编辑器 state。**不加载模型**，秒出 |
 
 > 节点名在**英文界面**下是 `Layout Editor` / `Storyboard · Grid Layout` / `Storyboard · Generate` /
-> `Storyboard · Split Panels` / `Storyboard · Paste Panel`。
+> `Storyboard · Split Panels` / `Storyboard · Paste Panel` / `Prompt · Draft Compiler`。
 > **接了 `spec` 就以 `spec` 为准**，「生成」节点上的格数等几何参数会被忽略——这是最常踩的坑。
 
 ---
@@ -135,10 +138,10 @@ cd <你的 ComfyUI>/custom_nodes
 git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 ```
 
-重启 ComfyUI。节点菜单 **`moss/storyboard`** 下出现五个节点，启动日志里有一行：
+重启 ComfyUI。节点菜单 **`moss/storyboard`** 下出现六个节点，启动日志里有一行：
 
 ```
-[MOSS SB] v0.2.2 已加载｜节点 5 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v0.2.2 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 **没这行 = 包没加载**，这比任何配置检查都直接。
@@ -362,6 +365,29 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 ---
 
+### 🎬 提示词 · 草稿编译（`MossPromptCompiler`，不加载模型）
+
+把 OpenMOSS 的 [MOSS-Image Prompt Enhancer skill](https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer)
+接到本包。贴 skill 产出的**草稿**（不是它编译后的结果），得到：
+
+- **`prompt`** —— 可直接用的 MOSS 提示词（普通 caption，或单行原生布局 JSON）。
+  接到 `CLIPTextEncode.text` 或「生成」节点的 `positive`。
+- **`state`** —— 布局草稿会另出一份 state v3 JSON，可直接粘进布局编辑器的导入框。
+  画布须在 64–4096 内；超出时 `prompt` 仍会输出，`report` 说明为什么没生成 `state`。
+- **`report`** —— 类型、画布、元素数，以及哪些字段无法带进 state。
+
+草稿要求（官方 schema）：`width` / `height` 是 16 的正整数倍；
+`bbox_coord_space="abs"`；`bbox_format="xyxy"`；`summary.caption` 与非空 `items`。
+每个元素是 `object` / `character` / `text`；文字元素必须带实际渲染的 `text`。
+未知字段、重复键、NaN/Infinity、越界框一律拒绝。本包另加**最多 256 个元素**、
+**草稿 1 MB** 两道上限。
+
+skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按官方文档独立实现的。
+细节、边界与离线置信度核查见
+[提示词编译文档](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md)。
+
+---
+
 ### 🎬 故事板 · 宫格几何（`MossStoryboardLayout`，不加载模型）
 
 输出：`width` `height` `columns` `rows` `spec` `layout_json` `template` `report` `elements`
@@ -567,7 +593,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 ## 节点中英切换
 
-每个**本包节点**的标题栏上有一个「**中 / EN**」按钮。点一下，本包五个节点的
+每个**本包节点**的标题栏上有一个「**中 / EN**」按钮。点一下，本包六个节点的
 标题、参数标签、下拉框显示、悬浮提示一起切换。默认跟随 ComfyUI 的语言设置。
 
 - **只改本包节点**，官方和别人的节点一个字段都不动。
@@ -722,6 +748,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md) | 跨格一致性：三条机理、实测矩阵、提示词纪律、旋钮边界 |
 | [`docs/10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) | state v3 冻结契约（实现、示例与测试的唯一真相源） |
 | [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) | 互操作：elements-v1（0–1000 bbox）⇄ state v3、命令行校验器 |
+| [`docs/13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) | 官方提示词 skill 的草稿格式、编译规则、置信度与未测项 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
 

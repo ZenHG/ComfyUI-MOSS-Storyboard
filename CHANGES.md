@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### 新增
+- **第六个节点 `MossPromptCompiler`（提示词 · 草稿编译，零模型）**：桥接 OpenMOSS 官方
+  [MOSS-Image Prompt Enhancer skill](https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer)。
+  贴官方 **draft**（caption 或 layout），输出可直接用的 `prompt`、`report`，布局草稿另出
+  `state`（state v3，可导入布局编辑器）。按官方 schema 校验：`width`/`height` 为 16 的正整数倍、
+  `bbox_coord_space=abs`、`bbox_format=xyxy`、`summary.caption` + 非空 `items`、文字元素必须带
+  `text`；未知字段 / 重复键 / NaN / Infinity / 越界框一律拒绝。本包另加 256 元素与 1 MB 草稿上限。
+  坐标换算与官方实现逐字对齐（左/上 floor、右/下 ceil、再减画布中心），并有官方期望值回归。
+- **`core/skill_draft.py`**：草稿 schema 的独立实现（未复制官方代码），含 `loads` / `compile_draft` /
+  `draft_to_state`；`tools/compile_skill_draft.py` 提供无 ComfyUI 的命令行入口（`--output` / `--state`）。
+- **`tests/test_skill_draft.py`**：77 项离线检查，覆盖官方示例、分数边、非法几何 / 尺寸 / 字段 /
+  重复键 / NaN / 越界、256/257 上限、state 映射、CLI、输入不被改写、编译上限 8192 vs state 上限 4096。
+  state 画布还须 ≥64（编辑器下限）；超出时节点仍输出 prompt，并把「state 未生成」写进 report。
+- **`docs/13-prompt-enhancer.md`**：官方 skill 的用法、草稿 schema、三条接入路径、置信度与未测项。
+
 ### 文档 / 分发
 - **英文 README 成为主文档**（`README.md`），中文全文移至 `README_ZH.md`；`README_EN.md` 留跳转桩。
 - **首屏重排**：真实 4 格 hero 图、与官方 MOSS 布局的差异对照、Manager / CLI / git 三种安装、
