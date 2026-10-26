@@ -10,6 +10,7 @@ v1 只支持 `title-body`（标题 / 主体 / 底部文字）。其它版式先�
 把每套版式都塞进这里，会让「预设」出现第二个真相源。
 """
 
+from . import editor as E
 from . import interop as I
 from . import presets as P
 
@@ -31,7 +32,7 @@ def _text(brief, key, required=False):
             raise ValueError("brief 缺 %s（必填）。" % key)
         return None
     val = brief[key]
-    if not isinstance(val, str) or not val.strip():
+    if not isinstance(val, str) or E.is_blank(val):
         raise ValueError("brief.%s 必须是非空字符串（收到 %r）。" % (key, val))
     return val
 

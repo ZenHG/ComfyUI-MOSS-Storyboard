@@ -221,9 +221,12 @@ bad = single_state(preset="free", items=[{"id": "i%d" % i} for i in range(257)])
 msg = raises(E.parse_state, dump(bad))
 check("items > 256 报错", msg and "上限" in msg, msg)
 
-bad = single_state(version=3.0)
+s = E.parse_state(dump(single_state(version=3.0)))
+check("version 3.0 按整数接受（JSON 无 int/float 之分）", s["version"] == 3)
+
+bad = single_state(version=3.5)
 msg = raises(E.parse_state, dump(bad))
-check("version 非 int（3.0）报错", msg and "版本" in msg, msg)
+check("version 非整数（3.5）报错", msg and "版本" in msg, msg)
 
 print("\n== 3. 宫格模式 ==")
 s = E.parse_state(dump(grid_state()))

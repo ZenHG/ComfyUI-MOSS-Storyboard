@@ -44,16 +44,19 @@ NOTE = """## 三步
 2. ③ 提示词**只填这里**：`[STYLE]` 一段 + `[PANEL 1]`…`[PANEL n]` 每格一段。
 3. 跑。产物 = 整张宫格 + 逐格。
 
+## 采样配方（先看这条）
+仓库示例默认：官方底模 **35 步 / cfg 3.5**，LoRA 节点已旁路。
+- 装了 4-step 蒸馏 LoRA：选中它按 `Ctrl+B` 取消旁路，并把 ③ 改成 **4 步 / cfg 1.0**。
+- 没装：保持旁路与 35 步 / cfg 3.5。
+
 ## 三条不要动
 - ① `type` 必须是 `moss_image`。
-- ③ `steps=4`（配 4-step LoRA）、`denoise=1.0`。
+- ③ `denoise=1.0`。
 - ② 提示词留空 —— 它只算尺寸。
 
 ## 格数 → 画布（单格 16:9，长边 496）
 3=512×848　4=1024×576　6=1520×576　8=2032×576　9=1520×848
 
-## ① LoRA（4-step）
-没装这个 LoRA 就选中它按 `Ctrl+B` 旁路，不影响其它接线。
 宫格线由节点按坐标复绘（不依赖模型画直线）。"""
 
 
@@ -167,8 +170,8 @@ def build():
         ("vae", "VAE", False, None),
         ("positive", "STRING", True, PROMPT),
         ("negative", "STRING", True, NEGATIVE),
-        ("steps", "INT", True, 4),
-        ("cfg", "FLOAT", True, 1.0),
+        ("steps", "INT", True, 35),
+        ("cfg", "FLOAT", True, 3.5),
         ("sampler_name", "COMBO", True, "euler"),
         ("scheduler", "COMBO", True, "simple"),
         ("seed", "INT", True, 555),

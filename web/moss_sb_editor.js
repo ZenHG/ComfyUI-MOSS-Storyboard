@@ -129,9 +129,11 @@ const STR = {
     resetAsk: { zh: "重置会丢掉当前 state，确定？", en: "This discards the current state. Continue?" },
     warnCaption: { zh: "caption 为空：编译时会报错", en: "caption is empty: the compiler will raise" },
     warnText: { zh: "text 为空：编译时会报错", en: "text is empty: the compiler will raise" },
-    warnGrid: { zh: "items 数量与 cols×rows 不一致，点「生成初始框」修正", en: "items count != cols x rows; click Generate boxes" },
+    warnGrid: { zh: "框数量与 cols×rows 不一致，点「生成初始框」修正", en: "item count != cols x rows; click Generate boxes" },
     warnPalette: { zh: "palette 只接受 #rrggbb，最多 5 个", en: "palette takes #rrggbb only, up to 5" },
     warnUnknownLabel: { zh: "label 不在 object/character/text 里", en: "label is not object/character/text" },
+    warnMaxItems: { zh: "元素已达 256 个上限，节点会拒绝；请拆成多张画布", en: "At the 256-item limit; the node will reject it — split across canvases" },
+    warnTooBig: { zh: "state 超过 1,000,000 字符上限，节点会拒绝；请删减元素或缩短描述", en: "state exceeds 1,000,000 characters; the node will reject it — remove items or shorten captions" },
     welcomeTitle: { zh: "从一个预设开始", en: "Start from a preset" },
     welcomeSub: { zh: "选一个预设生成初始框，之后每个框都能拖动、缩放、改属性。", en: "Pick a preset to create boxes. Every box stays editable afterwards." },
     welcomeGrid: { zh: "宫格模式只读：改行列数后点「生成初始框」。", en: "Grid mode is read-only. Set columns/rows, then hit Generate boxes." },
@@ -153,24 +155,28 @@ const STR = {
     exportBtn: { zh: "导出", en: "Export" },
     importTitle: { zh: "导入 elements-v1 或 state v3 JSON", en: "Import elements-v1 or state v3 JSON" },
     exportTitle: { zh: "导出 elements-v1 JSON（单张模式）", en: "Export elements-v1 JSON (single-canvas mode)" },
-    importConfirm: { zh: "导入会替换当前 {n} 个元素，确定？", en: "Import replaces the current {n} items. Continue?" },
+    importConfirm: { zh: "导入会替换当前 {n} 项，确定？", en: "Import replaces the current {n} items. Continue?" },
     importOk: { zh: "已导入 {n} 个元素", en: "Imported {n} items" },
     importFail: { zh: "导入失败：", en: "Import failed: " },
-    importTooBig: { zh: "文件超过 1,000,000 字符", en: "File exceeds 1,000,000 characters" },
+    importTooBig: { zh: "文件超过 1 MB（上限 1,000,000 字符）", en: "File exceeds 1 MB (limit: 1,000,000 characters)" },
+    importTooMany: { zh: "state 有 {n} 个元素，超过上限 {max}", en: "state has {n} items; the limit is {max}" },
     importUnknown: { zh: "既不是 elements-v1 也不是 state v3", en: "Neither elements-v1 nor state v3" },
+    importFixed: { zh: "已导入 {n} 个元素（缺省/非法字段已自动修正）", en: "Imported {n} items (missing or invalid fields were repaired)" },
+    importWarn: { zh: "已导入 {n} 个元素，但有 {m} 条警告（见状态栏）", en: "Imported {n} items with {m} warning(s); see the status bar" },
     exportOk: { zh: "已导出 elements JSON", en: "Exported elements JSON" },
     exportFail: { zh: "导出失败：", en: "Export failed: " },
-    exportGrid: { zh: "宫格没有元素，不能导出 elements", en: "Grid mode has no elements to export" },
+    exportGrid: { zh: "宫格模式不能导出 elements（每格是格位，不是元素）", en: "Grid mode cannot export elements (panels are not elements)" },
     exportNoState: { zh: "没有可导出的 state", en: "No state to export" },
     queueBtn: { zh: "排队", en: "Queue" },
     queueTitle: { zh: "按当前工作流排队（不改任何值）", en: "Queue the current workflow (changes nothing)" },
     queueOk: { zh: "已加入队列", en: "Queued" },
     queueFail: { zh: "排队失败：", en: "Queue failed: " },
     queueNoState: { zh: "没有可排队的 state", en: "No state to queue" },
+    queueTooBig: { zh: "state 超过 1,000,000 字符，无法排队", en: "state exceeds 1,000,000 characters; cannot queue" },
     helpTitle: { zh: "操作提示", en: "Controls" },
     helpKeys: {
-        zh: "点选：单击框　拖动：按住框　画框：在空白处拖\n缩放：八个把手　删除：Delete / Backspace　微调：方向键（Shift ×10）\n复制：Ctrl/⌘ + D　取消选择：Esc\n撤销：Ctrl/⌘ + Z　重做：Ctrl/⌘ + Shift + Z（或 Ctrl + Y）\n导入 / 导出：工具栏按钮（elements-v1 JSON）",
-        en: "Select: click a box · Move: drag it · Draw: drag on empty canvas\nResize: 8 handles · Delete: Delete/Backspace · Nudge: arrow keys (Shift x10)\nDuplicate: Ctrl/Cmd + D · Deselect: Esc\nUndo: Ctrl/Cmd + Z · Redo: Ctrl/Cmd + Shift + Z (or Ctrl + Y)\nImport / Export: toolbar buttons (elements-v1 JSON)",
+        zh: "点选：单击框　拖动：按住框　画框：在空白处拖\n缩放：八个把手　删除：Delete / Backspace　微调：方向键（Shift ×10）\n复制：Ctrl/⌘ + D　取消选择：Esc\n撤销：Ctrl/⌘ + Z　重做：Ctrl/⌘ + Shift + Z（或 Ctrl + Y）\n导入 / 导出：工具栏按钮（elements-v1 / state v3 JSON）",
+        en: "Select: click a box · Move: drag it · Draw: drag on empty canvas\nResize: 8 handles · Delete: Delete/Backspace · Nudge: arrow keys (Shift x10)\nDuplicate: Ctrl/Cmd + D · Deselect: Esc\nUndo: Ctrl/Cmd + Z · Redo: Ctrl/Cmd + Shift + Z (or Ctrl + Y)\nImport / Export: toolbar buttons (elements-v1 / state v3 JSON)",
     },
     helpFields: {
         zh: "描述 = 元素长什么样；文字 = 实际渲染的字。二者不能混用。",
@@ -186,7 +192,8 @@ const STR = {
     },
     canvasPreset: { zh: "常用尺寸", en: "Canvas preset" },
     custom: { zh: "自定义", en: "Custom" },
-    confirmApply: { zh: "用当前预设替换这 {n} 个元素？", en: "Replace the current {n} items with this preset?" },
+    confirmApply: { zh: "用当前预设替换这 {n} 项？", en: "Replace the current {n} items with this preset?" },
+    itemsCount: { zh: "{n} 个元素", en: "{n} items" },
     emptySelection: { zh: "未选中元素。", en: "No item selected." },
 };
 
@@ -305,9 +312,20 @@ export function presetItems(preset, opt = {}) {
 }
 
 export const HISTORY_MAX = 100;
+//: 撤销栈的字符预算：单份 state 可达 1,000,000 字符，只按步数限会让历史吃满 100MB。
+export const HISTORY_MAX_CHARS = 8000000;
 
 export function makeHistory() {
     return { undo: [], redo: [], key: null };
+}
+
+function trimStack(stack) {
+    let total = 0;
+    for (const s of stack) total += String(s).length;
+    // 至少留一步：单个超大快照也还能撤销一次，不会因为预算把历史清空。
+    while (stack.length > 1 && total > HISTORY_MAX_CHARS) {
+        total -= String(stack.shift()).length;
+    }
 }
 
 /** 记一步：prev = 改动前的序列化 state。同一 key 的连续改动（打字、连按方向键）合并成一步。 */
@@ -315,6 +333,7 @@ export function recordHistory(hist, prev, key = null) {
     if (key && hist.key === key) return;
     hist.undo.push(prev);
     if (hist.undo.length > HISTORY_MAX) hist.undo.shift();
+    trimStack(hist.undo);
     hist.redo.length = 0;
     hist.key = key;
 }
@@ -325,6 +344,7 @@ export function stepHistory(hist, current, dir) {
     const to = dir < 0 ? hist.redo : hist.undo;
     if (!from.length) return null;
     to.push(current);
+    trimStack(to);
     hist.key = null;
     return from.pop();
 }
@@ -332,6 +352,9 @@ export function stepHistory(hist, current, dir) {
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const isHex = (v) => typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
 const isInt = (v) => Number.isInteger(v);
+const INVISIBLE_RE = /[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u206a-\u206f\ufeff]/g;
+/** 空白 + 零宽 + 方向控制字符 = 空（与 Python `editor.is_blank` 同口径）。 */
+const isBlank = (s) => typeof s === "string" && !s.replace(INVISIBLE_RE, "").trim();
 
 /** 严格校验（契约 §2.1）。返回错误列表；空数组 = 合法。 */
 export function validateState(obj, lang = "zh") {
@@ -404,8 +427,8 @@ export function validateState(obj, lang = "zh") {
         else if (ids.has(it.id)) add(E(`${w}.id 重复：${it.id}`, `${w}.id is duplicated: ${it.id}`));
         else ids.add(it.id);
         if (!ITEM_LABELS.includes(it.label)) add(E(`${w}.label 非法：${it.label}`, `${w}.label is invalid: ${it.label}`));
-        if (typeof it.caption !== "string" || !it.caption.trim()) add(E(`${w}.caption 不能为空`, `${w}.caption must not be empty`));
-        if (it.label === "text" && (typeof it.text !== "string" || !it.text.trim())) {
+        if (typeof it.caption !== "string" || isBlank(it.caption)) add(E(`${w}.caption 不能为空`, `${w}.caption must not be empty`));
+        if (it.label === "text" && (typeof it.text !== "string" || isBlank(it.text))) {
             add(E(`${w}.text 必填（label=text），且不能拿 caption 兜底`,
                 `${w}.text is required when label=text (caption is not a fallback)`));
         }
@@ -618,7 +641,7 @@ function interopRole(el, where, E) {
         throw new Error(E(`${where} 的 role=${el.role} 与 type=${el.type} 冲突，只留一个。`,
             `${where} has conflicting role=${el.role} and type=${el.type}; keep one`));
     }
-    if (typeof raw !== "string" || !(raw in ROLE_ALIASES)) {
+    if (typeof raw !== "string" || !hasKey(ROLE_ALIASES, raw)) {
         throw new Error(E(`${where} 的 role=${raw} 不认识，可选：text、object、character（别名 obj、person）。`,
             `${where} has an unknown role ${raw}; use text, object or character (aliases: obj, person)`));
     }
@@ -697,7 +720,7 @@ export function elementsToState(doc, opts = {}) {
         used.add(id);
 
         const desc = hasKey(el, "desc") ? el.desc : el.caption;
-        if (typeof desc !== "string" || !desc.trim()) {
+        if (typeof desc !== "string" || isBlank(desc)) {
             throw new Error(E(`${where} 缺 desc（这个元素长什么样，必填，不能为空）。`,
                 `${where} is missing desc (what it looks like; required)`));
         }
@@ -722,7 +745,7 @@ export function elementsToState(doc, opts = {}) {
             bbox: [x0 / ELEMENTS_UNITS, y0 / ELEMENTS_UNITS, x1 / ELEMENTS_UNITS, y1 / ELEMENTS_UNITS],
         };
         if (role === "text") {
-            if (typeof el.text !== "string" || !el.text.trim()) {
+            if (typeof el.text !== "string" || isBlank(el.text)) {
                 throw new Error(E(`${where} 是 text 元素，必须填 text（实际渲染的字；desc 不能当 text 用）。`,
                     `${where} is a text element and needs text (the exact glyphs; desc is not a fallback)`));
             }
@@ -777,6 +800,20 @@ export function elementsToState(doc, opts = {}) {
     return state;
 }
 
+/** 0–1000 + 3 位小数；量化后塌成 0 宽/高时向外补到 0.001（保证导出结果可再导入）。 */
+function quantizeBbox(bbox) {
+    let [x0, y0, x1, y1] = bbox.map((v) => Math.round(Number(v) * ELEMENTS_UNITS * 1000) / 1000);
+    if (x1 <= x0) {
+        if (x0 < ELEMENTS_UNITS) x1 = x0 + 1;
+        else [x0, x1] = [ELEMENTS_UNITS - 1, ELEMENTS_UNITS];
+    }
+    if (y1 <= y0) {
+        if (y0 < ELEMENTS_UNITS) y1 = y0 + 1;
+        else [y0, y1] = [ELEMENTS_UNITS - 1, ELEMENTS_UNITS];
+    }
+    return [x0, y0, x1, y1];
+}
+
 /** state v3（单张模式）→ elements-v1 文档；bbox 量化到 0.001，element 顺序即 z 序。 */
 export function stateToElements(state, lang = "zh") {
     const L = interopLang(lang);
@@ -800,7 +837,7 @@ export function stateToElements(state, lang = "zh") {
     for (const it of state.items || []) {
         const el = {
             id: it.id, role: it.label, desc: it.caption,
-            bbox: (it.bbox || []).map((v) => Math.round(Number(v) * ELEMENTS_UNITS * 1000) / 1000),
+            bbox: quantizeBbox(it.bbox || []),
         };
         if (it.label === "text") el.text = it.text;
         if (Array.isArray(it.palette) && it.palette.length) el.palette = it.palette.slice();
@@ -1599,7 +1636,7 @@ function updateStatus(ui) {
     parts.push(st.preset === "grid"
         ? `${st.grid?.cols ?? "?"}×${st.grid?.rows ?? "?"}`
         : `${st.canvas?.width ?? "?"}×${st.canvas?.height ?? "?"}`);
-    parts.push(`${st.items.length} items`);
+    parts.push(t("itemsCount").replace("{n}", String(st.items.length)));
     const warns = [];
     if (st.preset === "grid") {
         const n = (st.grid?.cols || 0) * (st.grid?.rows || 0);
@@ -1658,8 +1695,8 @@ function syncPanel(ui, force) {
 
     renderSwatches(ui, it);
     const warns = [];
-    if (!String(it.caption || "").trim()) warns.push(t("warnCaption"));
-    if (it.label === "text" && !it.text) warns.push(t("warnText"));
+    if (typeof it.caption !== "string" || isBlank(it.caption)) warns.push(t("warnCaption"));
+    if (it.label === "text" && (typeof it.text !== "string" || isBlank(it.text))) warns.push(t("warnText"));
     if (!ITEM_LABELS.includes(it.label)) warns.push(t("warnUnknownLabel"));
     if (Array.isArray(it.palette) && (it.palette.length > 5 || it.palette.some((c) => !isHex(c)))) {
         warns.push(t("warnPalette"));
@@ -1697,6 +1734,7 @@ function commit(ui, historyKey = null) {
     ui.histRaw = raw;
     writeState(ui, ui.state);
     ui.warnings = validateState(ui.state, uiLang()).errors;
+    if (raw.length > MAX_STATE_CHARS) ui.warnings.push(t("warnTooBig"));
     render(ui);
     updateStatus(ui);
     syncHistoryButtons(ui);
@@ -1711,7 +1749,7 @@ function resetHistory(ui) {
 function syncHistoryButtons(ui) {
     ui.undoBtn.disabled = !ui.state || !ui.hist.undo.length;
     ui.redoBtn.disabled = !ui.state || !ui.hist.redo.length;
-    if (ui.queueBtn) ui.queueBtn.disabled = !ui.state;
+    if (ui.queueBtn) ui.queueBtn.disabled = !ui.state || !!ui.queueBusy;
 }
 
 function flash(ui, msg, isErr = false) {
@@ -2024,6 +2062,12 @@ function endDrag(ui, ev) {
     if (d.mode === "draw") {
         const b = d.box.map(round3);
         if (b[2] - b[0] >= 0.01 && b[3] - b[1] >= 0.01) {
+            if (st.items.length >= MAX_ITEMS) {
+                flash(ui, t("warnMaxItems"), true);
+                render(ui);
+                try { ui.svg.releasePointerCapture(ev.pointerId); } catch (e) { /* 已释放 */ }
+                return;
+            }
             const it = {
                 id: makeItemId("object", st.items),
                 label: "object",
@@ -2074,6 +2118,7 @@ function deleteSelected(ui) {
 function duplicateItem(ui) {
     const it = selectedItem(ui);
     if (!it || !ui.state || ui.state.preset === "grid") return;
+    if (ui.state.items.length >= MAX_ITEMS) { flash(ui, t("warnMaxItems"), true); return; }
     const copy = JSON.parse(JSON.stringify(it));
     copy.id = makeItemId(it.label, ui.state.items);
     const b = it.bbox.slice();
@@ -2226,13 +2271,21 @@ function wire(ui) {
             }
             const kind = sniffLayoutDoc(obj);
             let st;
+            let fixed = false;
+            let warnCount = 0;
             if (kind === "elements") st = elementsToState(obj, { lang: uiLang(), preset: "free" });
             else if (kind === "state") {
                 const res = readState(text, uiLang());
                 if (res.fatal) throw new Error(res.fatal);
                 st = res.state;
+                fixed = !!res.fixed;
+                warnCount = (res.warnings || []).length;
             } else {
                 throw new Error(t("importUnknown"));
+            }
+            if (st.items.length > MAX_ITEMS) {
+                throw new Error(t("importTooMany").replace("{n}", String(st.items.length))
+                    .replace("{max}", String(MAX_ITEMS)));
             }
             const n = ui.state?.items?.length || 0;
             if (n) {
@@ -2245,7 +2298,9 @@ function wire(ui) {
             commit(ui, "import");
             syncPanel(ui, true);
             syncStatic(ui);
-            flash(ui, t("importOk").replace("{n}", String(st.items.length)));
+            if (warnCount) flash(ui, t("importWarn").replace("{n}", String(st.items.length)).replace("{m}", String(warnCount)), true);
+            else if (fixed) flash(ui, t("importFixed").replace("{n}", String(st.items.length)));
+            else flash(ui, t("importOk").replace("{n}", String(st.items.length)));
         } catch (err) {
             flash(ui, t("importFail") + (err && err.message ? err.message : String(err)), true);
         } finally {
@@ -2255,14 +2310,23 @@ function wire(ui) {
     ui.queueBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!ui.state) { flash(ui, t("queueNoState"), true); return; }
+        if (ui.queueBusy) return;
+        if ((ui.raw || "").length > MAX_STATE_CHARS) { flash(ui, t("queueTooBig"), true); return; }
+        ui.queueBusy = true;
+        ui.queueBtn.disabled = true;
+        const done = (err) => {
+            ui.queueBusy = false;
+            syncHistoryButtons(ui);
+            if (err) flash(ui, t("queueFail") + (err.message || String(err)), true);
+            else flash(ui, t("queueOk"));
+        };
         try {
             if (!app || typeof app.queuePrompt !== "function") {
                 throw new Error("app.queuePrompt is unavailable in this front-end");
             }
-            app.queuePrompt(0, 1);
-            flash(ui, t("queueOk"));
+            Promise.resolve(app.queuePrompt(0, 1)).then(() => done(null), done);
         } catch (err) {
-            flash(ui, t("queueFail") + (err && err.message ? err.message : String(err)), true);
+            done(err);
         }
     });
     ui.exportBtn.addEventListener("click", (e) => {
@@ -2434,8 +2498,8 @@ function wire(ui) {
 
 function syncPanelTail(ui, it) {
     const warns = [];
-    if (!String(it.caption || "").trim()) warns.push(t("warnCaption"));
-    if (it.label === "text" && !it.text) warns.push(t("warnText"));
+    if (typeof it.caption !== "string" || isBlank(it.caption)) warns.push(t("warnCaption"));
+    if (it.label === "text" && (typeof it.text !== "string" || isBlank(it.text))) warns.push(t("warnText"));
     if (Array.isArray(it.palette) && (it.palette.length > 5 || it.palette.some((c) => !isHex(c)))) {
         warns.push(t("warnPalette"));
     }

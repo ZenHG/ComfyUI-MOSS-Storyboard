@@ -11,7 +11,7 @@
   下游逐格独立采样再拼版。格位 bbox **只给前端显示用，后端不消费**（每格都是全幅）。
 - 其他 preset ⇒ **单张模式**。items 是元素，编译成一个多元素 layout JSON，一次采样整张。
 
-三条实测前提（`docs/08` §八、`docs/09` §4.3）：
+三条实测前提（维护者本地实测记录）：
 
 1. **元素级 bbox 是强约束**，不是软提示 —— 同 seed 换 bbox，构图完全改变。
 2. **bbox 对文字：宽度有效，高度不严** —— 字会溢出框。不能用框高精确控字号。
@@ -21,6 +21,7 @@ state 结构见 `docs/10-contract.md` §一（冻结契约）。
 """
 
 import json
+import math
 import re
 
 from . import layout as L
@@ -44,6 +45,14 @@ GAP_MAX = 256
 
 #: palette 唯一合法形态：`#rrggbb`（7 字符、6 位十六进制）。8 位 alpha 与 `null` 都不收。
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+#: 零宽 / 方向控制字符：只有这些字符的 caption / text 渲染不出来，按空处理。
+_INVISIBLE_RE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u206a-\u206f\ufeff]")
+
+
+def is_blank(text):
+    """空白 + 零宽 + 方向控制字符组成的字符串视为空（前端 `isBlank` 同口径）。"""
+    return not _INVISIBLE_RE.sub("", text).strip()
 
 #: 预设清单。`grid` 是唯一的宫格模式，其余都是单张模式。
 PRESETS = ("grid", "split-v", "split-h", "title-body",
@@ -83,7 +92,19 @@ def _fail(msg):
 
 
 def _is_int(v):
-    return isinstance(v, int) and not isinstance(v, bool)
+    """JSON 没有 int/float 之分：`3` 与 `3.0` 在浏览器里是同一个数。
+
+    所以整数字段接受**整值浮点**（`1536.0`），但拒绝 `1536.5`、bool 与 NaN/Infinity。
+    """
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, int):
+        return True
+    return isinstance(v, float) and math.isfinite(v) and v.is_integer()
+
+
+def _reject_constant(name):
+    raise ValueError("JSON 里不允许 %s（不是合法 JSON）" % name)
 
 
 def _check_bbox(bbox, where):
@@ -91,6 +112,8 @@ def _check_bbox(bbox, where):
         _fail("%s 的 bbox 必须是 4 个数 [x0,y0,x1,y1]（收到 %r）。" % (where, bbox))
     if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in bbox):
         _fail("%s 的 bbox 必须全是数字，不收字符串/布尔（收到 %r）。" % (where, bbox))
+    if any(not math.isfinite(float(v)) for v in bbox):
+        _fail("%s 的 bbox 含 NaN / Infinity；只收有限数字（收到 %r）。" % (where, bbox))
     x0, y0, x1, y1 = (float(v) for v in bbox)
     if not (0.0 <= x0 < x1 <= 1.0 and 0.0 <= y0 < y1 <= 1.0):
         _fail("%s 的 bbox 越界或反向：需要 0 ≤ x0 < x1 ≤ 1、0 ≤ y0 < y1 ≤ 1"
@@ -106,8 +129,10 @@ def parse_state(text):
     if not raw.strip():
         return empty_state()
     try:
-        state = json.loads(raw)
-    except (ValueError, TypeError) as exc:
+        # Python 的 json 默认接受 NaN / Infinity；它们不是合法 JSON，
+        # 编辑器（JSON.parse）也读不了，必须在这里就拒绝。
+        state = json.loads(raw, parse_constant=_reject_constant)
+    except (ValueError, TypeError, RecursionError) as exc:
         _fail("编辑器状态不是合法 JSON（%s）。请恢复工作流，或在编辑器里重置。" % exc)
     if not isinstance(state, dict):
         _fail("编辑器状态必须是 JSON 对象，收到 %s。" % type(state).__name__)
@@ -116,6 +141,7 @@ def parse_state(text):
     if not _is_int(ver) or ver != STATE_VERSION:
         _fail("编辑器状态版本是 %r，本版只认 %d。旧工作流的 state 需要重存。"
               % (ver, STATE_VERSION))
+    state["version"] = STATE_VERSION
 
     preset = state.get("preset")
     if preset not in PRESETS:
@@ -139,6 +165,7 @@ def parse_state(text):
             v = grid.get(key)
             if not _is_int(v) or not 1 <= v <= L.MAX_AXIS:
                 _fail("grid.%s 必须是 1..%d 的整数（收到 %r）。" % (key, L.MAX_AXIS, v))
+            grid[key] = int(v)
         # 空白宫格态（1×1、items 为空）是 empty_state("grid") 的占位，允许；
         # 其余情况行列数必须与格数一致。
         blank = not items and grid["cols"] == 1 and grid["rows"] == 1
@@ -153,10 +180,12 @@ def parse_state(text):
         if not _is_int(edge) or not PX_MIN <= edge <= PX_MAX or edge % L.SNAP:
             _fail("grid.panel_edge 必须是 %d..%d 且为 %d 的倍数（收到 %r）。"
                   % (PX_MIN, PX_MAX, L.SNAP, edge))
+        grid["panel_edge"] = int(edge)
         for key in ("gutter", "margin"):
             v = grid.get(key)
             if not _is_int(v) or not 0 <= v <= GAP_MAX:
                 _fail("grid.%s 必须是 0..%d 的整数（收到 %r）。" % (key, GAP_MAX, v))
+            grid[key] = int(v)
     else:
         canvas = state.get("canvas")
         if not isinstance(canvas, dict):
@@ -166,6 +195,7 @@ def parse_state(text):
             if not _is_int(v) or not PX_MIN <= v <= PX_MAX or v % L.SNAP:
                 _fail("canvas.%s 必须是 %d..%d 且为 %d 的倍数（收到 %r）。"
                       % (key, PX_MIN, PX_MAX, L.SNAP, v))
+            canvas[key] = int(v)
 
     seen = set()
     for i, it in enumerate(items):
@@ -182,11 +212,11 @@ def parse_state(text):
         if label not in T.LABELS:
             _fail("%s 的 label=%r 不认识（必填），可选：%s。"
                   % (where, label, "/".join(T.LABELS)))
-        if not isinstance(it.get("caption"), str) or not it["caption"].strip():
+        if not isinstance(it.get("caption"), str) or is_blank(it["caption"]):
             _fail("%s 没有描述（caption 不能为空）。" % where)
         if label == "text":
             txt = it.get("text")
-            if not isinstance(txt, str) or not txt.strip():
+            if not isinstance(txt, str) or is_blank(txt):
                 _fail("%s 是文字元素，必须填 text（**实际渲染的字**）。"
                       "caption 只描述样式，不能当 text 用。" % where)
         if "palette" in it:
@@ -202,6 +232,7 @@ def parse_state(text):
             no = it.get("no")
             if not _is_int(no):
                 _fail("%s 的镜号 no 必须是整数（收到 %r）。" % (where, no))
+            it["no"] = int(no)
             if it.get("size") not in SIZES:
                 _fail("%s 的景别 size=%r 不认识，可选：%s。"
                       % (where, it.get("size"), "、".join(SIZES)))

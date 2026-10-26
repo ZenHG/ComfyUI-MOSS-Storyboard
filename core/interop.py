@@ -67,7 +67,16 @@ def _fail(msg):
 
 
 def _is_num(v):
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
+    return (isinstance(v, (int, float)) and not isinstance(v, bool)
+            and math.isfinite(v))
+
+
+def _dump(state):
+    """state → JSON 字符串。NaN / Infinity 不是合法 JSON，直接报错而不是写出去。"""
+    try:
+        return json.dumps(state, ensure_ascii=False, allow_nan=False)
+    except (ValueError, TypeError, RecursionError) as exc:
+        _fail("state 无法序列化成 JSON（%s）。检查 x_ext 里是否有 NaN / 循环或过深嵌套。" % exc)
 
 
 def _role(el, where):
@@ -84,7 +93,7 @@ def _role(el, where):
 
 def _desc(el, where):
     raw = el.get("desc", el.get("caption"))
-    if not isinstance(raw, str) or not raw.strip():
+    if not isinstance(raw, str) or E.is_blank(raw):
         _fail("%s 缺 desc（这个元素长什么样，必填，不能为空）。" % where)
     return raw
 
@@ -94,8 +103,10 @@ def _bbox(el, where):
     if not (isinstance(raw, (list, tuple)) and len(raw) == 4):
         _fail("%s 的 bbox 必须是 4 个数 [x0,y0,x1,y1]（单位 0–%d，收到 %r）。"
               % (where, UNITS, raw))
-    if any(not _is_num(v) for v in raw):
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in raw):
         _fail("%s 的 bbox 必须全是数字，不收字符串/布尔（收到 %r）。" % (where, list(raw)))
+    if any(not math.isfinite(float(v)) for v in raw):
+        _fail("%s 的 bbox 含 NaN / Infinity；只收有限数字（收到 %r）。" % (where, list(raw)))
     x0, y0, x1, y1 = (float(v) for v in raw)
     if not (0.0 <= x0 < x1 <= UNITS and 0.0 <= y0 < y1 <= UNITS):
         _fail("%s 的 bbox 越界或反向：需要 0 ≤ x0 < x1 ≤ %d、0 ≤ y0 < y1 ≤ %d"
@@ -116,6 +127,26 @@ def _palette(el, where):
 def _quantize(v):
     """0–1 → 0–1000，保留 3 位小数。与前端 `Math.round(v * 1e6) / 1000` 同式。"""
     return math.floor(v * UNITS * 1000 + 0.5) / 1000
+
+
+def _quantize_bbox(bbox):
+    """bbox → 0–1000（3 位小数）；量化后塌成 0 宽/高时向外补到 0.001。
+
+    导出精度就是 0.001，比这更窄的框只在手改 state 里出现。补到最小宽度
+    能保证 **导出结果永远可以再导入**，而不是产出一个 bbox 反向的文件。
+    """
+    x0, y0, x1, y1 = (_quantize(float(v)) for v in bbox)
+    if x1 <= x0:
+        if x0 < UNITS:
+            x1 = x0 + 1
+        else:
+            x0, x1 = UNITS - 1, UNITS
+    if y1 <= y0:
+        if y0 < UNITS:
+            y1 = y0 + 1
+        else:
+            y0, y1 = UNITS - 1, UNITS
+    return [x0, y0, x1, y1]
 
 
 def _gen_id(role, used):
@@ -195,7 +226,7 @@ def to_state(doc, preset="free", style=None):
                 "bbox": _bbox(el, where)}
         if role == "text":
             txt = el.get("text")
-            if not isinstance(txt, str) or not txt.strip():
+            if not isinstance(txt, str) or E.is_blank(txt):
                 _fail("%s 是 text 元素，必须填 text（实际渲染的字；desc 不能当 text 用）。" % where)
             item["text"] = txt
         elif "text" in el:
@@ -230,7 +261,7 @@ def to_state(doc, preset="free", style=None):
     for key, val in doc.items():
         if key not in _DOC_KEYS and _safe_key(key):
             state.setdefault("x_ext", {})[key] = val
-    return E.parse_state(json.dumps(state, ensure_ascii=False))
+    return E.parse_state(_dump(state))
 
 
 def from_state(state):
@@ -239,8 +270,7 @@ def from_state(state):
     bbox 乘 1000 后保留 3 位小数（约 0.001 精度）；element 顺序即 z 序，
     因此导出不再写 `z`。`x_ext` 原样带出，供再次导入时保留。
     """
-    state = E.parse_state(state if isinstance(state, str)
-                          else json.dumps(state, ensure_ascii=False))
+    state = E.parse_state(state if isinstance(state, str) else _dump(state))
     if E.is_grid(state):
         _fail("宫格 state 不能导出成 elements：每格是格位，不是元素。")
     doc = {
@@ -252,7 +282,7 @@ def from_state(state):
     for it in state["items"]:
         el = {"id": it["id"], "role": it["label"],
               "desc": it["caption"],
-              "bbox": [_quantize(float(v)) for v in it["bbox"]]}
+              "bbox": _quantize_bbox(it["bbox"])}
         if it["label"] == "text":
             el["text"] = it["text"]
         if it.get("palette"):
