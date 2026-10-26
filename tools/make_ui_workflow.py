@@ -45,9 +45,10 @@ NOTE = """## 三步
 3. 跑。产物 = 整张宫格 + 逐格。
 
 ## 采样配方（先看这条）
-仓库示例默认：**官方 SFT 模板口径 25 步 / cfg 2.5 / er_sde / simple**，LoRA 节点已旁路。
+仓库示例默认：**MOSS-Image-SFT 模型卡口径 50 步 / cfg 3 / euler / sgm_uniform**，LoRA 节点已旁路。
 - 装了 4-step 蒸馏 LoRA：选中它按 `Ctrl+B` 取消旁路，并把 ③ 改成 **4 步 / cfg 1.0**。
-- 没装：保持旁路与官方档（25 / 2.5 / er_sde）。
+- 没装：保持旁路与模型卡档（50 / 3 / euler）。
+- 模型卡还写了 shift 5 与 SLG 负分支层 22；shift 5 是原生模型内置，SLG 需宿主节点（本示例未接）。
 
 ## 三条不要动
 - ① `type` 必须是 `moss_image`。
@@ -170,10 +171,10 @@ def build():
         ("vae", "VAE", False, None),
         ("positive", "STRING", True, PROMPT),
         ("negative", "STRING", True, NEGATIVE),
-        ("steps", "INT", True, 25),
-        ("cfg", "FLOAT", True, 2.5),
-        ("sampler_name", "COMBO", True, "er_sde"),
-        ("scheduler", "COMBO", True, "simple"),
+        ("steps", "INT", True, 50),
+        ("cfg", "FLOAT", True, 3.0),
+        ("sampler_name", "COMBO", True, "euler"),
+        ("scheduler", "COMBO", True, "sgm_uniform"),
         ("seed", "INT", True, 555),
         ("denoise", "FLOAT", True, 1.0),
         # —— 以下为 optional ——

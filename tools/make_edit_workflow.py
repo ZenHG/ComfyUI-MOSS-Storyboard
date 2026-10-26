@@ -59,7 +59,8 @@ NOTE = """## 这条链干什么
      两个文件放 `models/loras/Moss-Image-Edit/`
 2. **② 选采样配方（先选一档）**：
    - **不装 LoRA（默认）**：两个 LoRA 保持旁路；生成节点与编辑 `KSampler` 都用
-     **官方 SFT 模板口径 25 步 / cfg 2.5 / er_sde / simple**。能完整生成 + 贴回，但没有 MOSS 指令编辑。
+     **MOSS-Image-SFT 模型卡口径 50 步 / cfg 3 / euler / sgm_uniform**。
+     能完整生成 + 贴回，但没有 MOSS 指令编辑。
    - **装了两个 LoRA**：选中两个 LoRA 节点按 `Ctrl+B` 取消旁路；生成节点改 **4 步 / cfg 1.0**；
      编辑 `KSampler` 改 **8 步 / cfg 1.0**（本机实测背景差异 8.1/255，优于此前 30 步 / cfg 4 档的 11.4/255）。
 3. **③ 改哪一格**：`MossStoryboardCrop` 的 `index`，**0 起、行主序**
@@ -201,10 +202,10 @@ def build():
         ("vae", "VAE", False, None),
         ("positive", "STRING", True, PROMPT),
         ("negative", "STRING", True, NEGATIVE),
-        ("steps", "INT", True, 25),
-        ("cfg", "FLOAT", True, 2.5),
-        ("sampler_name", "COMBO", True, "er_sde"),
-        ("scheduler", "COMBO", True, "simple"),
+        ("steps", "INT", True, 50),
+        ("cfg", "FLOAT", True, 3.0),
+        ("sampler_name", "COMBO", True, "euler"),
+        ("scheduler", "COMBO", True, "sgm_uniform"),
         ("seed", "INT", True, 555),
         ("denoise", "FLOAT", True, 1.0),
         ("spec", "STRING", False, None),
@@ -274,17 +275,17 @@ def build():
                        ("batch_size", "INT", True, 1)])
     empty.decl_outputs([("LATENT", "LATENT")])
 
-    ksam = N(12, "KSampler", (480, 330), (400, 300), "④ 重采样（官方 SFT 口径 25 步 / cfg 2.5）")
+    ksam = N(12, "KSampler", (480, 330), (400, 300), "④ 重采样（模型卡口径 50 步 / cfg 3）")
     ksam.decl_inputs([
         ("model", "MODEL", False, None),
         ("positive", "CONDITIONING", False, None),
         ("negative", "CONDITIONING", False, None),
         ("latent_image", "LATENT", False, None),
         ("seed", "INT", True, 20261024),
-        ("steps", "INT", True, 25),
-        ("cfg", "FLOAT", True, 2.5),
-        ("sampler_name", "COMBO", True, "er_sde"),
-        ("scheduler", "COMBO", True, "simple"),
+        ("steps", "INT", True, 50),
+        ("cfg", "FLOAT", True, 3.0),
+        ("sampler_name", "COMBO", True, "euler"),
+        ("scheduler", "COMBO", True, "sgm_uniform"),
         ("denoise", "FLOAT", True, 1.0),
     ])
     ksam.decl_outputs([("LATENT", "LATENT")])
@@ -328,7 +329,7 @@ def build():
         (unet, "MODEL", lora4, "model"),
         (lora4, "MODEL", smp, "model"),
         # 编辑段也串 4 步 LoRA：unet → 4步 → 编辑LoRA → KSampler
-        # （不串的话编辑段只有官方 SFT 的 25 步/cfg2.5 一档；串上可切 8 步/cfg1，快 8 倍）
+        # （不串的话编辑段只有模型卡的 50 步/cfg3 一档；串上可切 8 步/cfg1，快 8 倍）
         (lora4, "MODEL", lora_edit, "model"),
         (clip, "CLIP", smp, "clip"),
         (clip, "CLIP", enc, "clip"),

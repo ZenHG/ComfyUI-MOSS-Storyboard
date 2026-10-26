@@ -107,7 +107,7 @@
 
 可选的 4 步蒸馏 LoRA 也**不是**本包的一部分：
 交付工作流里预置了 `LoraLoaderModelOnly` 节点但**默认旁路**，没装不影响跑。
-交付示例用 **ComfyUI 官方 MOSS-Image SFT 模板口径：25 步 / cfg 2.5 / er_sde / simple**；
+交付示例用 **MOSS-Image-SFT 模型卡口径：50 步 / cfg 3 / euler / sgm_uniform**；
 装了 LoRA 就按 `Ctrl+B` 取消旁路，并把 `steps` 改成 **4**、`cfg` 改成 **1.0**。
 
 > **宿主版本还会影响显存。** 修正提交是 `d07dff4`（2026-10-23）。截至 2026-10-24，它**还没进任何
@@ -199,7 +199,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 2. 画布上拖框：标题一块、人物一块、副标一块。
 3. 右侧填每个框的**描述**；文字框另填**要渲染的字**。
 4. `prompt` 接 `CLIPTextEncode` 的 `text`，`width`/`height` 接 `EmptyFlux2LatentImage`。
-5. 后面接普通 `KSampler`——官方 SFT 模板口径是 25 步 / cfg 2.5 / er_sde；
+5. 后面接普通 `KSampler`——MOSS-Image-SFT 模型卡口径是 50 步 / cfg 3 / euler；
    叠 4 步蒸馏 LoRA 时用 4 步 / cfg 1.0。
 
 > ⚠ 单张模式**不要**接「故事板 · 生成」——那个节点走宫格路线，会把已经是 JSON 的提示词
@@ -408,7 +408,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 输出：`grid`（整图）`panels`（逐格）`latent` `spec` `prompt_used` `report`
 
 下表是**节点的出厂默认值**。仓库里那份交付工作流用 **4 格 / 单格长边 496**，
-并按 **ComfyUI 官方 MOSS-Image SFT 模板口径 25 步 / cfg 2.5 / er_sde / simple** 交付
+并按 **MOSS-Image-SFT 模型卡口径 50 步 / cfg 3 / euler / sgm_uniform** 交付
 （装了 4 步 LoRA 时改 4 步 / cfg 1.0）。
 
 | 参数 | 出厂默认 | 说明 |
@@ -420,13 +420,14 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 | **单格长边** `panel_edge` | 512 | 没接 `spec` 时生效 |
 | **画布比例** `canvas_aspect` | `auto` | 没接 `spec` 时生效：`auto` 会挑最接近的排法 |
 | **缝宽** `gutter` / **外边距** `margin` | 8 / 8 | 没接 `spec` 时生效 |
-| **步数** `steps` | 25 | 官方 SFT 模板值。官方 Base 模型卡用 50 步；配 4 步蒸馏 LoRA 时改成 **4–8**。两档混搭不会报错，但结果会变差（有时整张发黑）——见「已知边界」与 FAQ |
-| **CFG** `cfg` | 2.5 | 官方 SFT 模板值（官方 Base 适用范围 3–6）。调到 >1 才需要负面提示词（负面在「高级」里） |
+| **步数** `steps` | 50 | MOSS-Image-SFT 模型卡值（Base 卡同为 50）；配 4 步蒸馏 LoRA 时改成 **4–8**。两档混搭不会报错，但结果会变差（有时整张发黑）——见「已知边界」与 FAQ |
+| **CFG** `cfg` | 3.0 | MOSS-Image-SFT 模型卡值（官方 Base 适用范围 3–6）。调到 >1 才需要负面提示词（负面在「高级」里） |
+| **采样器 / 调度器** | `euler` / `sgm_uniform` | `euler` 是模型卡采样器；`sgm_uniform` 来自 OpenMOSS 官方 ComfyUI 插件工作流（模型卡未指定调度器） |
 | **锁定方式** `init` | `auto` | 见下表 |
 | **降噪强度** `denoise` | 1.0 | 留 1.0。采样器**没有图像输入**：调 <1 不会参考任何图，只会让宿主按 `int(步数/降噪)` 截断 sigma（等于少跑几步），`report` 打印「名义 / 实际」 |
 | **复绘宫格线** `reborder` | 开 | 解码后重画线。关掉就只能指望模型把线画直 |
 | **采样边长** `sample_edge` | 1024 | 只在 `逐格` 模式生效，见下 |
-| **负面提示词** `negative` | 空 | 在**「高级」**折叠区里，可选。默认 `cfg=2.5` 会评估非空值；只有 `cfg=1.0` 时宿主才跳过负面分支（见下） |
+| **负面提示词** `negative` | 空 | 在**「高级」**折叠区里，可选。默认 `cfg=3.0` 会评估非空值；只有 `cfg=1.0` 时宿主才跳过负面分支（见下） |
 
 **`mode`（生成方式）两个选项**
 
@@ -475,7 +476,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 > `IMAGE` 输出，用来肉眼核对格子位置，不进采样器。
 > 想改一张**已有图**的内容，看下一节「只改一格」——那条路是通的，而且不用重跑整张。
 
-> 为什么 `negative` 收起来：它是**可选**输入，默认留空；官方 SFT 模板的 `cfg=2.5 > 1`，
+> 为什么 `negative` 收起来：它是**可选**输入，默认留空；MOSS-Image-SFT 模型卡的 `cfg=3 > 1`，
 > 填了就会进负面分支。收进「高级」只是不让它看起来像必填项。
 > 只有把 `cfg` 降到 `1.0` 时，ComfyUI 才会**直接跳过负面分支**（那段不进计算图）。
 
@@ -623,12 +624,14 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 - 🔴 **不做图生图。** 本包只从空白画布生成。要拿参考图改已有画面，用宿主的
   `Text Encode MOSS-Image Edit`（见「改一格」一节），那是另一条链路。
-- ⚠ **步数与 cfg 按你加载的 checkpoint 的官方口径配。**
-  SFT（本包交付的 checkpoint）：ComfyUI 官方模板用 **25 步 / cfg 2.5 / er_sde / simple**
-  （[官方教程](https://docs.comfy.org/tutorials/image/moss-image/moss-image)）；
-  Base：OpenMOSS 模型卡用 **50 步 / cfg 3 / euler**（官方给的 CFG 范围 3–6）。
-  叠加 4 步蒸馏 LoRA 时用 **4–8 步 / cfg 1.0**——蒸馏 LoRA 就是按 cfg 1 蒸的，
-  调高会破坏蒸馏效果。把蒸馏 LoRA 和底模配方混搭（例如叠了 LoRA 却用 25 步 / cfg 2.5）
+- ⚠ **步数与 cfg 按加载的 checkpoint 的官方模型卡配。**
+  SFT（本包交付的 checkpoint）与 Base 的模型卡都是 **50 步 / cfg 3 / euler**
+  （SFT：[ModelScope 模型卡](https://www.modelscope.cn/models/openmoss/MOSS-Image-SFT)；
+  Base 官方 CFG 范围 3–6）。模型卡另写 shift 5（原生 ComfyUI 模型已内置）与
+  SLG 负分支层 22（需接宿主 `SkipLayerGuidanceDiTSimple`，`single_layers` 填 `22`；
+  本包示例未接）。ComfyUI 原生模板另用 25 步 / cfg 2.5 / er_sde（Comfy-Org 的选择），
+  不是模型卡配方。叠加 4 步蒸馏 LoRA 时用 **4–8 步 / cfg 1.0**——蒸馏 LoRA 就是按 cfg 1 蒸的，
+  调高会破坏蒸馏效果。把蒸馏 LoRA 和底模配方混搭（例如叠了 LoRA 却用 50 步 / cfg 3）
   不会报错，只是白跑一次（有时整张发黑）。
 - ⚠ **`denoise` 请留 1.0。** 它没有任何图像可参考，调低只会截断 sigma（少跑几步）；
   `report` 会打印「名义 / 实际」，以实际值为准。
@@ -659,7 +662,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 **Q：跑出来一片黑。**
 先看 `report` 的「降噪 名义/实际」和步数。最常见的原因是**配方配错了**：装了 4 步蒸馏 LoRA
-却用了 25 步 / cfg 2.5，或者没装 LoRA 却用了 4 步 / cfg 1.0。按「这一版做不到的」里的配方说明配。
+却用了 50 步 / cfg 3，或者没装 LoRA 却用了 4 步 / cfg 1.0。按「这一版做不到的」里的配方说明配。
 
 **Q：格子数量对，但内容串了 / 全挤在一格里。**
 布局框只是"建议"，模型可能不照办。先把每格描述写短、写具体（一个镜头一句话），
@@ -677,7 +680,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 ③ 控制台看有没有 `[MOSS SB] i18n: 就绪`，没有就确认前端文件是否正常加载。
 
 **Q：能不能用我自己的负面提示词？**
-能。默认 `cfg=2.5` 已经 >1，展开「高级」填写即可；只有把 `cfg` 调到 `1.0` 时它才不进计算图。
+能。默认 `cfg=3.0` 已经 >1，展开「高级」填写即可；只有把 `cfg` 调到 `1.0` 时它才不进计算图。
 
 **Q：能不能只生成一张普通图，不分格？**
 用「布局编辑器」的单张模式（推荐），或在「生成」上把 `panels` 设为 1。

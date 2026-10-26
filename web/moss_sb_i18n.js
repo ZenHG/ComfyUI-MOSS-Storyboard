@@ -239,25 +239,27 @@ export const TIPS = {
     },
     "MossStoryboardSampler.negative": {
         en: "[Optional, under Advanced] Negative prompt. Empty by default.\n"
-            + "The official SFT template runs cfg 2.5 (> 1), so a non-empty value does enter the graph;\n"
+            + "The MOSS-Image-SFT model card uses cfg 3 (> 1), so a non-empty value does enter the graph;\n"
             + "only at cfg = 1.0 does the host skip the uncond branch entirely.",
     },
     "MossStoryboardSampler.steps": {
-        en: "[What to enter] Sampling steps. The default 25 is the official ComfyUI MOSS-Image SFT\n"
-            + "template setting (25 steps / cfg 2.5 / er_sde / simple).\n"
-            + "· Official Base model card: 50 steps / cfg 3 / euler (cfg range 3-6);\n"
+        en: "[What to enter] Sampling steps. The default 50 is the MOSS-Image-SFT model card setting\n"
+            + "(50 steps / cfg 3 / euler / shift 5 / SLG negative-branch layer 22).\n"
+            + "· Official Base model card: the same 50 steps / cfg 3 / euler (cfg range 3-6);\n"
             + "· With a 4-step distilled LoRA: 4-8 steps / cfg 1.0 - higher values break the distillation.",
     },
     "MossStoryboardSampler.cfg": {
-        en: "[What to enter] Guidance scale. The default 2.5 is the official SFT template setting.\n"
+        en: "[What to enter] Guidance scale. The default 3.0 is the MOSS-Image-SFT model card setting.\n"
             + "· Official Base model card: cfg 3 (official range 3-6);\n"
             + "· With the 4-step distilled LoRA: 1.0.\n"
             + "⚠ At 1.0 the host skips the uncond branch entirely, so a negative prompt does nothing.",
     },
     "MossStoryboardSampler.sampler_name": {
-        en: "[What to enter] er_sde is the official SFT template default; the official Base model card uses euler.",
+        en: "[What to enter] euler is the MOSS-Image-SFT model card default; the ComfyUI native template uses er_sde / 25 steps (Comfy-Org's choice).",
     },
-    "MossStoryboardSampler.scheduler": { en: "[What to enter] simple is the official SFT template default." },
+    "MossStoryboardSampler.scheduler": {
+        en: "[What to enter] sgm_uniform matches the official OpenMOSS ComfyUI plugin workflow; the model card does not specify a scheduler.",
+    },
     "MossStoryboardSampler.seed": {
         en: "[What to enter] Random seed. Keep the control on randomize unless you need to reproduce a frame.",
     },

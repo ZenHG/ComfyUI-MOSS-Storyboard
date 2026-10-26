@@ -110,8 +110,8 @@ Weights are **not** bundled. For download links and the exact folder names, foll
 ComfyUI MOSS-Image tutorial: <https://docs.comfy.org/tutorials/image/moss-image/moss-image>.
 
 The optional 4-step distilled LoRA is **not** part of this pack: the shipped workflow includes a
-`LoraLoaderModelOnly` node **bypassed by default**. The shipped graph uses the **official ComfyUI
-MOSS-Image SFT template settings — 25 steps / cfg 2.5 / er_sde / simple**. Un-bypass the node
+`LoraLoaderModelOnly` node **bypassed by default**. The shipped graph uses the **MOSS-Image-SFT
+model card settings — 50 steps / cfg 3 / euler / sgm_uniform**. Un-bypass the node
 (`Ctrl+B`) once you have the file, and change `steps` to **4** and `cfg` to **1.0**.
 
 > **Host version also changes VRAM.** The fix is commit `d07dff4` (2026-10-23). As of 2026-10-24
@@ -191,7 +191,7 @@ No `[PANEL n]` blocks — place boxes instead:
 2. Drag boxes on the canvas: one for the title, one for the subject, one for the subtitle.
 3. Fill each box's **caption**; text boxes also get the **literal string**.
 4. Wire `prompt` → `CLIPTextEncode.text`, `width`/`height` → `EmptyFlux2LatentImage`.
-5. Follow with a plain `KSampler` — official SFT template settings are 25 steps / cfg 2.5 / er_sde;
+5. Follow with a plain `KSampler` — MOSS-Image-SFT model card settings are 50 steps / cfg 3 / euler;
    with the 4-step distilled LoRA, 4 steps / cfg 1.0.
 
 > ⚠ In single mode do **not** chain the storyboard Sampler — it would re-parse the layout JSON as
@@ -378,7 +378,7 @@ Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `repor
 Outputs `grid` `panels` `latent` `spec` `prompt_used` `report`.
 
 Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** and ships at the
-**official ComfyUI MOSS-Image SFT template settings — 25 steps / cfg 2.5 / er_sde / simple**
+**MOSS-Image-SFT model card settings — 50 steps / cfg 3 / euler / sgm_uniform**
 (with the optional 4-step LoRA: 4 steps / cfg 1.0).
 
 | Parameter | Factory default | Notes |
@@ -390,13 +390,14 @@ Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** 
 | Panel long edge `panel_edge` | 512 | used when `spec` is absent |
 | Canvas aspect `canvas_aspect` | `auto` | used when `spec` is absent |
 | Gutter `gutter` / margin `margin` | 8 / 8 | used when `spec` is absent |
-| Steps `steps` | 25 | official SFT template value. The official Base model card uses 50 steps; set **4–8 only** with the 4-step distilled LoRA. Mixing bands does not raise an error, but results degrade (sometimes fully black) — see Known limits and the FAQ |
-| CFG `cfg` | 2.5 | official SFT template value (official Base range: 3–6). Only `>1` makes the negative prompt matter |
+| Steps `steps` | 50 | MOSS-Image-SFT model card value (the Base card gives the same 50). Set **4–8 only** with the 4-step distilled LoRA. Mixing bands does not raise an error, but results degrade (sometimes fully black) — see Known limits and the FAQ |
+| CFG `cfg` | 3.0 | MOSS-Image-SFT model card value (official Base range: 3–6). Only `>1` makes the negative prompt matter |
+| Sampler / scheduler | `euler` / `sgm_uniform` | `euler` is the model card sampler; `sgm_uniform` comes from the official OpenMOSS ComfyUI plugin workflow (the model card does not specify a scheduler) |
 | Init mode `init` | `auto` | see below |
 | Denoise `denoise` | 1.0 | Keep 1.0. The sampler has **no image input**: below 1 references no image, it only makes the host truncate sigma by `int(steps/denoise)` (equivalent to fewer steps); `report` prints nominal vs. effective |
 | Redraw grid lines `reborder` | on | redraw grid lines after decode |
 | Sample edge `sample_edge` | 1024 | per-panel mode only, see below |
-| Negative prompt `negative` | empty | in the **Advanced** fold, optional. At `cfg=1.0` the host skips the negative branch entirely; the default `cfg=2.5` does evaluate a non-empty value |
+| Negative prompt `negative` | empty | in the **Advanced** fold, optional. At `cfg=1.0` the host skips the negative branch entirely; the default `cfg=3.0` does evaluate a non-empty value |
 
 **`mode` (how the panels are produced)**
 
@@ -580,13 +581,16 @@ This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or
 
 - 🔴 **No img2img.** This pack always starts from an empty canvas. To edit an existing image with a
   reference, use the host's `Text Encode MOSS-Image Edit` (see "Fixing one panel") — a separate path.
-- ⚠ **Steps and cfg follow the official recipe for the checkpoint you load.**
-  SFT (the shipped checkpoint): the official ComfyUI template runs **25 steps / cfg 2.5 / er_sde / simple**
-  ([tutorial](https://docs.comfy.org/tutorials/image/moss-image/moss-image)).
-  Base: the OpenMOSS model card uses **50 steps / cfg 3 / euler** (official CFG range 3–6).
+- ⚠ **Steps and cfg follow the official model card for the checkpoint you load.**
+  SFT (the shipped checkpoint) and Base both use **50 steps / cfg 3 / euler** on the model card
+  (SFT: [ModelScope card](https://www.modelscope.cn/models/openmoss/MOSS-Image-SFT); Base: official
+  CFG range 3–6). The card also specifies shift 5 (built into the native ComfyUI model) and
+  negative-branch skipping at layer 22 (wire the host's `SkipLayerGuidanceDiTSimple`, `single_layers`
+  `22`; the shipped examples do not include it). The native ComfyUI template uses different values
+  (25 steps / cfg 2.5 / er_sde, Comfy-Org's choice) — it is not the model-card recipe.
   With a 4-step distilled LoRA: **4–8 steps / cfg 1.0** — the LoRA was distilled at cfg 1,
   so raising it breaks the distillation. Mixing a distilled LoRA with the base recipe
-  (e.g. LoRA loaded but 25 steps / cfg 2.5) will not error, it just wastes the run.
+  (e.g. LoRA loaded but 50 steps / cfg 3) will not error, it just wastes the run.
 - ⚠ **Keep `denoise` at 1.0.** There is no image to reference; lowering it only truncates sigma
   (fewer steps). `report` prints nominal vs. effective — trust the effective value.
 - **Per-panel composition is only approximate.** MOSS's layout capability is *experimental*; this
@@ -619,7 +623,7 @@ memory → the host falls back to tiled decode → seams at the tile borders. Ch
 fix is `git pull` on the host.
 
 **All black.** Check `report` for nominal vs. effective denoise, and the step count. The most
-common cause is **mismatched bands**: a 4-step distilled LoRA loaded but 25 steps / cfg 2.5 used,
+common cause is **mismatched bands**: a 4-step distilled LoRA loaded but 50 steps / cfg 3 used,
 or no LoRA but 4 steps / cfg 1.0. Match the recipes listed under "Not possible".
 
 **Right panel count, wrong content / everything crammed into one panel.** Layout boxes are
@@ -636,7 +640,7 @@ also works (search aliases are registered).
 Console diagnostics: look for the `[MOSS SB] i18n: 就绪` line; if it is missing, confirm the
 `web/` files (especially `moss_sb_i18n_ui.js`) are served under `/extensions/ComfyUI-MOSS-Storyboard/`.
 
-**Can I use my own negative prompt?** Yes. The default `cfg` 2.5 is already above 1 — expand
+**Can I use my own negative prompt?** Yes. The default `cfg` 3.0 is already above 1 — expand
 **Advanced** and fill it in. Only at `cfg=1.0` does the host skip the negative branch.
 
 **Can I generate a plain (non-grid) image?** Use the Layout Editor's single mode (recommended), or set
