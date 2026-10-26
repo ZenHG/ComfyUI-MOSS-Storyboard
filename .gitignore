@@ -15,3 +15,5 @@ Thumbs.db
 # 本机宿主路径（开发机专用，不进库）
 .comfyui_path
 .cm*.txt
+# ui_smoke.mjs 每次跑都重画的取证截图（公开树已按 e3f2c73 清掉）
+docs/ui-smoke.png

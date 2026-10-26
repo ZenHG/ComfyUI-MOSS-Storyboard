@@ -339,6 +339,38 @@ def s9_commits() -> None:
     check("最近 50 条提交信息无本机路径/用户名", not machine, "；".join(machine[:5]))
 
 
+#: 两处口径本来就不同的闸（CI 按单文件报数，CONTRIBUTING 报 6 份合计）
+DOC_COUNT_SKIP = {"tools/check_ui_workflow.py"}
+
+
+def s10_doc_counts() -> None:
+    """门禁项数在 CONTRIBUTING.md 与 ci.yml 各写了一遍：不一致 = 改了代码没改文档。
+
+    只比对两处都列出的闸；数量阈值防"正则失配 ⇒ 空集合 ⇒ 全过"的假绿。
+    """
+    say("\nS10 门禁计数：两份清单必须对得上")
+    paths = {"CONTRIBUTING.md": os.path.join(ROOT, "CONTRIBUTING.md"),
+             "ci.yml": os.path.join(ROOT, ".github", "workflows", "ci.yml")}
+    try:
+        text = {k: open(v, encoding="utf-8").read() for k, v in paths.items()}
+    except OSError as exc:
+        check("两份门禁清单可读", False, str(exc))
+        return
+    contrib = {}
+    for ln in text["CONTRIBUTING.md"].splitlines():
+        m = re.match(r"\s*(?:python|node)\s+(\S+\.(?:py|mjs))\b.*?#\s*(\d+) 项", ln)
+        if m:
+            contrib.setdefault(m.group(1), int(m.group(2)))
+    ci = {m.group(2): int(m.group(1)) for m in re.finditer(
+        r"(\d+)/0\s+(?:每个文件\s+)?(\S+\.(?:py|mjs))", text["ci.yml"])}
+    shared = sorted(set(contrib) & set(ci) - DOC_COUNT_SKIP)
+    if not check("两处共同列出 ≥12 道闸（正则失配要响）", len(shared) >= 12, "共 %d" % len(shared)):
+        return
+    bad = ["%s CONTRIBUTING=%s ci.yml=%s" % (f, contrib[f], ci[f])
+           for f in shared if contrib[f] != ci[f]]
+    check("同名闸的项数两处一致", not bad, "；".join(bad)[:200])
+
+
 def main() -> int:
     say("MOSS Storyboard · 发布前开源卫生检查")
     say("=" * 64)
@@ -357,6 +389,7 @@ def main() -> int:
     else:
         say("\nS8 跳过（版本号不一致，先修 S5）")
     s9_commits()
+    s10_doc_counts()
 
     say("\n" + "=" * 64)
     say("结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

@@ -7,23 +7,23 @@
 #
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
 #   · 302/0  tests/test_core.py               几何 / 提示词 / 像素
-#   · 103/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限
+#   · 121/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限
 #   ·  88/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
 #   ·  22/0  tests/test_extract.py            从散文/代码块提取 JSON、上限/扫描预算
 #   ·  57/0  tests/test_adversarial.py        恶意/极端输入：JSON 常量 / 原型链 / 量化 / 扫描预算
 #   ·  27/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
 #   ·  79/0  tests/test_skill_draft.py        官方 prompt-enhancer 草稿 / 编译 / state / CLI
-#   · 121/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
+#   · 127/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
-#   ·  50/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
+#   ·  58/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
 #   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
 #   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
 #                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑
 #                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
-#   · 109/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
-#   ·  69/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas 差分
+#   · 133/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
+#   ·  88/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas 差分
 #   ·   5/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义
 #   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #

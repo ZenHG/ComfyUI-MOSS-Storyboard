@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: MIT
 """契约与可移植性测试（零 GPU）。开源前的"别人能不能用"检查。
 
-六组：
+八组：
 1. **参数表自洽**：类型/默认值/上下限/下拉候选/工具提示 —— 错一个就是用户界面上无法操作。
 2. **V1↔V3 双出口等价**：入参名与顺序、输出数量、显示名。
 3. **错误路径**：坏参数必须给中文可操作报错，不许静默兜底、不许抛裸异常。
 4. **依赖边界**：`core.layout` / `core.prompt` 不许 import torch（纯 Python 可跑）。
+5. **每条 return 的输出路数** == `RETURN_NAMES`（加一路输出漏改某条分支时离线也红）。
 5. **仓库卫生**：无机器专属绝对路径、无大文件、必需文件齐全。
 6. **editor state v3 契约**：默认值 / 预设表 / 严格校验 / 几何上限（docs/10-contract.md）。
 
@@ -323,6 +324,26 @@ def test_sampler_shape(V1):
     check("positive 默认空", popts.get("default") == "")
 
 
+def test_return_tuples(V1):
+    """每个 `return (...)` 的元素数 == `RETURN_NAMES` 长度。
+
+    加一路输出最容易漏改的就是"另一条分支"（逐格与整张各有一处 return），
+    那种漏离线全绿、真跑到那条分支才炸。静态扫一遍，零 GPU 兜住。
+    """
+    import ast
+    import inspect
+    import textwrap
+    for name, cls in sorted(V1.NODE_CLASS_MAPPINGS.items()):
+        want = len(cls.RETURN_NAMES)
+        bad = []
+        tree = ast.parse(textwrap.dedent(inspect.getsource(cls)))
+        for fn in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]:
+            for ret in [r for r in ast.walk(fn) if isinstance(r, ast.Return)]:
+                if isinstance(ret.value, ast.Tuple) and len(ret.value.elts) != want:
+                    bad.append("%s.%s():%d 返回 %d 个" % (name, fn.name, ret.lineno, len(ret.value.elts)))
+        check("%s 每条 return 都是 %d 路输出" % (name, want), not bad, "; ".join(bad))
+
+
 def test_editor_state_contract():
     """state v3 跨语言契约：默认值 / 预设表 / 严格校验 / 几何上限。
 
@@ -473,11 +494,14 @@ def main():
     print("\n== 6. 采样器输入形状（negative 必须折叠）==")
     test_sampler_shape(V1)
 
-    print("\n== 7. editor state v3 契约 ==")
+    print("\n== 7. 每条 return 的输出路数 ==")
+    test_return_tuples(V1)
+
+    print("\n== 8. editor state v3 契约 ==")
     test_editor_state_contract()
 
     if not args.no_host:
-        print("\n== 8. V1↔V3 双出口等价 ==")
+        print("\n== 9. V1↔V3 双出口等价 ==")
         test_v3(V1)
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
