@@ -1,8 +1,8 @@
 # 10 · state v3 冻结契约
 
 > 本文是 `MossLayoutEditor` 的**公开冻结契约**：前端、编译层、示例和测试都以它为准。
-> 实现细节见 [`docs/08`](08-visual-editor-plan.md)（编译与实测）和 [`docs/11`](11-editor-ui.md)（前端）。
-> 预设表的唯一真相源 = [`docs/11` §五](11-editor-ui.md)。
+> 实现细节由维护者在本地文档中维护；本文只固定 state 字段、编译口径与兼容性。
+> 预设表的唯一真相源 = `core/presets.py`。
 
 ---
 
@@ -49,6 +49,11 @@
 
 **默认值**：单张空白画布 `1536×864`；宫格预设默认 `4×2`。
 **输入上限**：`editor_state` 字符串 ≤ 1,000,000 字符（防恶意工作流冻结宿主）。
+**数值口径**：JSON 没有 int/float 之分，`3` / `1536.0` 这类**整值浮点**按整数接受并归一为 int；
+`1536.5` 拒绝；`NaN` / `Infinity`（含 `1e400` 溢出）一律拒绝 —— 它们不是合法 JSON。
+**文本口径**：`caption` / `text` 去掉空白与零宽 / 方向控制字符后必须还有可见内容。
+**导出量化**：单张模式导出的 elements bbox 乘 1000、保留 3 位小数；量化后宽度 < 0.001 的框
+向外补到 0.001，保证导出文件能原样再导入。
 
 **版本策略**：只认 `version=3`。读到别的版本必须**显式报错**并提示重存/迁移；
 未来改结构时新增 `version` 与迁移器，不允许静默猜测。
@@ -108,5 +113,5 @@ MossLayoutEditor
   `mode` / `sample_edge`，旧值必须按原顺序映射到前 20 个参数，尾部用默认值。
   `tests/fixtures/moss-storyboard-0.1-20slots.json` 是 0.1.x 20 槽夹具，`tools/check_ui_workflow.py` 专门锁这条。
 - **前端最低版本**：ComfyUI 前端 1.57.1（`addDOMWidget` + DOM/SVG 覆盖层）；
-  Nodes 2.0 开关的兼容性见 `docs/11` 的验证记录。
+  Nodes 2.0 开关不影响 state 字段，编辑器在其下仍只读写 `editor_state`。
 - **不做网络/遥测/API key**：编辑器与编译器纯本地、零额外依赖。

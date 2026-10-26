@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
-"""发布前**开源卫生**检查（唯一真相源在 `RELEASING.md` §2）。
+"""发布前**开源卫生**检查（规则由维护者本地发布文档维护）。
 
 为什么单独一条门：`test_contract.py` 的「仓库卫生」只管**代码能不能跑**（无绝对路径、无死代码），
 它不回答「这一版**能不能公开**」——公开面多出三件事：
@@ -187,8 +187,8 @@ def s4_package(files: list[str]) -> None:
     rules = comfyignore_rules()
     if not check(".comfyignore 存在且有规则", bool(rules), "%d 行" % len(rules)):
         return
-    must_exclude = ["tests/test_core.py", "tools/smoke_nodes.py", "docs/01-layout-and-panels.md",
-                    ".github/workflows/ci.yml", "CHANGES.md", "AGENTS.md"]
+    must_exclude = ["tests/test_core.py", "tools/smoke_nodes.py", "docs/10-contract.md",
+                    ".github/workflows/ci.yml", "CHANGES.md"]
     must_keep = ["__init__.py", "nodes.py", "core/layout.py", "core/sampling.py",
                  "core/editor.py", "core/presets.py",
                  "v3/_compat.py", "web/moss_sb_i18n.js", "web/moss_sb_editor.js",

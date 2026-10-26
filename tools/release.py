@@ -9,10 +9,10 @@
    · push 了但 CI 红 ⇒ 已经公开的提交没通过自检
    三件事都要同时成立才算"发布完成"，靠人记就会漏。本脚本把它们串成一条**带交叉验证**的流水线：
    推 → **等 CI 真的绿** → 建 GitHub Release → 发 registry → **回头查两边是不是真的是这一版**。
-   ⚠️ 顺序是**故意的**：唯一"改不回来"的动作（registry 的 changelog）排在最后（见 RELEASING.md §3）。
+   ⚠️ 顺序是**故意的**：唯一"改不回来"的动作（registry 的 changelog）排在最后（见 维护者本地发布文档 §3）。
 
-规范正文 = 仓库根 `RELEASING.md`（**唯一真相源**）；本文件是它的执行体，两边必须一致。
-改了流程 ⇒ 改 `RELEASING.md`，再看这里的步骤要不要跟着动。
+规范正文 = 仓库根 `维护者本地发布文档`（**唯一真相源**）；本文件是它的执行体，两边必须一致。
+改了流程 ⇒ 改 `维护者本地发布文档`，再看这里的步骤要不要跟着动。
 
 用法：
     python tools/release.py                  # 预演：只查前置与改动面，不推不发
@@ -147,7 +147,7 @@ NOTES_MARKER = "<!-- EN -->"
 #: 而且会诱使人「中英不均衡地删」来凑总数。两个语种各自成段、各自有预算，才说得通。
 NOTES_MAX_ZH = 700
 NOTES_MAX_EN = 1700
-#: 用户可见文案里**不许出现**的内部记号（0.6.36 入规范，见 RELEASING.md §6.2）。
+#: 用户可见文案里**不许出现**的内部记号（0.6.36 入规范，见 维护者本地发布文档 §6.2）。
 #: 只在本版一节上跑 ⇒ 误伤面小；命中即拒绝发布（已发布的 changelog 一个字符都改不回来）。
 NOTES_INTERNAL = (
     "CHANGES.md", "RELEASE-NOTES", "check_release_ready", "check_frontend",
@@ -169,17 +169,17 @@ def _notes_parts(version: str) -> tuple:
        （`PATCH` 实测 **405**）⇒ **发出去的 changelog 一个字符都改不回来**（已发布的 0.6.16~0.6.22
        就是这么留下的）。⇒ 判据只能是「**发布前就写对**」，没有事后补救这条路。
        ⚠️ 本函数在 `preflight()` 里就调一次 —— 必须在 **push 之前**拦住，否则会留下
-       「GitHub 有了、registry 没有」的半成品状态（见 RELEASING.md §3）。
-       格式正文见 RELEASING.md §6。
+       「GitHub 有了、registry 没有」的半成品状态（见 维护者本地发布文档 §3）。
+       格式正文见 维护者本地发布文档 §6。
     """
     if not os.path.isfile(NOTES_FILE):
-        die("缺 RELEASE-NOTES.md —— 两个渠道的用户可见说明都取它（格式见 RELEASING.md §6）")
+        die("缺 RELEASE-NOTES.md —— 两个渠道的用户可见说明都取它（格式见 维护者本地发布文档 §6）")
     with io.open(NOTES_FILE, encoding="utf-8") as fh:
         text = fh.read()
     m = re.search(r"^## %s[^\n]*\n(.*?)(?=^## |\Z)" % re.escape(version), text, re.M | re.S)
     if not m:
         die("RELEASE-NOTES.md 里找不到 `## %s` 一节 —— 发布前必须为本版补一节双语说明\n"
-            "    （照着上一版的样子写；格式与理由见 RELEASING.md §6）" % version)
+            "    （照着上一版的样子写；格式与理由见 维护者本地发布文档 §6）" % version)
     body = m.group(1).strip()
 
     parts = body.split(NOTES_MARKER)
@@ -209,11 +209,11 @@ def _notes_parts(version: str) -> tuple:
     _hit = [w for w in NOTES_INTERNAL if w in zh or w in en]
     _ids = sorted(set(re.findall(r"\b(?:H[34][a-z]|L\d{2})\b", zh + "\n" + en)))
     if _hit or _ids:
-        bad.append("用户可见文案里出现内部记号：%s —— 这些只该写在 CHANGES.md（见 RELEASING.md §6.2）"
+        bad.append("用户可见文案里出现内部记号：%s —— 这些只该写在 CHANGES.md（见 维护者本地发布文档 §6.2）"
                    % "、".join(_hit + _ids))
     if bad:
         die("RELEASE-NOTES.md 的 %s 一节不合格式（%d 处）：\n    - %s\n"
-            "    模板见 RELEASING.md §6（registry 的 changelog 发出去就改不回来，所以这里必须拦住）。"
+            "    模板见 维护者本地发布文档 §6（registry 的 changelog 发出去就改不回来，所以这里必须拦住）。"
             % (version, len(bad), "\n    - ".join(bad)))
     return zh, en
 
@@ -695,7 +695,7 @@ def main() -> int:
     say("=" * 74)
     say("MOSS Storyboard 发布器 ｜ 目标 GitHub %s ｜ registry %s/%s ｜ 版本 %s ｜ HEAD %s"
         % (slug, f["publisher"], f["name"], f["version"], f["head"][:10]))
-    say("（规范正文见 RELEASING.md；本脚本是它的执行体）")
+    say("（规范正文见 维护者本地发布文档；本脚本是它的执行体）")
     say("=" * 74)
 
     if a.verify_only:

@@ -7,9 +7,10 @@
 ```bash
 python -m ruff check .                    # 静态检查（CI 第一道）
 python tests/test_core.py                 # 302 项：几何 / 提示词 / 像素（零 GPU）
-python tests/test_editor.py               # 102 项：state v3 编译层 / 预设 / 错误路径 / 上限（零 GPU）
+python tests/test_editor.py               # 103 项：state v3 编译层 / 预设 / 错误路径 / 上限（零 GPU）
 python tests/test_interop.py              # 88 项：elements-v1 互操作 / 往返 / CLI（零 GPU）
 python tests/test_extract.py              # 22 项：从散文/代码块提取 JSON、上限/扫描预算（零 GPU）
+python tests/test_adversarial.py          # 57 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
 python tests/test_contract.py             # 130 项（--no-host 114 项）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
 python tests/test_cross_language.py       # 69 项：JS ↔ Python 预设/默认值/校验/elements/canvas 差分
@@ -20,7 +21,7 @@ python tools/smoke_nodes.py               # 41 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py         # 4 份示例 + 2 份夹具共 88 项：连线 + 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_editor_ui.py           # 96 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
+python tools/check_editor_ui.py           # 109 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
 python tools/check_release_ready.py       # 31 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 ```
 
@@ -38,7 +39,7 @@ python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 ```
 
 > 发布前：全矩阵（16 例）至少跑一次；只改编辑器时可 `--only 逐格` 或 `--only 4格` 抽查，
-> 部分运行不重写 `docs/02`（要更新报告请跑全矩阵）。
+> 部分运行不重写端到端报告（要更新报告请跑全矩阵）。
 
 > ⚠️ **别用 `| tail -n` 跑这些脚本** —— 管道会把退出码吃掉，你会看到"通过"却拿到 0。
 
@@ -59,15 +60,12 @@ python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 
 ## 改完要同步的项数
 
-断言数散在 5 个已入仓文件里，改了测试就必须一起改，否则下一个人会被旧数字误导：
+断言数散在 2 个公开文件里，改测试就必须一起改，否则下一个人会被旧数字误导：
 
 - 本文件上面的命令注释
-- `.github/workflows/ci.yml` 文件头的期望值
-- `AGENTS.md` §三 的命令清单
-- `docs/08-visual-editor-plan.md` §九 的验收命令
-- `docs/11-editor-ui.md` §八（开头的项数与「总计 N 项」）
+- 仓库里的 CI 配置（`.github/workflows/ci.yml`，不随发布包分发）文件头的期望值
 
-`docs/10-task-split.md` 是本地台账、不入仓，不在此列；`CHANGES.md` 里已发布版本的历史数字不动。
+`CHANGES.md` 里已发布版本的历史数字不动。
 
 ## 测试纪律
 

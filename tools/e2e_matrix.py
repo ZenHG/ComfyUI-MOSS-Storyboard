@@ -12,7 +12,7 @@
 4. 宫格线真的是白的、格内真的不是白的、各格内容互不相同（防"全黑/全同"）。
 
 跑法：
-    python tools/e2e_matrix.py                 # 全矩阵（会重写 docs/02）
+    python tools/e2e_matrix.py                 # 全矩阵（会重写维护者本地 e2e 报告）
     python tools/e2e_matrix.py --only 9格      # 只跑名字含该串的用例（不写报告）
     python tools/e2e_matrix.py --no-doc        # 全矩阵但不重写报告
 """
@@ -218,7 +218,7 @@ def run_case(name, over, wf, infos, seed=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
-    ap.add_argument("--no-doc", action="store_true", help="不重写 docs/02")
+    ap.add_argument("--no-doc", action="store_true", help="不重写本地 e2e 报告")
     args = ap.parse_args()
 
     with open(WF, encoding="utf-8") as fh:

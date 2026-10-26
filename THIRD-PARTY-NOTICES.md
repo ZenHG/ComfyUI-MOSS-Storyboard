@@ -28,7 +28,7 @@
 - **宫格模板 + img2img 高降噪锁定布局**：这套思路在 ComfyUI 社区已流通（例如
   `ComfyUI-Storyboard-Tools` 的 `StoryboardGridGenerator` / `StoryboardPanelCrop`，以及
   Krea2 的"4/6/8 宫格故事板"工作流）。本包**未复制其代码**；相反，本包的几何与裁切层
-  是针对该实现的一组已复现缺陷重写的（见 `docs/01-layout-and-panels.md` §五 的缺陷表：
+  是针对该实现的一组已复现缺陷重写的（缺陷表：
   3 列画布必崩、`offset_x ≠ 0` 必崩、`border_thickness=1` 边框消失、`bg=255` 网格消失、
   `letterbox` 分支越界等）。此处列名是为致意思路，不构成代码归属。
 - **MOSS-Image 原生 JSON 布局提示词**：格式（`summary` / `items` / `bbox_coord_space=abs_centralized`

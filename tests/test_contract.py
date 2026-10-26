@@ -327,7 +327,7 @@ def test_sampler_shape(V1):
 def test_editor_state_contract():
     """state v3 跨语言契约：默认值 / 预设表 / 严格校验 / 几何上限。
 
-    真值 = `docs/10-contract.md` + `docs/11-editor-ui.md` §五 + 前端
+    真值 = `docs/10-contract.md` + `web/moss_sb_editor.js::PRESET_SPECS`
     `web/moss_sb_editor.js::PRESET_SPECS`。Python 侧任何一项漂移都算发布阻断。
     """
     from moss_sb_c.core import editor as E
