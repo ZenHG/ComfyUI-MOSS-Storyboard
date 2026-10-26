@@ -37,7 +37,7 @@ PROMPT = """[STYLE]: 单一故事板画布分割为严格对称网格，恰好 4
 
 [PANEL 4]: 画面为特写，相机位于苏晚眼部与手部之间，苏晚眼睛看向桌面、睫毛投下细影、手指搭在柠檬水杯旁"""
 
-NEGATIVE = "多余面板，错位拼贴，粗黑边框，跨格溢出，文字水印，畸变手指，塑料皮肤"
+NEGATIVE = ""
 
 NOTE = """## 三步
 1. ② 改 `panels`（3/4/6/8/9），画布自动算。
@@ -45,9 +45,9 @@ NOTE = """## 三步
 3. 跑。产物 = 整张宫格 + 逐格。
 
 ## 采样配方（先看这条）
-仓库示例默认：官方底模 **35 步 / cfg 3.5**，LoRA 节点已旁路。
+仓库示例默认：**官方 SFT 模板口径 25 步 / cfg 2.5 / er_sde / simple**，LoRA 节点已旁路。
 - 装了 4-step 蒸馏 LoRA：选中它按 `Ctrl+B` 取消旁路，并把 ③ 改成 **4 步 / cfg 1.0**。
-- 没装：保持旁路与 35 步 / cfg 3.5。
+- 没装：保持旁路与官方档（25 / 2.5 / er_sde）。
 
 ## 三条不要动
 - ① `type` 必须是 `moss_image`。
@@ -170,9 +170,9 @@ def build():
         ("vae", "VAE", False, None),
         ("positive", "STRING", True, PROMPT),
         ("negative", "STRING", True, NEGATIVE),
-        ("steps", "INT", True, 35),
-        ("cfg", "FLOAT", True, 3.5),
-        ("sampler_name", "COMBO", True, "euler"),
+        ("steps", "INT", True, 25),
+        ("cfg", "FLOAT", True, 2.5),
+        ("sampler_name", "COMBO", True, "er_sde"),
         ("scheduler", "COMBO", True, "simple"),
         ("seed", "INT", True, 555),
         ("denoise", "FLOAT", True, 1.0),

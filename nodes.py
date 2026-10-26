@@ -340,35 +340,33 @@ class MossStoryboardSampler:
                 }),
                 "negative": ("STRING", {
                     "multiline": True, "default": "",
-                    # 默认收进节点的「高级」折叠区：MOSS 的实测配方是 cfg=1.0，
-                    # 而宿主在 cfg=1 时会跳过负面分支（comfy/samplers.py 的 cfg1 优化），
-                    # 把它放在外面只有一个后果——让人以为"写了就会生效"。
+                    # 「高级」只表示可选，不代表无效：官方 SFT 模板默认 cfg=2.5（>1），
+                    # 填了就会进负面分支；留空则就是空条件。
                     "advanced": True,
-                    "tooltip": "【默认折叠在「高级」里，可留空】负面提示词。\n"
-                               "⚠ cfg=1.0 时宿主直接跳过负面分支（见 comfy/samplers.py 的 cfg1 优化），\n"
-                               "这段不进计算图；MOSS 实测配置就是 cfg=1.0 ⇒ 留空即可。\n"
-                               "只有把 cfg 调到 >1 时才需要填。",
+                    "tooltip": "【可选，收在「高级」里】负面提示词。默认留空。\n"
+                               "官方 SFT 模板的 cfg=2.5 > 1 ⇒ 填了会进计算图；\n"
+                               "只有 cfg=1.0 时宿主才跳过负面分支（comfy/samplers.py 的 cfg1 优化）。",
                 }),
                 "steps": ("INT", {
-                    "default": 35, "min": 1, "max": 200, "step": 1,
-                    "tooltip": "【填什么】采样步数。按「有没有叠 LoRA」分两档：\n"
-                               "· 官方模型（不叠 LoRA）：建议 30–50 步，配 cfg 3–5；\n"
-                               "· 叠加 LoRA（4 步蒸馏类）：建议 4–8 步，配 cfg 1.0 —— 调高会破坏蒸馏效果。\n"
-                               "默认 35 落在官方模型那档的区间中段。",
+                    "default": 25, "min": 1, "max": 200, "step": 1,
+                    "tooltip": "【填什么】采样步数。默认 25 = ComfyUI 官方 MOSS-Image SFT 模板口径\n"
+                               "（25 步 / cfg 2.5 / er_sde / simple）。\n"
+                               "· 官方 Base 模型卡：50 步 / cfg 3 / euler（CFG 范围 3–6）；\n"
+                               "· 叠加 4 步蒸馏 LoRA：4–8 步 / cfg 1.0 —— 调高会破坏蒸馏效果。",
                 }),
                 "cfg": ("FLOAT", {
-                    "default": 1.0, "min": 0.0, "max": 30.0, "step": 0.1,
-                    "tooltip": "【填什么】引导强度。跟着步数那档走：\n"
-                               "· 官方模型（不叠 LoRA）：建议 3–5；\n"
-                               "· 叠加 LoRA：建议 1.0。\n"
-                               "⚠ 1.0 时宿主跳过负面分支 ⇒ 负面提示词（在「高级」里）填了也不生效。\n"
-                               "要让负面生效必须 >1。",
+                    "default": 2.5, "min": 0.0, "max": 30.0, "step": 0.1,
+                    "tooltip": "【填什么】引导强度。默认 2.5 = 官方 SFT 模板口径。\n"
+                               "· 官方 Base 模型卡：cfg 3（官方给的适用范围 3–6）；\n"
+                               "· 叠加 4 步蒸馏 LoRA：1.0。\n"
+                               "⚠ 1.0 时宿主跳过负面分支 ⇒ 负面提示词填了也不生效。",
                 }),
                 "sampler_name": (["euler", "euler_ancestral", "heun", "dpmpp_2m", "dpmpp_2m_sde",
                                   "dpmpp_3m_sde", "res_multistep", "er_sde", "lms"], {
-                    "default": "euler", "tooltip": "【填什么】默认 euler（本地实测配置同款）。"}),
+                    "default": "er_sde", "tooltip": "【填什么】默认 er_sde = 官方 SFT 模板口径；\n"
+                                                     "官方 Base 模型卡用的是 euler。"}),
                 "scheduler": (["simple", "normal", "beta", "sgm_uniform", "karras", "exponential", "ddim_uniform"], {
-                    "default": "simple", "tooltip": "【填什么】默认 simple（本地实测配置同款）。"}),
+                    "default": "simple", "tooltip": "【填什么】默认 simple = 官方 SFT 模板口径。"}),
                 "seed": ("INT", {
                     "default": 0, "min": 0, "max": 0xFFFFFFFF, "step": 1,
                     "tooltip": "【填什么】随机种。同种子同参数才可复现。",

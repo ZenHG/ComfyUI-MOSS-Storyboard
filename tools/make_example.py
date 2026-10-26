@@ -120,7 +120,7 @@ def build():
     ]
     # ⚠ widgets_values 按**位置**存：顺序必须与节点 INPUT_TYPES 的 widget 顺序一致
     #   （seed 后面跟一个"生成后控制"槽位）。少一个就整体错位。
-    sampler_widgets = [PROMPT, NEGATIVE, 35, 1.0, "euler", "simple", 0, "fixed", denoise,
+    sampler_widgets = [PROMPT, NEGATIVE, 25, 2.5, "er_sde", "simple", 0, "fixed", denoise,
                        8, "16:9", 512, "auto", 8, 8, init, "object", True, 0, 0, "整张", 1024]
     nodes.append(node(5, "MossStoryboardSampler", (-60, -120), (480, 700), sampler_widgets,
                       inputs=sampler_inputs, outputs=sampler_outputs,

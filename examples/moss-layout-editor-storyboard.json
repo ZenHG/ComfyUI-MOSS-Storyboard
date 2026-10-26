@@ -454,10 +454,10 @@
       },
       "widgets_values": [
         "",
-        "多余面板，错位拼贴，粗黑边框，跨格溢出，文字水印，畸变手指，塑料皮肤",
-        35,
-        3.5,
-        "euler",
+        "",
+        25,
+        2.5,
+        "er_sde",
         "simple",
         555,
         "randomize",
@@ -613,7 +613,7 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## 4 格故事板\n1. 在「Layout Editor」里改每格的描述 / 景别，或拖框。\n2. `prompt` 接采样器 positive；`spec` 接 spec（几何唯一来源）。\n3. 队列。产物 = 整张宫格 + 逐格。\n\n默认配方：官方底模 **35 步 / cfg 3.5**，4-step LoRA 已旁路。\n装了 4-step 蒸馏 LoRA：取消旁路，并把采样器改成 **4 步 / cfg 1.0**。\n\n格位只读：改列/行后点「生成初始框」。"
+        "## 4 格故事板\n1. 在「Layout Editor」里改每格的描述 / 景别，或拖框。\n2. `prompt` 接采样器 positive；`spec` 接 spec（几何唯一来源）。\n3. 队列。产物 = 整张宫格 + 逐格。\n\n默认配方：官方 SFT 模板 **25 步 / cfg 2.5 / er_sde**，4-step LoRA 已旁路。\n装了 4-step 蒸馏 LoRA：取消旁路，并把采样器改成 **4 步 / cfg 1.0**。\n\n格位只读：改列/行后点「生成初始框」。"
       ],
       "title": "使用说明"
     },

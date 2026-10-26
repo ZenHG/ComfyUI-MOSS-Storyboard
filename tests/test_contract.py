@@ -308,16 +308,15 @@ def test_i18n_completeness(V1):
 def test_sampler_shape(V1):
     """Sampler 的输入形状（防止有人"好心"把 negative 挪回普通区）。
 
-    为什么锁这条：MOSS 实测配方是 cfg=1.0，而宿主在 cfg=1 时**直接跳过负面分支**
-    （`comfy/samplers.py::sampling_function` 的 cfg1 优化：`uncond_ = None`）。
-    把 negative 放在普通区，只有一个后果——让人以为"写了就会生效"。
+    为什么锁这条：negative 是**可选**输入，默认留空；官方 SFT 模板默认 cfg=2.5（>1），
+    填了会进负面分支。放在普通区会把一个可选输入变成视觉上的必填项。
     它必须 `advanced`（默认折叠），而 positive 必须留在普通区（唯一必填的提示词入口）。
     """
     it = V1.NODE_CLASS_MAPPINGS["MossStoryboardSampler"].INPUT_TYPES()
     pos, neg = it["required"]["positive"], it["required"]["negative"]
     popts = pos[1] if isinstance(pos, tuple) and len(pos) > 1 else {}
     nopts = neg[1] if isinstance(neg, tuple) and len(neg) > 1 else {}
-    check("negative 收在「高级」里（cfg=1 时它不生效）", nopts.get("advanced") is True,
+    check("negative 收在「高级」里（可选输入）", nopts.get("advanced") is True,
           str(nopts.get("advanced")))
     check("positive 不在「高级」里（默认可见）", not popts.get("advanced"))
     check("positive 是多行文本", popts.get("multiline") is True)
