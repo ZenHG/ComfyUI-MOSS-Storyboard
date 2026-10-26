@@ -40,7 +40,7 @@ PROMPT = """[STYLE]: 单一故事板画布分割为严格对称网格，恰好 4
 
 [PANEL 4]: 画面为特写，相机位于苏晚眼部与手部之间，苏晚眼睛看向桌面、睫毛投下细影、手指搭在柠檬水杯旁"""
 
-NEGATIVE = "多余面板，错位拼贴，粗黑边框，跨格溢出，文字水印，畸变手指，塑料皮肤"
+NEGATIVE = ""
 
 #: 编辑指令只改"衣服 + 帽子"，明确要求保住脸/机位/背景。
 #: ⚠ 不要在指令里要求换场景——那会让参考图的作用看不出来，也不再是"编辑"。
@@ -58,10 +58,10 @@ NOTE = """## 这条链干什么
      魔搭 `modelscope.cn/models/ChenkinLab/Moss-Image-Edit`
      两个文件放 `models/loras/Moss-Image-Edit/`
 2. **② 选采样配方（先选一档）**：
-   - **不装 LoRA（默认）**：两个 LoRA 保持旁路；生成节点 **35 步 / cfg 3.5**；
-     编辑 `KSampler` **30 步 / cfg 4**。能完整生成 + 贴回，但没有 MOSS 指令编辑。
+   - **不装 LoRA（默认）**：两个 LoRA 保持旁路；生成节点与编辑 `KSampler` 都用
+     **官方 SFT 模板口径 25 步 / cfg 2.5 / er_sde / simple**。能完整生成 + 贴回，但没有 MOSS 指令编辑。
    - **装了两个 LoRA**：选中两个 LoRA 节点按 `Ctrl+B` 取消旁路；生成节点改 **4 步 / cfg 1.0**；
-     编辑 `KSampler` 改 **8 步 / cfg 1.0**（实测背景差异 8.1/255，比 30 步 / cfg 4 的 11.4 更稳）。
+     编辑 `KSampler` 改 **8 步 / cfg 1.0**（本机实测背景差异 8.1/255，优于此前 30 步 / cfg 4 档的 11.4/255）。
 3. **③ 改哪一格**：`MossStoryboardCrop` 的 `index`，**0 起、行主序**
    （从左到右、从上到下）。默认 1 = 右上那格。它的 `index` 输出直接接给贴回节点，
    **不用手打第二遍**。
@@ -76,7 +76,7 @@ NOTE = """## 这条链干什么
   接上 21.6/255。
 - **编辑也可以叠 4 步 LoRA**：④ 的 `steps` / `cfg` 改成 `8` / `1.0`，
   并让 4 步 LoRA 串在编辑 LoRA 之前。本机实测 8 步 / cfg 1.0：背景差异 8.1/255，
-  比 30 步 / cfg 4 的 11.4 更稳，且快 8 倍。
+  优于此前 30 步 / cfg 4 档的 11.4/255，且快 8 倍。
 - **贴回去的那格会更亮更锐**：编辑档与宫格档不同，这是两档配方的固有差异，不是 bug。
   想接近就把 ④ 的 `steps` 调小。
 - **本包自身不需要任何 LoRA**：不装也能完整生成 + 贴回，只是不能用 MOSS 的指令编辑。
@@ -201,9 +201,9 @@ def build():
         ("vae", "VAE", False, None),
         ("positive", "STRING", True, PROMPT),
         ("negative", "STRING", True, NEGATIVE),
-        ("steps", "INT", True, 35),
-        ("cfg", "FLOAT", True, 3.5),
-        ("sampler_name", "COMBO", True, "euler"),
+        ("steps", "INT", True, 25),
+        ("cfg", "FLOAT", True, 2.5),
+        ("sampler_name", "COMBO", True, "er_sde"),
         ("scheduler", "COMBO", True, "simple"),
         ("seed", "INT", True, 555),
         ("denoise", "FLOAT", True, 1.0),
@@ -274,16 +274,16 @@ def build():
                        ("batch_size", "INT", True, 1)])
     empty.decl_outputs([("LATENT", "LATENT")])
 
-    ksam = N(12, "KSampler", (480, 330), (400, 300), "④ 重采样（基准 30 步 / cfg 4）")
+    ksam = N(12, "KSampler", (480, 330), (400, 300), "④ 重采样（官方 SFT 口径 25 步 / cfg 2.5）")
     ksam.decl_inputs([
         ("model", "MODEL", False, None),
         ("positive", "CONDITIONING", False, None),
         ("negative", "CONDITIONING", False, None),
         ("latent_image", "LATENT", False, None),
         ("seed", "INT", True, 20261024),
-        ("steps", "INT", True, 30),
-        ("cfg", "FLOAT", True, 4.0),
-        ("sampler_name", "COMBO", True, "euler"),
+        ("steps", "INT", True, 25),
+        ("cfg", "FLOAT", True, 2.5),
+        ("sampler_name", "COMBO", True, "er_sde"),
         ("scheduler", "COMBO", True, "simple"),
         ("denoise", "FLOAT", True, 1.0),
     ])
@@ -328,7 +328,7 @@ def build():
         (unet, "MODEL", lora4, "model"),
         (lora4, "MODEL", smp, "model"),
         # 编辑段也串 4 步 LoRA：unet → 4步 → 编辑LoRA → KSampler
-        # （不串的话编辑段只有 30 步/cfg4 一档；串上可切 8 步/cfg1，快 8 倍）
+        # （不串的话编辑段只有官方 SFT 的 25 步/cfg2.5 一档；串上可切 8 步/cfg1，快 8 倍）
         (lora4, "MODEL", lora_edit, "model"),
         (clip, "CLIP", smp, "clip"),
         (clip, "CLIP", enc, "clip"),
