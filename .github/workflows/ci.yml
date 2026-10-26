@@ -16,7 +16,7 @@
 #   · 121/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
-#   ·  41/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
+#   ·  50/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
 #   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
 #   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
 #                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑

@@ -18,7 +18,7 @@ python tests/test_cross_language.py       # 69 项：JS ↔ Python 预设/默认
 python tests/test_panel_assembly.py       # 5 项：逐格拼版 reborder 语义
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
-python tools/smoke_nodes.py               # 41 项：自加载 + 纯节点真跑
+python tools/smoke_nodes.py               # 50 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py         # 4 份示例 + 2 份夹具共 88 项：连线 + 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
