@@ -51,13 +51,17 @@ NOTE = """## 这条链干什么
 这条链把那一格裁出来、单独改好、再按 `spec` 坐标贴回去。
 
 ## 五步
-1. **① 装两个 LoRA**（都没有也能跑，只是慢/不像编辑）：
+1. **① 装两个 LoRA（可选）**：
    - `4-step` 蒸馏 LoRA —— 让宫格 4 步出图
    - `Moss-Image-Edit` —— 编辑能力全部来自它（约 285 MB）
      Hugging Face `huggingface.co/chinoll/Moss-Image-Edit`
      魔搭 `modelscope.cn/models/ChenkinLab/Moss-Image-Edit`
      两个文件放 `models/loras/Moss-Image-Edit/`
-2. **② 取消旁路**：选中两个 LoRA 节点，按 `Ctrl+B`（默认旁路是怕你没装而报红）。
+2. **② 选采样配方（先选一档）**：
+   - **不装 LoRA（默认）**：两个 LoRA 保持旁路；生成节点 **35 步 / cfg 3.5**；
+     编辑 `KSampler` **30 步 / cfg 4**。能完整生成 + 贴回，但没有 MOSS 指令编辑。
+   - **装了两个 LoRA**：选中两个 LoRA 节点按 `Ctrl+B` 取消旁路；生成节点改 **4 步 / cfg 1.0**；
+     编辑 `KSampler` 改 **8 步 / cfg 1.0**（实测背景差异 8.1/255，比 30 步 / cfg 4 的 11.4 更稳）。
 3. **③ 改哪一格**：`MossStoryboardCrop` 的 `index`，**0 起、行主序**
    （从左到右、从上到下）。默认 1 = 右上那格。它的 `index` 输出直接接给贴回节点，
    **不用手打第二遍**。
@@ -197,8 +201,8 @@ def build():
         ("vae", "VAE", False, None),
         ("positive", "STRING", True, PROMPT),
         ("negative", "STRING", True, NEGATIVE),
-        ("steps", "INT", True, 4),
-        ("cfg", "FLOAT", True, 1.0),
+        ("steps", "INT", True, 35),
+        ("cfg", "FLOAT", True, 3.5),
         ("sampler_name", "COMBO", True, "euler"),
         ("scheduler", "COMBO", True, "simple"),
         ("seed", "INT", True, 555),
@@ -270,15 +274,15 @@ def build():
                        ("batch_size", "INT", True, 1)])
     empty.decl_outputs([("LATENT", "LATENT")])
 
-    ksam = N(12, "KSampler", (480, 330), (400, 300), "④ 重采样（8 步 / cfg 1）")
+    ksam = N(12, "KSampler", (480, 330), (400, 300), "④ 重采样（基准 30 步 / cfg 4）")
     ksam.decl_inputs([
         ("model", "MODEL", False, None),
         ("positive", "CONDITIONING", False, None),
         ("negative", "CONDITIONING", False, None),
         ("latent_image", "LATENT", False, None),
         ("seed", "INT", True, 20261024),
-        ("steps", "INT", True, 8),
-        ("cfg", "FLOAT", True, 1.0),
+        ("steps", "INT", True, 30),
+        ("cfg", "FLOAT", True, 4.0),
         ("sampler_name", "COMBO", True, "euler"),
         ("scheduler", "COMBO", True, "simple"),
         ("denoise", "FLOAT", True, 1.0),

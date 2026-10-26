@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 """编辑器前端自检（零 GPU、零浏览器、秒级）。
 
-三查（对应 docs/10 F6）：
+三查（编辑器 F6 验收）：
 - **词表**：预设表 / state 校验 / 吸附 —— 直接 import `web/moss_sb_editor.js` 的纯函数执行，
   不靠正则猜。用临时目录 + 一个 `app.js` 桩绕开宿主模块。
 - **语法**：`node --check`（Node 24 已移除 `--experimental-default-type`，自动退 .mjs 副本）。
@@ -51,7 +51,7 @@ def find_node():
 
 
 # ---------------------------------------------------------------------------
-# 契约解析（docs/10 是唯一真相源）
+# 契约解析（state v3 契约是唯一真相源）
 # ---------------------------------------------------------------------------
 def load_contract():
     src = open(DOC, encoding="utf-8").read()
@@ -114,7 +114,8 @@ import {
     PRESET_IDS, PRESET_SPECS, PRESET_HINTS, SIZES, ITEM_LABELS,
     TYPE_COLORS, CANVAS_PRESETS,
     presetItems, validateState, readState, snapAxis, stageAspect, makeItemId, emptyState,
-    makeHistory, recordHistory, stepHistory, HISTORY_MAX,
+    makeHistory, recordHistory, stepHistory, HISTORY_MAX, HISTORY_MAX_CHARS,
+    MAX_ITEMS,
     elementsToState, stateToElements, sniffLayoutDoc, ELEMENTS_VERSION,
     alignBbox, moveItemInArray,
 } from "./extensions/pack/moss_sb_editor.js";
@@ -179,6 +180,17 @@ const bad = [
     ["grid 数量不符", { version: 3, preset: "grid", style: "", grid: GRID, items: gi.slice(0, 1) }],
 ];
 for (const [name, obj] of bad) ok(`拒绝 ${name}`, validateState(obj).errors.length > 0);
+ok("拒绝零宽 caption", validateState({ ...base, items: [{ ...base.items[0], caption: "\u200b \u200f" }] }).errors.length > 0);
+ok("拒绝零宽 text", validateState({ ...base, items: [{ ...base.items[0], text: "\u202e\u2060" }] }).errors.length > 0);
+ok("整值浮点 canvas 接受", validateState({ ...base, canvas: { width: 1536.0, height: 864.0 } }).errors.length === 0);
+ok("非整浮点 canvas 拒绝", validateState({ ...base, canvas: { width: 1536.5, height: 864.0 } }).errors.length > 0);
+const tooMany = {
+    ...base,
+    items: Array.from({ length: MAX_ITEMS + 1 }, (_, i) => ({ ...base.items[0], id: "t" + i })),
+};
+ok(`validateState 拒绝 ${MAX_ITEMS + 1} 个元素`,
+    validateState(tooMany).errors.some((e) => e.includes(String(MAX_ITEMS))),
+    JSON.stringify(validateState(tooMany).errors).slice(0, 120));
 
 ok("readState 空 → 空白 state", readState("").fixed === true && readState("").state.items.length === 0);
 ok("readState 坏 JSON → fatal", !!readState("{oops").fatal);
@@ -258,6 +270,39 @@ ok("interop 文档 x_ext=null 拒绝", (() => {
 const backProto = stateToElements(pst, "zh");
 ok("interop 危险键不回流", !Object.prototype.hasOwnProperty.call(backProto, "__proto__")
     && ({}).polluted === undefined);
+ok("interop role 原型链名字拒绝", (() => {
+    try {
+        elementsToState({ version: 1, elements: [{ role: "toString", desc: "d", bbox: [0, 0, 10, 10] }] });
+        return false;
+    } catch (e) { return /role/.test(e.message); }
+})());
+ok("interop 零宽 desc 拒绝", (() => {
+    try {
+        elementsToState({ version: 1, elements: [{ role: "object", desc: "\u200b", bbox: [0, 0, 10, 10] }] });
+        return false;
+    } catch (e) { return /desc/.test(e.message); }
+})());
+ok("interop 零宽 text 拒绝", (() => {
+    try {
+        elementsToState({ version: 1, elements: [{ role: "text", desc: "d", text: "\u202e", bbox: [0, 0, 10, 10] }] });
+        return false;
+    } catch (e) { return /text/.test(e.message); }
+})());
+const thinState = {
+    version: 3, preset: "free", style: "", canvas: { width: 1536, height: 864 },
+    items: [{ id: "o1", label: "object", caption: "d", bbox: [0.5, 0.5, 0.5000001, 0.5000001] }],
+};
+const thinExp = stateToElements(thinState, "zh");
+ok("interop 超窄 bbox 导出补到 0.001", thinExp.elements[0].bbox.join(",") === "500,500,501,501",
+    thinExp.elements[0].bbox.join(","));
+ok("interop 超窄 bbox 可再导入", elementsToState(thinExp, { lang: "zh" }).items.length === 1);
+const edgeState = {
+    version: 3, preset: "free", style: "", canvas: { width: 1536, height: 864 },
+    items: [{ id: "o1", label: "object", caption: "d", bbox: [0.9999999, 0.9999999, 0.99999995, 0.99999995] }],
+};
+const edgeExp = stateToElements(edgeState, "zh");
+ok("interop 右/下边界超窄 bbox 不越界", edgeExp.elements[0].bbox.join(",") === "999,999,1000,1000",
+    edgeExp.elements[0].bbox.join(","));
 
 // --- 层级 / 对齐 ---
 const BB = [0.2, 0.1, 0.6, 0.5];
@@ -314,6 +359,24 @@ ok("层级找不到原样", moveItemInArray(ZARR, "z", 1) === ZARR);
     const cap = makeHistory();
     for (let i = 0; i < HISTORY_MAX + 20; i += 1) recordHistory(cap, "x" + i);
     ok(`历史上限 ${HISTORY_MAX}，丢最旧`, cap.undo.length === HISTORY_MAX && cap.undo[0] === "x20", cap.undo[0]);
+
+    const chunk = "x".repeat(1000000);
+    const keep = Math.floor(HISTORY_MAX_CHARS / (chunk.length + 1));
+    const budget = makeHistory();
+    const pushes = keep + 3;
+    for (let i = 0; i < pushes; i += 1) recordHistory(budget, chunk + i);
+    ok(`历史字符预算 ${HISTORY_MAX_CHARS}`, budget.undo.length === keep
+        && budget.undo[budget.undo.length - 1].endsWith(String(pushes - 1)),
+    `${budget.undo.length} / ${keep}`);
+    const redo = makeHistory();
+    for (let i = 0; i < pushes; i += 1) recordHistory(redo, chunk + i);
+    let cur = "current";
+    for (let i = 0; i < HISTORY_MAX; i += 1) {
+        const step = stepHistory(redo, cur, -1);
+        if (step == null) break;
+        cur = step;
+    }
+    ok(`重做栈也受字符预算 ${HISTORY_MAX_CHARS}`, redo.redo.length === keep, String(redo.redo.length));
 }
 
 console.log("__RESULT__" + JSON.stringify(results));

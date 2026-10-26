@@ -20,6 +20,10 @@ MAX_SCAN_CHARS = 4_000_000
 _OPEN = {"{": "}", "[": "]"}
 
 
+def _reject_constant(name):
+    raise ValueError("%s 不是合法 JSON" % name)
+
+
 def _skip_string(text, i):
     """i 指向开引号；返回闭引号之后的下标（找不到就返回 len）。"""
     i += 1
@@ -83,7 +87,7 @@ def extract_json(text):
         if end is None:
             continue
         try:
-            return json.loads(text[start:end])
+            return json.loads(text[start:end], parse_constant=_reject_constant)
         except ValueError:
             continue
     raise ValueError("没有找到合法的 JSON 对象/数组（试了 %d 个开括号）。" % tried)
