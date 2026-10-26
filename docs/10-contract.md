@@ -90,7 +90,7 @@ MossLayoutEditor
 | 4 | 不改 `widgets_values` 顺序；不重排 widget |
 | 5 | 单文件 `web/moss_sb_editor.js`，不拆本地 ES module |
 | 6 | 撤销/重做历史只在内存，不写进 widget；外部改 `editor_state`（打开工作流 / 宿主级撤销）必须清空历史；输入框内不拦截 `Ctrl+Z` |
-| 7 | 面板底部的「最终提示词」预览走 `compileFinalPrompt`，**必须与后端 `compile_final_prompt` 逐字节相同**（含坐标取整的逢半向偶、JSON 键序、分隔符）；不许做成"简化说明版" |
+| 7 | 画布下方独立一条「最终提示词」预览（不放进属性面板：面板自带滚动会把预览挤到看不见），走 `compileFinalPrompt`，**必须与后端 `compile_final_prompt` 逐字节相同**（含坐标取整的逢半向偶、JSON 键序、分隔符）；不许做成"简化说明版" |
 | 8 | 宫格模式收起 `label` / `text` / `palette` / `bbox` / 层级对齐控件（它们不进宫格提示词），但**不删用户 state 里的这些字段** |
 
 ---

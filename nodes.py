@@ -108,15 +108,30 @@ def _node_errors(*keys):
     return deco
 
 
-def _mp_note(layout, per_panel=False):
-    """画布与单格的分辨率告警。
+def _mp_note(layout, per_panel=False, sample_px=(0, 0)):
+    """分辨率告警：只按**真正进模型的那张画布**判。
 
-    🔴 两个维度都要看（2026-10-24 修正）：之前只看画布 MP，漏掉了真正的画质瓶颈。
-    故事板每格只分到 `panel_megapixels`，9 格 1:1 时单格仅 0.26MP ——
-    远低于 MOSS 的训练区间 ⇒ 每格细节明显糊，但画布 MP 看着还挺正常。
+    整张 = 宫格画布（画布越大每格越小，单格 MP 才是瓶颈；2026-10-24 修正前只看画布 MP，
+    漏掉了这个——画布看着正常、每格照样糊）。
+    逐格 = 单格采样画布 `sample_px`（由 `sample_edge` 决定）。拼版后的整张从不进模型 ⇒
+    拿它的 MP 去比官方上限是假红，告警也就不能建议"改逐格"（已经在逐格里了）。
     """
     mp = layout.megapixels
     pm = layout.panel_megapixels
+    if per_panel:
+        sw, sh = sample_px
+        sm = sw * sh / 1e6
+        if sm > _MP_LIMIT:
+            return ("\n⚠ 单格采样画布 %.2fMP（%d×%d）超出官方外推上限（≈4MP）：文字与细节退化。"
+                    "把 `sample_edge` 调小。" % (sm, sw, sh))
+        if sm < _PM_PANEL_LOW:
+            return ("\n⚠ 单格采样画布只有 %.2fMP（%d×%d）：低于 MOSS 的训练区间，每格会明显糊。\n"
+                    "  逐格的清晰度只由 `sample_edge` 决定（与格数、`panel_edge` 无关），加大它。"
+                    % (sm, sw, sh))
+        if sm < _PM_PANEL_OK:
+            return ("\n· 单格采样画布 %.2fMP（%d×%d）：偏小，细节会偏软。可加大 `sample_edge`。"
+                    % (sm, sw, sh))
+        return ""
     out = ""
     if mp > _MP_LIMIT:
         out += ("\n⚠ 画布 %.2fMP 已超出 MOSS-Image 官方外推上限（≈4MP）：文字与布局退化风险高。"
@@ -125,16 +140,15 @@ def _mp_note(layout, per_panel=False):
         out += ("\n⚠ 画布 %.2fMP 高于训练区间（1–2MP）：可跑，但小字与细节开始不稳。"
                 "建议 panel_edge 降到能压进 2MP 的值。" % mp)
     if pm < _PM_PANEL_LOW:
-        out += ("\n⚠ 单格只有 %.2fMP（%d×%d）：**这才是画质瓶颈** —— "
-                "9 格 1:1 时每格只分到 0.26MP，远低于 MOSS 的训练区间，每格会明显糊。\n"
-                "  解法：① 改「逐格」模式（每格独立给足分辨率）；"
-                "② 减少格数；③ 加大 panel_edge（但会顶高画布 MP）。"
+        out += ("\n⚠ 单格只有 %.2fMP（%d×%d）：**这才是画质瓶颈** —— 远低于 MOSS 的训练区间，"
+                "每格会明显糊（画布 MP 看着正常也一样糊）。\n"
+                "  解法：① 加大 `panel_edge`（单格清晰度的直接杠杆）；"
+                "② 改用「逐格」模式（每格独立采样，分辨率交给 `sample_edge`）；"
+                "③ 减少格数（整张画布有官方 MP 上限，格数少了才腾得出 panel_edge）。"
                 % (pm, layout.panel_w, layout.panel_h))
     elif pm < _PM_PANEL_OK:
-        out += ("\n· 单格 %.2fMP（%d×%d）：偏小，细节会偏软。改「逐格」模式可显著改善。"
+        out += ("\n· 单格 %.2fMP（%d×%d）：偏小，细节会偏软。加大 `panel_edge` 或改「逐格」。"
                 % (pm, layout.panel_w, layout.panel_h))
-    if per_panel and out:
-        out = out.replace("解法：① 改「逐格」模式（每格独立给足分辨率）；", "解法：① ")
     return out
 
 
@@ -640,7 +654,7 @@ class MossStoryboardSampler:
             % len(sent),
             "输出：grid %s，panels %s｜逐格模式不产整张 latent ⇒ `latent` 为 None" % (
                 "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
-        ] + notes) + _mp_note(lay, per_panel=True)
+        ] + notes) + _mp_note(lay, per_panel=True, sample_px=(pw, ph))
 
         return (grid, panels_img, None, lay.spec(), (positive or "").strip(), report,
                 json.dumps(sent, ensure_ascii=False))

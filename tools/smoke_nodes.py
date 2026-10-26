@@ -14,6 +14,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import sys
 from _paths import host_root
 
@@ -160,6 +161,27 @@ def main():
         check("Compiler: 混合草稿 → 报错", False, "未抛异常")
     except Exception as exc:
         check("Compiler: 混合草稿 → 报错", "未知字段" in str(exc), str(exc).splitlines()[0][:80])
+
+    print("\n== 5. 分辨率告警按模式给对杠杆 ==")
+    tiny = L.build_layout(panels=9, panel_edge=256, panel_aspect="1:1", canvas_aspect="auto")
+    w_note = V1._mp_note(tiny)
+    p_big = V1._mp_note(tiny, per_panel=True, sample_px=(1024, 1024))
+    p_small = V1._mp_note(tiny, per_panel=True, sample_px=(256, 256))
+    p_huge = V1._mp_note(tiny, per_panel=True, sample_px=(4096, 4096))
+    # 逐格拼版后的整张从不进模型：拿它比官方 MP 上限、或让用户"改用逐格"都是假红/自相矛盾
+    check("逐格·采样画布够大 ⇒ 不提「画质瓶颈」也不建议改逐格",
+          "瓶颈" not in p_big and "改「逐格」" not in p_big and "改用" not in p_big, p_big.replace("\n", " ⏎ "))
+    check("整张·单格过小时三条解法齐全",
+          "① 加大 `panel_edge`" in w_note and "② 改用「逐格」" in w_note and "③ 减少格数" in w_note,
+          w_note.replace("\n", " ⏎ ")[:120])
+    check("逐格·采样画布过小 ⇒ 杠杆是 sample_edge",
+          "sample_edge" in p_small and "低于 MOSS 的训练区间" in p_small, p_small.replace("\n", " ⏎ ")[:120])
+    check("逐格·采样画布超上限 ⇒ 明确要调小 sample_edge",
+          "官方外推上限" in p_huge and "调小" in p_huge, p_huge.replace("\n", " ⏎ ")[:100])
+    for tag, note in (("整张", w_note), ("逐格大", p_big), ("逐格小", p_small), ("逐格超", p_huge)):
+        # 残缺枚举 = 序号后面没内容（逐格分支曾把 ① 整条删掉，输出「解法：① ② 减少格数」）
+        empty = [m.group(1) for m in re.finditer(r"[①②③]([^\n①②③]*)", note) if not m.group(1).strip()]
+        check("%s 告警枚举不残缺" % tag, not empty, str(empty))
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:

@@ -288,21 +288,31 @@ try {
             s1.status.slice(0, 140));
 
         // ⚠ confirm 一律返回 false：这条测的是"排队前会问"，绝不能真的把 GPU 任务排进去。
+        // 判据用**提示 id 集合的增量**而不是"队列 == 0"：8188 是共用宿主，别人排的队
+        // 不该算成我们的失败（实测被另一路跑批顶出过假红），但我们自己一条都不能多。
         const nag = await page.evaluate(async () => {
             const calls = [];
+            const ids = async () => {
+                const q = await fetch("/queue").then((r) => r.json()).catch(() => null);
+                return q ? [...q.queue_running, ...q.queue_pending]
+                    .map((x) => (Array.isArray(x) ? x[1] : x && x.prompt_id)) : null;
+            };
+            const before = await ids();
             const orig = window.confirm;
             window.confirm = (m) => { calls.push(m); return false; };
             const btn = Array.from(document.querySelectorAll(".mossed-bar button")).find((b) => /排队/.test(b.textContent));
             btn?.click();
             await new Promise((r) => setTimeout(r, 900));
             window.confirm = orig;
-            const q = await fetch("/queue").then((r) => r.json()).catch(() => null);
-            return { calls, queue: q ? q.queue_running.length + q.queue_pending.length : null };
+            return { calls, before, after: await ids() };
         });
-        check("文字占位在排队前确认一次并点名 id",
-            nag.calls.length === 1 && /预设文案/.test(nag.calls[0]) && /\bt\d/.test(nag.calls[0]),
+        check("文字占位在排队前确认一次并点名位置",
+            nag.calls.length === 1 && /预设文案/.test(nag.calls[0]) && /第 \d/.test(nag.calls[0]),
             JSON.stringify(nag.calls).slice(0, 160));
-        check("取消确认后没有入队", nag.queue === 0, String(nag.queue));
+        const added = nag.after && nag.before
+            ? nag.after.filter((id) => !nag.before.includes(id)) : ["读不到队列"];
+        check("取消确认后没有多出一条队列任务", added.length === 0,
+            "新增 %s｜点前 %d 条（>0 = 宿主被别人占用）" % (JSON.stringify(added), nag.before.length));
     }
 
     await page.evaluate(() => globalThis.MOSS_SB_LANG.set("en"));

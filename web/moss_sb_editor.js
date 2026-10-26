@@ -216,8 +216,8 @@ export const STR = {
         en: "Grid mode samples one panel at a time: this is the `[PANEL n]` block for assembly; each panel also gets a full-bleed layout JSON.",
     },
     phAsk: {
-        zh: "还有 {n} 个文字框是预设文案（{ids}），模型会把这几个字逐字画进图里。仍要排队？",
-        en: "{n} text box(es) still hold preset copy ({ids}) — the model will render those words literally. Queue anyway?",
+        zh: "还有 {n} 个文字框是预设文案（第 {at} 个），模型会把这几个字逐字画进图里。仍要排队？",
+        en: "{n} text box(es) still hold preset copy (item {at}) — the model will render those words literally. Queue anyway?",
     },
     phRender: { zh: "{n} 个文字框仍是预设文案，会被逐字渲染", en: "{n} text box(es) still use preset copy and will be rendered literally" },
     phGeneric: { zh: "{n} 个描述仍是预设占位，画面会雷同", en: "{n} caption(s) are still preset placeholders; the panels will look alike" },
@@ -898,11 +898,8 @@ export function sniffLayoutDoc(obj) {
 }
 
 // ---------------------------------------------------------------------------
-// 最终提示词与占位守卫（纯函数）
-//
-// `compileFinalPrompt` 必须与 `core/editor.py` 逐字节一致：宫格 → `[STYLE]+[PANEL n]`，
-// 单张 → MOSS 原生布局 JSON。这里只是**预览**，真值仍是节点输出；两边由
-// `tests/test_cross_language.py` 差分。改坐标取整、键序、分隔符任一项都会红。
+// 最终提示词与占位守卫（纯函数）。`compileFinalPrompt` 必须与 `core/editor.py`
+// 逐字节一致（坐标取整 / 键序 / 分隔符任一项改了都会被 test_cross_language 差分）。
 // ---------------------------------------------------------------------------
 
 const isGridState = (st) => st?.preset === "grid";
@@ -1414,7 +1411,6 @@ function buildUI() {
     const warn = h("div", "mossed-warn", "");
     form.appendChild(warn);
 
-    // 宫格模式把元素级控件整排收起，换成一句"这一格只有三个字段进提示词"。
     const gridNote = h("div", "mossed-gridnote", "");
     gridNote.hidden = true;
     form.appendChild(gridNote);
@@ -1422,8 +1418,6 @@ function buildUI() {
     panel.appendChild(form);
 
     // ---- 最终提示词（只读预览） ---------------------------------------
-    // 与节点侧 `core/editor.py::compile_final_prompt` 同口径，差分测试盯着；
-    // 真值仍是节点输出，这里只保证"看到的就是要发的"。
     const promptBox = h("div", "mossed-prompt");
     promptBox.hidden = true;
     const promptHead = h("div", "mossed-prompt-head");
@@ -1438,8 +1432,7 @@ function buildUI() {
     promptBox.appendChild(promptHead);
     promptBox.appendChild(promptNote);
     promptBox.appendChild(promptPre);
-    // 挂在 root 上而不是属性面板里：面板只有 218px 且自带滚动，
-    // 预览塞进去就会被挤到看不见的地方 —— 这条的存在意义就是"不用滚也能看到"。
+    // 挂 root 而非属性面板：面板只有 218px 且自带滚动，塞进去就看不见（实测被挤到框外）
     root.appendChild(promptBox);
     root.appendChild(panel);
 
@@ -1623,8 +1616,7 @@ function render(ui) {
         const sel = ui.sel === item.id;
         const g = s("g", { class: "mossed-itemg" });
         g.style.setProperty("--type-color", TYPE_COLORS[item.label] || "#9aa4b2");
-        // 宫格模式 palette 不进提示词，就别用它的颜色给格位上色（假信号）
-        if (!isGrid && Array.isArray(item.palette) && isHex(item.palette[0])) {
+        if (Array.isArray(item.palette) && isHex(item.palette[0])) {
             g.style.setProperty("--item-fill", item.palette[0] + "24");
         }
         const rect = s("rect", {
@@ -1816,24 +1808,20 @@ function updateFatal(ui) {
 }
 
 function updateStatus(ui) {
+    syncPrompt(ui);
     const st = ui.state;
     if (!st) { ui.status.textContent = ""; return; }
-    const parts = [];
     const grid = st.preset === "grid";
-    parts.push(grid
-        ? `${st.grid?.cols ?? "?"}×${st.grid?.rows ?? "?"}`
-        : `${st.canvas?.width ?? "?"}×${st.canvas?.height ?? "?"}`);
-    // 宫格数的是"格"，单张数的才是"元素"——混着写会让人以为格位是可增删的元素
-    parts.push(t(grid ? "panelsCount" : "itemsCount").replace("{n}", String(st.items.length)));
+    const parts = [grid ? `${st.grid?.cols ?? "?"}×${st.grid?.rows ?? "?"}`
+        : `${st.canvas?.width ?? "?"}×${st.canvas?.height ?? "?"}`,
+        // 宫格数"格"、单张数"元素"：混着写会让人以为格位是能自由增删的元素
+        t(grid ? "panelsCount" : "itemsCount").replace("{n}", String(st.items.length))];
     const warns = [];
-    if (st.preset === "grid") {
-        const n = (st.grid?.cols || 0) * (st.grid?.rows || 0);
-        if (n !== st.items.length) warns.push(t("warnGrid"));
-    }
+    if (grid && (st.grid?.cols || 0) * (st.grid?.rows || 0) !== st.items.length) warns.push(t("warnGrid"));
     const ph = findPlaceholders(st);
-    const phRender = ph.filter((f) => f.kind === "render").length;
-    if (phRender) warns.push(t("phRender").replace("{n}", String(phRender)));
-    if (ph.length - phRender) warns.push(t("phGeneric").replace("{n}", String(ph.length - phRender)));
+    const nRender = ph.filter((f) => f.kind === "render").length;
+    if (nRender) warns.push(t("phRender").replace("{n}", String(nRender)));
+    if (ph.length > nRender) warns.push(t("phGeneric").replace("{n}", String(ph.length - nRender)));
     for (const w of ui.warnings || []) {
         if (warns.length >= 3) break;
         if (!warns.includes(w)) warns.push(w);
@@ -1857,7 +1845,6 @@ function syncPanel(ui, force) {
     ui.empty.hidden = !!it;
     ui.gridRow.hidden = !isGrid;
     ui.canvasRow.hidden = !!isGrid;
-    syncPrompt(ui);
     if (!it) return;
 
     ui.idChip.textContent = it.id;
@@ -1874,14 +1861,10 @@ function syncPanel(ui, force) {
     if (force || document.activeElement !== ui.palIn) {
         ui.palIn.value = Array.isArray(it.palette) ? it.palette.join(", ") : "";
     }
-    // 宫格模式：提示词只由镜号 / 景别 / 描述拼出。元素级控件（类型、文字、主色、
-    // 框、层级、对齐）在那里是假 affordance —— 收起而不是留灰，免得用户改了以为生效。
-    ui.typeDot.hidden = !!isGrid;
-    ui.labelField.hidden = !!isGrid;
-    ui.paletteRow.hidden = !!isGrid;
-    ui.boxRow.hidden = !!isGrid;
-    ui.orderRow.hidden = !!isGrid;
-    ui.alignRow.hidden = !!isGrid;
+    // 宫格只消费镜号 / 景别 / 描述：元素级控件收起而不是留灰，留灰会让人以为改了有效
+    for (const el of [ui.typeDot, ui.labelField, ui.paletteRow, ui.boxRow, ui.orderRow, ui.alignRow]) {
+        el.hidden = !!isGrid;
+    }
     ui.textRow.hidden = !!isGrid || it.label !== "text";
     ui.gridOnly.hidden = !isGrid;
     ui.noChip.textContent = isGrid ? `${t("panelNo")} ${it.no ?? "?"}` : "";
@@ -1963,7 +1946,6 @@ function commit(ui, historyKey = null) {
     if (raw.length > MAX_STATE_CHARS) ui.warnings.push(t("warnTooBig"));
     render(ui);
     updateStatus(ui);
-    syncPrompt(ui);
     syncHistoryButtons(ui);
 }
 
@@ -2539,11 +2521,11 @@ function wire(ui) {
         if (!ui.state) { flash(ui, t("queueNoState"), true); return; }
         if (ui.queueBusy) return;
         if ((ui.raw || "").length > MAX_STATE_CHARS) { flash(ui, t("queueTooBig"), true); return; }
+        // 只拦会被逐字渲染的那一类：烧一次 GPU 才知道"标题文字"上了图，代价太大。
         const ph = findPlaceholders(ui.state).filter((f) => f.kind === "render");
         if (ph.length) {
-            // 只拦会被逐字渲染的那一类：烧一次 GPU 才知道"标题文字"四个字上了图，代价太大。
-            const ids = ph.slice(0, 3).map((f) => f.id).join("、") + (ph.length > 3 ? "…" : "");
-            const msg = t("phAsk").replace("{n}", String(ph.length)).replace("{ids}", ids);
+            const at = ph.slice(0, 3).map((f) => 1 + ui.state.items.findIndex((x) => x && x.id === f.id)).join("、");
+            const msg = t("phAsk").replace("{n}", String(ph.length)).replace("{at}", at);
             try {
                 if (!window.confirm(msg)) return;
             } catch (err) { /* 没有 confirm：状态栏已经警告过，不再自造兜底 */ }
@@ -2868,7 +2850,7 @@ function bootstrap(why) {
         setInterval(guard, 1500);
         try {
             globalThis.addEventListener?.("mosssb:lang-changed", () => {
-                for (const node of ownNodes()) if (node.__mossedUI) { syncStatic(node.__mossedUI); render(node.__mossedUI); syncPanel(node.__mossedUI, false); }
+                for (const node of ownNodes()) if (node.__mossedUI) { const ui = node.__mossedUI; syncStatic(ui); render(ui); syncPanel(ui, false); updateStatus(ui); }
             });
         } catch (e) { /* 无 window */ }
         console.info("%s: 就绪（本包节点 %d，入口=%s）", TAG, ownNodes().length, why);

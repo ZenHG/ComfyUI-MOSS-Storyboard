@@ -327,7 +327,7 @@ Two modes, switched by preset:
 > An external planner's element JSON imports directly as editable items; the CLI validator/converter is in
 > [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) and does not need ComfyUI.
 
-**The bottom of the panel shows the final prompt** — the exact text handed to the model for the
+**A final-prompt strip sits under the canvas** (between the status line and the property panel, no scrolling needed) — it shows the exact text handed to the model for the
 current state: `[STYLE]` + `[PANEL n]` per panel in grid mode, native layout JSON in single mode.
 Read-only, copyable, and it updates as you edit. It is compiled with the same rules as the backend
 (a differential test compares them byte by byte), so it is not a paraphrase.
@@ -477,6 +477,8 @@ Cost: VRAM and time scale with the pixel count. Ignored in whole-grid mode.
 > 1:1 nine-panel board gives each panel only **0.26MP** — the canvas looks fine, every panel
 > is visibly soft. The node's `report` prints both numbers. With many panels and a near-square
 > ratio, prefer `逐格`.
+> In `逐格` that warning reads the **per-panel sampling canvas** (`sample_edge`) instead of the
+> final cell size — the assembled grid is never fed to the model.
 
 `init` values: `auto` / `layout` = panel captions become layout boxes (default);
 `plain` = raw prompt, no layout boxes.

@@ -439,8 +439,15 @@ many["items"] = [{"id": "t%d" % k, "label": "text", "text": "标题文字",
                   "caption": "粗体无衬线标题", "bbox": [0.1, 0.1, 0.9, 0.2]}
                  for k in range(1, 6)]
 many_sum = E.placeholder_summary(E.parse_state(dump(many)))
-check("占位列前 3 个 id 即止（计数仍是 5）",
-      "5 个" in many_sum and "t3" in many_sum and "t4" not in many_sum, many_sum)
+check("占位报位置不报裸 id，且只列前 3（计数仍是 5）",
+      "5 个" in many_sum and "第 3 个" in many_sum and "第 4 个" not in many_sum
+      and "t4" not in many_sum, many_sum)
+gl = grid_state()
+for k in (0, 2):
+    gl["items"][k]["caption"] = "第 %d 格画面" % (k + 1)
+gl_sum = E.placeholder_summary(E.parse_state(dump(gl)))
+check("宫格占位按镜号报「第 N 格」", "第 1 格" in gl_sum and "第 3 格" in gl_sum
+      and "s1" not in gl_sum, gl_sum)
 check("改完文字后 render 级消失",
       all(f["kind"] != "render" for f in E.find_placeholders(
           {"items": [{"id": "t1", "label": "text", "text": "永兵传说",

@@ -55,9 +55,8 @@ def is_blank(text):
     return not _INVISIBLE_RE.sub("", text).strip()
 
 
-#: 预设占位文案。这些值来自 `web/moss_sb_editor.js::PRESET_SPECS`，改预设必须两边一起改；
-#: `check_editor_ui.py` 与 `test_cross_language.py` 盯着口径。text 占位会被**逐字渲染**，
-#: 所以前端排队要先确认一次；caption 占位只警告。
+#: 预设占位文案，取自 `PRESET_SPECS`——改预设必须两边一起改（`test_cross_language` 盯着）。
+#: text 占会被逐字渲染 ⇒ 排队前确认一次；caption 占位只警告。
 _GRID_CAPTION_RE = re.compile(r"^(?:第 \d+ 格画面|Panel \d+)$")
 _PLACEHOLDER_CAPTIONS = frozenset((
     "主体", "背景元素", "前景主体", "主体，居中，四周留白", "主角半身，侧对镜头",
@@ -354,10 +353,9 @@ def shot_layout_json(state, shot, width, height, label="object"):
 
 
 def compile_final_prompt(state):
-    """当前模式**最终发给模型**的提示词：宫格 → `[STYLE]+[PANEL n]`，单张 → 原生布局 JSON。
+    """最终发给模型的文本：宫格 → `[STYLE]+[PANEL n]`，单张 → 原生布局 JSON。
 
-    前端属性面板的只读预览走 `web/moss_sb_editor.js::compileFinalPrompt`，两边由
-    `tests/test_cross_language.py` 逐字节比对；不要在其中一边加“好看但不同”的简化版。
+    前端预览走 `moss_sb_editor.js::compileFinalPrompt`，两边逐字节比对，别单边做简化版。
     """
     if is_grid(state):
         return compile_prompt(state)
@@ -365,10 +363,9 @@ def compile_final_prompt(state):
 
 
 def find_placeholders(state):
-    """找出仍是预设占位的字段，返回 `[{id, field, kind}]`（保持 items 顺序）。
+    """仍是预设占位的字段 → `[{id, field, kind}]`（保持 items 顺序）。
 
-    `kind=generic` = caption 占位，只警告；`kind=render` = text 占位，会被逐字渲染。
-    网格模式的 `text` 字段根本不进提示词，所以不在这里拦（改由 `find_ignored_grid_fields` 说明）。
+    `render` = 会被逐字渲染的 text；`generic` = caption。宫格的 text 不进提示词，故不拦。
     """
     grid = is_grid(state)
     found = []
@@ -407,20 +404,28 @@ def find_ignored_grid_fields(state):
     return out
 
 
+def _item_at(state):
+    """id → 人话位置。原始 id（`e-8f2a1c3d`）用户看不出指的是谁，报"第几格/第几个"才能动手改。"""
+    grid = is_grid(state)
+    out = {}
+    for n, it in enumerate(state.get("items") or [], 1):
+        if isinstance(it, dict):
+            out[it.get("id")] = "第 %s 格" % (it.get("no") or n) if grid else "第 %d 个" % n
+    return out
+
+
 def placeholder_summary(state):
     """给 `report` 用的一句话；没有占位返回 None。"""
     found = find_placeholders(state)
     if not found:
         return None
-    render = [f for f in found if f["kind"] == "render"]
-    generic = [f for f in found if f["kind"] == "generic"]
+    at = _item_at(state)
     parts = []
-    if render:
-        parts.append("%d 个文字框仍是预设文案（会被逐字渲染：%s）"
-                     % (len(render), "、".join(str(f["id"]) for f in render[:3])))
-    if generic:
-        parts.append("%d 个描述仍是预设占位（画面会雷同：%s）"
-                     % (len(generic), "、".join(str(f["id"]) for f in generic[:3])))
+    for kind, text in (("render", "%d 个文字框仍是预设文案（会被逐字渲染：%s）"),
+                       ("generic", "%d 个描述仍是预设占位（画面会雷同：%s）")):
+        hit = [f for f in found if f["kind"] == kind]
+        if hit:
+            parts.append(text % (len(hit), "、".join(at.get(f["id"], "?") for f in hit[:3])))
     return "⚠ " + "；".join(parts) + "。"
 
 
