@@ -60,6 +60,7 @@ def test_caption():
     check("caption 是纯文本", p == 'An ivory cup marked "茶".\nSecond line.', p)
     check("caption report 类型", rep["kind"] == "caption" and rep["items"] == 0, rep)
     raises("caption 空串拒绝", lambda: S.compile_draft({"caption": ""}), "非空")
+    raises("caption 零宽拒绝", lambda: S.compile_draft({"caption": "\u200b"}), "非空")
     raises("caption 带额外字段拒绝",
            lambda: S.compile_draft({"caption": "x", "items": []}), "未知字段")
     raises("caption 非字符串拒绝", lambda: S.compile_draft({"caption": 3}), "非空")
@@ -145,6 +146,10 @@ def test_fields_and_schema():
     d = copy.deepcopy(DRAFT)
     del d["items"][0]["text"]
     raises("text 元素缺 text 拒绝", lambda: S.compile_draft(d), "text")
+
+    d = copy.deepcopy(DRAFT)
+    d["items"][0]["text"] = "\u200b"
+    raises("text 零宽拒绝", lambda: S.compile_draft(d), "非空")
 
     d = copy.deepcopy(DRAFT)
     d["items"] = []

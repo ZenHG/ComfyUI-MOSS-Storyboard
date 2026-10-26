@@ -40,6 +40,8 @@ _SUMMARY_FIELDS = {"caption", "meta", "canvas", "palette"}
 _ITEM_FIELDS = {"label", "caption", "bbox", "text", "tags", "palette"}
 _CANVAS_KINDS = ("single", "multi_panel", "collage")
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+#: 与 `core.editor.is_blank` 同口径：零宽 / 方向控制字符渲染不出来，按空处理。
+_INVISIBLE_RE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u206a-\u206f\ufeff]")
 
 
 def _fail(msg):
@@ -60,8 +62,13 @@ def _is_num(v):
         return False
 
 
+def _blank(v):
+    return not _INVISIBLE_RE.sub("", v).strip()
+
+
 def _text(v, where):
-    _require(isinstance(v, str) and bool(v.strip()), "%s 必须是非空字符串。" % where)
+    _require(isinstance(v, str) and not _blank(v),
+             "%s 必须是非空字符串（零宽 / 方向控制字符不算内容）。" % where)
 
 
 def _strings(v, where):

@@ -73,7 +73,7 @@ python tools/compile_skill_draft.py draft.json --output prompt.txt --state state
 **已核（2026-10-26，离线）**：
 
 - 官方 `compile_prompt.py` 的 8 项单元测试**全过**（`python -m unittest`）。
-- 本包 `tests/test_skill_draft.py` **77 项全过**，含官方给的三个期望值：
+- 本包 `tests/test_skill_draft.py` **79 项全过**，含官方给的三个期望值：
   - 竖版 1536×1024 文字框 `[928,272,1408,448]` → `[-240,160,-64,640]`；
   - 物体框 `[176,224,800,864]` → `[-288,-592,352,32]`；
   - 小数边 `[10.9,20.1,100.01,200.99]`（768×1344）→ `[-652,-374,-471,-283]`。
