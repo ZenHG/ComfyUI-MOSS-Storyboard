@@ -138,10 +138,11 @@ cd <你的 ComfyUI>/custom_nodes
 git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 ```
 
-重启 ComfyUI。节点菜单 **`moss/storyboard`** 下出现六个节点，启动日志里有一行：
+重启 ComfyUI。节点菜单 **`moss/storyboard`** 下出现六个节点，启动日志里有一行
+（`<版本号>` 为实际安装的版本）：
 
 ```
-[MOSS SB] v0.2.2 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v<版本号> 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 **没这行 = 包没加载**，这比任何配置检查都直接。

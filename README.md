@@ -142,10 +142,11 @@ cd <your ComfyUI>/custom_nodes
 git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 ```
 
-Restart ComfyUI. Nodes appear under **`moss/storyboard`**, and the startup log shows:
+Restart ComfyUI. Nodes appear under **`moss/storyboard`**, and the startup log shows a line like
+this (`<version>` is whatever you installed):
 
 ```
-[MOSS SB] v0.2.2 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v<version> 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 No such line = the pack did not load. Force the legacy V1 exit with `MOSSSB_NODE_API=v1`.
