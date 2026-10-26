@@ -12,7 +12,7 @@
 #   ·  22/0  tests/test_extract.py            从散文/代码块提取 JSON、上限/扫描预算
 #   ·  57/0  tests/test_adversarial.py        恶意/极端输入：JSON 常量 / 原型链 / 量化 / 扫描预算
 #   ·  27/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
-#   ·  77/0  tests/test_skill_draft.py        官方 prompt-enhancer 草稿 / 编译 / state / CLI
+#   ·  79/0  tests/test_skill_draft.py        官方 prompt-enhancer 草稿 / 编译 / state / CLI
 #   · 121/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）

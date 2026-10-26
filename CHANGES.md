@@ -12,7 +12,7 @@
   坐标换算与官方实现逐字对齐（左/上 floor、右/下 ceil、再减画布中心），并有官方期望值回归。
 - **`core/skill_draft.py`**：草稿 schema 的独立实现（未复制官方代码），含 `loads` / `compile_draft` /
   `draft_to_state`；`tools/compile_skill_draft.py` 提供无 ComfyUI 的命令行入口（`--output` / `--state`）。
-- **`tests/test_skill_draft.py`**：77 项离线检查，覆盖官方示例、分数边、非法几何 / 尺寸 / 字段 /
+- **`tests/test_skill_draft.py`**：79 项离线检查，覆盖官方示例、分数边、非法几何 / 尺寸 / 字段 /
   重复键 / NaN / 越界、256/257 上限、state 映射、CLI、输入不被改写、编译上限 8192 vs state 上限 4096。
   state 画布还须 ≥64（编辑器下限）；超出时节点仍输出 prompt，并把「state 未生成」写进 report。
 - **`docs/13-prompt-enhancer.md`**：官方 skill 的用法、草稿 schema、三条接入路径、置信度与未测项。
