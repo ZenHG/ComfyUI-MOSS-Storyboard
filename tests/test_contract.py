@@ -261,14 +261,21 @@ def test_repo_hygiene():
     check("开发工具的绝对路径只是兜底（可被 COMFYUI_PATH / NODE_BIN 覆盖）", True,
           "共 %d 处：%s" % (len(dev), dev[:4]))
 
-    big = []
-    for dirpath, dirnames, files in os.walk(ROOT):
-        dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".git")]
-        for f in files:
-            p = os.path.join(dirpath, f)
-            if os.path.getsize(p) > 2 * 1024 * 1024:
-                big.append(os.path.relpath(p, ROOT))
-    check("无 >2MB 文件", not big, str(big))
+    # 尺寸卫生的对象是**会进库的文件**，不是磁盘上的本机产物：`docs/_local/`（取证截图、
+    # 对照图）与 `dist/` 都被排除规则挡在库外，整树扫会把维护者的留档判成红 —— 那是假红。
+    # 没有 git 可用时（干净解包的 dist）退回整树扫，口径不变宽。
+    g = subprocess.run(["git", "-C", ROOT, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+                       capture_output=True, text=True)
+    if g.returncode == 0:
+        cands = [r for r in g.stdout.split("\0") if r]
+    else:
+        cands = [os.path.relpath(os.path.join(dp, f), ROOT)
+                 for dp, dns, fs in os.walk(ROOT)
+                 for f in fs if not (set(dns) & {"__pycache__", ".git"} or f.endswith(".pyc"))]
+    big = [r for r in cands
+           if os.path.exists(os.path.join(ROOT, r))
+           and os.path.getsize(os.path.join(ROOT, r)) > 2 * 1024 * 1024]
+    check("入库范围内无 >2MB 文件", not big, str(big))
 
 
 
