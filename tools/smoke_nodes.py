@@ -5,13 +5,14 @@
 不用 GPU、不加载权重，只证明：
 - 两条出口都能注册，清单一致；
 - 每个节点的 schema 都构造得出来（V3 是加载时就取 schema，构造失败 = 节点消失）；
-- 纯节点（Layout / Crop）真跑一遍，产物形状与 spec 自洽。
+- 纯节点（Layout / Crop / Paste / Compiler）真跑一遍，产物形状与 spec 自洽。
 
 跑法：`python tools/smoke_nodes.py`（宿主根见 tools/_paths.py；可用 COMFYUI_PATH 覆盖）
 """
 
 import importlib.machinery
 import importlib.util
+import json
 import os
 import sys
 from _paths import host_root
@@ -48,8 +49,9 @@ def main():
     print("\n== 2. V1 契约 ==")
     import torch
     from moss_sb import nodes as V1
+    from moss_sb.core import editor as E
     from moss_sb.core import layout as L
-    check("V1 注册 5 个节点", len(V1.NODE_CLASS_MAPPINGS) == 5, str(sorted(V1.NODE_CLASS_MAPPINGS)))
+    check("V1 注册 6 个节点", len(V1.NODE_CLASS_MAPPINGS) == 6, str(sorted(V1.NODE_CLASS_MAPPINGS)))
     for name, cls in V1.NODE_CLASS_MAPPINGS.items():
         it = cls.INPUT_TYPES()
         req = list(it.get("required") or {})
@@ -63,7 +65,7 @@ def main():
 
     print("\n== 3. V3 出口 ==")
     from moss_sb.v3.nodes_v3 import NODES
-    check("V3 清单 5 个节点", len(NODES) == 5, str([c.__name__ for c in NODES]))
+    check("V3 清单 6 个节点", len(NODES) == 6, str([c.__name__ for c in NODES]))
     for cls in NODES:
         try:
             sch = cls.GET_SCHEMA()
@@ -133,6 +135,30 @@ def main():
     wired, _, _ = paste_node.run(grid=grid, panel=one, index=one_idx, shave=0, spec=spec)
     check("Paste: 用 Crop 回传的 index 结果一致",
           torch.equal(wired[0, tgt.y:tgt.y + tgt.h, tgt.x:tgt.x + tgt.w, :], one[0]))
+
+    comp_node = V1.MossPromptCompiler()
+    cp, crep, cstate = comp_node.compile('{"caption":"一盏白瓷杯"}')
+    check("Compiler: caption 出纯文本", cp == "一盏白瓷杯" and cstate == "", (cp, cstate))
+    check("Compiler: caption report 说明无布局", "caption" in crep and "state" in crep, crep)
+    draft = {
+        "width": 1536, "height": 1024,
+        "bbox_coord_space": "abs", "bbox_format": "xyxy",
+        "summary": {"caption": "测试海报"},
+        "items": [{"label": "object", "caption": "一只杯子", "bbox": [176, 224, 800, 864]}],
+    }
+    lp, lrep, lstate = comp_node.compile(json.dumps(draft, ensure_ascii=False))
+    check("Compiler: layout 出原生布局 JSON",
+          json.loads(lp)["bbox_coord_space"] == "abs_centralized", lp[:60])
+    try:
+        E.parse_state(lstate)
+        check("Compiler: state 通过编辑器校验", True)
+    except Exception as exc:
+        check("Compiler: state 通过编辑器校验", False, str(exc))
+    try:
+        comp_node.compile('{"caption":"x","width":1024}')
+        check("Compiler: 混合草稿 → 报错", False, "未抛异常")
+    except Exception as exc:
+        check("Compiler: 混合草稿 → 报错", "未知字段" in str(exc), str(exc).splitlines()[0][:80])
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:

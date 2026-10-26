@@ -12,7 +12,8 @@ python tests/test_interop.py              # 88 项：elements-v1 互操作 / 往
 python tests/test_extract.py              # 22 项：从散文/代码块提取 JSON、上限/扫描预算（零 GPU）
 python tests/test_adversarial.py          # 57 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
-python tests/test_contract.py             # 130 项（--no-host 114 项）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
+python tests/test_skill_draft.py          # 77 项：官方 prompt-enhancer 草稿 / 编译 / state / CLI（零 GPU）
+python tests/test_contract.py             # 121 项（--no-host，CI 口径）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
 python tests/test_cross_language.py       # 69 项：JS ↔ Python 预设/默认值/校验/elements/canvas 差分
 python tests/test_panel_assembly.py       # 5 项：逐格拼版 reborder 语义
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型

@@ -38,7 +38,7 @@ REQUIRED = [
     "__init__.py", "nodes.py", "pyproject.toml", "requirements.txt", "LICENSE",
     "README.md", "README_ZH.md", "THIRD-PARTY-NOTICES.md", "assets/hero-storyboard.png",
     "core/editor.py", "core/presets.py", "core/layout.py", "core/prompt.py",
-    "core/pixels.py", "core/sampling.py",
+    "core/pixels.py", "core/sampling.py", "core/skill_draft.py",
     "v3/_compat.py", "v3/nodes_v3.py", "v3/entrypoint.py",
     "web/moss_sb_editor.js", "web/moss_sb_i18n.js", "web/moss_sb_i18n_ui.js",
     "examples/moss-layout-editor-poster.json", "examples/moss-layout-editor-storyboard.json",
@@ -142,7 +142,7 @@ def verify(pkg_dir, host):
     V1 = importlib.import_module("moss_dist.nodes")
     PR = importlib.import_module("moss_dist.core.presets")
 
-    check("节点 5 个", len(V1.NODE_CLASS_MAPPINGS) == 5, sorted(V1.NODE_CLASS_MAPPINGS))
+    check("节点 6 个", len(V1.NODE_CLASS_MAPPINGS) == 6, sorted(V1.NODE_CLASS_MAPPINGS))
     check("WEB_DIRECTORY = ./web", str(mod.WEB_DIRECTORY).replace("\\", "/").rstrip("/") == "./web",
           mod.WEB_DIRECTORY)
     for js in ("moss_sb_editor.js", "moss_sb_i18n.js", "moss_sb_i18n_ui.js"):
@@ -159,6 +159,16 @@ def verify(pkg_dir, host):
     s = ed.build(editor_state=json.dumps(single, ensure_ascii=False))
     check("编辑器 single 出 layout JSON", isinstance(s[0], str) and '"items"' in s[0]
           and s[1] == 1536 and s[2] == 864, (s[1], s[2]))
+
+    pc = V1.MossPromptCompiler()
+    cap = pc.compile(draft=json.dumps({"caption": "hello"}, ensure_ascii=False))
+    check("编译器 caption 出纯文本", cap[0] == "hello" and cap[2] == "", (cap[0], cap[2]))
+    d = {"width": 64, "height": 64, "bbox_coord_space": "abs", "bbox_format": "xyxy",
+         "summary": {"caption": "x"},
+         "items": [{"label": "object", "caption": "y", "bbox": [0, 0, 32, 32]}]}
+    lay = pc.compile(draft=json.dumps(d, ensure_ascii=False))
+    check("编译器 layout 出 prompt/state", '"abs_centralized"' in lay[0] and '"version":3' in lay[2],
+          (lay[0][:60], lay[2][:40]))
 
     lay_node = V1.MossStoryboardLayout()
     lay = lay_node.build(prompt="[STYLE] x\n\n[PANEL 1] 中景，x", panels=4,

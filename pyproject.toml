@@ -15,7 +15,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [{ name = "ComfyUI-MOSS-Storyboard contributors" }]
-keywords = ["comfyui", "moss", "moss-image", "storyboard", "comic", "manga", "poster", "layout", "grid", "panels", "text-to-image"]
+keywords = ["comfyui", "moss", "moss-image", "storyboard", "comic", "manga", "poster", "layout", "grid", "panels", "text-to-image", "prompt-enhancer", "bounding-box"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",

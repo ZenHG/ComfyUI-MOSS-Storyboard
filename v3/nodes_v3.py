@@ -49,6 +49,11 @@ class MossStoryboardPaste(_Shell):
     _V1_NAME = "MossStoryboardPaste"
 
 
+class MossPromptCompiler(_Shell):
+    """MOSS Prompt Compiler：官方 prompt-enhancer 草稿 → 提示词 / state。"""
+    _V1_NAME = "MossPromptCompiler"
+
+
 #: 注册清单（唯一真相源；`__init__.py` 的加载摘要也从这里数）。
 NODES = [MossLayoutEditor, MossStoryboardLayout, MossStoryboardSampler,
-         MossStoryboardCrop, MossStoryboardPaste]
+         MossStoryboardCrop, MossStoryboardPaste, MossPromptCompiler]

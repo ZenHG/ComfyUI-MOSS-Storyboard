@@ -4,12 +4,13 @@
 # 第三方出处与许可见 THIRD-PARTY-NOTICES.md
 """V1 节点契约（本包唯一真相源，V3 外壳由 `v3/_compat.py` 从这里生成）。
 
-五个节点：
+六个节点：
 - `MossLayoutEditor`：画布式布局编辑器，state 编译成提示词/几何（零模型）。
 - `MossStoryboardLayout`：算宫格几何、生成 MOSS 原生布局 JSON、出模板图。零模型。
 - `MossStoryboardSampler`：一步到位——布局 + 采样 + 复绘宫格线 + 裁格。
 - `MossStoryboardCrop`：只裁格（给想自己接 KSampler 的人）。
 - `MossStoryboardPaste`：把改好的单格按 spec 坐标贴回整张宫格。
+- `MossPromptCompiler`：官方 prompt-enhancer 草稿 → MOSS 提示词 / state（零模型）。
 """
 
 import functools
@@ -21,6 +22,7 @@ from .core import editor as E
 from .core import layout as L
 from .core import pixels as P
 from .core import prompt as T
+from .core import skill_draft as S
 
 CATEGORY = "moss/storyboard"
 
@@ -844,12 +846,68 @@ class MossStoryboardPaste:
         return (out, marked, report)
 
 
+class MossPromptCompiler:
+    """把官方 MOSS-Image Prompt Enhancer 的 caption / layout 草稿编译成提示词。零模型。"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "draft": ("STRING", {
+                    "multiline": True, "default": "",
+                    "tooltip": "【填什么】官方 MOSS-Image Prompt Enhancer 产出的**草稿**（不是已编译的提示词）。\n"
+                               "caption 草稿：{\"caption\": \"...\"}；\n"
+                               "layout 草稿：width / height / bbox_coord_space=\"abs\" / bbox_format=\"xyxy\" / summary / items。\n"
+                               "输出 prompt 可直接接 CLIPTextEncode 或采样器 positive；\n"
+                               "layout 草稿另出 state（可粘贴到布局编辑器的导入框）。\n"
+                               "⚠ 最多 256 个元素；未知字段、越界、非 16 倍数画布会报错。",
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING", "STRING")
+    RETURN_NAMES = ("prompt", "report", "state")
+    FUNCTION = "compile"
+    CATEGORY = CATEGORY
+    DESCRIPTION = ("编译官方 prompt-enhancer 草稿为 MOSS 提示词；"
+                   "layout 草稿另出 state v3，可导入布局编辑器。零模型。")
+    SEARCH_ALIASES = ["prompt enhancer", "prompt compiler", "skill", "layout draft",
+                      "提示词增强", "草稿编译", "提示词编译"]
+
+    @_node_errors("draft")
+    def compile(self, draft):
+        text = "" if draft is None else str(draft)
+        if not text.strip():
+            raise ValueError("draft 为空：请粘贴官方 prompt-enhancer 的 caption/layout 草稿 JSON。")
+        obj = S.loads(text)
+        prompt, rep = S.compile_draft(obj)
+        state = ""
+        notes = list(rep.get("notes") or [])
+        if rep["kind"] == "caption":
+            head = "类型：caption（纯文本，无布局框）"
+            notes.append("caption 草稿没有 state 输出。")
+        else:
+            labels = "、".join("%s %d" % (k, v) for k, v in sorted(rep["labels"].items()))
+            head = "类型：layout｜画布 %d×%d｜元素 %d（%s）" % (
+                rep["width"], rep["height"], rep["items"], labels)
+            try:
+                state_obj, state_notes = S.draft_to_state(obj)
+            except ValueError as exc:
+                notes.append("state 未生成：%s" % exc)
+            else:
+                state = json.dumps(state_obj, ensure_ascii=False, separators=(",", ":"))
+                notes.extend(state_notes)
+                notes.append("state 已生成：可粘贴到布局编辑器的导入框。")
+        return (prompt, "\n".join([head] + notes), state)
+
+
 NODE_CLASS_MAPPINGS = {
     "MossLayoutEditor": MossLayoutEditor,
     "MossStoryboardLayout": MossStoryboardLayout,
     "MossStoryboardSampler": MossStoryboardSampler,
     "MossStoryboardCrop": MossStoryboardCrop,
     "MossStoryboardPaste": MossStoryboardPaste,
+    "MossPromptCompiler": MossPromptCompiler,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -858,6 +916,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "MossStoryboardSampler": "MOSS Storyboard Sampler",
     "MossStoryboardCrop": "MOSS Storyboard Crop",
     "MossStoryboardPaste": "MOSS Storyboard Paste",
+    "MossPromptCompiler": "MOSS Prompt Compiler",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
