@@ -225,7 +225,8 @@ def build():
         ("sample_edge", "INT", True, 1024),
     ])
     smp.decl_outputs([("grid", "IMAGE"), ("panels", "IMAGE"), ("latent", "LATENT"),
-                      ("spec", "STRING"), ("prompt_used", "STRING"), ("report", "STRING")])
+                      ("spec", "STRING"), ("prompt_used", "STRING"), ("report", "STRING"),
+                      ("prompts_json", "STRING")])
     smp.insert_seed_control()
 
     save_orig = N(7, "SaveImage", (-580, 720), (520, 560), "⑥ 原图（贴回前存一份）")

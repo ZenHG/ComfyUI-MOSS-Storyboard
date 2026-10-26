@@ -112,12 +112,14 @@ def check_syntax(node):
 RUNNER = r"""
 import {
     PRESET_IDS, PRESET_SPECS, PRESET_HINTS, SIZES, ITEM_LABELS,
-    TYPE_COLORS, CANVAS_PRESETS,
+    TYPE_COLORS, CANVAS_PRESETS, STR,
     presetItems, validateState, readState, snapAxis, stageAspect, makeItemId, emptyState,
     makeHistory, recordHistory, stepHistory, HISTORY_MAX, HISTORY_MAX_CHARS,
     MAX_ITEMS,
     elementsToState, stateToElements, sniffLayoutDoc, ELEMENTS_VERSION,
     alignBbox, moveItemInArray,
+    compileFinalPrompt, gridPromptText, layoutJsonText,
+    findPlaceholders, findIgnoredGridFields,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
@@ -215,6 +217,106 @@ ok("预设说明 8 条中英齐全", Object.keys(PRESET_HINTS).length === 8
 ok("类型色覆盖三类", ITEM_LABELS.every((k) => /^#[0-9a-f]{6}$/i.test(TYPE_COLORS[k] || "")));
 ok("画布预设都是 16 倍数", CANVAS_PRESETS.length >= 5
     && CANVAS_PRESETS.every((p) => p.width % 16 === 0 && p.height % 16 === 0 && p.width >= 256 && p.height >= 256));
+
+// --- 最终提示词预览 + 占位守卫（与 core/editor.py 同一口径） ---
+{
+    const gs = { version: 3, preset: "grid", style: "雨夜咖啡店。", grid: GRID,
+        items: presetItems("grid", { cols: GRID.cols, rows: GRID.rows, lang: "zh" }) };
+    const gp = compileFinalPrompt(gs);
+    ok("宫格预览 = [STYLE] + 连续 [PANEL n]",
+        gp.startsWith("[STYLE] 雨夜咖啡店。") && gp.split("\n").filter((l) => l.startsWith("[PANEL")).length === 8
+        && gp.includes("[PANEL 8]"), gp.slice(0, 120));
+    ok("宫格预览自动补景别前缀 / 已带则不重复", (() => {
+        const one = { version: 3, preset: "grid", style: "s", grid: GRID,
+            items: [{ id: "s1", label: "object", no: 1, size: "近景", caption: "杯沿裂痕", bbox: [0, 0, 1, 1] }] };
+        if (compileFinalPrompt(one).split("\n")[2] !== "[PANEL 1] 近景，杯沿裂痕") return false;
+        const same = { ...one, items: [{ ...one.items[0], caption: "近景 里的杯沿" }] };
+        return compileFinalPrompt(same).split("\n")[2] === "[PANEL 1] 近景 里的杯沿";
+    })(), compileFinalPrompt(gs).split("\n")[2]);
+    ok("宫格预览按镜号排序（不是数组序）", (() => {
+        const rev = { ...gs, items: [...gs.items].reverse() };
+        return compileFinalPrompt(rev) === gp;
+    })());
+    ok("宫格空 items 预览为空串", compileFinalPrompt({ ...gs, items: [] }) === "");
+    ok("宫格无 style 时只出 [PANEL]",
+        compileFinalPrompt({ ...gs, style: "  " }).startsWith("[STYLE]\n\n[PANEL 1]"),
+        compileFinalPrompt({ ...gs, style: "  " }).slice(0, 40));
+
+    const ss = { version: 3, preset: "title-body", style: "暗色雪原。",
+        canvas: { width: 1536, height: 864 },
+        items: [{ id: "t1", label: "text", caption: "标题", text: "永兵",
+                  palette: ["#c8a15a"], bbox: [0.08, 0.10, 0.92, 0.19] }] };
+    const sp = compileFinalPrompt(ss);
+    const parsed = JSON.parse(sp);
+    ok("单张预览 = 原生布局 JSON（abs_centralized / yxyx）",
+        parsed.bbox_coord_space === "abs_centralized" && parsed.bbox_format === "yxyx"
+        && parsed.summary.caption === "暗色雪原。", sp.slice(0, 120));
+    ok("单张预览键序 label,caption,bbox,text,palette",
+        Object.keys(parsed.items[0]).join(",") === "label,caption,bbox,text,palette",
+        Object.keys(parsed.items[0]).join(","));
+    ok("单张预览坐标中心原点（[y0,x0,y1,x1]）", parsed.items[0].bbox.join(",") === "-346,-645,-268,645",
+        parsed.items[0].bbox.join(","));
+    ok("单张预览无元素时退化成全局段",
+        compileFinalPrompt({ ...ss, items: [], style: " 只有风格 " }) === "只有风格");
+    ok("单张预览非 text 元素不带 text 键", (() => {
+        const j = JSON.parse(compileFinalPrompt({
+            ...ss,
+            items: [{ id: "o1", label: "object", caption: "主体", text: "多余", bbox: [0, 0, 1, 1] }],
+        }));
+        return !("text" in j.items[0]) && j.items[0].bbox.join(",") === "-432,-768,432,768";
+    })());
+    ok("单张预览空 palette 不输出键", (() => {
+        const j = JSON.parse(compileFinalPrompt({ ...ss, items: [{ ...ss.items[0], palette: [] }] }));
+        return !("palette" in j.items[0]);
+    })());
+    ok("gridPromptText / layoutJsonText 与 compileFinalPrompt 分派一致",
+        gridPromptText(gs) === compileFinalPrompt(gs) && layoutJsonText(ss) === compileFinalPrompt(ss));
+}
+{
+    const tb = { version: 3, preset: "title-body", style: "", canvas: { width: 1536, height: 864 },
+        items: presetItems("title-body", { lang: "zh" }) };
+    const ph = findPlaceholders(tb);
+    ok("预设单张：文字框算 render 级",
+        ph.filter((f) => f.kind === "render").length === 2, JSON.stringify(ph));
+    ok("预设单张：描述算 generic 级",
+        ph.filter((f) => f.kind === "generic").length === 3, JSON.stringify(ph));
+    const fixed = { ...tb, items: tb.items.map((it, i) => ({ ...it,
+        caption: "雪原上的旗号", text: it.text ? "永兵传说" : it.text })) };
+    ok("改完后不再报占位", findPlaceholders(fixed).length === 0,
+        JSON.stringify(findPlaceholders(fixed)));
+    ok("手写描述不会被误报",
+        findPlaceholders({ items: [{ id: "a", caption: "Panel 3 号选手起身" }] }).length === 0);
+    const gsPh = { version: 3, preset: "grid", style: "", grid: GRID,
+        items: presetItems("grid", { cols: 2, rows: 1, lang: "zh" }) };
+    ok("预设宫格每格都是占位",
+        findPlaceholders(gsPh).length === 2
+        && findPlaceholders(gsPh).every((f) => f.kind === "generic" && f.field === "caption"));
+    ok("宫格模式不拦 text 占位（它根本不进提示词）",
+        findPlaceholders({ ...gsPh, items: gsPh.items.map((x) => ({ ...x, label: "text", text: "标题文字" })) })
+            .every((f) => f.field === "caption"),
+        JSON.stringify(findPlaceholders({ ...gsPh, items: gsPh.items.map((x) => ({ ...x, label: "text", text: "标题文字" })) })));
+
+    ok("干净宫格没有忽略字段",
+        findIgnoredGridFields({ ...gsPh, items: gsPh.items.map((x) => ({ ...x, label: "object" })) }).length === 0);
+    const dirty = { ...gsPh, items: [{ id: "s1", label: "character", caption: "c", no: 1, size: "中景",
+        text: "字", palette: ["#c8a15a"], bbox: [0, 0, .5, 1] },
+        { id: "s2", label: "object", caption: "c", no: 2, size: "近景", text: "",
+        palette: [], bbox: [.5, 0, 1, 1] }] };
+    const ign = findIgnoredGridFields(dirty);
+    ok("宫格忽略字段逐条点名",
+        ign.length === 1 && ign[0].id === "s1" && ign[0].fields.join(",") === "label,text,palette",
+        JSON.stringify(ign));
+    ok("空 text / 空 palette 不算忽略字段",
+        findIgnoredGridFields({ preset: "grid", items: [{ id: "s1", label: "object", text: "", palette: [] }] }).length === 0);
+    ok("单张模式不报忽略字段", findIgnoredGridFields(tb).length === 0);
+}
+
+const strBad = Object.entries(STR).filter(([k, v]) => !v || typeof v.zh !== "string" || !v.zh
+    || typeof v.en !== "string" || !v.en || /[\u4e00-\u9fff]/.test(v.en));
+ok("界面文案每条都有中英且英文无汉字", strBad.length === 0,
+    strBad.map(([k]) => k).join(","));
+const strPh = Object.entries(STR).filter(([, v]) => /{[a-z]+}/.test(v.zh) !== /{[a-z]+}/.test(v.en));
+ok("占位符 {n}/{ids} 中英成对", strPh.length === 0, strPh.map(([k]) => k).join(","));
 
 const enErrors = validateState({ version: 2, preset: "free", style: "", canvas: { width: 1536, height: 864 }, items: [] }, "en").errors.join(" | ");
 ok("英文校验文案无 CJK", enErrors.includes("version must be") && !/[\u4e00-\u9fff]/.test(enErrors), enErrors);

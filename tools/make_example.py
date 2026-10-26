@@ -117,6 +117,7 @@ def build():
     sampler_outputs = [
         out("grid", "IMAGE"), out("panels", "IMAGE"), out("latent", "LATENT"),
         out("spec", "STRING"), out("prompt_used", "STRING"), out("report", "STRING"),
+        out("prompts_json", "STRING"),
     ]
     # ⚠ widgets_values 按**位置**存：顺序必须与节点 INPUT_TYPES 的 widget 顺序一致
     #   （seed 后面跟一个"生成后控制"槽位）。少一个就整体错位。

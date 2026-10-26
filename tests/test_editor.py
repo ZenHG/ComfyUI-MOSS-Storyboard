@@ -408,6 +408,62 @@ check("13 格装不进 ≤12 轴 → 报错", msg and "上限" in msg, msg)
 check("144 格 12×12 正常",
       L.build_layout(panels=144, cols=12, rows=12, panel_edge=128).panels == 144)
 
+print("\n== 10. 占位守卫（预设文案没改就得出声） ==")
+g = E.parse_state(dump(grid_state()))
+s = E.parse_state(dump(single_state()))
+check("宫格最终提示词 = compile_prompt", E.compile_final_prompt(g) == E.compile_prompt(g))
+check("单张最终提示词 = layout_json", E.compile_final_prompt(s) == E.layout_json(s),
+      E.compile_final_prompt(s)[:80])
+check("手写 state 无占位", E.find_placeholders(g) == [], str(E.find_placeholders(g)))
+check("手写 state 不报占位", E.placeholder_summary(g) is None)
+
+pg = E.parse_state(dump(P.build("grid")))
+ph = E.find_placeholders(pg)
+check("预设宫格每格 caption 都算占位",
+      len(ph) == len(pg["items"]) and all(f["field"] == "caption" and f["kind"] == "generic" for f in ph),
+      str(ph[:2]))
+check("预设宫格 report 报占位", "预设占位" in E.report(pg), E.report(pg))
+check("英文宫格占位（Panel n）也认",
+      len(E.find_placeholders({"items": [{"id": "x", "caption": "Panel 3"}]})) == 1)
+check("正常描述不误伤",
+      E.find_placeholders({"items": [{"id": "x", "caption": "Panel 3 号选手起身"}]}) == [])
+
+pt = E.parse_state(dump(P.build("title-body")))
+found = E.find_placeholders(pt)
+check("预设单张文字框报 render 级（会被逐字渲染）",
+      sum(1 for f in found if f["kind"] == "render") == 2, str(found))
+check("预设单张 report 同时点出文案与描述",
+      "预设文案" in E.report(pt) and "预设占位" in E.report(pt), E.report(pt))
+many = single_state()
+many["items"] = [{"id": "t%d" % k, "label": "text", "text": "标题文字",
+                  "caption": "粗体无衬线标题", "bbox": [0.1, 0.1, 0.9, 0.2]}
+                 for k in range(1, 6)]
+many_sum = E.placeholder_summary(E.parse_state(dump(many)))
+check("占位列前 3 个 id 即止（计数仍是 5）",
+      "5 个" in many_sum and "t3" in many_sum and "t4" not in many_sum, many_sum)
+check("改完文字后 render 级消失",
+      all(f["kind"] != "render" for f in E.find_placeholders(
+          {"items": [{"id": "t1", "label": "text", "text": "永兵传说",
+                      "caption": "主体"}]})))
+
+check("干净宫格没有忽略字段", E.find_ignored_grid_fields(g) == [])
+check("单张模式不报忽略字段", E.find_ignored_grid_fields(s) == [])
+mixed = grid_state()
+mixed["items"][0]["label"] = "character"
+mixed["items"][1]["label"] = "text"
+mixed["items"][1]["text"] = "店内促销"
+mixed["items"][2]["palette"] = ["#c8a15a"]
+ig = E.find_ignored_grid_fields(E.parse_state(dump(mixed)))
+check("宫格 label/text/palette 逐字段点名",
+      sorted(f["fields"] for f in ig) == sorted([["label"], ["label", "text"], ["palette"]]),
+      str(ig))
+check("宫格 report 说明这些字段不进提示词",
+      "宫格模式只消费" in E.report(E.parse_state(dump(mixed))),
+      E.report(E.parse_state(dump(mixed))))
+check("空 items / 脏输入不崩",
+      E.find_placeholders({}) == [] and E.find_ignored_grid_fields({}) == []
+      and len(E.find_placeholders({"items": [None, {"caption": 3}, {"id": "q"}]})) == 0)
+
 print("\n结果：通过 %d / 失败 %d" % (_ok, len(_bad)))
 if _bad:
     print("失败项：")

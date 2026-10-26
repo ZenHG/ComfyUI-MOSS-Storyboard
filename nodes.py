@@ -454,8 +454,8 @@ class MossStoryboardSampler:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("grid", "panels", "latent", "spec", "prompt_used", "report")
+    RETURN_TYPES = ("IMAGE", "IMAGE", "LATENT", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("grid", "panels", "latent", "spec", "prompt_used", "report", "prompts_json")
     FUNCTION = "run"
     CATEGORY = CATEGORY
     DESCRIPTION = "一次生成 3/4/6/8/9 宫格故事板，并裁出逐格。\n每格画什么由 MOSS 原生布局能力约束（官方标为实验特性，不保证每格都照办）。"
@@ -534,7 +534,8 @@ class MossStoryboardSampler:
                 "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
         ] + notes) + _mp_note(lay)
 
-        return (grid, panels_img, out, lay.spec(), text, report)
+        return (grid, panels_img, out, lay.spec(), text, report,
+                json.dumps([text], ensure_ascii=False))
 
     def _run_per_panel(self, model, clip, vae, positive, negative, steps, cfg,
                        sampler_name, scheduler, seed, denoise, lay, geom_src,
@@ -592,8 +593,10 @@ class MossStoryboardSampler:
 
         # 逐格采样
         shots = []
+        sent = []
         for i, (caption, _cell) in enumerate(pairs):
             text = T.panel_prompt(head, caption, pw, ph, init_mode=init_mode, label=label)
+            sent.append(text)
             cond_pos = S.encode_text(clip, text)
             latent = S.empty_latent(model, pw, ph)
             out_i = S.sample(model, cond_pos, cond_neg, latent, steps=steps, cfg=cfg,
@@ -633,12 +636,14 @@ class MossStoryboardSampler:
             "%d 步｜cfg %.2f｜%s/%s｜种子 %d（每格 +格号）｜denoise 名义 %.2f / 实际 %.2f"
             % (steps, cfg, sampler_name, scheduler, seed,
                denoise, S.effective_denoise(steps, denoise)),
-            "prompt_used = 原始故事板稿（每格实际提示词由 [PANEL n] 段派生）",
-            "输出：grid %s，panels %s" % (
+            "prompt_used = 原始故事板稿；每格**真正送模型**的那句在输出 `prompts_json`（%d 条）"
+            % len(sent),
+            "输出：grid %s，panels %s｜逐格模式不产整张 latent ⇒ `latent` 为 None" % (
                 "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
         ] + notes) + _mp_note(lay, per_panel=True)
 
-        return (grid, panels_img, None, lay.spec(), (positive or "").strip(), report)
+        return (grid, panels_img, None, lay.spec(), (positive or "").strip(), report,
+                json.dumps(sent, ensure_ascii=False))
 
 
 def _assemble_per_panel(shots, lay, reborder=True, border_px=0, shave=0):
@@ -706,7 +711,7 @@ class MossStoryboardCrop:
                     "tooltip": "【未接 spec 时必填】行数。",
                 }),
                 "show_guides": ("BOOLEAN", {
-                    "default": False,
+                    "default": False, "advanced": True,
                     "tooltip": "【调试】在 preview 输出上把裁切线画成红色，用来目检对齐。",
                 }),
                 "index": ("INT", {
@@ -793,7 +798,7 @@ class MossStoryboardPaste:
                                "贴回就要写在缩过的矩形里，否则内容整体偏移 s 像素且不报错。",
                 }),
                 "show_guides": ("BOOLEAN", {
-                    "default": False,
+                    "default": False, "advanced": True,
                     "tooltip": "【调试】在 marked 输出上把贴回区域框成纯红，用来目检「贴进了哪一格」。",
                 }),
             },

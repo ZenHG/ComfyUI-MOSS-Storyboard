@@ -316,7 +316,7 @@ Two modes, switched by preset:
 |---|---|
 | Drag on empty space | Draw a new box (a new element) |
 | Drag a box / its corners | Move / resize |
-| Click a box | Edit type (object / character / text), description, coordinates on the right |
+| Click a box | Edit type (object / character / text), description, coordinates on the right. In grid mode only **shot size + caption** are shown — type, text and palette are not compiled into a grid prompt |
 | Drag near another box's edge, the canvas centre line, or the rule-of-thirds lines | Snaps |
 | `Delete` / arrow keys / `Ctrl+D` | Delete / nudge / duplicate |
 | `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`) | Undo / redo (same as the `↶` `↷` toolbar buttons) |
@@ -326,6 +326,16 @@ Two modes, switched by preset:
 
 > An external planner's element JSON imports directly as editable items; the CLI validator/converter is in
 > [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) and does not need ComfyUI.
+
+**The bottom of the panel shows the final prompt** — the exact text handed to the model for the
+current state: `[STYLE]` + `[PANEL n]` per panel in grid mode, native layout JSON in single mode.
+Read-only, copyable, and it updates as you edit. It is compiled with the same rules as the backend
+(a differential test compares them byte by byte), so it is not a paraphrase.
+
+**Preset placeholders get flagged.** If you queue without editing preset copy such as
+`Title` or `Panel 3`, the text fields get rendered letter by letter and the panels come out alike.
+The status bar counts them, the Queue button asks once, and the node's `report` says the same
+thing for API-only users.
 
 **Text elements have two separate fields — do not mix them**
 
@@ -402,7 +412,11 @@ Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `repor
 
 ### 🎬 Storyboard Generate (`MossStoryboardSampler`)
 
-Outputs `grid` `panels` `latent` `spec` `prompt_used` `report`.
+Outputs `grid` `panels` `latent` `spec` `prompt_used` `report` `prompts_json`.
+
+- **`prompts_json`** — the exact text handed to the model, as a JSON array: one entry in
+  `整张` mode, one entry per panel in `逐格` mode (global paragraph included, multi-panel
+  wording stripped). Wire this to a text file if you want to audit prompts later.
 
 Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** and ships at the
 **MOSS-Image-SFT model card settings — 50 steps / cfg 3 / euler / sgm_uniform**
@@ -690,7 +704,8 @@ Selected deep dives live in the GitHub repo's
 [`07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md) cross-panel consistency ·
 [`10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) state v3 frozen contract ·
 [`12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) elements-v1 interchange ·
-[`13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) official prompt-enhancer bridge.
+[`13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) official prompt-enhancer bridge ·
+[`14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) top-level design: what each of the six nodes owns.
 Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) · release history:
 [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md).
 

@@ -7,14 +7,14 @@
 ```bash
 python -m ruff check .                    # 静态检查（CI 第一道）
 python tests/test_core.py                 # 302 项：几何 / 提示词 / 像素（零 GPU）
-python tests/test_editor.py               # 103 项：state v3 编译层 / 预设 / 错误路径 / 上限（零 GPU）
+python tests/test_editor.py               # 120 项：state v3 编译层 / 预设 / 错误路径 / 上限 / 占位守卫（零 GPU）
 python tests/test_interop.py              # 88 项：elements-v1 互操作 / 往返 / CLI（零 GPU）
 python tests/test_extract.py              # 22 项：从散文/代码块提取 JSON、上限/扫描预算（零 GPU）
 python tests/test_adversarial.py          # 57 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
 python tests/test_skill_draft.py          # 79 项：官方 prompt-enhancer 草稿 / 编译 / state / CLI（零 GPU）
 python tests/test_contract.py             # 121 项（--no-host，CI 口径）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
-python tests/test_cross_language.py       # 69 项：JS ↔ Python 预设/默认值/校验/elements/canvas 差分
+python tests/test_cross_language.py       # 88 项：JS ↔ Python 预设/默认值/校验/elements/canvas/最终提示词差分
 python tests/test_panel_assembly.py       # 5 项：逐格拼版 reborder 语义
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
@@ -22,7 +22,7 @@ python tools/smoke_nodes.py               # 50 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py         # 4 份示例 + 2 份夹具共 88 项：连线 + 槽位
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_editor_ui.py           # 109 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
+python tools/check_editor_ui.py           # 133 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 31 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 ```
 

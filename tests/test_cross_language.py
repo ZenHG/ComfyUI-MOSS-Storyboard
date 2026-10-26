@@ -50,20 +50,29 @@ import {
     PRESET_IDS, PRESET_SPECS, presetItems, validateState, readState, emptyState,
     DEFAULT_GRID, DEFAULT_CANVAS, ASPECT_IDS, MAX_ITEMS, MAX_SIDE, MAX_STATE_CHARS, CANVAS_PRESETS,
     elementsToState, stateToElements, ELEMENTS_VERSION,
+    compileFinalPrompt, findPlaceholders, findIgnoredGridFields,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
 const fixtures = JSON.parse(readFileSync("./fixtures.json", "utf8"));
 const elements = JSON.parse(readFileSync("./elements.json", "utf8"));
 const states = JSON.parse(readFileSync("./states.json", "utf8"));
+const compiles = JSON.parse(readFileSync("./compiles.json", "utf8"));
 const out = { presets: {}, grid: {}, empty: emptyState(), default_grid: DEFAULT_GRID,
               default_canvas: DEFAULT_CANVAS, aspects: ASPECT_IDS, max_items: MAX_ITEMS,
               max_side: MAX_SIDE, max_state_chars: MAX_STATE_CHARS, canvas_presets: CANVAS_PRESETS,
-              validations: [] };
+              compiles: [], state_compiles: [], ph: [], state_ph: [], ign: [], validations: [] };
 for (const id of PRESET_IDS) out.presets[id] = presetItems(id, { lang: "zh" });
 for (const [cols, rows] of [[1,1],[2,1],[2,2],[3,2],[3,3]]) {
     out.grid[cols + "x" + rows] = presetItems("grid", { cols, rows, lang: "zh" });
 }
+// 最终提示词是"发出去的那一句"，两边必须逐字节相同（含坐标取整与键序）。
+const safeCompile = (s) => { try { return compileFinalPrompt(s); } catch (e) { return "ERR:" + e.message; } };
+out.compiles = compiles.map(safeCompile);
+out.state_compiles = states.map(safeCompile);
+out.ph = compiles.map((s) => findPlaceholders(s));
+out.state_ph = states.map((s) => findPlaceholders(s));
+out.ign = compiles.map((s) => findIgnoredGridFields(s));
 for (const st of fixtures) out.validations.push(validateState(st).errors.length === 0);
 out.elements_version = ELEMENTS_VERSION;
 out.elements_states = elements.map((d) => elementsToState(d, { lang: "zh" }));
@@ -78,7 +87,7 @@ console.log("__RESULT__" + JSON.stringify(out));
 """
 
 
-def run_js(fixtures, elements=None, states=None):
+def run_js(fixtures, elements=None, states=None, compiles=None):
     node = find_node()
     if not node:
         return None
@@ -98,6 +107,8 @@ def run_js(fixtures, elements=None, states=None):
             json.dump(elements or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "states.json"), "w", encoding="utf-8") as f:
             json.dump(states or [], f, ensure_ascii=False)
+        with open(os.path.join(tmp, "compiles.json"), "w", encoding="utf-8") as f:
+            json.dump(compiles or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "run.mjs"), "w", encoding="utf-8") as f:
             f.write(js_runner())
         r = subprocess.run([node, "run.mjs"], cwd=tmp, capture_output=True, text=True,
@@ -217,6 +228,47 @@ def random_states(n=100):
     return out
 
 
+def compile_cases(states):
+    """两边同一份输入，比"真正发出去的那句提示词"的字节。
+
+    专挑容易分叉的地方：坐标取整的 .5 平局、键序、`no` 乱序、景别前缀重复、
+    空 palette、style 全空白、无元素退化。
+    """
+    grid_items = P.build("grid", grid=GRID)["items"]
+    single = {
+        "version": 3, "preset": "title-body", "style": "暗色雪原。",
+        "canvas": {"width": 1536, "height": 864},
+        "items": [
+            {"id": "t1", "label": "text", "caption": "粗体大标题", "text": " 永兵传说 ",
+             "palette": ["#c8a15a"], "bbox": [0.08, 0.10, 0.92, 0.19]},
+            {"id": "o1", "label": "object", "caption": "主体", "text": "多余的字",
+             "palette": [], "bbox": [0.30, 0.30, 0.70, 0.90]},
+            {"id": "c1", "label": "character", "caption": "人物",
+             "bbox": [0.00625, 0.00625, 1.0, 1.0]},
+        ],
+    }
+    tie = {  # 0.00625 × 80 = 0.5 —— 逢半取偶 vs 四舍五入就在这里分家
+        "version": 3, "preset": "free", "style": "", "canvas": {"width": 80, "height": 64},
+        "items": [{"id": "o1", "label": "object", "caption": "贴边小物",
+                   "bbox": [0.00625, 0.00625, 0.99375, 0.99375]}],
+    }
+    blank = {"version": 3, "preset": "free", "style": "  只有风格  ",
+             "canvas": {"width": 1024, "height": 1024}, "items": []}
+    nos = [{**it, "no": n} for it, n in zip(grid_items, (7, 3, 8, 1, 5, 2, 6, 4), strict=True)]
+    dup_size = [{**it, "size": "中景", "caption": cap} for it, cap in zip(
+        grid_items, ["中景里的桌面", "别的东西", "中景", "杯子", "窗外", "雨", "招牌", "街"],
+        strict=True)]
+    return [
+        single, tie, blank,
+        {"version": 3, "preset": "grid", "style": "格风格", "grid": GRID, "items": nos},
+        {"version": 3, "preset": "grid", "style": "", "grid": GRID, "items": dup_size},
+        {"version": 3, "preset": "grid", "style": "  ",
+         "grid": {**GRID, "cols": 1, "rows": 1}, "items": []},
+        {**single, "items": [dict(single["items"][0], palette=["#ffffff", "#000000",
+                                                               "#123456", "#abcdef", "#111111"])]},
+    ]
+
+
 def main():
     node = find_node()
     if not node:
@@ -224,7 +276,8 @@ def main():
         return 2
     docs = element_docs()
     states = random_states()
-    data = run_js(fixtures(), docs, states)
+    cases = compile_cases(states)
+    data = run_js(fixtures(), docs, states, cases)
     if data is None:
         print("JS runner 无结果")
         return 1
@@ -305,6 +358,58 @@ def main():
             break
     check("state 导出量化一致（100 组随机）", bad_q is None,
           json.dumps(bad_q, ensure_ascii=False)[:900])
+
+    # 最终提示词：真正发给模型的那句，两边必须逐字节相同
+    js_compiles = data.get("compiles") or []
+    check("compile 用例数量一致", len(js_compiles) == len(cases),
+          f"{len(js_compiles)} vs {len(cases)}")
+    for i, st in enumerate(cases):
+        try:
+            py = E.compile_final_prompt(E.parse_state(json.dumps(st)))
+        except ValueError as exc:
+            py = "ERR:" + str(exc)
+        if i < len(js_compiles):
+            check(f"最终提示词 #{i} 逐字节一致", js_compiles[i] == py,
+                  json.dumps({"py": py, "js": js_compiles[i]}, ensure_ascii=False)[:700])
+
+    js_state_compiles = data.get("state_compiles") or []
+    check("随机 state compile 数量一致", len(js_state_compiles) == len(states),
+          f"{len(js_state_compiles)} vs {len(states)}")
+    bad_c = None
+    for st, js in zip(states, js_state_compiles, strict=False):
+        py = E.compile_final_prompt(E.parse_state(json.dumps(st)))
+        if js != py:
+            bad_c = {"py": py, "js": js}
+            break
+    check("随机 state 最终提示词一致（100 组）", bad_c is None,
+          json.dumps(bad_c, ensure_ascii=False)[:700])
+
+    # 占位守卫：同一份 state 两侧必须点出同一批字段
+    js_ph = data.get("ph") or []
+    for i, st in enumerate(cases):
+        if i < len(js_ph):
+            py = E.find_placeholders(E.parse_state(json.dumps(st)))
+            check(f"占位 #{i} 一致", js_ph[i] == py,
+                  json.dumps({"py": py, "js": js_ph[i]}, ensure_ascii=False)[:500])
+    js_state_ph = data.get("state_ph") or []
+    bad_ph = None
+    for st, js in zip(states, js_state_ph, strict=False):
+        py = E.find_placeholders(st)
+        if js != py:
+            bad_ph = {"py": py, "js": js}
+            break
+    check("随机 state 占位一致（100 组）", bad_ph is None,
+          json.dumps(bad_ph, ensure_ascii=False)[:500])
+
+    js_ign = data.get("ign") or []
+    bad_ign = None
+    for i, st in enumerate(cases):
+        py = E.find_ignored_grid_fields(E.parse_state(json.dumps(st)))
+        if i < len(js_ign) and js_ign[i] != py:
+            bad_ign = {"i": i, "py": py, "js": js_ign[i]}
+            break
+    check("宫格忽略字段一致", bad_ign is None,
+          json.dumps(bad_ign, ensure_ascii=False)[:500])
 
     # 宽容读取：Python 会拒的画布，JS 必须修回默认值而不是留着再报警告
     read_canvas = data.get("read_canvas") or []

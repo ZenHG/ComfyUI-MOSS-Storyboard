@@ -341,7 +341,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 |---|---|
 | 在空白处拖 | 画一个新框（一个新元素） |
 | 拖框 / 拖四角 | 移动 / 缩放 |
-| 点框 | 右侧面板改**类型**（物体 / 人物 / 文字）、**描述**、**坐标** |
+| 点框 | 右侧面板改**类型**（物体 / 人物 / 文字）、**描述**、**坐标**；宫格模式只给**景别 + 描述**（类型/文字/主色不参与宫格提示词，所以不显示） |
 | 拖到接近其他框的边、画布中线、三分线 | 自动吸附 |
 | `Delete` / 方向键 / `Ctrl+D` | 删除 / 微移 / 复制 |
 | `Ctrl+Z` / `Ctrl+Shift+Z`（或 `Ctrl+Y`） | 撤销 / 重做（工具栏 `↶` `↷` 同效） |
@@ -351,6 +351,14 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 > 外部 planner 产出的元素 JSON 可以直接「导入」成可编辑元素；命令行校验/转换见
 > [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md)（不需要装 ComfyUI）。
+
+**面板底部有「最终提示词」**：那是当前 state 编好后**原样发给模型**的文本 ——
+宫格模式是 `[STYLE]` + 逐格 `[PANEL n]`，单张模式是原生布局 JSON。只读、可一键复制，
+改任何一个字段它就跟着变；与后端同一套编译口径（差分测试逐字节比对），所以它不是"示意文字"。
+
+**预设占位会提醒你**：`标题文字`、`第 3 格画面` 这类预设内容如果不改就排队，
+文字框会被**逐字渲染**、宫格会画成一堆雷同的格子。状态栏报数量，点「排队」时若仍有预设文字会先问一次；
+后端 `report` 同样会写，纯 API 用法也看得到。
 
 **文字元素有两个框，别填混**
 
@@ -432,7 +440,10 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 
 ### 🎬 故事板 · 生成（`MossStoryboardSampler`）
 
-输出：`grid`（整图）`panels`（逐格）`latent` `spec` `prompt_used` `report`
+输出：`grid`（整图）`panels`（逐格）`latent` `spec` `prompt_used` `report` `prompts_json`
+
+- **`prompts_json`**：**真的发给模型的那句话**，JSON 数组。「整张」模式 1 条；
+  「逐格」模式每格 1 条（含被清掉多格措辞后的全局段）。想复盘"词写的画面做到了没"就从这里接。
 
 下表是**节点的出厂默认值**。仓库里那份交付工作流用 **4 格 / 单格长边 496**，
 并按 **MOSS-Image-SFT 模型卡口径 50 步 / cfg 3 / euler / sgm_uniform** 交付
@@ -750,6 +761,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) | state v3 冻结契约（实现、示例与测试的唯一真相源） |
 | [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) | 互操作：elements-v1（0–1000 bbox）⇄ state v3、命令行校验器 |
 | [`docs/13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) | 官方提示词 skill 的草稿格式、编译规则、置信度与未测项 |
+| [`docs/14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) | 顶层设计：六个节点各管什么、面板/元素/角色三种语义、提示词透明与占位守卫的判据 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
 

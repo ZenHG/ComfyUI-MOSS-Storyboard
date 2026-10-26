@@ -24,7 +24,8 @@ PASS, FAIL = [], []
 
 def check(name, cond, detail=""):
     (PASS if cond else FAIL).append(name)
-    print(("  [OK]   " if cond else "  [FAIL] ") + name + (("  " + detail) if detail else ""))
+    print(("  [OK]   " if cond else "  [FAIL] ") + name
+          + (("  " + str(detail)) if detail else ""))
 
 
 def load_pkg(name="moss_sb"):
