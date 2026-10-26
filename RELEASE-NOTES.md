@@ -4,7 +4,7 @@
 > **两个渠道的用户可见说明都取这里**（唯一真相源）：Comfy Registry 的 changelog 与 GitHub Release 的正文。
 > 开发者细节（实现方案、实测证据、发布过程）留在 [`CHANGES.md`](CHANGES.md)，**不要往这里搬**。
 >
-> 格式规矩（正文见 [`RELEASING.md`](RELEASING.md) §6）：
+> 格式规矩：
 >
 > - 一版一节，**新的在最上面**，标题固定 `## x.y.z — YYYY-MM-DD`。
 > - 每节**必须中英双语**：中文在前，一行 `<!-- EN -->` 分隔，英文在后。

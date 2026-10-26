@@ -6,6 +6,8 @@
 
 **Layout nodes for MOSS-Image.** Arrange **3, 4, 6, 8 or 9 panels** on a visual canvas, write one
 caption per panel, queue once, and get the full storyboard plus **pixel-exact panel crops**.
+(`panels` also accepts other counts 1–12 and factors them automatically; 3/4/6/8/9 are the
+shapes used in the examples and measured tests.)
 
 - **Storyboard / comic page** — one canvas divided into equal panels; each panel has its own
   caption; every panel is cropped out.
@@ -50,8 +52,9 @@ for downstream editing.
 
 1. **By default one canvas is generated in one pass; the optional Per-panel mode samples every
    panel separately and assembles the board.** Default is fast; per-panel is more consistent across
-   panels and gives each panel a higher sampling resolution, at about N× the time. More panels means
-   fewer pixels per panel in the default mode (≈496×272 each at 8 panels).
+   panels and gives each panel a higher sampling resolution, at extra time (4 panels measured
+   27 s → 60 s; cost grows with the panel count). More panels means fewer pixels per panel in the
+   default mode (8 panels are 512×288 each at the factory edge, 496×272 in the shipped example).
 2. **Grid lines are redrawn by default (`reborder` on) from the same coordinates after decoding —
    position and width are exact.** Turn it off only if you want the model to draw the lines itself
    (they may wobble or break).
@@ -69,7 +72,7 @@ for downstream editing.
 | **3 / 4 / 6 / 8 / 9 panels** | Panel count is an input (`panels`); layout and canvas size are derived, 16-aligned |
 | **Per-panel captions** | `[PANEL 1]`…`[PANEL n]` blocks become native MOSS layout boxes |
 | **Visual layout** | A canvas inside the node: drag boxes to decide which region each element occupies, then fill in its description. Text elements take the literal string to render |
-| **8 layout presets** | grid / split-v / split-h / title-body / three-col / center / stack / blank |
+| **8 layout presets** | grid / split vertical / split horizontal / title + subject + body / three columns / centered subject / stacked / free (blank canvas) |
 | **Text posters** | Chinese, English, mixed, and two-line text have small-sample measurements (see Known limits) |
 | **Deterministic grid lines** | Redrawn from coordinates after decoding (`reborder` on by default) |
 | **Per-panel crops** | Row-major, pixel-aligned to the canvas; `spec` carries all geometry in one wire |
@@ -81,7 +84,7 @@ other entry point: no `[PANEL n]` blocks — place boxes instead, for posters, c
 
 | Node (English / 中文) | Type | Required? | Role |
 |---|---|---|---|
-| 🎨 Layout Editor / 布局编辑器 | `MossLayoutEditor` | Optional (posters / custom layouts) | Canvas + elements → layout prompt + sampling size. **No model loaded**, instant |
+| 🎬 Layout Editor / 布局编辑器 | `MossLayoutEditor` | Optional (posters / custom layouts) | Canvas + elements → layout prompt + sampling size. **No model loaded**, instant |
 | 🎬 Storyboard Generate / 故事板 · 生成 | `MossStoryboardSampler` | **Yes** (storyboards) | `model + clip + vae + positive` → canvas + panels. Computes geometry from its own parameters when `spec` is absent |
 | 🎬 Storyboard Layout / 故事板 · 宫格几何 | `MossStoryboardLayout` | Optional (recommended) | Geometry + layout JSON + grid template. **No model loaded**, instant |
 | 🎬 Storyboard Crop / 故事板 · 裁格 | `MossStoryboardCrop` | Optional | Crops only; feed `spec` for pixel-exact panels |
@@ -107,11 +110,13 @@ Weights are **not** bundled. For download links and the exact folder names, foll
 ComfyUI MOSS-Image tutorial: <https://docs.comfy.org/tutorials/image/moss-image/moss-image>.
 
 The optional 4-step distilled LoRA is **not** part of this pack: the shipped workflow includes a
-`LoraLoaderModelOnly` node **bypassed by default** — un-bypass it (`Ctrl+B`) once you have the file.
+`LoraLoaderModelOnly` node **bypassed by default**. It ships at **35 steps / cfg 3.5** (base model).
+Un-bypass the node (`Ctrl+B`) once you have the file, and change `steps` to **4** and `cfg` to **1.0**.
 
-> **Host version also changes VRAM.** The fix is commit `d07dff4` (2026-10-23). Hosts that contain
-> it use the **New** column; older hosts (including **v0.42.1 and earlier**) use the **Old** column.
-> `git pull` once if you installed via git; if unsure, budget for the Old column.
+> **Host version also changes VRAM.** The fix is commit `d07dff4` (2026-10-23). As of 2026-10-24
+> it is **not in any tagged release** — so pip / desktop / portable builds, and `git clone`s that
+> have not pulled since 2026-10-23, use the **Old** column. A recent `git pull` uses the **New**
+> column. If unsure, budget for Old.
 > Numbers, and how to tell which column you are in → [How much VRAM](#how-much-vram).
 
 ---
@@ -144,7 +149,7 @@ No such line = the pack did not load. Force the legacy V1 exit with `MOSSSB_NODE
 
 ---
 
-## 3-minute quick start
+## Quick start
 
 **Fastest path — open the shipped graph**
 
@@ -181,7 +186,7 @@ Editor examples: `examples/moss-layout-editor-poster.json` (poster) and
 
 No `[PANEL n]` blocks — place boxes instead:
 
-1. Add 🎨 Layout Editor and pick a preset (e.g. `title-body`).
+1. Add 🎬 Layout Editor and pick a preset (e.g. `title-body`).
 2. Drag boxes on the canvas: one for the title, one for the subject, one for the subtitle.
 3. Fill each box's **caption**; text boxes also get the **literal string**.
 4. Wire `prompt` → `CLIPTextEncode.text`, `width`/`height` → `EmptyFlux2LatentImage`.
@@ -196,8 +201,10 @@ No `[PANEL n]` blocks — place boxes instead:
    scene, style, camera). Writing `[STYLE]:` is optional — it is just a readable label; the parser
    goes by position.
 2. Each `[PANEL n]` block describes **that panel**: shot size + subject + action.
-3. **Numbers decide the order: captions are sorted by panel number and paired with cells in that
-   order.** Gaps are allowed, but do not write out of order; keep 1..N.
+3. **Panel numbers are an ordering key, not a cell slot.** Captions are sorted by number and paired
+   with cells in that order: the first caption goes to the first cell, the second to the second,
+   and so on. Gaps and out-of-order blocks are accepted; the numbers do not pick a cell
+   (a lone `[PANEL 6]` still lands in cell 1).
 
 | You write | Result |
 |---|---|
@@ -235,7 +242,10 @@ depending on your host version.
 | 1024 × 576 | 4 | ~0.6 GB | ~2.4 GB |
 | 2032 × 576 | 8 | ~1.2 GB | ~4.8 GB |
 | 1520 × 848 | 9 | ~1.3 GB | ~5.2 GB |
-| 2096 × 608 | 8 (512 band) | ~1.3 GB | ~5.2 GB |
+| 2096 × 608 | 8 (factory 512 px edge) | ~1.3 GB | ~5.2 GB |
+
+The first three rows use the shipped workflow's 496 px panel edge; the last row is the factory
+512 px default.
 
 **Which column are you in?** The fix is commit `d07dff4` (2026-10-23). Check whether your host
 build contains it; if unsure, use the **Old** column.
@@ -263,7 +273,7 @@ Default follows the host locale.
 
 - **Only our nodes** are touched — never official or third-party nodes.
 - **Display only, never the graph**: only `label` / `title` / `tooltip` / `placeholder` change;
-  `name` and combo values never do, so the saved workflow JSON is byte-identical.
+  widget `name`s and values never do, so execution and saved widget values are unaffected.
 - **Hard-refresh the browser (F5) after upgrading** — restarting the ComfyUI process is not enough.
 - API submissions (`/prompt`) bypass the canvas: no button, no functional loss.
 
@@ -271,7 +281,7 @@ Default follows the host locale.
 
 ## Node reference
 
-### 🎨 Layout Editor (`MossLayoutEditor`, no model)
+### 🎬 Layout Editor (`MossLayoutEditor`, no model)
 
 **Start here for posters, covers, product shots, or any free-form layout.**
 
@@ -288,7 +298,7 @@ Two modes, switched by preset:
 
 | Mode | Presets | Output | Wire to |
 |---|---|---|---|
-| **Single** | split-v / split-h / title-body / three-col / center / stack / blank | One multi-element layout JSON, **one sampling pass** | `CLIPTextEncode.text`, then a plain `KSampler` |
+| **Single** | split vertical / split horizontal / title + subject + body / three columns / centered subject / stacked / free | One multi-element layout JSON, **one sampling pass** | `CLIPTextEncode.text`, then a plain `KSampler` |
 | **Grid** | grid | `[STYLE]` + `[PANEL n]` | the Sampler's `positive` + `spec`; default `mode=whole grid`, switch to `per panel` for cross-panel consistency |
 
 > In single mode the `prompt` output is **already layout JSON** — feed it straight to
@@ -310,7 +320,7 @@ Two modes, switched by preset:
 | Queue | Queue the current workflow; changes no values |
 
 > An external planner's element JSON imports directly as editable items; the CLI validator/converter is in
-> [`docs/12`](docs/12-interop.md) and does not need ComfyUI.
+> [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) and does not need ComfyUI.
 
 **Text elements have two separate fields — do not mix them**
 
@@ -356,7 +366,8 @@ Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `repor
 
   ⚠ **Dragging boxes on the canvas does not change the output image.** In `逐格`
   (per-panel) mode each cell is sampled on its own, so boxes only decide the assembly
-  layout. Only `整张` (whole-canvas) mode lets boxes affect composition. See `docs/07`.
+  layout. Only `整张` (whole-canvas) mode lets boxes affect composition. See the
+  [cross-panel consistency doc](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md).
 - **`report`** — human-readable summary (panels, canvas, MP, caption alignment, warnings).
 - Its `prompt` box **is intentionally empty**: this node only computes geometry.
 
@@ -364,8 +375,8 @@ Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `repor
 
 Outputs `grid` `panels` `latent` `spec` `prompt_used` `report`.
 
-Factory defaults below. The shipped workflow is already tuned to **4 panels / 4 steps / panel
-edge 496**, so you can run it as-is.
+Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** and ships at
+**35 steps / cfg 3.5** for the base model (with the optional 4-step LoRA: 4 steps / cfg 1.0).
 
 | Parameter | Factory default | Notes |
 |---|---|---|
@@ -376,7 +387,7 @@ edge 496**, so you can run it as-is.
 | Panel long edge `panel_edge` | 512 | used when `spec` is absent |
 | Canvas aspect `canvas_aspect` | `auto` | used when `spec` is absent |
 | Gutter `gutter` / margin `margin` | 8 / 8 | used when `spec` is absent |
-| Steps `steps` | 35 | set to **4 only** with the 4-step distilled LoRA; either mismatch gives blur or black |
+| Steps `steps` | 35 | set to **4 only** with the 4-step distilled LoRA. Mixing the two bands does not raise an error, but results degrade (sometimes fully black) — see Known limits and the FAQ |
 | CFG `cfg` | 1.0 | measured config. Only `>1` makes the negative prompt matter |
 | Init mode `init` | `auto` | see below |
 | Denoise `denoise` | 1.0 | Keep 1.0. The sampler has **no image input**: below 1 references no image, it only makes the host truncate sigma by `int(steps/denoise)` (equivalent to fewer steps); `report` prints nominal vs. effective |
@@ -400,13 +411,13 @@ edge 496**, so you can run it as-is.
 > much of the red beret appears in each of the four panels drops from `0.0036` (whole grid)
 > to `0.00004` (per panel) — roughly 90× more uniform; the beret itself also comes out more solid.
 >
-> **Cost**: about N times the time (4 panels 27s → 60s). Peak VRAM is set by the per-panel
-> `sample_edge` and the board size.
+> **Cost**: extra time, measured at 4 panels 27 s → 60 s; it grows with the panel count.
+> Peak VRAM is set by the per-panel `sample_edge` and the board size.
 
 **`sample_edge` (sampling long edge)**
 
 The big advantage of per-panel mode: a panel's **sampled** resolution is not bound by the
-board size. `1024` samples each panel at 1024×N and downscales it into its final cell.
+board size. `1024` samples each panel at a 1024-pixel long edge and downscales it into its final cell.
 
 It is an **absolute pixel count**, not a multiplier — matching the host's
 `Empty Flux 2 Latent`, and keeping the quality knob independent of the layout knob.
@@ -455,7 +466,7 @@ out, correct it however you like, then paste it back at the exact `spec` coordin
 - `index` is 0-based, row-major (left to right, top to bottom). Wiring Crop's `index` output
   overrides the widget, so it can never disagree with the panel you actually cut.
 - Only the target panel's content area is touched: gutters, margins and every other panel stay
-  byte-identical, and the grid lines are preserved.
+  pixel-identical, and the grid lines are preserved.
 - `shave` must match what you used on Crop. Cutting inset s pixels, so pasting writes into the
   inset rectangle; a mismatch shifts content by s pixels **without erroring** — check `report`.
 - If the input size differs from the cell it is resampled, and `report` says so. For a
@@ -512,7 +523,8 @@ belongs to the layout-prompt route.
 ⚠ **It is not a cross-panel consistency solution.** Pushing one panel toward the others makes the
 shot sizes converge — every panel drifts toward the same image, while a storyboard needs
 "same character, different shot sizes". Cross-panel consistency comes only from
-**per-panel sampling + global-section anchoring** (see [`docs/07`](docs/07-consistency.md)).
+**per-panel sampling + global-section anchoring** (see the
+[cross-panel consistency doc](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md)).
 This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or light, then paste back.
 
 > **Licensing and scope**: that LoRA is third-party community weights, **not distributed with this
@@ -525,14 +537,14 @@ This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or
 
 ## Known limits (read before filing a bug)
 
-**Verified** — every row below except the first uses a distilled LoRA. Config is stated per row.
+**Verified** — every row below states its exact LoRA and step configuration.
 
 | Item | Config | Result | Sample |
 |---|---|---|---|
 | 3/4/6/8/9 panels · landscape/portrait · no gutter · thick gutter · small canvas · `plain` | base + 4-step LoRA / **4 steps** | sizes pixel-exact vs. theory | 15 runs |
 | Grid lines | same | pure white after redraw | per case |
 | Random seed | same | different seed → different md5 | 2 controls |
-| **Element boxes constrain composition** | base + 4-step LoRA / **4 steps**; base + 8-step LoRA / **8 steps** | boxes only changed: the bicycle went from cropped out to fully visible with its front wheel in the lower-left. Reproduced on 3 seeds | 36 images (docs/08 §8) |
+| **Element boxes constrain composition** | base + 4-step LoRA / **4 steps**; base + 8-step LoRA / **8 steps** | boxes only changed: the bicycle went from cropped out to fully visible with its front wheel in the lower-left. Reproduced on 3 seeds | 36 images |
 | **Four Chinese characters** (1024×576) | base + 8-step LoRA / **8 steps** | all correct | 1 image |
 | **Four Chinese characters** (2048×1152) | base + 4-step LoRA / **4 steps** | all correct, softer strokes | 1 image |
 | **Four Chinese characters** (2048×1152) | base + 8-step LoRA / **8 steps** | all correct, sharp strokes | 2 images |
@@ -570,7 +582,8 @@ This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or
   (fewer steps). `report` prints nominal vs. effective — trust the effective value.
 - **Per-panel composition is only approximate.** MOSS's layout capability is *experimental*; this
   pack does no quality scoring.
-- **At 8/9 panels each panel is ≈496×272.** Small text and fine texture degrade first — a
+- **At 8/9 panels each panel is small** — about 496×272 with the shipped 496 px edge
+  (512×288 at the factory default). Small text and fine texture degrade first — a
   resolution budget, not a node bug.
 
 **Hard constraints**
@@ -611,7 +624,8 @@ Sampler's own geometry parameters are ignored.
 also works (search aliases are registered).
 
 **No 中 / EN button.** Refresh the browser (F5). The button only exists on our nodes.
-Console diagnostics: [`docs/04`](docs/04-i18n-and-widgets.md).
+Console diagnostics: look for the `[MOSS SB] i18n: 就绪` line; if it is missing, confirm the
+`web/` files (especially `moss_sb_i18n_ui.js`) are served under `/extensions/ComfyUI-MOSS-Storyboard/`.
 
 **Can I use my own negative prompt?** Yes — raise `CFG` above 1, then expand **Advanced** on the
 node. At `cfg=1.0` the negative branch never enters the graph.
@@ -630,12 +644,14 @@ runtime.
 
 ## Documentation
 
-Deep dives live in [`docs/`](docs/) (**written in Chinese**):
-[`01`](docs/01-layout-and-panels.md) geometry · [`02`](docs/02-e2e-matrix.md) e2e matrix ·
-[`03`](docs/03-open-source-readiness.md) readiness audit · [`04`](docs/04-i18n-and-widgets.md) i18n internals ·
-[`05`](docs/05-local-development.md) local development · [`06`](docs/06-vae-memory.md) VAE memory budget ·
-[`07`](docs/07-consistency.md) cross-panel consistency · [`08`](docs/08-visual-editor-plan.md) editor design
-and element-box measurements · [`09`](docs/09-layout-breadth.md) use cases, layout paradigms, text measurements ·
-[`10`](docs/10-contract.md) state v3 frozen contract · [`11`](docs/11-editor-ui.md) editor front-end internals ·
-[`12`](docs/12-interop.md) elements-v1 interchange (0–1000 bbox) ⇄ state v3, plus a CLI validator.
-Developer rules: [`AGENTS.md`](AGENTS.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Selected deep dives live in the GitHub repo's
+[`docs/`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/tree/main/docs) (**written in Chinese**):
+[`06`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/06-vae-memory.md) VAE memory budget ·
+[`07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md) cross-panel consistency ·
+[`10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) state v3 frozen contract ·
+[`12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) elements-v1 interchange.
+Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) · release history:
+[`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md).
+
+`docs/`, `CHANGES.md` and `RELEASE-NOTES.md` are not shipped in the install package
+(see `.comfyignore`); the links above point to the GitHub repo.

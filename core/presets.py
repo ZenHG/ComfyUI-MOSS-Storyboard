@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 """预设：一键生成初始元素框。
 
-**唯一真相源是 `docs/11-editor-ui.md` §五**（前端线维护）。本文件必须与它逐项对齐；
-要改先在那份文档里改，再同步到这里。
+**唯一真相源是 `web/moss_sb_editor.js::PRESET_SPECS`**（前端线维护）。本文件必须与它逐项对齐；
+要改先改前端，再同步到这里；`tests/test_cross_language.py` 做逐项差分。
 
 设计原则：
 - 预设只是**起点**，不是约束。用户选完可以随便改框、改描述、删元素。
@@ -16,12 +16,12 @@ import uuid
 
 from . import editor as E
 
-#: 边距常量（与 docs/11 一致）
+#: 边距常量（与前端 PRESET_SPECS 一致）
 M = 0.03
 
 #: 预设 → 元素模板。`bbox` 是 `[x0, y0, x1, y1]`，归一化。
 #: `text` 只对 label=text 的元素有意义；四个文字元素都带 `palette`（给个可见起点）。
-#: 值逐项对齐 `web/moss_sb_editor.js::PRESET_SPECS`（docs/11 §五 的唯一真相源）；
+#: 值逐项对齐 `web/moss_sb_editor.js::PRESET_SPECS`；
 #: 前端 caption 是中英双语，这里取 `zh`。
 PRESET_ITEMS = {
     "split-v": [
@@ -41,7 +41,7 @@ PRESET_ITEMS = {
     "title-body": [
         {"label": "text", "caption": "粗体无衬线标题，浅金色",
          "text": "标题文字", "palette": ["#c8a15a"],
-         # y0 = 0.10：实测文字框贴顶（0.05）会被画布裁掉（docs/09 §4.3）
+         # y0 = 0.10：实测文字框贴顶（0.05）会被画布裁掉
          "bbox": [0.08, 0.10, 0.92, 0.19]},
         {"label": "character", "caption": "主角半身，侧对镜头",
          "bbox": [0.10, 0.24, 0.90, 0.80]},
