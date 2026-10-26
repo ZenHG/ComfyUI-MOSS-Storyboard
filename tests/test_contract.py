@@ -308,7 +308,7 @@ def test_i18n_completeness(V1):
 def test_sampler_shape(V1):
     """Sampler 的输入形状（防止有人"好心"把 negative 挪回普通区）。
 
-    为什么锁这条：negative 是**可选**输入，默认留空；官方 SFT 模板默认 cfg=2.5（>1），
+    为什么锁这条：negative 是**可选**输入，默认留空；MOSS-Image-SFT 模型卡默认 cfg=3（>1），
     填了会进负面分支。放在普通区会把一个可选输入变成视觉上的必填项。
     它必须 `advanced`（默认折叠），而 positive 必须留在普通区（唯一必填的提示词入口）。
     """

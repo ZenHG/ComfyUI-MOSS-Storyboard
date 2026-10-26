@@ -100,7 +100,7 @@
           "links": []
         }
       ],
-      "title": "官方 SFT 模板 · 25 步",
+      "title": "MOSS-Image-SFT · 模型卡 50 步",
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.42.0",
@@ -253,19 +253,19 @@
       "widgets_values": [
         543666515388930,
         "fixed",
-        25,
-        2.5,
-        "er_sde",
-        "simple",
+        50,
+        3.0,
+        "euler",
+        "sgm_uniform",
         1
       ],
       "widgets_values_named": {
         "seed": 543666515388930,
         "control_after_generate": "fixed",
-        "steps": 25,
-        "cfg": 2.5,
-        "sampler_name": "er_sde",
-        "scheduler": "simple",
+        "steps": 50,
+        "cfg": 3.0,
+        "sampler_name": "euler",
+        "scheduler": "sgm_uniform",
         "denoise": 1
       }
     },
@@ -774,7 +774,7 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## 单张海报\n1. 在「Layout Editor」里选预设、拖框、改字。\n2. `prompt` 接 CLIPTextEncode.text；`width/height` 接 EmptyFlux2LatentImage。\n3. 队列即可。`editor_state` 会自动存进工作流。\n\n官方 SFT 模板：25 步 / cfg 2.5 / er_sde / simple；官方 Base 模型卡：50 步 / cfg 3 / euler；叠 4-step 蒸馏 LoRA 时改 4 步 / cfg 1.0。\ncaption 写「长什么样」，text 写「实际渲染的字」，两者不能混。"
+        "## 单张海报\n1. 在「Layout Editor」里选预设、拖框、改字。\n2. `prompt` 接 CLIPTextEncode.text；`width/height` 接 EmptyFlux2LatentImage。\n3. 队列即可。`editor_state` 会自动存进工作流。\n\nMOSS-Image-SFT 模型卡：50 步 / cfg 3 / euler（shift 5、SLG 层 22）；ComfyUI 原生模板另用 25 步 / cfg 2.5 / er_sde；叠 4-step 蒸馏 LoRA 时改 4 步 / cfg 1.0。\ncaption 写「长什么样」，text 写「实际渲染的字」，两者不能混。"
       ]
     }
   ],

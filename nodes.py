@@ -340,33 +340,34 @@ class MossStoryboardSampler:
                 }),
                 "negative": ("STRING", {
                     "multiline": True, "default": "",
-                    # 「高级」只表示可选，不代表无效：官方 SFT 模板默认 cfg=2.5（>1），
+                    # 「高级」只表示可选，不代表无效：模型卡默认 cfg=3（>1），
                     # 填了就会进负面分支；留空则就是空条件。
                     "advanced": True,
                     "tooltip": "【可选，收在「高级」里】负面提示词。默认留空。\n"
-                               "官方 SFT 模板的 cfg=2.5 > 1 ⇒ 填了会进计算图；\n"
+                               "MOSS-Image-SFT 模型卡默认 cfg=3 > 1 ⇒ 填了会进计算图；\n"
                                "只有 cfg=1.0 时宿主才跳过负面分支（comfy/samplers.py 的 cfg1 优化）。",
                 }),
                 "steps": ("INT", {
-                    "default": 25, "min": 1, "max": 200, "step": 1,
-                    "tooltip": "【填什么】采样步数。默认 25 = ComfyUI 官方 MOSS-Image SFT 模板口径\n"
-                               "（25 步 / cfg 2.5 / er_sde / simple）。\n"
-                               "· 官方 Base 模型卡：50 步 / cfg 3 / euler（CFG 范围 3–6）；\n"
+                    "default": 50, "min": 1, "max": 200, "step": 1,
+                    "tooltip": "【填什么】采样步数。默认 50 = MOSS-Image-SFT 模型卡口径\n"
+                               "（50 步 / cfg 3 / euler / shift 5 / SLG 负分支层 22）。\n"
+                               "· 官方 Base 模型卡：同样 50 步 / cfg 3 / euler（CFG 范围 3–6）；\n"
                                "· 叠加 4 步蒸馏 LoRA：4–8 步 / cfg 1.0 —— 调高会破坏蒸馏效果。",
                 }),
                 "cfg": ("FLOAT", {
-                    "default": 2.5, "min": 0.0, "max": 30.0, "step": 0.1,
-                    "tooltip": "【填什么】引导强度。默认 2.5 = 官方 SFT 模板口径。\n"
+                    "default": 3.0, "min": 0.0, "max": 30.0, "step": 0.1,
+                    "tooltip": "【填什么】引导强度。默认 3.0 = MOSS-Image-SFT 模型卡口径。\n"
                                "· 官方 Base 模型卡：cfg 3（官方给的适用范围 3–6）；\n"
                                "· 叠加 4 步蒸馏 LoRA：1.0。\n"
                                "⚠ 1.0 时宿主跳过负面分支 ⇒ 负面提示词填了也不生效。",
                 }),
                 "sampler_name": (["euler", "euler_ancestral", "heun", "dpmpp_2m", "dpmpp_2m_sde",
                                   "dpmpp_3m_sde", "res_multistep", "er_sde", "lms"], {
-                    "default": "er_sde", "tooltip": "【填什么】默认 er_sde = 官方 SFT 模板口径；\n"
-                                                     "官方 Base 模型卡用的是 euler。"}),
+                    "default": "euler", "tooltip": "【填什么】默认 euler = MOSS-Image-SFT 模型卡口径。\n"
+                                                    "ComfyUI 原生模板另用 er_sde / 25 步（Comfy-Org 的选择）。"}),
                 "scheduler": (["simple", "normal", "beta", "sgm_uniform", "karras", "exponential", "ddim_uniform"], {
-                    "default": "simple", "tooltip": "【填什么】默认 simple = 官方 SFT 模板口径。"}),
+                    "default": "sgm_uniform", "tooltip": "【填什么】默认 sgm_uniform = OpenMOSS 官方\n"
+                                                         "ComfyUI 插件工作流的配对；模型卡未指定 scheduler。"}),
                 "seed": ("INT", {
                     "default": 0, "min": 0, "max": 0xFFFFFFFF, "step": 1,
                     "tooltip": "【填什么】随机种。同种子同参数才可复现。",
