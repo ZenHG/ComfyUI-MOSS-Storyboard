@@ -9,7 +9,7 @@
 #    明写不要带 "ComfyUI"；`license` 只认 `{ file = ... }` / `{ text = ... }`（不收裸 SPDX 字符串）。
 [project]
 name = "moss-storyboard"
-version = "0.2.2"
+version = "0.2.3"
 description = "Storyboard, comic and poster layout nodes for MOSS-Image: 3, 4, 6, 8 or 9 panels in one generation, per-panel captions, exact crops, and a visual bbox editor. No extra dependencies."
 readme = "README.md"
 requires-python = ">=3.10"

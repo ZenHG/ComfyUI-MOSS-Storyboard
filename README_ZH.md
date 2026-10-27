@@ -16,7 +16,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.2.2** |
+| 版本 | **0.2.3** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（MOSS-Image 原生支持自 PR #17095 起） |
 | 依赖 | **零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供） |
