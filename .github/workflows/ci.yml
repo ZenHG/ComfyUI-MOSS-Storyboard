@@ -6,7 +6,7 @@
 #   · 只跑"能确定判定"的东西：几何、契约、词表、装载。**成片质量不进 CI**（要 GPU + 权重）。
 #
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
-#   · 302/0  tests/test_core.py               几何 / 提示词 / 像素
+#   · 309/0  tests/test_core.py               几何 / 提示词 / 像素 / 控制区域图
 #   · 137/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限 / 外接稿
 #   ·  88/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
 #   ·  22/0  tests/test_extract.py            从散文/代码块提取 JSON、上限/扫描预算
