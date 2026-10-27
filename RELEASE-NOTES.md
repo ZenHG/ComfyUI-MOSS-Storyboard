@@ -19,6 +19,43 @@
 
 ---
 
+## 0.2.3 — 2026-10-27
+
+**逐格模式不再交出空的 latent；稿子与宫格对不上时，采样前就报错。**
+
+- 🔴 逐格模式的 `latent` 从空改为「每格一个 latent 的 batch」（`{"samples": [N,C,H,W]}`，行主序）。
+  接 `VAEDecode` 会一次解出 N 张单格图；整张模式与画面均不变。
+- 🔴 稿子与布局对账：`[PANEL n]` 段数、全局段里写的「N 个面板」都必须等于实际格数，否则采样前报错，
+  并给三条出路（改稿 / 改布局 / `init=plain`）。以前照跑，会把 4 个节拍在 8 格里画两遍。
+- 🆕 布局节点新增可选 `char_boxes`（逗号分隔、编号从 1 起，如 `1, 3`）：把指定格标成人物框。
+- `index` 上限 64 → 143；`columns`/`rows` 统一为 12（以前能选 20，但必定报错）；三处 `shave` 统一 64。
+- report 首行说明本次属哪一档口径（SFT 模型卡 / 蒸馏 LoRA / 混搭），混搭不再静默。
+
+**升级动作**：从 Manager 更新到 0.2.3，重启 ComfyUI 并刷新浏览器（F5）。已有工作流无需改动；
+只有依赖「逐格 latent 为空」的自定义接线要改，稿子段数与格数不符的工作流会被拦下（按报错任选一条出路）。
+
+<!-- EN -->
+
+**Per-panel mode no longer returns an empty latent; a prompt that disagrees with the grid now fails before sampling.**
+
+- 🔴 Per-panel `latent` changed from empty to a batch of one latent per panel
+  (`{"samples": [N,C,H,W]}`, row-major). `VAEDecode` then yields N single-panel images.
+  Whole-canvas mode and the images themselves are unchanged.
+- 🔴 Prompt/layout reconciliation: the `[PANEL n]` section count and any "N panels" phrase in
+  the global section must both match the panel count, otherwise the node raises before sampling
+  with three ways out (fix the script / fix the layout / `init=plain`). It used to run anyway and
+  could paint four beats twice across eight panels.
+- NEW optional `char_boxes` on the layout node: comma separated, 1-based (e.g. `1, 3`).
+- `index` max 64 to 143; `columns`/`rows` capped at 12; the three `shave` inputs share one cap of 64.
+- The report's first line names the sampling profile (SFT model card / distilled LoRA / mixed).
+
+**Action required**: Update to 0.2.3 from the Manager, restart ComfyUI and hard-refresh the
+browser (F5). Existing workflows need no changes; only custom wiring that relied on the empty
+per-panel latent must be updated, and scripts whose section count disagrees with the panel count
+are now stopped — pick any of the three options in the error message.
+
+---
+
 ## 0.2.2 — 2026-10-24
 
 **布局编辑器支持撤销 / 重做；生成节点对写错的参数报得更早、更清楚。**

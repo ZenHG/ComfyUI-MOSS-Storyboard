@@ -16,7 +16,7 @@ shapes used in the examples and measured tests.)
 
 | Item | Value |
 |---|---|
-| Version | **0.2.2** |
+| Version | **0.2.3** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*` |
