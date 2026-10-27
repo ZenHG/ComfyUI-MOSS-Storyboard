@@ -190,14 +190,17 @@ def _resolve_layout(panels, panel_aspect, panel_edge, canvas_aspect, gutter, mar
                           canvas_aspect=canvas_aspect)
 
 
-def _prompt_for_layout(text, lay, label="object"):
+def _prompt_for_layout(text, lay, label="object", char_boxes=""):
     """把提示词稿转成布局 JSON 文本，返回 `(最终提示词, 摘要行)`。"""
     head, caps = T.split_panels(text)
     if not caps:
         return (head or "").strip(), "未找到 [PANEL n] 标记 ⇒ 按普通文生图处理（无布局约束）"
     pairs, notes = T.pair_captions(caps, lay.cells)
-    out = T.layout_json_text(head, pairs, lay.boxes_abs_centered(), label=label)
+    out = T.layout_json_text(head, pairs, lay.boxes_abs_centered(), label=label,
+                             char_boxes=char_boxes)
     info = "解析 %d 段面板描述，%d 段带框" % (len(caps), len(pairs))
+    if (char_boxes or "").strip():
+        info += "；人物格 %s（编号从 1 起）" % char_boxes.strip()
     if notes:
         info += "；" + "；".join(notes)
     return out, info
@@ -263,6 +266,13 @@ class MossStoryboardLayout:
                     "tooltip": "【进阶】布局框的类型。object = 一格当一块画面；character = 强调该格是人物。",
                 }),
             },
+            "optional": {
+                "char_boxes": ("STRING", {
+                    "default": "",
+                    "tooltip": "【可留空】把哪几格标成人物框，逗号分隔、**编号从 1 起**（如 `1, 3`）。\n"
+                               "留空 = 全部用上面的 label。用于同一张里既有主角格又有空镜的场合。",
+                }),
+            },
         }
 
     RETURN_TYPES = ("INT", "INT", "INT", "INT", "STRING", "STRING", "IMAGE", "STRING", "STRING")
@@ -275,9 +285,9 @@ class MossStoryboardLayout:
 
     @_node_errors("panels", "panel_aspect", "panel_edge")
     def build(self, prompt, panels, panel_aspect, panel_edge, canvas_aspect, columns, rows,
-              gutter, margin, cell_gray, invert, label):
+              gutter, margin, cell_gray, invert, label, char_boxes=""):
         lay = _resolve_layout(panels, panel_aspect, panel_edge, canvas_aspect, gutter, margin, columns, rows)
-        text, info = _prompt_for_layout(prompt, lay, label)
+        text, info = _prompt_for_layout(prompt, lay, label, char_boxes)
         template = P.render_template(lay, cell_gray=cell_gray, invert=invert)
 
         report = "\n".join([

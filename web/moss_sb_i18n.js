@@ -232,6 +232,10 @@ export const TIPS = {
     "MossStoryboardLayout.label": {
         en: "[Advanced] Type of the layout boxes. object treats a cell as a scene region; character emphasises a person.",
     },
+    "MossStoryboardLayout.char_boxes": {
+        en: "[Optional] Which cells should be character boxes, comma separated, **1-based** (e.g. `1, 3`).\n"
+            + "Empty = every cell uses the label above. Handy when one board mixes hero shots and empty plates.",
+    },
 
     // ===== 生成 =====
     "MossStoryboardSampler.model": {
