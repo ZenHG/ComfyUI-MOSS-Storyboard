@@ -515,10 +515,11 @@ class MossStoryboardSampler:
                 "mode": (_GEN_MODES, {
                     "default": "整张",
                     "tooltip": "【填什么】怎么生成：\n"
-                               "整张（默认）= 一次采样出整张宫格，快；跨格角色一致性较弱。\n"
-                               "逐格 = 每格独立采样再拼版，慢 N 倍，但**跨格角色一致、每格更清晰**"
-                               "（每格画布可给到 4 倍像素）。\n"
-                               "实测：4 格里同一角色的帽子颜色、脸型，逐格明显比整张统一。",
+                               "整张（默认）= 一次采样出整张宫格，快；跨格是「同一张脸」更稳。\n"
+                               "逐格 = 每格独立采样再拼版，慢 N 倍；每格可给 4 倍像素，\n"
+                               "        服装 / 道具 / 文字更清楚，但每格各画一张脸。\n"
+                               "⚠ 别按「谁更一致」选：同一女性 ArcFace 实测整张 0.553 > 逐格 0.479。\n"
+                               "一次成型用整张，要逐格返工用逐格。",
                 }),
                 "sample_edge": ("INT", {
                     "default": 1024, "min": 256, "max": 4096, "step": 16,
@@ -547,9 +548,11 @@ class MossStoryboardSampler:
 
         S.probe_host_api()   # 宿主内核指纹：版本不匹配时给出"改了什么"，而不是 AttributeError
 
-        if spec and str(spec).strip():
+        spec_given = bool(spec and str(spec).strip())
+        if spec_given:
             lay = L.parse_spec(spec)
-            geom_src = "spec 接线"
+            # 明说"未生效"：静默忽略是最常踩的坑 —— 改了格数却没变化，人只会以为节点坏了。
+            geom_src = "spec 接线（本节点的 panels / panel_edge / gutter / margin 未生效）"
         else:
             lay = _resolve_layout(panels, panel_aspect, panel_edge, canvas_aspect, gutter, margin)
             geom_src = "本节点参数"
@@ -579,7 +582,7 @@ class MossStoryboardSampler:
                          "当前布局 %d 格 = %d 列 × %d 行，画布 %d × %d。"
                          % (lay.panels, lay.cols, lay.rows, lay.width, lay.height)]
                 if implied and implied != lay.panels:
-                    who = "上游 Layout 的 panels" if geom_src.startswith("spec") else "本节点 panels"
+                    who = "上游 Layout 的 panels" if spec_given else "本节点 panels"
                     lines.append("可选：把%s 改成 %d。" % (who, implied))
                 lines.append("出路：① 把稿子改到 %d 段并同步全局段计数；"
                              "② init=plain 原样送词（不做布局，也就没有宫格框）。" % lay.panels)
@@ -619,7 +622,7 @@ class MossStoryboardSampler:
         panels_img = P.crop_panels(grid, lay, shave=shave)
 
         report = "\n".join([
-            S.profile_hint(steps, cfg),
+            S.profile_hint(steps, cfg, negative),
             "几何来源：%s" % geom_src,
             "布局 %d 格 = %d 列 × %d 行，画布 %d × %d（%.2fMP）"
             % (lay.panels, lay.cols, lay.rows, lay.width, lay.height, lay.megapixels),
@@ -733,7 +736,7 @@ class MossStoryboardSampler:
         latent_batch = S.stack_latents(latents)
 
         report = "\n".join([
-            S.profile_hint(steps, cfg),
+            S.profile_hint(steps, cfg, negative),
             "latent：%d 个单格 latent 的 batch（行主序 = 格号 1..%d，**不是拼版**）%s"
             % (lay.panels, lay.panels,
                "×".join(str(v) for v in latent_batch["samples"].shape)),
