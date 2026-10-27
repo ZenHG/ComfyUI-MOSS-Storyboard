@@ -195,7 +195,9 @@ def stack_latents(outs):
     """
     import torch
     ts = [as_tensor(o) for o in outs]
-    if not ts or ts[0].ndim != 4 or len({tuple(t.shape[1:]) for t in ts}) != 1:
+    bad = (not ts or any(t.ndim != 4 or t.shape[0] != 1 for t in ts)
+           or len({tuple(t.shape[1:]) for t in ts}) != 1)
+    if bad:
         raise ValueError("每格 latent 必须是同形状的 [1,C,h,w]（收到 %s）"
                          % [tuple(t.shape) for t in ts])
     return {"samples": torch.cat(ts, dim=0)}

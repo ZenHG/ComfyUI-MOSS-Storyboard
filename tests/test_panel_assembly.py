@@ -51,11 +51,15 @@ def main():
     check("latent 第 0 维 = 格数", tuple(lat["samples"].shape) == (3, 4, 8, 8), tuple(lat["samples"].shape))
     check("latent 空间维不被拼版放大", tuple(lat["samples"].shape[-2:]) == (8, 8),
           tuple(lat["samples"].shape[-2:]))
-    try:
-        S.stack_latents([{"samples": torch.zeros(1, 4, 8, 8)}, {"samples": torch.zeros(1, 4, 9, 8)}])
-        check("异形 latent 直接报错", False, "没有抛异常")
-    except ValueError as exc:
-        check("异形 latent 直接报错", "同形状" in str(exc), str(exc))
+    # 一格一个 latent：[1,C,h,w]。异形或 batch>1 都要当场拒绝 ——
+    # 静默通过的话下游会多解出图，而报错现场离真因很远。
+    for label, bad in (("异形 latent", [torch.zeros(1, 4, 8, 8), torch.zeros(1, 4, 9, 8)]),
+                       ("batch>1 的 latent", [torch.zeros(2, 4, 8, 8)])):
+        try:
+            S.stack_latents([{"samples": t} for t in bad])
+            check("%s 直接报错" % label, False, "没有抛异常")
+        except ValueError as exc:
+            check("%s 直接报错" % label, "同形状" in str(exc), str(exc)[:40])
 
     # 档位提示：只出声不改参数，但判错就等于没提示
     sft, mix_step, mix_cfg, lora = (S.profile_hint(s, c) for s, c in
