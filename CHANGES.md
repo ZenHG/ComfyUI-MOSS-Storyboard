@@ -20,7 +20,9 @@
 
 ### 逐格 latent：batch，不是拼版
 - `MossStoryboardSampler` 逐格模式**不再返回 `None`**：每格 `{"samples": …}` 拼成**一个**
-  `{"samples": [N,C,h,w]}`（`core.sampling.stack_latents`，行主序 = 格号 1..N），report 首行写清语义。
+  `{"samples": [N,C,h,w]}`（`core.sampling.stack_latents`，行主序 = 格号 1..N），report 写清语义。
+- 一格一个 latent：异形、非 4 维、batch>1 一律当场报错。静默放过会让下游多解出图，
+  而报错现场离真因很远。
 - 回的必须是 **LATENT 字典**：宿主 `VAEDecode` 取 `samples["samples"]`，交裸张量是 TypeError；
   也不能是 list（V3 没有列表输出，下游会静默坏）。
 - **输出值变了**（原来 None → 现在张量），**画面不变**；接 `VAEDecode` 会得到 N 张单格图。
