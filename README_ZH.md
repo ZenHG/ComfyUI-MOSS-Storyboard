@@ -448,6 +448,9 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 
 输出：`grid`（整图）`panels`（逐格）`latent` `spec` `prompt_used` `report` `prompts_json`
 
+- **`latent`**：整张模式 = 整张画布 latent；逐格模式 = N 个单格 latent 的 batch
+  （`{"samples": [N,C,h,w]}`，行主序 = 格号 1..N，**不是拼版**）。接 `VAEDecode` 按 batch 逐张解码。
+
 - **`prompts_json`**：**真的发给模型的那句话**，JSON 数组。「整张」模式 1 条；
   「逐格」模式每格 1 条（含被清掉多格措辞后的全局段）。想复盘"词写的画面做到了没"就从这里接。
 
