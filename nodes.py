@@ -19,6 +19,7 @@ import json
 import os
 
 from .core import editor as E
+from .core import intake as IN
 from .core import layout as L
 from .core import pixels as P
 from .core import prompt as T
@@ -33,6 +34,32 @@ _INIT_MODES = ["auto", "layout", "plain"]
 _GEN_MODES = ["整张", "逐格"]
 _ASPECT_KEYS = list(L.ASPECTS)
 _CROP_ASPECTS = ["keep", "1:1", "16:9", "4:3", "9:16", "21:9"]
+
+#: 调度器清单的**冻结回落值**（宿主取不到时才用）。
+#: 只作兜底：真值来自宿主 `comfy.samplers.SCHEDULER_NAMES`，见 `_scheduler_names()`。
+_FALLBACK_SCHEDULERS = ("simple", "normal", "beta", "sgm_uniform", "karras",
+                        "exponential", "ddim_uniform", "linear_quadratic", "kl_optimal")
+
+
+def _scheduler_names():
+    """调度器下拉**从宿主取**，不自己维护一份。
+
+    🔴 为什么（2026-10-26 GG 反馈「调度器比 comfyui 支持的少」）：宿主会加新调度器
+    （`linear_quadratic` / `kl_optimal` 就是后加的），本包硬编码一份就等于
+    「宿主能跑的这里选不到」。判据与被测对象同源，才不会再次漏。
+    宿主不可导入（单测 / 纯离线）时回落到冻结清单。
+    """
+    names = []
+    try:
+        import comfy.samplers as _cs
+        names = [str(n) for n in (getattr(_cs, "SCHEDULER_NAMES", None) or [])]
+    except Exception:
+        names = []
+    if not names or "sgm_uniform" not in names:
+        # 默认值不在表里 ⇒ 提交的是非法值，宁可用冻结清单也不要静默坏掉
+        names = list(_FALLBACK_SCHEDULERS)
+    return names
+
 
 # MOSS-Image 训练区间 1–2MP，官方声明外推到 ~4MP。超了只警告，不拦。
 _MP_COMFORT = 2.0
@@ -306,6 +333,15 @@ class MossLayoutEditor:
                                "手改也行，但字段必须符合 v3 结构，否则会报错。",
                 }),
             },
+            "optional": {
+                "prompt": ("STRING", {
+                    "default": "", "forceInput": True,
+                    "tooltip": "【接线，可选】外接故事板稿：[STYLE] 全局描述 + 每格 [PANEL n] 描述。\n"
+                               "接上就接管逐格描述（编辑器里的窄框变只读），断开恢复手编。\n"
+                               "段首写景别（如「中景，…」）会用外接的；没写则该格不注入景别。\n"
+                               "段数与格数不符、多出的段被丢弃，都写进 report，不静默。",
+                }),
+            },
         }
 
     RETURN_TYPES = ("STRING", "INT", "INT", "STRING", "IMAGE", "STRING")
@@ -318,21 +354,27 @@ class MossLayoutEditor:
                       "storyboard", "故事板", "分镜", "封面"]
 
     @_node_errors("editor_state")
-    def build(self, editor_state):
+    def build(self, editor_state, prompt=""):
         state = E.parse_state(editor_state)
+        notes = []
+        if (prompt or "").strip():
+            state, notes = IN.apply_to_state(state, prompt)
         width, height = E.canvas_size(state)
 
         if E.is_grid(state):
             lay = E.geometry(state)
-            prompt = E.compile_prompt(state)
+            prompt_text = E.compile_prompt(state)
             spec = lay.spec()
             template = P.render_template(lay)
         else:
-            prompt = E.layout_json(state)
+            prompt_text = E.layout_json(state)
             spec = ""
             template = _blank_image(width, height)
 
-        return (prompt, width, height, spec, template, E.report(state))
+        rep = E.report(state)
+        if notes:
+            rep = "\n".join([rep] + ["· " + n for n in notes])
+        return (prompt_text, width, height, spec, template, rep)
 
 
 class MossStoryboardSampler:
@@ -381,9 +423,11 @@ class MossStoryboardSampler:
                                   "dpmpp_3m_sde", "res_multistep", "er_sde", "lms"], {
                     "default": "euler", "tooltip": "【填什么】默认 euler = MOSS-Image-SFT 模型卡口径。\n"
                                                     "ComfyUI 原生模板另用 er_sde / 25 步（Comfy-Org 的选择）。"}),
-                "scheduler": (["simple", "normal", "beta", "sgm_uniform", "karras", "exponential", "ddim_uniform"], {
+                "scheduler": (_scheduler_names(), {
                     "default": "sgm_uniform", "tooltip": "【填什么】默认 sgm_uniform = OpenMOSS 官方\n"
-                                                         "ComfyUI 插件工作流的配对；模型卡未指定 scheduler。"}),
+                                                         "ComfyUI 插件工作流的配对；模型卡未指定 scheduler。\n"
+                                                         "清单与宿主同源（comfy.samplers.SCHEDULER_NAMES）："
+                                                         "宿主装了新调度器这里自动出现。"}),
                 "seed": ("INT", {
                     "default": 0, "min": 0, "max": 0xFFFFFFFF, "step": 1,
                     "tooltip": "【填什么】随机种。同种子同参数才可复现。",

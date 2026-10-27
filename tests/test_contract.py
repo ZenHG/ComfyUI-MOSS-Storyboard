@@ -92,6 +92,31 @@ def test_inputs(cls):
     check("%s FUNCTION 存在" % cls.__name__, callable(getattr(cls(), cls.FUNCTION, None)))
 
 
+def test_scheduler(V1):
+    """调度器清单必须与宿主同源 —— 硬编码一份就会漏掉宿主后加的档位。"""
+    opts = V1.MossStoryboardSampler.INPUT_TYPES()["required"]["scheduler"][0]
+    names = list(opts)
+    check("调度器候选非空", bool(names), str(names))
+    check("调度器默认值 sgm_uniform 在候选里", "sgm_uniform" in names, str(names))
+    try:
+        sys.path.insert(0, COMFY)
+        import comfy.samplers as CS
+        host = list(CS.SCHEDULER_NAMES)
+    except Exception:
+        host = None
+    if host:
+        # INPUT_TYPES 可能在 comfy 进 sys.path 之前就被调用过（离线测试环境）⇒ 只比集合；
+        # 顺序与"读宿主"本身由下面直接调 `_scheduler_names()` 验。
+        check("调度器候选覆盖宿主全部档位", set(names) == set(host),
+              "缺 %s / 多 %s" % ([n for n in host if n not in names],
+                                 [n for n in names if n not in host]))
+        check("_scheduler_names() 与宿主逐项一致（含顺序）",
+              V1._scheduler_names() == host, str(V1._scheduler_names()))
+    else:
+        check("宿主不可用 ⇒ 用冻结清单", names == list(V1._FALLBACK_SCHEDULERS), str(names))
+    check("调度器候选无重复", len(names) == len(set(names)), str(names))
+
+
 def test_v3(V1):
     try:
         sys.path.insert(0, COMFY)
@@ -485,6 +510,7 @@ def main():
     print("== 1. 参数表自洽 ==")
     for _name, cls in V1.NODE_CLASS_MAPPINGS.items():
         test_inputs(cls)
+    test_scheduler(V1)
 
     print("\n== 2. 错误路径（中文可操作报错）==")
     test_errors(V1)

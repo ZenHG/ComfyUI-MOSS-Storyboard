@@ -226,12 +226,14 @@ ok("画布预设都是 16 倍数", CANVAS_PRESETS.length >= 5
     ok("宫格预览 = [STYLE] + 连续 [PANEL n]",
         gp.startsWith("[STYLE] 雨夜咖啡店。") && gp.split("\n").filter((l) => l.startsWith("[PANEL")).length === 8
         && gp.includes("[PANEL 8]"), gp.slice(0, 120));
-    ok("宫格预览自动补景别前缀 / 已带则不重复", (() => {
+    ok("宫格预览景别输出英文子句 / 已带则不重复 / 自定义原样", (() => {
         const one = { version: 3, preset: "grid", style: "s", grid: GRID,
             items: [{ id: "s1", label: "object", no: 1, size: "近景", caption: "杯沿裂痕", bbox: [0, 0, 1, 1] }] };
-        if (compileFinalPrompt(one).split("\n")[2] !== "[PANEL 1] 近景，杯沿裂痕") return false;
+        if (compileFinalPrompt(one).split("\n")[2] !== "[PANEL 1] Close shot, framed from the shoulders up. 杯沿裂痕") return false;
         const same = { ...one, items: [{ ...one.items[0], caption: "近景 里的杯沿" }] };
-        return compileFinalPrompt(same).split("\n")[2] === "[PANEL 1] 近景 里的杯沿";
+        if (compileFinalPrompt(same).split("\n")[2] !== "[PANEL 1] 近景 里的杯沿") return false;
+        const custom = { ...one, items: [{ ...one.items[0], size: "从背后俯拍" }] };
+        return compileFinalPrompt(custom).split("\n")[2] === "[PANEL 1] 从背后俯拍，杯沿裂痕";
     })(), compileFinalPrompt(gs).split("\n")[2]);
     ok("宫格预览按镜号排序（不是数组序）", (() => {
         const rev = { ...gs, items: [...gs.items].reverse() };

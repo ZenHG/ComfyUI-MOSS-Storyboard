@@ -76,8 +76,46 @@ _PLACEHOLDER_TEXTS = frozenset((
 PRESETS = ("grid", "split-v", "split-h", "title-body",
            "three-col", "center", "stack", "free")
 
-#: 宫格模式的景别档位。顺序 = 由远到近。
+#: 宫格模式的景别**预设**。顺序 = 由远到近。UI 用这八档，但 `size` 字段本身接受自定义文本。
 SIZES = ("大远景", "远景", "全景", "中景", "中近景", "近景", "特写", "大特写")
+
+#: 八档 → 英文构图子句。依据 MOSS USERGUIDE：默认推荐英文，构图用自然语言
+#: （官方示例 "A wide view of ..."）。UI 仍显示中文档位，**只有输出用英文**。
+SIZE_EN = {
+    "大远景": "Extreme wide shot, the environment fills the frame and the figure is tiny",
+    "远景": "Wide shot, the full figure in frame with the setting around it",
+    "全景": "Full shot, the whole figure just fits the frame",
+    "中景": "Medium shot, framed from the waist up",
+    "中近景": "Medium close shot, framed from the chest up",
+    "近景": "Close shot, framed from the shoulders up",
+    "特写": "Close-up, the face fills the frame",
+    "大特写": "Extreme close-up, only the eyes or a single detail",
+}
+
+#: 自定义景别的长度上限（字符）。超了直接报错，不截断。
+SIZE_MAX = 64
+
+#: 描述里自带的可见范围词 → 它实际在说哪一档。只用于报警，不改存档、不改提示词。
+_SIZE_WORDS = (
+    (re.compile(r"(?:人物|人)(?:很|极)?小|渺小|环境占(?:满|据)画面"), "大远景"),
+    (re.compile(r"全身(?:入画|像|构图)?|远景"), "远景"),
+    (re.compile(r"半身|腰部以上|腰以上|齐腰"), "中景"),
+    (re.compile(r"胸(?:部)?以上|胸口以上|中近景"), "中近景"),
+    (re.compile(r"肩(?:部)?以上|近景"), "近景"),
+    (re.compile(r"面部占满|脸部特写|面部特写|特写"), "特写"),
+    (re.compile(r"只(?:取|拍)(?:眼睛|眼部|局部)|大特写"), "大特写"),
+)
+
+#: 描述里自带的可见范围词 → 实际在说哪一档。只用于报警，不改存档。
+_SIZE_WORDS = (
+    (re.compile(r"(?:人物|人)(?:很|极)?小|渺小|环境占(?:满|据)画面"), "大远景"),
+    (re.compile(r"全身(?:入画|像|构图)?|远景"), "远景"),
+    (re.compile(r"半身|腰部以上|腰以上|齐腰"), "中景"),
+    (re.compile(r"胸(?:部)?以上|胸口以上|中近景"), "中近景"),
+    (re.compile(r"肩(?:部)?以上|近景"), "近景"),
+    (re.compile(r"面部占满|脸部特写|面部特写|特写"), "特写"),
+    (re.compile(r"只(?:取|拍)(?:眼睛|眼部|局部)|大特写"), "大特写"),
+)
 
 
 def empty_state(preset="free"):
@@ -251,9 +289,16 @@ def parse_state(text):
             if not _is_int(no):
                 _fail("%s 的镜号 no 必须是整数（收到 %r）。" % (where, no))
             it["no"] = int(no)
-            if it.get("size") not in SIZES:
-                _fail("%s 的景别 size=%r 不认识，可选：%s。"
-                      % (where, it.get("size"), "、".join(SIZES)))
+            # size 是自由文本：八档只是预设，用户可写自己的（空串 = 不注入）。
+            size = it.get("size")
+            if not isinstance(size, str):
+                _fail("%s 的景别 size 必须是字符串（收到 %s）。"
+                      % (where, type(size).__name__))
+            size = size.strip()
+            if len(size) > SIZE_MAX:
+                _fail("%s 的景别有 %d 字，超过上限 %d。"
+                      % (where, len(size), SIZE_MAX))
+            it["size"] = size
     if preset == "grid":
         nos = [it["no"] for it in items]
         if len(set(nos)) != len(nos):
@@ -288,10 +333,19 @@ def canvas_size(state):
 
 
 def _size_prefix(size, caption):
+    """把景别拼进该格描述：八档走英文子句，自定义原样，空串不注入。
+
+    分隔符：英文子句用 `. `（两条独立约束），中文自定义用 `，`。
+    """
     cap = (caption or "").strip()
-    if not size or cap.startswith(size):
+    size = (size or "").strip()
+    if not size:
         return cap
-    return "%s，%s" % (size, cap)
+    out = SIZE_EN.get(size, size)
+    if not cap or cap.startswith((size, out)):
+        return cap or out
+    sep = ". " if re.fullmatch(r"[\x20-\x7e]+", out) else "，"
+    return out + sep + cap
 
 
 def compile_prompt(state):
@@ -404,6 +458,38 @@ def find_ignored_grid_fields(state):
     return out
 
 
+def find_size_conflicts(state):
+    """景别与描述**自己写的**可见范围打架 → `[{id, size, says, word}]`。
+
+    为什么只报警不改写（`docs/07` §三 2026-10-26 踩坑）：全局写"浅景深"、格内要
+    "大远景"时，模型最省事的解法是**退回中景** —— 也就是两处说法打架时它不选其一，
+    而是选中间。改写用户描述等于替他做导演，所以这里只出声。
+
+    判据：描述里出现明确的可见范围词，且与所选景别**相差 ≥ 2 档**才算打架
+    （相邻档本来就可能分不开，报了只是噪音）。
+    """
+    if not is_grid(state):
+        return []
+    out = []
+    for it in state.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        size = it.get("size")
+        cap = it.get("caption")
+        if size not in SIZES or not isinstance(cap, str) or not cap:
+            continue
+        idx = SIZES.index(size)
+        for pat, implied in _SIZE_WORDS:
+            m = pat.search(cap)
+            if not m:
+                continue
+            if abs(SIZES.index(implied) - idx) >= 2:
+                out.append({"id": it.get("id"), "size": size,
+                            "says": implied, "word": m.group(0)})
+                break
+    return out
+
+
 def _item_at(state):
     """id → 人话位置。原始 id（`e-8f2a1c3d`）用户看不出指的是谁，报"第几格/第几个"才能动手改。"""
     grid = is_grid(state)
@@ -443,13 +529,20 @@ def report(state):
         if not items:
             out.append("还没有分镜。在编辑器里新增一格，或换一个预设。")
             return "\n".join(out)
-        out.append("景别：%s" % " → ".join(s["size"] for s in items))
-        sizes = [s["size"] for s in items]
-        if len(items) >= 3 and len(set(sizes)) == 1:
+        out.append("景别：%s" % " → ".join(s["size"] or "—" for s in items))
+        sizes = [s["size"] for s in items if s["size"]]
+        if len(items) >= 3 and len(sizes) == len(items) and len(set(sizes)) == 1:
             out.append("⚠ %d 格景别全是「%s」：画面会雷同。把景别拉开到 3 档以上。"
                        % (len(items), sizes[0]))
         elif len(items) >= 3 and len(set(sizes)) == 2:
             out.append("· 景别只有 2 档，梯度偏平；建议 3 档以上。")
+        clash = find_size_conflicts(state)
+        if clash:
+            at = _item_at(state)
+            out.append("⚠ %d 格景别与描述打架：%s。两处说法冲突时模型常退回中景，改一处。"
+                       % (len(clash),
+                          "、".join("%s 选「%s」但写「%s」" % (at.get(c["id"], "?"), c["size"], c["word"])
+                                   for c in clash[:3])))
         ignored = find_ignored_grid_fields(state)
         if ignored:
             out.append("⚠ %d 个格位带有 label/text/palette：宫格模式只消费镜号/景别/描述，这些字段不参与提示词。"

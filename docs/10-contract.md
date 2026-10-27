@@ -45,7 +45,7 @@
 | `items[].palette` | list[str] | ❌ | ≤5 个；每项必须是 `#rrggbb` |
 | `items[].bbox` | list[4] | ✅ | 4 个实数，归一化 0–1；`x0<x1`、`y0<y1` |
 | `items[].no` | int | grid 必填 | 唯一 |
-| `items[].size` | str | grid 必填 | 八档景别之一 |
+| `items[].size` | str | grid 必填 | 八档是**预设**，可写自定义镜头语言（≤64 字）；空串 = 不注入 |
 
 **默认值**：单张空白画布 `1536×864`；宫格预设默认 `4×2`。
 **输入上限**：`editor_state` 字符串 ≤ 1,000,000 字符（防恶意工作流冻结宿主）。
@@ -65,6 +65,7 @@
 ```
 MossLayoutEditor
   输入  editor_state : STRING（第 0 个 widget，单行 JSON）
+        prompt       : STRING（可选，forceInput；接上则接管逐格描述，见 §六）
   输出  prompt      : STRING   → CLIPTextEncode.text（single）/ 采样器 positive（grid）
         width,height: INT      → 空 latent（single）
         spec         : STRING   → 采样器 spec（grid；single 为空串）
@@ -97,7 +98,9 @@ MossLayoutEditor
 
 ## 四、编译规则（摘要）
 
-- **grid**：`[STYLE] {style}` + 每格 `[PANEL n] {size}，{caption}`（按 `no` 升序）；
+- **grid**：`[STYLE] {style}` + 每格 `[PANEL n] {景别子句}. {caption}`（按 `no` 升序）。
+  八档映射成英文子句（`core/editor.py::SIZE_EN`，依据 MOSS USERGUIDE「默认推荐英文」）；
+  自定义景别原样输出（英文用 `. ` 分隔、中文用 `，`）；`size` 为空则只发 caption；
   几何只走 `core.layout.build_layout()`；`spec` 为 `MOSS-SB1 …`。
 - **spec 读入上限**（`core.layout.parse_spec`，防手改/恶意工作流）：≤4096 字符；单格边长 64..4096；
   `gutter`/`margin` 0..256；补边 0..15；`w`/`h` 必须等于按其余字段重算的结果，否则报「自相矛盾」。
@@ -112,6 +115,8 @@ MossLayoutEditor
 
 ---
 
+---
+
 ## 五、兼容性
 
 - **0.1.x 工作流**：`MossStoryboardSampler` 旧版只有 20 个 widget 值；当前节点在末尾追加了
@@ -120,3 +125,15 @@ MossLayoutEditor
 - **前端最低版本**：ComfyUI 前端 1.57.1（`addDOMWidget` + DOM/SVG 覆盖层）；
   Nodes 2.0 开关不影响 state 字段，编辑器在其下仍只读写 `editor_state`。
 - **不做网络/遥测/API key**：编辑器与编译器纯本地、零额外依赖。
+
+---
+
+## 六、外接提示词（可选输入 `prompt`）
+
+- 接线即接管：外部稿按 `[PANEL n]` 分段，第 i 段 → 第 i 格（按镜号排序）。
+- 段首写景别 ⇒ 用外接的；没写 ⇒ **该格景别清空（不注入）**——外接文本是唯一真相源。
+- 段数少于格数 ⇒ 后几格沿用编辑器；多于格数 ⇒ 尾部丢弃。**两种情况都写进 `report`**。
+- 无 `[PANEL n]` 标记 ⇒ 整段当全局描述。
+- 前端提示词区同一套解析（`parseStoryboard`），两边由 `tests/test_cross_language.py` 差分。
+
+---

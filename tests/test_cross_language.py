@@ -22,6 +22,7 @@ sys.path.insert(0, ROOT)
 
 from core import editor as E  # noqa: E402
 from core import interop as I  # noqa: E402
+from core import intake as IN  # noqa: E402
 from core import planner as PL  # noqa: E402
 from core import presets as P  # noqa: E402
 
@@ -50,7 +51,7 @@ import {
     PRESET_IDS, PRESET_SPECS, presetItems, validateState, readState, emptyState,
     DEFAULT_GRID, DEFAULT_CANVAS, ASPECT_IDS, MAX_ITEMS, MAX_SIDE, MAX_STATE_CHARS, CANVAS_PRESETS,
     elementsToState, stateToElements, ELEMENTS_VERSION,
-    compileFinalPrompt, findPlaceholders, findIgnoredGridFields,
+    compileFinalPrompt, findPlaceholders, findIgnoredGridFields, parseStoryboard,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
@@ -58,6 +59,7 @@ const fixtures = JSON.parse(readFileSync("./fixtures.json", "utf8"));
 const elements = JSON.parse(readFileSync("./elements.json", "utf8"));
 const states = JSON.parse(readFileSync("./states.json", "utf8"));
 const compiles = JSON.parse(readFileSync("./compiles.json", "utf8"));
+const texts = JSON.parse(readFileSync("./texts.json", "utf8"));
 const out = { presets: {}, grid: {}, empty: emptyState(), default_grid: DEFAULT_GRID,
               default_canvas: DEFAULT_CANVAS, aspects: ASPECT_IDS, max_items: MAX_ITEMS,
               max_side: MAX_SIDE, max_state_chars: MAX_STATE_CHARS, canvas_presets: CANVAS_PRESETS,
@@ -78,6 +80,8 @@ out.elements_version = ELEMENTS_VERSION;
 out.elements_states = elements.map((d) => elementsToState(d, { lang: "zh" }));
 out.elements_exports = out.elements_states.map((s) => stateToElements(s, "zh"));
 out.state_exports = states.map((s) => stateToElements(s, "zh"));
+// 外接稿反解析：同一段文本两侧必须切出同样的段数/景别/描述
+out.intake = texts.map((t) => parseStoryboard(t));
 out.read_canvas = [32, 4112].map((w) => {
     const r = readState(JSON.stringify({ version: 3, preset: "free", style: "",
                                          canvas: { width: w, height: 864 }, items: [] }));
@@ -87,7 +91,7 @@ console.log("__RESULT__" + JSON.stringify(out));
 """
 
 
-def run_js(fixtures, elements=None, states=None, compiles=None):
+def run_js(fixtures, elements=None, states=None, compiles=None, texts=None):
     node = find_node()
     if not node:
         return None
@@ -109,6 +113,8 @@ def run_js(fixtures, elements=None, states=None, compiles=None):
             json.dump(states or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "compiles.json"), "w", encoding="utf-8") as f:
             json.dump(compiles or [], f, ensure_ascii=False)
+        with open(os.path.join(tmp, "texts.json"), "w", encoding="utf-8") as f:
+            json.dump(texts or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "run.mjs"), "w", encoding="utf-8") as f:
             f.write(js_runner())
         r = subprocess.run([node, "run.mjs"], cwd=tmp, capture_output=True, text=True,
@@ -269,6 +275,18 @@ def compile_cases(states):
     ]
 
 
+INTAKE_TEXTS = [
+    "",
+    "只有一段全局描述，没有分段标记。",
+    "[STYLE] 雨夜咖啡店，暖黄吊灯\n\n[PANEL 1] 中景，她低头看杯子\n[PANEL 2] 特写，眼睛里有霓虹",
+    "[STYLE] x\n\n[PANEL 1] Medium shot, framed from the waist up. 她低头\n"
+    "[PANEL 2] Close-up, the face fills the frame. 眼睛",
+    "[STYLE] x\n[画面 2] 大远景，城市全景\n[分镜 1] 全景，街道",
+    "[PANEL 1] 从背后俯拍，人物在右下角\n[PANEL 2] 自定义镜位，斜切构图",
+    "[PANEL 1] 中近景\n[PANEL 2] 胸部以上，她侧身",
+]
+
+
 def main():
     node = find_node()
     if not node:
@@ -277,7 +295,7 @@ def main():
     docs = element_docs()
     states = random_states()
     cases = compile_cases(states)
-    data = run_js(fixtures(), docs, states, cases)
+    data = run_js(fixtures(), docs, states, cases, INTAKE_TEXTS)
     if data is None:
         print("JS runner 无结果")
         return 1
@@ -417,6 +435,24 @@ def main():
     for w, r in zip((32, 4112), read_canvas, strict=False):
         check(f"readState canvas width={w} → 修回默认",
               r.get("canvas") == E.empty_state()["canvas"] and r.get("warnings") == 0, str(r))
+
+    # 外接稿反解析：条数守恒 + 每段 style/景别/描述逐字段相同
+    js_intake = data.get("intake") or []
+    check("外接稿用例数量一致", len(js_intake) == len(INTAKE_TEXTS),
+          f"{len(js_intake)} vs {len(INTAKE_TEXTS)}")
+    bad_intake = None
+    for i, txt in enumerate(INTAKE_TEXTS):
+        if i >= len(js_intake):
+            break
+        py = IN.parse_storyboard(txt)
+        js = js_intake[i]
+        norm = {"style": js.get("style"), "panels": js.get("panels"),
+                "has_marks": js.get("hasMarks")}
+        if norm != py:
+            bad_intake = {"i": i, "py": py, "js": norm}
+            break
+    check("外接稿反解析一致", bad_intake is None,
+          json.dumps(bad_intake, ensure_ascii=False)[:700])
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:

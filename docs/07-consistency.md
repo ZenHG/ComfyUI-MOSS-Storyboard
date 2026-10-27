@@ -156,6 +156,40 @@ vision-only 参考图（`TextEncodeMOSSImageEdit` 不接 vae）**不能保持其
 
 ---
 
+## 三之二、景别：为什么 UI 中文、输出英文（2026-10-26）
+
+**依据（官方，不是我的审美）**：MOSS `USERGUIDE_ZH.md` 写「语言：默认推荐**英文**（训练量最多）」，
+构图示例是自然语言散文（`A wide view of a refrigerator ...`）；官方**没有**镜头术语表。
+所以「把 `中景` 当中文标签拼在最前面」两条都不符合规范。
+
+**做法**：八档仍是 UI 里的中文预设（导演词汇），但编译成英文**可见范围**子句：
+
+| 档位 | 输出 |
+|---|---|
+| 大远景 | `Extreme wide shot, the environment fills the frame and the figure is tiny` |
+| 全景 | `Full shot, the whole figure just fits the frame` |
+| 中景 | `Medium shot, framed from the waist up` |
+| 中近景 | `Medium close shot, framed from the chest up` |
+| 特写 | `Close-up, the face fills the frame` |
+
+自定义景别原样输出（英文用 `. ` 分隔、中文用 `，`）；`size` 清空则只发 caption。
+字段仍是**自由文本**（≤64 字），八档只是预设 —— 之前"必须八选一"是本包自造的局限，不是契约。
+
+**为什么"可见范围"比"术语"更值得赌**：术语只能靠模型自己解释（中景/中近景/近景三档它未必分得开），
+可见范围是**可检查**的约束 —— 人眼能判断"腰以上入画"有没有成立，机检也能用
+`shot_gradient`（人脸框面积占比）量。这条属于"把抽象标签换成可见选择"，与官方 skill
+「Describe visible choices」同向。
+
+**未验证（不当结论用）**：没有 A/B，所以**不声称英文一定更好**。可复跑判据：
+同 seed × 同 caption，只换景别表达（中文标签 / 英文术语 / 英文可见范围）三臂 × 3 seed，
+读 `tools/check_grid_consistency.py` 的 `shot_gradient` + 目检。⚠ `shot_gradient` 只在
+每格恰好一张脸时出数（§五 限制①），远景格会 n/a。
+
+**冲突报警**：`find_size_conflicts` 只出声不改数据 —— 描述里写「面部占满」却选了「大远景」时
+`report` 点名。理由见 §三 那条踩坑：两处说法打架时模型不选其一，而是**退回中景**。
+
+---
+
 ## 四、旋钮边界（本包提供什么、不提供什么）
 
 **提供**

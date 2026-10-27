@@ -317,6 +317,8 @@ Two modes, switched by preset:
 | Drag on empty space | Draw a new box (a new element) |
 | Drag a box / its corners | Move / resize |
 | Click a box | Edit type (object / character / text), description, coordinates on the right. In grid mode only **shot size + caption** are shown — type, text and palette are not compiled into a grid prompt |
+| Grid shot-size dropdown | The eight tiers are **presets**; pick Custom… to write your own framing, or Unspecified to send the caption alone. **The UI stays Chinese, the prompt emits an English framing clause** (MOSS is trained mostly on English) |
+| Final prompt box (below the canvas) | Paste an external storyboard script and hit **Apply** to parse `[PANEL n]` back into panels; **Revert** restores the compiled text. The wheel scrolls the text instead of zooming the graph |
 | Drag near another box's edge, the canvas centre line, or the rule-of-thirds lines | Snaps |
 | `Delete` / arrow keys / `Ctrl+D` | Delete / nudge / duplicate |
 | `Ctrl+Z` / `Ctrl+Shift+Z` (or `Ctrl+Y`) | Undo / redo (same as the `↶` `↷` toolbar buttons) |
@@ -433,7 +435,7 @@ Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** 
 | Gutter `gutter` / margin `margin` | 8 / 8 | used when `spec` is absent |
 | Steps `steps` | 50 | MOSS-Image-SFT model card value (the Base card gives the same 50). Set **4–8 only** with the 4-step distilled LoRA. Mixing bands does not raise an error, but results degrade (sometimes fully black) — see Known limits and the FAQ |
 | CFG `cfg` | 3.0 | MOSS-Image-SFT model card value (official Base range: 3–6). Only `>1` makes the negative prompt matter |
-| Sampler / scheduler | `euler` / `sgm_uniform` | `euler` is the model card sampler; `sgm_uniform` comes from the official OpenMOSS ComfyUI plugin workflow (the model card does not specify a scheduler) |
+| Sampler / scheduler | `euler` / `sgm_uniform` | `euler` is the model card sampler; `sgm_uniform` comes from the official OpenMOSS ComfyUI plugin workflow (the model card does not specify a scheduler). **The scheduler list is read from the host** (`comfy.samplers.SCHEDULER_NAMES`), so new host schedulers appear automatically |
 | Init mode `init` | `auto` | see below |
 | Denoise `denoise` | 1.0 | Keep 1.0. The sampler has **no image input**: below 1 references no image, it only makes the host truncate sigma by `int(steps/denoise)` (equivalent to fewer steps); `report` prints nominal vs. effective |
 | Redraw grid lines `reborder` | on | redraw grid lines after decode |

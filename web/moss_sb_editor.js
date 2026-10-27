@@ -122,6 +122,13 @@ export const STR = {
     palettePh: { zh: "#rrggbb，逗号分隔，最多 5 个", en: "#rrggbb, comma separated, up to 5" },
     bbox: { zh: "框（格内归一化）", en: "Box (normalized)" },
     size: { zh: "景别", en: "Shot size" },
+    sizeCustom: { zh: "自定义…", en: "Custom…" },
+    sizeNone: { zh: "不指定", en: "Unspecified" },
+    sizePh: { zh: "写自己的镜头语言（如：从背后俯拍，人物在右下角）", en: "Your own framing (e.g. high angle from behind, figure at lower right)" },
+    sizeNote: {
+        zh: "八档只是预设；提示词里统一输出英文构图子句（MOSS 语料以英文为主）",
+        en: "The eight presets are shortcuts only; prompts always emit English framing clauses (MOSS is English-dominant)",
+    },
     panelNo: { zh: "镜号", en: "Panel no." },
     del: { zh: "删除元素", en: "Delete item" },
     newItem: { zh: "主体", en: "Main subject" },
@@ -209,6 +216,16 @@ export const STR = {
     warnPhCaption: { zh: "描述仍是预设占位：写具体一点画面才不会雷同", en: "caption is still a placeholder: make it specific or the panels look alike" },
     promptTitle: { zh: "最终提示词（原样发给模型）", en: "Final prompt (sent to the model as-is)" },
     copyPrompt: { zh: "复制", en: "Copy" },
+    promptApply: { zh: "应用", en: "Apply" },
+    promptRevert: { zh: "还原", en: "Revert" },
+    promptApplyEmpty: { zh: "没有内容可应用", en: "Nothing to apply" },
+    promptApplyNoMark: { zh: "没找到 [PANEL n] 分段：只接管了全局描述", en: "No [PANEL n] segments found: only the global description was taken" },
+    promptApplied: { zh: "已按外接稿更新 {n} 格", en: "Updated {n} panels from the pasted script" },
+    promptDropped: { zh: "（多出 {n} 段被丢弃）", en: "({n} extra segments dropped)" },
+    extWired: {
+        zh: "描述来自外接提示词（prompt 已接线）：断开连线即可手编",
+        en: "Descriptions come from the wired prompt input; unplug it to edit by hand",
+    },
     copyOk: { zh: "已复制", en: "Copied" },
     copyFail: { zh: "复制失败，请手动选中", en: "Copy failed — select the text manually" },
     gridPromptHint: {
@@ -258,6 +275,22 @@ const SIZE_EN = {
     大远景: "Extreme wide", 远景: "Wide", 全景: "Full", 中景: "Medium",
     中近景: "Medium close", 近景: "Close", 特写: "Tight", 大特写: "Extreme close",
 };
+
+// 八档 → 提示词里的英文构图子句（= core/editor.py::SIZE_EN）。UI 显示中文，输出用英文。
+const SIZE_PROMPT = {
+    大远景: "Extreme wide shot, the environment fills the frame and the figure is tiny",
+    远景: "Wide shot, the full figure in frame with the setting around it",
+    全景: "Full shot, the whole figure just fits the frame",
+    中景: "Medium shot, framed from the waist up",
+    中近景: "Medium close shot, framed from the chest up",
+    近景: "Close shot, framed from the shoulders up",
+    特写: "Close-up, the face fills the frame",
+    大特写: "Extreme close-up, only the eyes or a single detail",
+};
+
+//: 景别下拉的两个特殊值：自定义 / 不指定。
+const SIZE_CUSTOM = "__custom__";
+const SIZE_MAX = 64;
 
 function uiLang() {
     try {
@@ -474,7 +507,10 @@ export function validateState(obj, lang = "zh") {
             if (!isInt(it.no)) add(E(`${w}.no 必须是整数`, `${w}.no must be an integer`));
             else if (nos.has(it.no)) add(E(`${w}.no 重复：${it.no}`, `${w}.no is duplicated: ${it.no}`));
             else nos.add(it.no);
-            if (!SIZES.includes(it.size)) add(E(`${w}.size 非法：${it.size}`, `${w}.size is invalid: ${it.size}`));
+            if (typeof it.size !== "string") add(E(`${w}.size 必须是字符串`, `${w}.size must be a string`));
+            else if (it.size.trim().length > SIZE_MAX) {
+                add(E(`${w}.size 超过 ${SIZE_MAX} 字`, `${w}.size exceeds ${SIZE_MAX} chars`));
+            }
         }
     });
     return { errors };
@@ -924,8 +960,12 @@ function cellBboxToCentered(bbox, width, height) {
 
 function sizePrefix(size, caption) {
     const cap = String(caption ?? "").trim();
-    if (!size || cap.startsWith(size)) return cap;
-    return `${size}，${cap}`;
+    const sz = String(size ?? "").trim();
+    if (!sz) return cap;
+    const out = SIZE_PROMPT[sz] ?? sz;
+    if (!cap || cap.startsWith(sz) || cap.startsWith(out)) return cap || out;
+    const sep = /^[\x20-\x7e]+$/.test(out) ? ". " : "，";
+    return out + sep + cap;
 }
 
 /** 宫格模式：`[STYLE]` + 逐格 `[PANEL n]`（n 连续 1..N，镜号只用于排序）。 */
@@ -963,6 +1003,80 @@ export function layoutJsonText(state) {
 
 export function compileFinalPrompt(state) {
     return isGridState(state) ? gridPromptText(state) : layoutJsonText(state);
+}
+
+// ---------------------------------------------------------------------------
+// 外接故事板稿 → 格位。规则与 `core/intake.py` 同源，改一边必须改另一边
+// （`tests/test_cross_language.py` 拿同一批样本文本差分）。
+// ---------------------------------------------------------------------------
+const SIZE_SEP = "，,、:： \t　";
+
+const SIZE_EN_PREFIX = Object.entries(SIZE_PROMPT)
+    .flatMap(([k, v]) => [[v, k], [v.split(",")[0], k]])
+    .sort((a, b) => b[0].length - a[0].length);
+
+function splitSize(cap) {
+    const s = String(cap ?? "").trim();
+    for (const size of SIZES) {
+        if (!s.startsWith(size)) continue;
+        const rest = s.slice(size.length);
+        if (!rest || SIZE_SEP.includes(rest[0])) {
+            return { size, caption: rest.replace(/^[，,、:：\s　]+/, "") };
+        }
+    }
+    const low = s.toLowerCase();
+    for (const [prefix, size] of SIZE_EN_PREFIX) {
+        if (!low.startsWith(prefix.toLowerCase())) continue;
+        const rest = s.slice(prefix.length);
+        if (!rest || ".。，,".includes(rest[0])) {
+            return { size, caption: rest.replace(/^[.。\s，,、:：　]+/, "") };
+        }
+    }
+    return { size: null, caption: s };
+}
+
+/** `[STYLE] … [PANEL n] …` → `{style, panels:[{no,size,caption}], hasMarks}`。 */
+export function parseStoryboard(text) {
+    const src = String(text ?? "").trim();
+    if (!src) return { style: "", panels: [], hasMarks: false };
+    const marks = [...src.matchAll(/\[\s*(?:PANEL|画面|分镜)\s*(\d+)\s*\]/gi)];
+    const stripGlobal = (s) => s.replace(/\[\s*(?:STYLE|GLOBAL|风格|全局)\s*\]/gi, "").trim();
+    if (!marks.length) return { style: stripGlobal(src), panels: [], hasMarks: false };
+    const style = stripGlobal(src.slice(0, marks[0].index));
+    const panels = marks.map((m, i) => {
+        const end = i + 1 < marks.length ? marks[i + 1].index : src.length;
+        const body = src.slice(m.index + m[0].length, end).replace(/\s*\n\s*/g, " ").trim();
+        const hit = splitSize(body);
+        return { no: Number(m[1]), size: hit.size, caption: hit.caption };
+    }).sort((a, b) => a.no - b.no);
+    return { style, panels, hasMarks: true };
+}
+
+/**
+ * 把外接稿叠到 state（不改入参）。返回 `{state, used, segments, panels, dropped, keptSize}`。
+ * 空段不覆盖；外接段写了景别才改景别，没写就沿用编辑器（v3 契约里 size 必填）。
+ */
+export function applyStoryboardText(state, text) {
+    const st = JSON.parse(JSON.stringify(state));
+    const parsed = parseStoryboard(text);
+    const out = { state: st, used: 0, segments: parsed.panels.length,
+        panels: st.items?.length || 0, dropped: 0, keptSize: 0, empty: false };
+    if (!parsed.style && !parsed.panels.length) { out.empty = true; return out; }
+    if (parsed.style) st.style = parsed.style;
+    if (st.preset !== "grid" || !parsed.panels.length) return out;
+    const items = (st.items || []).slice().sort((a, b) => (a.no || 0) - (b.no || 0));
+    const n = items.length, m = parsed.panels.length;
+    for (let i = 0; i < Math.min(n, m); i += 1) {
+        const cap = parsed.panels[i].caption;
+        if (!cap) continue;
+        items[i].caption = cap;
+        // 外接稿没写景别 ⇒ 这一格不注入（否则会和描述里的机位打架）
+        items[i].size = parsed.panels[i].size || "";
+        if (!parsed.panels[i].size) out.keptSize += 1;
+        out.used += 1;
+    }
+    out.dropped = Math.max(0, m - n);
+    return out;
 }
 
 // 预设占位文案（与 `core/editor.py::_PLACEHOLDER_*` 同一份清单）。
@@ -1116,7 +1230,10 @@ function ensureStyle() {
 .mossed-prompt[hidden]{display:none}
 .mossed-prompt-head{display:flex;align-items:center;gap:6px;font-size:10px;opacity:.75}
 .mossed-prompt-head span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mossed-prompt-pre{margin:0;max-height:58px;overflow:auto;padding:5px 7px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:10px;line-height:1.45;white-space:pre-wrap;word-break:break-all;user-select:text;cursor:text}
+.mossed-root textarea.mossed-prompt-text{margin:0;width:100%;box-sizing:border-box;height:150px;min-height:110px;max-height:46vh;resize:vertical;overflow:auto;overscroll-behavior:contain;padding:6px 8px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.mossed-root textarea.mossed-prompt-text[readonly]{opacity:.85}
+.mossed-root input.mossed-sizein{flex:1 1 140px;min-width:120px}
+.mossed-extnote{color:#8fd0ff;opacity:1}
 .mossed-prompt-note{font-size:10px;opacity:.6;line-height:1.4}
 `;
         (document.head || document.documentElement).appendChild(st);
@@ -1136,12 +1253,36 @@ function s(tag, attrs) {
     return el;
 }
 
+/** 从事件目标往上找第一个可纵向滚动的祖先（最终提示词 / 属性面板）。 */
+function scrollableFrom(node) {
+    let n = node instanceof Element ? node : null;
+    while (n && n !== document.body) {
+        if (n.scrollHeight > n.clientHeight + 1) {
+            const oy = getComputedStyle(n).overflowY;
+            if (oy === "auto" || oy === "scroll") return n;
+        }
+        n = n.parentElement;
+    }
+    return null;
+}
+
 function mountRoot() {
     const root = h("div", "mossed-root");
     // 编辑器吃掉指针/滚轮事件：否则拖框会拖动整个节点、滚文本会缩放画布
-    for (const ev of ["pointerdown", "mousedown", "dblclick", "click", "keydown", "wheel"]) {
+    for (const ev of ["pointerdown", "mousedown", "dblclick", "click", "keydown"]) {
         root.addEventListener(ev, (e) => e.stopPropagation());
     }
+    // 滚轮单独处理：宿主把 wheel 当画布缩放，节点内必须先截住；
+    // 可滚动区域（最终提示词 / 属性面板）自己滚，滚到头也不外泄。
+    root.addEventListener("wheel", (e) => {
+        e.stopPropagation();
+        const sc = scrollableFrom(e.target);
+        if (!sc) return;
+        const step = e.deltaMode === 1 ? 16 : 1;
+        sc.scrollTop += e.deltaY * step;
+        sc.scrollLeft += e.deltaX * step;
+        e.preventDefault();
+    }, { passive: false });
     return root;
 }
 
@@ -1403,8 +1544,21 @@ function buildUI() {
         op.value = v;
         sizeSel.appendChild(op);
     }
+    // 八档只是预设：允许自定义（写自己的镜头语言）/ 不指定（构图全交给描述）
+    const sizeCustomOp = h("option", null, t("sizeCustom"));
+    sizeCustomOp.value = SIZE_CUSTOM;
+    sizeSel.appendChild(sizeCustomOp);
+    const sizeNoneOp = h("option", null, t("sizeNone"));
+    sizeNoneOp.value = "";
+    sizeSel.appendChild(sizeNoneOp);
+    const sizeIn = h("input", "mossed-text mossed-sizein");
+    sizeIn.type = "text";
+    sizeIn.maxLength = SIZE_MAX;
+    sizeIn.placeholder = t("sizePh");
+    sizeIn.hidden = true;
     const noChip = h("span", "mossed-chip", "");
     gridOnly.appendChild(field(t("size"), sizeSel));
+    gridOnly.appendChild(sizeIn);
     gridOnly.appendChild(noChip);
     form.appendChild(gridOnly);
 
@@ -1417,21 +1571,28 @@ function buildUI() {
 
     panel.appendChild(form);
 
-    // ---- 最终提示词（只读预览） ---------------------------------------
+    // ---- 最终提示词（可直接编辑 / 粘贴外接稿） --------------------------
     const promptBox = h("div", "mossed-prompt");
     promptBox.hidden = true;
     const promptHead = h("div", "mossed-prompt-head");
     const promptTitle = h("span", null, t("promptTitle"));
     const copyBtn = h("button", "mossed-btn", t("copyPrompt"));
     copyBtn.type = "button";
-    promptHead.appendChild(promptTitle);
-    promptHead.appendChild(copyBtn);
+    const applyPromptBtn = h("button", "mossed-btn mossed-primary", t("promptApply"));
+    applyPromptBtn.type = "button";
+    const revertPromptBtn = h("button", "mossed-btn", t("promptRevert"));
+    revertPromptBtn.type = "button";
+    promptHead.append(promptTitle, applyPromptBtn, revertPromptBtn, copyBtn);
+    const extNote = h("div", "mossed-prompt-note mossed-extnote", "");
+    extNote.hidden = true;
     const promptNote = h("div", "mossed-prompt-note", "");
     promptNote.hidden = true;
-    const promptPre = h("pre", "mossed-prompt-pre");
-    promptBox.appendChild(promptHead);
-    promptBox.appendChild(promptNote);
-    promptBox.appendChild(promptPre);
+    const promptTa = h("textarea", "mossed-prompt-text");
+    promptTa.spellcheck = false;
+    promptTa.rows = 6;
+    // 宿主若按属性判断是否接管滚轮，这个标记让它别抢
+    promptBox.setAttribute("data-capture-wheel", "false");
+    promptBox.append(promptHead, extNote, promptNote, promptTa);
     // 挂 root 而非属性面板：面板只有 218px 且自带滚动，塞进去就看不见（实测被挤到框外）
     root.appendChild(promptBox);
     root.appendChild(panel);
@@ -1439,7 +1600,9 @@ function buildUI() {
     return {
         root, bar, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
         importBtn, exportBtn, queueBtn, fileIn, notice,
-        gridNote, promptBox, promptTitle, promptNote, promptPre, copyBtn, labelField,
+        gridNote, promptBox, promptTitle, promptNote, promptTa, extNote, copyBtn,
+        applyPromptBtn, revertPromptBtn, promptDirty: false,
+        labelField,
         paletteRow, orderRow, alignRow,
         gridRow, colsIn, rowsIn, aspectSel, gridAdvBtn, gridAdvRow, edgeIn, gutterIn, marginIn,
         canvasRow, canvasPresetSel, wIn, hIn, aspectChip,
@@ -1447,7 +1610,7 @@ function buildUI() {
         fatalBox: fatal, status, panel,
         empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, capTa, textRow, textIn,
         palIn, swatches, boxRow, bx, centerBtn, upBtn, downBtn, alignBtns,
-        gridOnly, sizeSel, noChip, warn,
+        gridOnly, sizeSel, sizeIn, sizeCustomOp, sizeNoneOp, noChip, warn,
     };
 }
 
@@ -1687,7 +1850,12 @@ function syncStatic(ui) {
     const L = (v) => pick(v, lang);
     for (const op of ui.presetSel.options) op.textContent = L(PRESET_SPECS[op.value].label);
     for (const op of ui.labelSel.options) op.textContent = labelText(op.value);
-    for (const op of ui.sizeSel.options) op.textContent = sizeText(op.value);
+    for (const op of ui.sizeSel.options) {
+        if (SIZES.includes(op.value)) op.textContent = sizeText(op.value);
+    }
+    ui.sizeCustomOp.textContent = t("sizeCustom");
+    ui.sizeNoneOp.textContent = t("sizeNone");
+    ui.sizeIn.placeholder = t("sizePh");
 
     ui.applyBtn.textContent = t("apply");
     ui.applyBtn.title = t("apply");
@@ -1720,6 +1888,10 @@ function syncStatic(ui) {
     ui.palIn.placeholder = t("palettePh");
     ui.copyBtn.textContent = t("copyPrompt");
     ui.copyBtn.title = t("copyPrompt");
+    ui.applyPromptBtn.textContent = t("promptApply");
+    ui.applyPromptBtn.title = t("promptApply");
+    ui.revertPromptBtn.textContent = t("promptRevert");
+    ui.revertPromptBtn.title = t("promptRevert");
     ui.promptTitle.textContent = t("promptTitle");
 
     const helpTitle = ui.helpBox.querySelector(".mossed-help-title");
@@ -1871,7 +2043,11 @@ function syncPanel(ui, force) {
     ui.gridNote.hidden = !isGrid;
     ui.capTa.placeholder = t(isGrid ? "captionPhGrid" : "captionPh");
     if (isGrid) {
-        if (force || document.activeElement !== ui.sizeSel) ui.sizeSel.value = SIZES.includes(it.size) ? it.size : SIZES[3];
+        const known = SIZES.includes(it.size);
+        const want = !it.size ? "" : (known ? it.size : SIZE_CUSTOM);
+        if (force || document.activeElement !== ui.sizeSel) ui.sizeSel.value = want;
+        ui.sizeIn.hidden = ui.sizeSel.value !== SIZE_CUSTOM;
+        if (force || document.activeElement !== ui.sizeIn) ui.sizeIn.value = known ? "" : (it.size || "");
         const ignored = findIgnoredGridFields({ preset: "grid", items: [it] })[0]?.fields || [];
         ui.gridNote.textContent = t("gridOnlyNote")
             + (ignored.length ? t("gridIgnored").replace("{f}", ignored.join(" / ")) : "");
@@ -1896,8 +2072,13 @@ function syncPanel(ui, force) {
     ui.warn.textContent = warns.join("；");
 }
 
-/** 只读预览：当前 state 编出来、真正发给模型的那段文本。 */
-function syncPrompt(ui) {
+/** 外接提示词是否接线（`prompt` 输入有 link）。 */
+function externalWired(ui) {
+    const inp = (ui.node?.inputs || []).find((i) => i && i.name === "prompt");
+    return !!(inp && inp.link != null);
+}
+
+function syncPrompt(ui, force) {
     if (!ui.promptBox) return;
     const st = ui.state;
     const items = st?.items || [];
@@ -1905,12 +2086,24 @@ function syncPrompt(ui) {
         ui.promptBox.hidden = true;
         return;
     }
+    const isGrid = st.preset === "grid";
     ui.promptBox.hidden = false;
     ui.promptTitle.textContent = t("promptTitle");
-    ui.promptNote.hidden = st.preset !== "grid";
+    ui.promptNote.hidden = !isGrid;
     ui.promptNote.textContent = t("gridPromptHint");
+    // 单张模式的最终提示词是布局 JSON：手改不如直接改框，这里只读
+    ui.promptTa.readOnly = !isGrid;
+    ui.applyPromptBtn.hidden = !isGrid;
+    ui.revertPromptBtn.hidden = !isGrid;
     const text = compileFinalPrompt(st);
-    if (ui.promptPre.textContent !== text) ui.promptPre.textContent = text;
+    if ((force || !ui.promptDirty) && ui.promptTa.value !== text) ui.promptTa.value = text;
+    ui.applyPromptBtn.disabled = !ui.promptDirty;
+    ui.revertPromptBtn.disabled = !ui.promptDirty;
+    const wired = externalWired(ui);
+    ui.extNote.hidden = !wired;
+    if (wired) ui.extNote.textContent = t("extWired");
+    ui.capTa.readOnly = wired;
+    ui.capTa.title = wired ? t("extWired") : "";
 }
 
 function renderSwatches(ui, it) {
@@ -2570,7 +2763,7 @@ function wire(ui) {
     });
     ui.copyBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        const text = ui.promptPre?.textContent || "";
+        const text = ui.promptTa?.value || "";
         if (!text) return;
         let ok = false;
         try {
@@ -2588,6 +2781,38 @@ function wire(ui) {
             } catch (e2) { /* 剪贴板不可用：文本仍可手选 */ }
         }
         flash(ui, ok ? t("copyOk") : t("copyFail"), !ok);
+    });
+
+    // 提示词区：可直接粘贴外部稿，点「应用」反解析回格位（不直接改提示词，state 仍是唯一真相源）
+    ui.promptTa.addEventListener("input", () => {
+        if (!ui.promptDirty) {
+            ui.promptDirty = true;
+            ui.applyPromptBtn.disabled = false;
+            ui.revertPromptBtn.disabled = false;
+        }
+    });
+    ui.revertPromptBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        ui.promptDirty = false;
+        syncPrompt(ui, true);
+    });
+    ui.applyPromptBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!ui.state || ui.state.preset !== "grid") return;
+        const res = applyStoryboardText(ui.state, ui.promptTa.value);
+        if (res.empty) { flash(ui, t("promptApplyEmpty"), true); return; }
+        if (!res.used) {
+            flash(ui, t("promptApplyNoMark"), true);
+            return;
+        }
+        ui.state = res.state;
+        ui.promptDirty = false;
+        commit(ui, "prompt-apply");
+        syncPanel(ui, true);
+        syncStatic(ui);
+        let msg = t("promptApplied").replace("{n}", String(res.used));
+        if (res.dropped) msg += " " + t("promptDropped").replace("{n}", String(res.dropped));
+        flash(ui, msg, !!res.dropped);
     });
 
     ui.helpBtn.addEventListener("click", (e) => {
@@ -2705,9 +2930,24 @@ function wire(ui) {
     ui.sizeSel.addEventListener("change", () => {
         const it = selectedItem(ui);
         if (!it) return;
-        it.size = ui.sizeSel.value;
+        const v = ui.sizeSel.value;
+        if (v === SIZE_CUSTOM) {
+            // 自定义先留空让用户写，别把上一个档位的中文塞进去
+            it.size = ui.sizeIn.value.trim();
+            ui.sizeIn.hidden = false;
+            ui.sizeIn.focus();
+        } else {
+            it.size = v;
+            ui.sizeIn.hidden = true;
+        }
         commit(ui);
         syncPanel(ui, true);
+    });
+    ui.sizeIn.addEventListener("input", () => {
+        const it = selectedItem(ui);
+        if (!it) return;
+        it.size = ui.sizeIn.value.trim();
+        commit(ui);
     });
     ui.delBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteSelected(ui); });
     ui.undoBtn.addEventListener("click", (e) => { e.stopPropagation(); stepUndo(ui, -1); });
@@ -2801,6 +3041,13 @@ function mount(node) {
     node.onConfigure = function onConfigure() {
         const r = origConfigure?.apply(this, arguments);
         try { loadFromWidget(ui, true); syncStatic(ui); } catch (e) { /* 单节点失败 */ }
+        return r;
+    };
+    // 接/拔外接提示词时要立刻改提示语与只读态，不能等下一次 commit
+    const origConn = node.onConnectionsChange;
+    node.onConnectionsChange = function onConnectionsChange() {
+        const r = origConn?.apply(this, arguments);
+        try { syncPrompt(ui); } catch (e) { /* 老前端没有该事件 */ }
         return r;
     };
     return true;
