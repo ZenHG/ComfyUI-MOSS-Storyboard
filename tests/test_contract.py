@@ -383,6 +383,27 @@ def test_bounds(V1):
     check("三处 shave 上限一致（裁多少就贴回多少）", len(set(shaves)) == 1, str(shaves))
 
 
+def test_char_boxes(V1):
+    """`char_boxes` 用 **1 起**的编号挑人物格；默认空串必须逐字节不改输出。
+
+    编号从 1 起是宿主的约定（`MOSSImageLayoutPrompt`），而 `items[i]` 的编号是 `i+1` ——
+    差一就会把空镜标成主角，且只体现在画面里，不报错。
+    """
+    import json as _json
+
+    cls = V1.NODE_CLASS_MAPPINGS["MossStoryboardLayout"]
+    base = {"prompt": "[STYLE] x\n[PANEL 1] a\n[PANEL 2] b", "panels": 2, "panel_aspect": "16:9",
+            "panel_edge": 512, "canvas_aspect": "auto", "columns": 0, "rows": 0, "gutter": 8,
+            "margin": 8, "cell_gray": 25, "invert": False, "label": "object"}
+
+    def labels(offset=""):
+        return [i["label"] for i in _json.loads(cls().build(**base, char_boxes=offset)[5])["items"]]
+
+    check("char_boxes 空串与不传逐字节一致", cls().build(**base)[5] == cls().build(**base, char_boxes="")[5])
+    check("char_boxes=2 只把第 2 格标成人物", labels("2") == ["object", "character"], str(labels("2")))
+    check("char_boxes 编号从 1 起（1 = 第一格）", labels("1")[0] == "character", str(labels("1")))
+
+
 def test_return_tuples(V1):
     """每个 `return (...)` 的元素数 == `RETURN_NAMES` 长度。
 
@@ -539,6 +560,7 @@ def main():
         test_inputs(cls)
     test_scheduler(V1)
     test_bounds(V1)
+    test_char_boxes(V1)
 
     print("\n== 2. 错误路径（中文可操作报错）==")
     test_errors(V1)

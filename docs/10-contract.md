@@ -78,6 +78,9 @@ MossLayoutEditor
 - 单张模式不需要故事板采样器：`prompt` 已是 layout JSON，直接接 `CLIPTextEncode`；
   `width/height` 接空 latent 的宽高；后接普通 `KSampler`。
 - 宫格模式接 `MossStoryboardSampler`：`prompt → positive`，`spec → spec`。
+- `MossStoryboardLayout.char_boxes`（可选 widget）：逗号分隔、**编号从 1 起**（如 `1, 3`，
+  与宿主 `MOSSImageLayoutPrompt` 一致），命中的格 `label` 变 `character`，其余用 `label`。
+  默认空串 ⇒ 输出逐字节不变；只有它挂在 widget 末尾，追加不影响旧工作流。
 - `MossStoryboardSampler.latent`：**逐格模式返回 N 个单格 latent 的 batch**
   （`[N,C,h,w]`，行主序 = 格号 1..N），整张模式返回整张画布 latent。
   两者都不是拼版（拼版在 `grid` 输出里），`VAEDecode` 按 batch 逐张解码。
