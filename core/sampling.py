@@ -164,6 +164,17 @@ def sample(model, positive, negative, latent, steps, cfg, sampler_name, schedule
     return {"samples": samples}
 
 
+def stack_latents(outs):
+    """把每格的 `{"samples": …}` 拼成**一个** `[N, C, h, w]`。
+
+    ⚠ N 是 batch（行主序 = 格号 1..N），**不是空间拼版**：拼版归 `core.pixels`，
+    两件事分开才不会互相绑架。宿主没有列表输出（全仓无 `OUTPUT_IS_LIST`，V3 也不
+    映射），交 Python list 出去下游会静默坏掉，所以在这里一次 cat 死。
+    """
+    import torch
+    return torch.cat([as_tensor(o) for o in outs], dim=0)
+
+
 def decode(vae, latent):
     return vae.decode(as_tensor(latent))
 

@@ -16,6 +16,7 @@ import torch  # noqa: E402  (路径先插入，再导入)
 
 from core import layout as L  # noqa: E402
 from core import pixels as P  # noqa: E402
+from core import sampling as S  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -40,6 +41,12 @@ def main():
     check("reborder=False 不画线（border_px=4）", float(off4.max()) < 0.21, float(off4.max()))
     check("panels 裁切尺寸", tuple(crops_on.shape) == (4, lay.panel_h, lay.panel_w, 3),
           tuple(crops_on.shape))
+
+    # 逐格 latent：拼成 batch，不是空间拼版（形状上是 N 叠第 0 维，空间维不变）
+    lat = S.stack_latents([{"samples": torch.zeros(1, 4, 8, 8)} for _ in range(3)])
+    check("latent 拼成 batch 而非拼版", tuple(lat.shape) == (3, 4, 8, 8), tuple(lat.shape))
+    check("latent 第 0 维 = 格数", lat.shape[0] == 3, lat.shape[0])
+    check("latent 空间维不被拼版放大", tuple(lat.shape[-2:]) == (8, 8), tuple(lat.shape[-2:]))
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     return 1 if FAIL else 0
