@@ -165,14 +165,20 @@ def sample(model, positive, negative, latent, steps, cfg, sampler_name, schedule
 
 
 def stack_latents(outs):
-    """把每格的 `{"samples": …}` 拼成**一个** `[N, C, h, w]`。
+    """把每格的 `{"samples": …}` 拼成**一个** `{"samples": [N, C, h, w]}`。
 
-    ⚠ N 是 batch（行主序 = 格号 1..N），**不是空间拼版**：拼版归 `core.pixels`，
-    两件事分开才不会互相绑架。宿主没有列表输出（全仓无 `OUTPUT_IS_LIST`，V3 也不
-    映射），交 Python list 出去下游会静默坏掉，所以在这里一次 cat 死。
+    ⚠ 两件容易搞错的事在这里钉死：
+    - 回 **LATENT 字典**，不是裸张量 —— 宿主 `VAEDecode` 取的是 `samples["samples"]`，
+      交张量出去只会得到一句 TypeError；
+    - N 是 **batch**（行主序 = 格号 1..N），**不是空间拼版**。拼版归 `core.pixels`。
+    宿主也没有列表输出（全仓无 `OUTPUT_IS_LIST`，V3 不映射），所以只能 cat 成一个张量。
     """
     import torch
-    return torch.cat([as_tensor(o) for o in outs], dim=0)
+    ts = [as_tensor(o) for o in outs]
+    if not ts or ts[0].ndim != 4 or len({tuple(t.shape[1:]) for t in ts}) != 1:
+        raise ValueError("每格 latent 必须是同形状的 [1,C,h,w]（收到 %s）"
+                         % [tuple(t.shape) for t in ts])
+    return {"samples": torch.cat(ts, dim=0)}
 
 
 def decode(vae, latent):

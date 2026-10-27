@@ -690,12 +690,13 @@ class MossStoryboardSampler:
             shots_t, lay, reborder=reborder, border_px=border_px, shave=shave)
 
         # latent 每格各一个，拼成 batch 而不是拼版：拼版没有画质意义，拼了还得再切回来。
-        # 外层没有列表输出（宿主 V3 不支持），所以必须在这里 cat 成单个张量。
+        # 回的是 LATENT 字典，宿主 VAEDecode 取的是 samples["samples"]。
         latent_batch = S.stack_latents(latents)
 
         report = "\n".join([
             "latent：%d 个单格 latent 的 batch（行主序 = 格号 1..%d，**不是拼版**）%s"
-            % (lay.panels, lay.panels, "×".join(str(v) for v in latent_batch.shape)),
+            % (lay.panels, lay.panels,
+               "×".join(str(v) for v in latent_batch["samples"].shape)),
             "几何来源：%s" % geom_src,
             "逐格生成：%d 格各自独立采样后拼版" % lay.panels,
             "单格画布 %d × %d（%.2fMP）｜整张 %d × %d（%.2fMP）"

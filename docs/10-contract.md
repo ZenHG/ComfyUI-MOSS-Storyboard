@@ -81,7 +81,8 @@ MossLayoutEditor
 - `MossStoryboardSampler.latent`：**逐格模式返回 N 个单格 latent 的 batch**
   （`[N,C,h,w]`，行主序 = 格号 1..N），整张模式返回整张画布 latent。
   两者都不是拼版（拼版在 `grid` 输出里），`VAEDecode` 按 batch 逐张解码。
-  返回单个张量而非 list：宿主 V3 不提供列表输出，交 list 出去下游会静默坏掉。
+  形态是 LATENT 字典 `{"samples": [N,C,h,w]}`——宿主 `VAEDecode` 取的就是这个键，
+  所以不能回裸张量；也不能回 list（V3 没有列表输出，下游会静默坏）。
 
 ---
 
