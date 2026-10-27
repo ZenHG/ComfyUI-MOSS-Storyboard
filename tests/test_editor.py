@@ -139,9 +139,15 @@ msg = raises(E.parse_state, dump(bad))
 check("镜号重复报错", msg and "镜号" in msg, msg)
 
 bad = grid_state()
-bad["items"][0]["size"] = "超特写"
+bad["items"][0]["size"] = "x" * (E.SIZE_MAX + 1)
 msg = raises(E.parse_state, dump(bad))
-check("非法景别报错", msg and "景别" in msg, msg)
+check("景别超长报错", msg and "景别" in msg, msg)
+
+# 自定义景别是合法输入（八档只是预设），原样进提示词
+custom = grid_state()
+custom["items"][0]["size"] = "从背后俯拍"
+check("自定义景别通过校验",
+      E.parse_state(dump(custom))["items"][0]["size"] == "从背后俯拍")
 
 bad = single_state()
 bad["items"][1]["id"] = bad["items"][0]["id"]
@@ -235,7 +241,8 @@ lines = [ln for ln in p.split("\n") if ln.strip()]
 check("首行 [STYLE]", lines[0].startswith("[STYLE] "), lines[0])
 check("段落数 = 1 + 格数", len(lines) == 5, str(len(lines)))
 check("PANEL 编号连续", all(lines[i].startswith("[PANEL %d] " % i) for i in range(1, 5)))
-check("景别拼进 caption", lines[1].startswith("[PANEL 1] 中景，"), lines[1])
+check("景别拼进 caption（英文子句）",
+      lines[1].startswith("[PANEL 1] " + E.SIZE_EN["中景"] + ". "), lines[1])
 
 lay = E.geometry(s)
 ref = L.build_layout(panels=4, cols=2, rows=2, gutter=8, margin=8,
@@ -470,6 +477,61 @@ check("宫格 report 说明这些字段不进提示词",
 check("空 items / 脏输入不崩",
       E.find_placeholders({}) == [] and E.find_ignored_grid_fields({}) == []
       and len(E.find_placeholders({"items": [None, {"caption": 3}, {"id": "q"}]})) == 0)
+
+
+print("\n== 11. 外接提示词 ==")
+from core import intake as IN  # noqa: E402
+
+g = E.parse_state(dump(grid_state()))
+ext = ("[STYLE] 雨夜咖啡店\n\n[PANEL 1] 特写，眼睛里有霓虹\n"
+       "[PANEL 2] 全景，街道全貌\n[PANEL 3] 近景，手在抖\n[PANEL 4] 大特写，杯沿")
+st2, notes = IN.apply_to_state(g, ext)
+caps = {it["no"]: (it["size"], it["caption"]) for it in st2["items"]}
+check("外接稿接管逐格描述", caps[1] == ("特写", "眼睛里有霓虹"), str(caps[1]))
+check("外接稿接管景别", caps[2] == ("全景", "街道全貌"), str(caps[2]))
+check("外接稿接管全局描述", st2["style"] == "雨夜咖啡店", st2["style"])
+check("外接稿不改入参", g["style"] == "雨夜咖啡店，湿街反光。"
+      and g["items"][0]["caption"] == "苏晚坐在窗边", g["items"][0]["caption"])
+check("外接稿 notes 出声", any("4" in n for n in notes), str(notes))
+
+# 段数少于格数：前 K 格接管，其余沿用编辑器
+few = "[STYLE] s\n\n[PANEL 1] 中景，只有一格"
+st3, notes3 = IN.apply_to_state(g, few)
+check("段数少于格数：只接管前 1 格",
+      st3["items"][0]["caption"] == "只有一格" and st3["items"][1]["caption"] == "苏晚抬眼看镜头",
+      str([it["caption"] for it in st3["items"]]))
+check("段数少于格数：notes 说明", any("沿用" in n for n in notes3), str(notes3))
+
+# 段数多于格数：尾部丢弃并出声
+many = "[STYLE] s\n" + "\n".join("[PANEL %d] 近景，第 %d 段" % (i, i) for i in range(1, 7))
+st4, notes4 = IN.apply_to_state(g, many)
+check("段数多于格数：尾部丢弃并出声", any("丢弃" in n for n in notes4), str(notes4))
+
+# 没写景别 ⇒ 沿用编辑器（v3 契约里 size 必填，不能清空）
+nz = "[STYLE] s\n\n[PANEL 1] 只写描述不写景别"
+st5, notes5 = IN.apply_to_state(g, nz)
+check("外接稿没写景别 ⇒ 不注入（不拿编辑器景别拼回去）",
+      st5["items"][0]["size"] == "", repr(st5["items"][0]["size"]))
+
+# 无标记：只接管全局
+nm = "一段没有分段的全局描述"
+st6, notes6 = IN.apply_to_state(g, nm)
+check("无 [PANEL] 标记 ⇒ 只接管全局",
+      st6["style"] == nm and st6["items"][0]["caption"] == "苏晚坐在窗边", st6["style"])
+check("无标记 notes 说明", any("没有" in n for n in notes6), str(notes6))
+check("空外接稿不动 state", IN.apply_to_state(g, "   ")[0]["style"] == g["style"])
+
+print("\n== 12. 景别与描述打架（只报警） ==")
+clash = grid_state()
+clash["items"][0]["size"] = "大远景"
+clash["items"][0]["caption"] = "她面部占满画面，眼里有泪"
+found = E.find_size_conflicts(E.parse_state(dump(clash)))
+check("景别与描述冲突被点名", len(found) == 1 and found[0]["says"] == "特写", str(found))
+check("冲突写进 report", "打架" in E.report(E.parse_state(dump(clash))),
+      E.report(E.parse_state(dump(clash))))
+clash["items"][0]["size"] = "特写"
+check("相邻档不误报", E.find_size_conflicts(E.parse_state(dump(clash))) == [],
+      str(E.find_size_conflicts(E.parse_state(dump(clash)))))
 
 print("\n结果：通过 %d / 失败 %d" % (_ok, len(_bad)))
 if _bad:

@@ -182,6 +182,14 @@ export const TIPS = {
             + "Edit it on the node's canvas; this field updates itself.\n"
             + "Hand-editing works but the JSON must match schema v3, otherwise the node raises.",
     },
+    "MossLayoutEditor.prompt": {
+        en: "[Wire in, optional] External storyboard script: [STYLE] global description,\n"
+            + "then one [PANEL n] description per panel.\n"
+            + "Wired in, it takes over the per-panel descriptions (the editor's narrow boxes go read-only);\n"
+            + "unplug it to edit by hand again.\n"
+            + "A leading shot size (e.g. \"Medium shot, ...\") is used from the wire; if absent that panel gets no size clause.\n"
+            + "Segment/panel count mismatches and dropped trailing segments are written to report, never silently.",
+    },
     // ===== 宫格几何 =====
     "MossStoryboardLayout.prompt": {
         en: "[What to enter] Leave this empty. The storyboard script belongs in the Generate node.\n"

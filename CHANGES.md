@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### 调度器与宿主同源
+- `MossStoryboardSampler.scheduler` 的候选**改为读宿主** `comfy.samplers.SCHEDULER_NAMES`，
+  不再手写七项（漏了 `linear_quadratic` / `kl_optimal`）。宿主不可导入时回落到九项冻结清单。
+  判据 `tests/test_contract.py::test_scheduler` 直接问宿主，避免再漏。
+
+### 外接提示词（描述不再挤在窄框里）
+- `MossLayoutEditor` 新增可选输入 `prompt`（`forceInput`）：接上就接管逐格描述，
+  编辑器里的描述框变只读；断开恢复手编。解析在 `core/intake.py`，规则写进
+  `docs/10-contract.md` §六（段数不符写进 `report`；段首没写景别 ⇒ 该格不注入，不拿编辑器景别拼回去）。
+- 编辑器画布下方的「最终提示词」改为**可编辑文本框**（150px、可拖高）：粘贴外部故事板稿后点
+  **应用**按 `[PANEL n]` 反解析回格位，**还原**回到编译结果。前端 `parseStoryboard` 与
+  `core/intake.py` 同规则，`tests/test_cross_language.py` 用 7 段样本文本差分。
+
+### 景别：UI 中文、输出英文、可自定义
+- 八档仍是预设，但 `size` 现在是自由文本（≤64 字）：下拉新增「自定义…」与「不指定」。
+- 提示词里八档映射成**英文构图子句**（`SIZE_EN`，依据 MOSS USERGUIDE「默认推荐英文」），
+  例：`中景` → `Medium shot, framed from the waist up.`；自定义文本原样输出。
+- 新增只报警不改数据的冲突检测 `find_size_conflicts`：描述里自带「面部占满」却选了「大远景」时，
+  `report` 点名（两处说法打架时模型常退回中景）。
+- ⚠ 旧工作流重跑画面会变（景别从中文标签变英文子句）；state 存档格式未变。
+
+### 滚轮不再缩放画布
+- 最终提示词 / 属性面板内的滚轮先由编辑器处理：可滚动区域自己滚，滚到头也不外泄给画布缩放。
+
+
 ### 新增
 - **第六个节点 `MossPromptCompiler`（提示词 · 草稿编译，零模型）**：桥接 OpenMOSS 官方
   [MOSS-Image Prompt Enhancer skill](https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer)。

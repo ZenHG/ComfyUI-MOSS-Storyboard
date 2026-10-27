@@ -223,7 +223,10 @@ try {
                 sizeVisible: !!root?.querySelector(".mossed-size")?.getClientRects().length,
                 noteHidden: hid(".mossed-gridnote"),
                 note: root?.querySelector(".mossed-gridnote")?.textContent || "",
-                prompt: root?.querySelector(".mossed-prompt-pre")?.textContent || "",
+                prompt: (() => {
+                    const el = root?.querySelector(".mossed-prompt-text");
+                    return el ? (el.value ?? el.textContent ?? "") : "";
+                })(),
                 status: root?.querySelector(".mossed-status")?.textContent || "",
                 promptVisible: !!pr && !!rr && pr.top >= rr.top - 1 && pr.bottom <= rr.bottom + 1,
                 compiled: globalThis.MOSS_SB_EDITOR.compile(JSON.parse(state)),
