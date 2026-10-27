@@ -8,6 +8,8 @@
   这样线宽、位置、直度 100% 确定，且不依赖模型发挥。
 """
 
+import re
+
 import torch
 import torch.nn.functional as F
 
@@ -58,6 +60,63 @@ def render_template(layout, cell_gray=25, invert=False):
     if invert:
         plane = 1.0 - plane
     return plane[None, :, :, None].repeat(1, 1, 1, 3).contiguous()
+
+
+def palette(text, count):
+    """把 `"#ff0000, #00ff00"` 解析成 RGB 三元组；空串按黄金比自动取 `count` 个。
+
+    颜色只是**区域 ID**，不表达任何画面含义（宿主 `MOSSImageControl` 的原话），
+    所以默认值只需要「彼此好分」：黄金比取色能让任意格数下相邻色相差最大。
+
+    `count > 1` 时**要求给够颜色**：少给就得循环，两个不同的格会共用一个 ID，
+    控制图就分不清它们了 —— 那比报错更难查。
+    """
+    toks = [t for t in re.split(r"[\s,;]+", (text or "").strip()) if t]
+    if not toks:
+        import colorsys
+        return [colorsys.hsv_to_rgb((i * 0.6180339887) % 1.0, 0.85, 0.95) for i in range(max(1, count))]
+    out = []
+    for t in toks:
+        h = t.lstrip("#")
+        if len(h) != 6:
+            raise ValueError("颜色要写成 #rrggbb（收到 %r）；多个用逗号分隔" % t)
+        try:
+            out.append(tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)))
+        except ValueError:
+            raise ValueError("颜色要写成 #rrggbb（收到 %r）" % t) from None
+    if count > 1 and len(out) < count:
+        raise ValueError("给了 %d 个颜色但布局有 %d 格：区域 ID 会重复，控制图分不清格。"
+                         "补到 %d 个，或留空让本节点自动取色。" % (len(out), count, count))
+    return out
+
+
+def flat_color_map(layout, colors=None):
+    """每格一块平色，给 color/depth 控制适配器当区域图。返回 `[1, H, W, 3]`。
+
+    两条都踩过：
+    - **必须盖满画布**：缝与外边距也归最近的那一格。留黑缝等于凭空给模型一个
+      「区域 0」，而训练时的区域图是分割图，没有洞。
+    - **颜色只是 ID**：默认按黄金比取色只是为了好分；适配器认哪套调色板要 A/B 才知道，
+      所以允许 `colors` 覆盖。
+    """
+    if layout.width * layout.height > L.MAX_CANVAS_PIXELS:
+        raise ValueError("color_map %d×%d = %.1fMP 超过上限 %.0fMP；请减少格数或调小 panel_edge"
+                         % (layout.width, layout.height, layout.megapixels,
+                            L.MAX_CANVAS_PIXELS / 1e6))
+    pal = palette(colors, len(layout.cells))
+    out = torch.zeros(layout.height, layout.width, 3, dtype=torch.float32)
+    # 相邻格起点取中点作分界、首尾贴到画布边缘 ⇒ 每格分到一条带，缝自动被吞掉。
+    xs = sorted({c.x for c in layout.cells})
+    ys = sorted({c.y for c in layout.cells})
+    def cut(v, total):
+        return [0] + [(a + b) // 2 for a, b in zip(v, v[1:], strict=False)] + [total]
+
+    cx, cy = cut(xs, layout.width), cut(ys, layout.height)
+    for cell in layout.cells:
+        x0, x1 = cx[xs.index(cell.x)], cx[xs.index(cell.x) + 1]
+        y0, y1 = cy[ys.index(cell.y)], cy[ys.index(cell.y) + 1]
+        out[y0:y1, x0:x1] = torch.tensor(pal[cell.index], dtype=torch.float32)
+    return out[None]
 
 
 def composite_borders(image, layout, thickness=None, level=1.0):

@@ -128,6 +128,24 @@ check("复绘不动格内", torch.equal(fixed[0, c0.y + 2, c0.x + 2], img[0, c0.
 expect_raise("复绘尺寸不符 → 报错",
              lambda: P.composite_borders(torch.rand(1, 64, 64, 3), lay), "不一致")
 
+# 控制区域图（color_map）：颜色只是区域 ID，但两块必须成立 —— 尺寸对齐画布、中间没有黑洞
+cmap = P.flat_color_map(lay)
+check("color_map 形状 [1,H,W,3]", tuple(cmap.shape) == (1, lay.height, lay.width, 3),
+      str(tuple(cmap.shape)))
+check("color_map 盖满画布（缝与外边距不留黑）", float(cmap.min()) > 0.0, "%.3f" % float(cmap.min()))
+check("color_map 每格一色（%d 格 %d 色）" % (lay.panels, lay.panels),
+      len({tuple(cmap[0, c.y + 2, c.x + 2].tolist()) for c in lay.cells}) == lay.panels)
+check("color_map 相邻格不同色",
+      not torch.equal(cmap[0, lay.cells[0].y + 2, lay.cells[0].x + 2],
+                      cmap[0, lay.cells[1].y + 2, lay.cells[1].x + 2]))
+pal8 = ", ".join("#%02x0000" % (17 * i + 1) for i in range(lay.panels))
+same = P.flat_color_map(lay, pal8)
+check("给够颜色时每格一个 ID",
+      len({tuple(same[0, c.y + 2, c.x + 2].tolist()) for c in lay.cells}) == lay.panels)
+expect_raise("颜色少于格数 → 中文报错（ID 会重复）",
+             lambda: P.flat_color_map(lay, "#ff0000, #00ff00, #0000ff"), "区域 ID")
+expect_raise("颜色格式非法 → 中文报错", lambda: P.palette("#ff00", 1), "#rrggbb")
+
 print("\n== 5. 裁格顺序与内容 ==")
 img2 = torch.zeros(1, lay.height, lay.width, 3)
 for c in lay.cells:
