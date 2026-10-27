@@ -42,11 +42,17 @@ def main():
     check("panels 裁切尺寸", tuple(crops_on.shape) == (4, lay.panel_h, lay.panel_w, 3),
           tuple(crops_on.shape))
 
-    # 逐格 latent：拼成 batch，不是空间拼版（形状上是 N 叠第 0 维，空间维不变）
+    # 逐格 latent：必须是 LATENT 字典，且拼成 batch 而不是空间拼版
     lat = S.stack_latents([{"samples": torch.zeros(1, 4, 8, 8)} for _ in range(3)])
-    check("latent 拼成 batch 而非拼版", tuple(lat.shape) == (3, 4, 8, 8), tuple(lat.shape))
-    check("latent 第 0 维 = 格数", lat.shape[0] == 3, lat.shape[0])
-    check("latent 空间维不被拼版放大", tuple(lat.shape[-2:]) == (8, 8), tuple(lat.shape[-2:]))
+    check("latent 回 LATENT 字典", isinstance(lat, dict) and set(lat) == {"samples"}, type(lat).__name__)
+    check("latent 第 0 维 = 格数", tuple(lat["samples"].shape) == (3, 4, 8, 8), tuple(lat["samples"].shape))
+    check("latent 空间维不被拼版放大", tuple(lat["samples"].shape[-2:]) == (8, 8),
+          tuple(lat["samples"].shape[-2:]))
+    try:
+        S.stack_latents([{"samples": torch.zeros(1, 4, 8, 8)}, {"samples": torch.zeros(1, 4, 9, 8)}])
+        check("异形 latent 直接报错", False, "没有抛异常")
+    except ValueError as exc:
+        check("异形 latent 直接报错", "同形状" in str(exc), str(exc))
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     return 1 if FAIL else 0
