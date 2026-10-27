@@ -301,6 +301,9 @@ export const TIPS = {
             + "plain = plain text, no layout boxes: whole-canvas mode sends the prompt as-is"
             + " (like plain txt2img); per-panel mode sends the global section (multi-panel"
             + " wording stripped) plus that panel's caption.\n"
+            + "⚠ auto/layout reconciles first: the number of [PANEL n] sections and any"
+            + " \"N panels\" in the global section must equal the actual panel count; a"
+            + " mismatch stops before sampling (no auto-fill). Choose plain to bypass.\n"
             + "⚠ This pack does not do img2img: the latent starts empty, MOSS does not condition on reference images.",
     },
     "MossStoryboardSampler.mode": {

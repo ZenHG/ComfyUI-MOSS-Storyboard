@@ -19,6 +19,7 @@ import torch  # noqa: E402  (路径先插入，再导入)
 
 from core import layout as L  # noqa: E402
 from core import pixels as P  # noqa: E402
+from core import prompt as T  # noqa: E402
 from core import sampling as S  # noqa: E402
 
 PASS, FAIL = [], []
@@ -67,6 +68,26 @@ def main():
     check("档位：50/3 判 SFT 档", "SFT" in sft and "混搭" not in sft, sft)
     check("档位：50/1 判混搭", "混搭" in mix_step, mix_step[:28])
     check("档位：8/3 混搭、4/1 蒸馏", "混搭" in mix_cfg and "蒸馏" in lora, lora)
+
+    # 稿子-布局对账：段数与显式格数都必须等于布局格数；一致返回 None
+    def board(n, head="[STYLE]: x"):
+        return "\n\n".join([head] + ["[PANEL %d]: y" % i for i in range(1, n + 1)])
+
+    bad = T.board_mismatch(board(1), 2)
+    check("对账：1 段 / 2 格 → 报矛盾", bad and "1 段" in bad[0] and bad[1] == 1, bad)
+    bad = T.board_mismatch(board(8, "[STYLE]: 恰好 4 个面板"), 8)
+    check("对账：显式 4 vs 8 → 报矛盾且指出原句",
+          bad and "恰好 4 个面板" in bad[0] and bad[1] == 8, bad)
+    bad = T.board_mismatch(board(8, "[STYLE]: 4 panels, rainy"), 8)
+    check("对账：英文 4 panels vs 8 → 报矛盾", bad and "4 panels" in bad[0], bad)
+    bad = T.board_mismatch(board(9), 8)
+    check("对账：9 段 / 8 格 → 隐含格数 9", bad and bad[1] == 9, bad)
+    check("对账：8 段 / 8 格（含乱序镜号）→ None",
+          T.board_mismatch(board(8), 8) is None
+          and T.board_mismatch("\n\n".join(["[STYLE]: x"]
+                                          + ["[PANEL %d]: y" % i
+                                             for i in (1, 2, 5, 6, 7, 8, 9, 10)]), 8) is None)
+    check("对账：无 [PANEL] 且无计数 → None", T.board_mismatch("[STYLE]: x", 8) is None)
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     return 1 if FAIL else 0

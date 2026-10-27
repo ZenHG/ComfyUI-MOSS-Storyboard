@@ -238,6 +238,30 @@ def test_errors(V1):
           torch.equal(wired[0, tgt.y:tgt.y + tgt.h, tgt.x:tgt.x + tgt.w, :], one[0]))
 
 
+def test_board_gate(V1):
+    """稿子与布局对账：布局模式下段数/显式格数不符必须拦在采样前，plain 不受影响。"""
+    import importlib
+    from unittest.mock import patch
+    S = importlib.import_module("moss_sb_c.core.sampling")
+    sampler = V1.MossStoryboardSampler()
+    p4 = "\n\n".join(["[STYLE]: x"] + ["[PANEL %d]: y" % i for i in range(1, 5)])
+    kw = {"panels": 8, "panel_edge": 128, "init": "layout", "mode": "整张"}
+    with patch.object(S, "probe_host_api", lambda: None):
+        try:
+            sampler.run(None, None, None, p4, "", 4, 1.0, "euler", "simple", 0, 1.0, **kw)
+            check("Sampler: 4 段 / 8 格 → 采样前报错", False, "没有报错")
+        except ValueError as exc:
+            msg = str(exc)
+            check("Sampler: 4 段 / 8 格 → 采样前报错并给 plain 出路",
+                  "4 段" in msg and "8 格" in msg and "init=plain" in msg, msg.splitlines()[0])
+        try:
+            sampler.run(None, None, None, p4, "", 4, 1.0, "euler", "simple", 0, 1.0,
+                        **{**kw, "init": "plain"})
+            check("Sampler: init=plain 不被对账闸拦", True)
+        except Exception as exc:
+            check("Sampler: init=plain 不被对账闸拦", "出路" not in str(exc), type(exc).__name__)
+
+
 def test_import_boundary():
     """`core.layout` / `core.prompt` 必须能在没有 torch 的环境里 import（纯 Python 可跑）。"""
     code = (
@@ -564,6 +588,7 @@ def main():
 
     print("\n== 2. 错误路径（中文可操作报错）==")
     test_errors(V1)
+    test_board_gate(V1)
 
     print("\n== 3. 依赖边界 ==")
     test_import_boundary()

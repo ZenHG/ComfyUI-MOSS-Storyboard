@@ -95,6 +95,34 @@ def pair_captions(captions, cells):
     return pairs, notes
 
 
+#: 全局段里的显式格数。只认「恰好/正好/共 N 个面板（格子）」与英文「N panels」；
+#: 不碰「第 8 格」这类格号，也不碰「4 个镜头」这类画面描述。
+COUNT_RE = re.compile(
+    r"(?:恰好|正好|共)\s*(\d+)\s*(?:个|幅|张)?\s*(?:面板|分镜|格子|画格|格)"
+    r"|(?i:\b(\d+)\s+panels?\b)")
+
+
+def board_mismatch(text, panels):
+    """对账：稿子说的格数 vs 布局格数。一致返回 `None`，否则 `(问题描述, 稿子隐含格数)`。
+
+    只查两处机器能确定的数字：全局段的显式格数、`[PANEL n]` 段数。
+    不改写、不补段 —— 布局模式要求作者自己写满，调用方负责把出路写进报错。
+    """
+    head, caps = split_panels(text)
+    stated = None
+    m = COUNT_RE.search(head)
+    if m:
+        stated = int(m.group(1) or m.group(2))
+    problems = []
+    if stated is not None and stated != panels:
+        problems.append("全局段写「%s」，但布局是 %d 格" % (m.group(0).strip(), panels))
+    if caps and len(caps) != panels:
+        problems.append("提示词有 %d 段 [PANEL]，但布局是 %d 格" % (len(caps), panels))
+    if not problems:
+        return None
+    return "；".join(problems), (len(caps) if caps else stated)
+
+
 def strip_multi_panel_words(text):
     """去掉全局描述里的"多格"措辞，只留风格/角色/环境。
 

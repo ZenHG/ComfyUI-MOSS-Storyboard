@@ -486,6 +486,8 @@ class MossStoryboardSampler:
                                "layout = 同上，显式写法；\n"
                                "plain = 纯提示词，不加布局框：整张=整段原样送（等于普通 txt2img）；\n"
                                "        逐格=全局段（去掉多格措辞）+ 本格描述。\n"
+                               "⚠ auto/layout 会先对账：`[PANEL n]` 段数与全局段「N 个面板」\n"
+                               "必须等于实际格数，不等直接报错（不自动补段）；要绕过选 plain。\n"
                                "⚠ 本包不做图生图：起点恒为空 latent。实测模板 latent 起点\n"
                                "（35 步/0.85 纯黑，12/0.6 与 4/0.5 残影）在 MOSS 上不成立，\n"
                                "所以这条通路已移除。想改已有图见 README「只改一格」。",
@@ -565,6 +567,22 @@ class MossStoryboardSampler:
                                        sampler_name, scheduler, seed, denoise, lay, geom_src,
                                        init_mode=init_mode, label=label, reborder=reborder,
                                        border_px=border_px, shave=shave, sample_edge=sample_edge)
+
+        # 稿子与布局对账：不自动改写/补段。2026-10-27 实测「4 段 + 恰好 4 个面板」
+        # 配 8 格画布，模型把 4 个节拍画两遍（上下两条），而 report 里的告警没人看。
+        if init_mode == "layout":
+            bad = T.board_mismatch(positive, lay.panels)
+            if bad:
+                msg, implied = bad
+                lines = [msg + "。",
+                         "当前布局 %d 格 = %d 列 × %d 行，画布 %d × %d。"
+                         % (lay.panels, lay.cols, lay.rows, lay.width, lay.height)]
+                if implied and implied != lay.panels:
+                    who = "上游 Layout 的 panels" if geom_src.startswith("spec") else "本节点 panels"
+                    lines.append("可选：把%s 改成 %d。" % (who, implied))
+                lines.append("出路：① 把稿子改到 %d 段并同步全局段计数；"
+                             "② init=plain 原样送词（不做布局，也就没有宫格框）。" % lay.panels)
+                raise ValueError("\n".join(lines))
 
         # ---- 提示词：layout 时转成布局 JSON ----
         if init_mode == "layout":

@@ -13,7 +13,7 @@
 #   ·  57/0  tests/test_adversarial.py        恶意/极端输入：JSON 常量 / 原型链 / 量化 / 扫描预算
 #   ·  27/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
 #   ·  79/0  tests/test_skill_draft.py        官方 prompt-enhancer 草稿 / 编译 / state / CLI
-#   · 139/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性 / 调度器同源 / 上下限同源 / 人物格
+#   · 141/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性 / 调度器同源 / 上下限同源 / 人物格
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
 #   ·  58/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
@@ -24,7 +24,7 @@
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
 #   · 133/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
 #   ·  90/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
-#   ·  13/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
+#   ·  19/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
 #   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #
 # ⚠️ **已知覆盖缺口（诚实记录，别当成已覆盖）**：
