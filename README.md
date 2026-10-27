@@ -405,6 +405,11 @@ Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `repor
   ⚠ **The two formats are not interchangeable.** `elements` is canvas elements (normalized
   0–1000); `layout_json` is the full layout JSON (`summary` + `items`, absolute pixels).
 
+  ⚠ **The grid's `elements` output only describes panel slots**: one `{"type":"obj"}` item per
+  cell, with that cell's caption as `desc`. It carries no text elements, font size or colour.
+  For in-image text use the editor's text elements or the `MossPromptCompiler` / host
+  `MOSSImageLayoutPrompt` path.
+
   ⚠ **Dragging boxes on the canvas does not change the output image.** In `逐格`
   (per-panel) mode each cell is sampled on its own, so boxes only decide the assembly
   layout. Only `整张` (whole-canvas) mode lets boxes affect composition. See the
@@ -483,7 +488,9 @@ Cost: VRAM and time scale with the pixel count. Ignored in whole-grid mode.
 > final cell size — the assembled grid is never fed to the model.
 
 `init` values: `auto` / `layout` = panel captions become layout boxes (default);
-`plain` = raw prompt, no layout boxes.
+`plain` = no layout boxes. In **whole-canvas** mode that is the raw full prompt; in **per-panel**
+mode each cell gets the global caption (multi-panel wording stripped) plus that cell's caption —
+not the raw full prompt, so cross-panel anchors survive.
 
 > **No img2img in this pack.** The latent always starts empty; keep `denoise` at 1.0.
 > Template-latent initialisation was measured and does not work: 35 steps / denoise 0.85 → fully
@@ -495,8 +502,8 @@ Cost: VRAM and time scale with the pixel count. Ignored in whole-grid mode.
 
 ### 🎬 Storyboard Crop (`MossStoryboardCrop`)
 
-Outputs `panels` (per-panel images), `preview` (crop lines drawn on the full canvas), `report`
-and `index` (the panel number).
+Outputs `panels` (per-panel images), `preview` (the full canvas as-is; red crop guides are drawn
+only when the advanced `show_guides` toggle is on), `report` and `index` (the panel number).
 With `spec` → pixel-identical to generation. Without `spec` → requires `columns × rows` to divide
 the image evenly and **raises** otherwise.
 `index` left at -1 (the default) outputs every panel, exactly as before. A 0-based panel number
@@ -516,8 +523,10 @@ out, correct it however you like, then paste it back at the exact `spec` coordin
   overrides the widget, so it can never disagree with the panel you actually cut.
 - Only the target panel's content area is touched: gutters, margins and every other panel stay
   pixel-identical, and the grid lines are preserved.
-- `shave` must match what you used on Crop. Cutting inset s pixels, so pasting writes into the
-  inset rectangle; a mismatch shifts content by s pixels **without erroring** — check `report`.
+- `shave` must match what you used on Crop. Both crop and paste inset each cell by `shave`; a
+  mismatch makes the incoming panel size differ from the target rectangle, so it is **bicubically
+  resampled** (scaled, with a different border) — not shifted by s pixels. `report` states the
+  resample explicitly; check it.
 - If the input size differs from the cell it is resampled, and `report` says so. For a
   pixel-exact round trip use Crop with `resize_edge=0`, `target_aspect=keep`, and the same `shave`.
 - To fix several panels, chain Paste nodes: the first `grid` output feeds the next `grid` input.
