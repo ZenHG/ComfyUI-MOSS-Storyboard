@@ -533,6 +533,46 @@ clash["items"][0]["size"] = "特写"
 check("相邻档不误报", E.find_size_conflicts(E.parse_state(dump(clash))) == [],
       str(E.find_size_conflicts(E.parse_state(dump(clash)))))
 
+print("\n== 13. 融合开关（并缝 / 贴边 / 反拼贴词） ==")
+bl = E.empty_state()          # 新存档：blend 默认 true
+bl["style"] = "暗色雪原，飘雪，胶片颗粒。"
+bl["items"] = [
+    {"id": "e1", "label": "object", "caption": "店内", "bbox": [0.03, 0.03, 0.485, 0.97]},
+    {"id": "e2", "label": "text", "caption": "店招", "text": "MOSS",
+     "bbox": [0.515, 0.03, 0.97, 0.97]},
+]
+sealed = E.seal_gaps(bl["items"])
+check("左右 6% 空档被并到中线",
+      abs(sealed[0][2] - 0.5) < 1e-9 and abs(sealed[1][0] - 0.5) < 1e-9, str(sealed))
+check("4% 以内的外边距归零", sealed[0][0] == 0.0 and sealed[1][3] == 1.0, str(sealed))
+
+far = [{"bbox": [0.0, 0.0, 0.2, 1.0]}, {"bbox": [0.5, 0.0, 0.7, 1.0]}]
+check("相隔 30% 的两框不动", E.seal_gaps(far) == [list(b["bbox"]) for b in far],
+      str(E.seal_gaps(far)))
+
+st_on = E.parse_state(dump(bl))
+check("新存档默认开融合", st_on["blend"] is True, repr(st_on.get("blend")))
+js_on = E.layout_json(st_on)
+check("融合默认加连续画面子句", "连续画面" in js_on, js_on[:80])
+check("融合时负面词非空", "相框" in E.negative(st_on), E.negative(st_on))
+
+bl_off = dict(bl)
+bl_off["blend"] = False
+st_off = E.parse_state(dump(bl_off))
+check("关掉后不加子句", "连续画面" not in E.layout_json(st_off))
+check("关掉后负面词为空", E.negative(st_off) == "", repr(E.negative(st_off)))
+check("关掉后 bbox 原样（未并缝：左框 x0 仍是 -722）",
+      "-722" in E.layout_json(st_off), E.layout_json(st_off)[:140])
+
+legacy = json.loads(dump(bl))
+legacy.pop("blend", None)
+check("老存档（无 blend）按关闭处理", E.parse_state(json.dumps(legacy))["blend"] is False)
+bad = dict(bl)
+bad["blend"] = "yes"
+check("blend 非布尔报错", "blend" in (raises(E.parse_state, dump(bad)) or ""))
+check("宫格态负面词恒为空",
+      E.negative(E.parse_state(dump(grid_state()))) == "", "宫格不该带反拼贴词")
+
 print("\n结果：通过 %d / 失败 %d" % (_ok, len(_bad)))
 if _bad:
     print("失败项：")

@@ -192,6 +192,11 @@ export const STR = {
     },
     advanced: { zh: "高级", en: "Advanced" },
     edge: { zh: "单格长边", en: "Panel edge" },
+    blend: { zh: "融合成一张", en: "Blend into one" },
+    blendTip: {
+        zh: "开：多个框合成一张连续画面（自动并缝、贴边，并加反拼贴词）。\n关：每个框按各自的边界画，容易出现卡片/拼贴感。",
+        en: "On: boxes merge into one continuous image (gaps sealed, anti-collage words added).\nOff: each box keeps its own edges, which tends to look like cards/collage.",
+    },
     gutter: { zh: "缝宽", en: "Gutter" },
     margin: { zh: "外边距", en: "Margin" },
     advancedNote: {
@@ -316,6 +321,7 @@ export function emptyState() {
         version: STATE_VERSION,
         preset: "free",
         style: "",
+        blend: true,
         canvas: { ...DEFAULT_CANVAS },
         items: [],
     };
@@ -431,6 +437,9 @@ export function validateState(obj, lang = "zh") {
     }
     if (!PRESET_IDS.includes(obj.preset)) add(E(`preset 非法：${obj.preset}`, `invalid preset: ${obj.preset}`));
     if (typeof obj.style !== "string") add(E("style 必须是字符串", "style must be a string"));
+    if (obj.blend != null && typeof obj.blend !== "boolean") {
+        add(E("blend 必须是 true / false", "blend must be true or false"));
+    }
     const items = obj.items;
     if (!Array.isArray(items)) {
         add(E("items 必须是数组", "items must be an array"));
@@ -666,6 +675,35 @@ export function stageAspect(state) {
     return (c.width || 16) / (c.height || 9);
 }
 
+/** Python 的 `round()` 逢半取偶，`Math.round` 逢半进位 —— 差 1px 尺寸就对不上。 */
+function pyRound(v) {
+    const f = Math.floor(v);
+    const d = v - f;
+    if (d > 0.5) return f + 1;
+    if (d < 0.5) return f;
+    return f % 2 === 0 ? f : f + 1;
+}
+
+const snap16 = (v) => Math.max(64, pyRound(Number(v) / 16) * 16);
+
+/** 宫格总画布 `[w, h]`：与 `layout.build_layout()` 同一套算法（画面宽 + 缝 + 边距，向上补 16）。
+ *  `edge` 指长边。这里是 UI 预览用的镜像，正确性由 `tests/test_cross_language.py` 锁。 */
+export function gridCanvasPixels(g) {
+    const m = String(g.panel_aspect || "16:9").split(":");
+    const ar = (Number(m[0]) || 16) / (Number(m[1]) || 9);
+    const edge = Number(g.panel_edge) || 512;
+    const cols = Math.max(1, Math.floor(Number(g.cols) || 1));
+    const rows = Math.max(1, Math.floor(Number(g.rows) || 1));
+    const gutter = Math.max(0, Math.floor(Number(g.gutter) || 0));
+    const margin = Math.max(0, Math.floor(Number(g.margin) || 0));
+    const [pw, ph] = ar >= 1 ? [snap16(edge), snap16(pyRound(edge / ar))]
+        : [snap16(pyRound(edge * ar)), snap16(edge)];
+    const pad16 = (v) => (16 - (v % 16)) % 16;
+    const w = cols * pw + (cols - 1) * gutter + 2 * margin;
+    const h = rows * ph + (rows - 1) * gutter + 2 * margin;
+    return [w + pad16(w), h + pad16(h)];
+}
+
 // ---------------------------------------------------------------------------
 // 互操作层（elements-v1 ⇄ state v3；与 core/interop.py 逐项对齐）
 // ---------------------------------------------------------------------------
@@ -839,6 +877,7 @@ export function elementsToState(doc, opts = {}) {
         version: STATE_VERSION,
         preset,
         style,
+        blend: false,          // elements-v1 不带渲染偏好；与 Python 侧 to_state 的缺省一致
         canvas: { width: canvas.width, height: canvas.height },
         items: rows.map((r) => r.item),
     };
@@ -940,22 +979,14 @@ export function sniffLayoutDoc(obj) {
 
 const isGridState = (st) => st?.preset === "grid";
 
-/** Python 的 `round()` 是"逢半取偶"，`Math.round` 遇 .5 一律进位 —— 不写成同一个就会差 1px。 */
-function pyRound(v) {
-    const f = Math.floor(v);
-    const d = v - f;
-    if (d > 0.5) return f + 1;
-    if (d < 0.5) return f;
-    return f % 2 === 0 ? f : f + 1;
-}
-
-/** 归一化 `[x0,y0,x1,y1]` → 画布中心原点的 `[y0,x0,y1,x1]`（= `prompt.cell_bbox_to_centered`）。 */
+/** 归一化 `[x0,y0,x1,y1]` → 画布中心原点的 `[y0,x0,y1,x1]`（= `prompt.cell_bbox_to_centered`）。
+ *  左/上 floor、右/下 ceil：把框包住绝不内缩（与官方节点同规则）。 */
 function cellBboxToCentered(bbox, width, height) {
     const [u0, v0, u1, v1] = bbox.map(Number);
     const hx = Math.floor(width / 2);
     const hy = Math.floor(height / 2);
-    return [pyRound(v0 * height) - hy, pyRound(u0 * width) - hx,
-        pyRound(v1 * height) - hy, pyRound(u1 * width) - hx];
+    return [Math.floor(v0 * height) - hy, Math.floor(u0 * width) - hx,
+        Math.ceil(v1 * height) - hy, Math.ceil(u1 * width) - hx];
 }
 
 function sizePrefix(size, caption) {
@@ -1408,6 +1439,14 @@ function buildUI() {
     canvasRow.appendChild(field(t("height"), hIn));
     const aspectChip = h("span", "mossed-chip", "");
     canvasRow.appendChild(aspectChip);
+    // 融合：多个 bbox 出一张连续画面（不是一框一张卡片）。宫格模式不显示。
+    const blendWrap = h("label", "mossed-blend");
+    const blendIn = h("input", "mossed-blend-in");
+    blendIn.type = "checkbox";
+    blendIn.title = t("blendTip");
+    blendWrap.appendChild(blendIn);
+    blendWrap.appendChild(h("span", null, t("blend")));
+    canvasRow.appendChild(blendWrap);
     root.appendChild(canvasRow);
 
     // ---- 画布 ---------------------------------------------------------
@@ -1605,7 +1644,7 @@ function buildUI() {
         labelField,
         paletteRow, orderRow, alignRow,
         gridRow, colsIn, rowsIn, aspectSel, gridAdvBtn, gridAdvRow, edgeIn, gutterIn, marginIn,
-        canvasRow, canvasPresetSel, wIn, hIn, aspectChip,
+        canvasRow, canvasPresetSel, wIn, hIn, aspectChip, blendWrap, blendIn,
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
         fatalBox: fatal, status, panel,
         empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, capTa, textRow, textIn,
@@ -1941,10 +1980,11 @@ function syncStatic(ui) {
     if (document.activeElement !== ui.marginIn) ui.marginIn.value = String(g.margin);
     if (document.activeElement !== ui.wIn) ui.wIn.value = String(c.width);
     if (document.activeElement !== ui.hIn) ui.hIn.value = String(c.height);
+    ui.blendIn.checked = !!st.blend;
     const cp = CANVAS_PRESETS.find((p) => p.width === c.width && p.height === c.height);
     if (document.activeElement !== ui.canvasPresetSel) ui.canvasPresetSel.value = cp ? cp.id : "custom";
     ui.chip.textContent = `${L(PRESET_SPECS[st.preset]?.label || {}) || st.preset} · `
-        + (isGrid ? `${g.cols}×${g.rows}` : `${c.width}×${c.height}`);
+        + (isGrid ? `${g.cols}×${g.rows} · ${gridCanvasPixels(g).join("×")}` : `${c.width}×${c.height}`);
     ui.aspectChip.textContent = `${(stageAspect(st)).toFixed(2)}:1`;
     ui.presetHint.textContent = L(PRESET_HINTS[st.preset] || {});
 }
@@ -2873,6 +2913,11 @@ function wire(ui) {
         const p = CANVAS_PRESETS.find((x) => x.id === ui.canvasPresetSel.value);
         if (p) setCanvas(ui, p.width, p.height);
         else syncStatic(ui);
+    });
+    ui.blendIn.addEventListener("change", () => {
+        if (!ui.state) return;
+        ui.state.blend = ui.blendIn.checked;
+        commit(ui);
     });
     ui.wIn.addEventListener("change", () => setCanvas(ui, Number(ui.wIn.value), ui.state.canvas?.height || DEFAULT_CANVAS.height));
     ui.hIn.addEventListener("change", () => setCanvas(ui, ui.state.canvas?.width || DEFAULT_CANVAS.width, Number(ui.hIn.value)));

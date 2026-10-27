@@ -359,8 +359,8 @@ class MossLayoutEditor:
             },
         }
 
-    RETURN_TYPES = ("STRING", "INT", "INT", "STRING", "IMAGE", "STRING")
-    RETURN_NAMES = ("prompt", "width", "height", "spec", "template", "report")
+    RETURN_TYPES = ("STRING", "INT", "INT", "STRING", "IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("prompt", "width", "height", "spec", "template", "report", "negative")
     FUNCTION = "build"
     CATEGORY = CATEGORY
     DESCRIPTION = ("在画布上摆元素（人物 / 物体 / 文字），一键出 MOSS 布局提示词。\n"
@@ -389,7 +389,8 @@ class MossLayoutEditor:
         rep = E.report(state)
         if notes:
             rep = "\n".join([rep] + ["· " + n for n in notes])
-        return (prompt_text, width, height, spec, template, rep)
+        # `negative` 只在「单张 + 融合」时非空：那几句反拼贴词不该让用户自己抄。
+        return (prompt_text, width, height, spec, template, rep, E.negative(state))
 
 
 class MossStoryboardSampler:
@@ -586,6 +587,10 @@ class MossStoryboardSampler:
 
         # ---- 提示词：layout 时转成布局 JSON ----
         if init_mode == "layout":
+            if T.grid_declared(positive) is False:
+                # 只出声不改写：模型是靠**语义**画宫格的，全局段不说「分成 N 格」就会不按格分配。
+                notes.append("⚠ 全局段未声明宫格（没有「恰好 N 个面板」这类说法）⇒ 模型可能不按格"
+                             "分配画面；写法参考 examples/moss-storyboard-4panels-ui.json")
             text, info = _prompt_for_layout(positive, lay, label)
             notes.append("布局提示词：%s" % info)
         else:

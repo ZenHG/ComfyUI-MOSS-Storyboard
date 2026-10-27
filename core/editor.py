@@ -35,6 +35,13 @@ STATE_VERSION = 3
 MAX_STATE_CHARS = 1_000_000
 MAX_ITEMS = 256
 
+#: 「融合」：单张模式下让多个 bbox 出一张连续画面，而不是一框一张卡片。
+#: 三件事一起做——并缝（相邻框贴到中线）、贴边（4% 内的边距归零）、加反拼贴词。
+BLEND_EPS = 0.04
+BLEND_CLAUSE = ("整幅是一张连续画面：所有元素都长在同一个空间里，互相遮挡、自然叠合；"
+                "不要分格，不要相框，不要边框，不要拼贴。")
+BLEND_NEGATIVE = ("拼贴，拼图，分格，多格，相框，白边，黑边，边框，照片墙，画中画，网格，分屏")
+
 #: 画布与单格像素的上下限（`docs/10-contract.md` §一）：64..4096、16 的倍数。
 #: 宫格行列上限与 `layout.MAX_AXIS` 共用一份值。
 PX_MIN = 64
@@ -129,6 +136,7 @@ def empty_state(preset="free"):
         "version": STATE_VERSION,
         "preset": preset,
         "style": "",
+        "blend": preset != "grid",
         "items": [],
     }
     if preset == "grid":
@@ -206,6 +214,12 @@ def parse_state(text):
     style = state.get("style")
     if not isinstance(style, str):
         _fail("style 必须是字符串（收到 %s）。" % type(style).__name__)
+
+    # 老存档没有 blend ⇒ False（出图与升级前一致）；新存档由编辑器写成 true。
+    blend = state.get("blend", False)
+    if not isinstance(blend, bool):
+        _fail("blend 必须是 true / false（收到 %r）。" % (blend,))
+    state["blend"] = blend
 
     items = state.get("items")
     if not isinstance(items, list):
@@ -367,6 +381,43 @@ def compile_prompt(state):
     return "\n".join(lines).strip()
 
 
+def seal_gaps(items, eps=BLEND_EPS):
+    """把相邻框之间的小空档并掉（两侧边各走一半），4% 以内的外边距归零。
+
+    只在两框**确实挨着**时动手：面对面的距离 ≤ `eps`，且另一轴重叠 ≥ 30%。
+    否则一个居中元素会被拉到画布边上——那是在改用户的构图，不是并缝。
+    """
+    boxes = [[float(v) for v in it["bbox"]] for it in items]
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            for axis in (0, 1):
+                for p, q in ((boxes[i], boxes[j]), (boxes[j], boxes[i])):
+                    gap = q[axis] - p[axis + 2]
+                    if not 0 < gap <= eps:
+                        continue
+                    o = 1 - axis
+                    ov = min(p[o + 2], q[o + 2]) - max(p[o], q[o])
+                    span = min(p[o + 2] - p[o], q[o + 2] - q[o])
+                    if span > 0 and ov / span >= 0.3:
+                        mid = (p[axis + 2] + q[axis]) / 2.0
+                        p[axis + 2], q[axis] = mid, mid
+                        break
+    for b in boxes:                       # 贴边：只并 4% 以内的，别动居中构图
+        for axis in (0, 1):
+            if 0 < b[axis] <= eps:
+                b[axis] = 0.0
+            if 1 - eps <= b[axis + 2] < 1:
+                b[axis + 2] = 1.0
+    return boxes
+
+
+def negative(state):
+    """单张 + 融合时给负面提示词；宫格或不融合返回空串（不替用户凭空加词）。"""
+    if is_grid(state) or not state.get("blend"):
+        return ""
+    return BLEND_NEGATIVE
+
+
 def _item_to_json(it, width, height):
     """单个元素 → layout JSON 的 item（坐标从画布归一化换到中心原点像素）。"""
     item = {"label": it["label"], "caption": it["caption"].strip(),
@@ -388,10 +439,17 @@ def layout_json(state, width=None, height=None):
     cw, ch = canvas_size(state)
     w = int(width or cw)
     h = int(height or ch)
-    items = [_item_to_json(it, w, h) for it in state["items"]]
+    src = state["items"]
+    if state.get("blend"):
+        boxes = seal_gaps(src)
+        src = [dict(it, bbox=boxes[k]) for k, it in enumerate(src)]
+    items = [_item_to_json(it, w, h) for it in src]
     if not items:
         return (state.get("style") or "").strip()
-    payload = {"summary": {"caption": (state.get("style") or "").strip()},
+    summary = (state.get("style") or "").strip()
+    if state.get("blend"):
+        summary = (summary.rstrip("。") + "。" if summary else "") + BLEND_CLAUSE
+    payload = {"summary": {"caption": summary},
                "items": items,
                "bbox_coord_space": "abs_centralized", "bbox_format": "yxyx"}
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
