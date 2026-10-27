@@ -421,6 +421,10 @@ Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `repor
 
 Outputs `grid` `panels` `latent` `spec` `prompt_used` `report` `prompts_json`.
 
+- **`latent`** — whole-canvas mode: the full-canvas latent; per-panel mode: a batch of N
+  single-panel latents (`{"samples": [N,C,h,w]}`, row-major = panels 1..N, **not** a spatial
+  stitch). Wire it to `VAEDecode` to decode the batch panel by panel.
+
 - **`prompts_json`** — the exact text handed to the model, as a JSON array: one entry in
   `整张` mode, one entry per panel in `逐格` mode (global paragraph included, multi-panel
   wording stripped). Wire this to a text file if you want to audit prompts later.
