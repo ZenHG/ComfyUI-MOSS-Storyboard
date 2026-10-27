@@ -356,6 +356,33 @@ def test_sampler_shape(V1):
     check("positive 默认空", popts.get("default") == "")
 
 
+def test_bounds(V1):
+    """节点参数上限必须与内核同源：UI 选得到的值，内核必须接得住。
+
+    锁这条是因为它漂过一次：`core.layout` 早把单轴卡在 12，Crop 的 `columns/rows`
+    还写着 20 —— 选到 13 要等跑起来才报错，而且报在别的节点里。
+    """
+    from moss_sb_c.core import layout as L
+
+    def hi(node, name):
+        it = V1.NODE_CLASS_MAPPINGS[node].INPUT_TYPES()
+        for section in ("required", "optional"):
+            if name in (it.get(section) or {}):
+                return it[section][name][1]["max"]
+        raise KeyError("%s 没有参数 %s" % (node, name))
+
+    crop, paste = "MossStoryboardCrop", "MossStoryboardPaste"
+    check("Crop columns/rows 上限 = layout 单轴上限",
+          (hi(crop, "columns"), hi(crop, "rows")) == (L.MAX_AXIS, L.MAX_AXIS),
+          "%s / %s" % (hi(crop, "columns"), hi(crop, "rows")))
+    check("Crop index 上限 = 格数上限 - 1（0 起）",
+          hi(crop, "index") == L.MAX_PANELS - 1, str(hi(crop, "index")))
+    check("Paste index 上限 = 格数上限 - 1（0 起）",
+          hi(paste, "index") == L.MAX_PANELS - 1, str(hi(paste, "index")))
+    shaves = [hi(n, "shave") for n in ("MossStoryboardSampler", crop, paste)]
+    check("三处 shave 上限一致（裁多少就贴回多少）", len(set(shaves)) == 1, str(shaves))
+
+
 def test_return_tuples(V1):
     """每个 `return (...)` 的元素数 == `RETURN_NAMES` 长度。
 
@@ -511,6 +538,7 @@ def main():
     for _name, cls in V1.NODE_CLASS_MAPPINGS.items():
         test_inputs(cls)
     test_scheduler(V1)
+    test_bounds(V1)
 
     print("\n== 2. 错误路径（中文可操作报错）==")
     test_errors(V1)
