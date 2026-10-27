@@ -35,6 +35,11 @@ _GEN_MODES = ["整张", "逐格"]
 _ASPECT_KEYS = list(L.ASPECTS)
 _CROP_ASPECTS = ["keep", "1:1", "16:9", "4:3", "9:16", "21:9"]
 
+#: Crop / Paste / Sampler 三处 `shave` 的同一个上限。
+#: 必须一致：裁的时候内缩多少，贴回就得用同一个数；上限不同会让「按 UI 能选到的最大值
+#: 裁、再贴回」变成一次静默重采样。上限只能升不能降 —— 降了会拒绝既有合法工作流。
+_SHAVE_MAX = 64
+
 #: 调度器清单的**冻结回落值**（宿主取不到时才用）。
 #: 只作兜底：真值来自宿主 `comfy.samplers.SCHEDULER_NAMES`，见 `_scheduler_names()`。
 _FALLBACK_SCHEDULERS = ("simple", "normal", "beta", "sgm_uniform", "karras",
@@ -488,7 +493,7 @@ class MossStoryboardSampler:
                     "tooltip": "【可留 0】复绘线宽。0 = 与缝宽一致（铺满整条缝）。",
                 }),
                 "shave": ("INT", {
-                    "default": 0, "min": 0, "max": 32, "step": 1,
+                    "default": 0, "min": 0, "max": _SHAVE_MAX, "step": 1,
                     "tooltip": "【可留 0】裁格时每格四边内缩像素。线已复绘在缝里，正常留 0。",
                 }),
                 # ⚠ 新增 widget 只能追加在末尾：`widgets_values` 按位置存。
@@ -763,7 +768,7 @@ class MossStoryboardCrop:
                     "tooltip": "【可留 0】0 = 保持原尺寸（推荐）。>0 时把每格长边缩放到该值。",
                 }),
                 "shave": ("INT", {
-                    "default": 0, "min": 0, "max": 64, "step": 1,
+                    "default": 0, "min": 0, "max": _SHAVE_MAX, "step": 1,
                     "tooltip": "【可留 0】每格四边内缩像素，用来吃掉溢出的缝。",
                 }),
             },
@@ -773,11 +778,11 @@ class MossStoryboardCrop:
                     "tooltip": "【接线】接 MossStoryboardLayout/Sampler 的 spec，裁切位置才与生成时完全一致。",
                 }),
                 "columns": ("INT", {
-                    "default": 0, "min": 0, "max": 20, "step": 1,
+                    "default": 0, "min": 0, "max": L.MAX_AXIS, "step": 1,
                     "tooltip": "【未接 spec 时必填】列数。填 0 且无 spec 会报错，不会瞎猜。",
                 }),
                 "rows": ("INT", {
-                    "default": 0, "min": 0, "max": 20, "step": 1,
+                    "default": 0, "min": 0, "max": L.MAX_AXIS, "step": 1,
                     "tooltip": "【未接 spec 时必填】行数。",
                 }),
                 "show_guides": ("BOOLEAN", {
@@ -785,7 +790,7 @@ class MossStoryboardCrop:
                     "tooltip": "【调试】在 preview 输出上把裁切线画成红色，用来目检对齐。",
                 }),
                 "index": ("INT", {
-                    "default": -1, "min": -1, "max": 64, "step": 1,
+                    "default": -1, "min": -1, "max": L.MAX_PANELS - 1, "step": 1,
                     "tooltip": "【可留 -1】-1 = 输出全部格子（默认，行为不变）。\n"
                                "填 0 起的格子号 = 只输出那一格，并把格号送到第 4 个输出 index 上。\n"
                                "接给 MossStoryboardPaste 就不用手打格号，不会错位。",
@@ -858,12 +863,12 @@ class MossStoryboardPaste:
                     "tooltip": "【接线】改好的那一格（单张）。接 Crop 只取一格后的输出最稳。",
                 }),
                 "index": ("INT", {
-                    "default": 0, "min": 0, "max": 64, "step": 1,
+                    "default": 0, "min": 0, "max": L.MAX_PANELS - 1, "step": 1,
                     "tooltip": "【填什么 / 可接线】贴到第几格，**0 起、行主序**（从左到右、从上到下）。\n"
                                "接了 Crop 的 index 输出就以它为准，不用手打，也不会和裁的那格对不上。",
                 }),
                 "shave": ("INT", {
-                    "default": 0, "min": 0, "max": 64, "step": 1,
+                    "default": 0, "min": 0, "max": _SHAVE_MAX, "step": 1,
                     "tooltip": "【可留 0】必须与当初 Crop 的 shave 一致：裁时四边内缩 s 像素，\n"
                                "贴回也写在同一个内缩矩形里。不一致不会静默偏移 —— 尺寸对不上会\n"
                                "bicubic 重采样并写进 report，代价是画面变糊。",

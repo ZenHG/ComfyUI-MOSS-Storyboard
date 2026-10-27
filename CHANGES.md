@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 参数上限与内核同源（审计 D-04 / D-05）
+- Crop 的 `columns` / `rows` 从 20 收到 `core.layout.MAX_AXIS`（12）：UI 以前能选到 13–20，
+  而布局一定拒绝——报错还发生在另一个节点里，很难对上。
+- `index` 从 64 放到 `MAX_PANELS - 1`（143）：144 格布局的最后一格以前根本选不到。
+  **只升不降**：降上限会拒绝既有的合法工作流。
+- 三处 `shave` 统一到 `_SHAVE_MAX`（64）：Sampler 原来只到 32，与 Crop/Paste 的 64 不一致，
+  照 UI 最大值裁、再贴回就会静默重采样。
+- 契约测试新增 4 条（上限同源 / index = 格数上限 − 1 / 三处 shave 一致），132 → 136 项。
+
 ### 逐格 latent：batch，不是拼版
 - `MossStoryboardSampler` 逐格模式**不再返回 `None`**：每格 `{"samples": …}` 拼成**一个**
   `{"samples": [N,C,h,w]}`（`core.sampling.stack_latents`，行主序 = 格号 1..N），report 首行写清语义。
