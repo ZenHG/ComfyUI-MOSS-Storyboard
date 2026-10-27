@@ -9,6 +9,7 @@
 """
 
 import json
+import math
 import re
 
 #: `[PANEL 3]` / `[panel3]` / `[ 画面 3 ]` 都认。
@@ -123,6 +124,22 @@ def board_mismatch(text, panels):
     return "；".join(problems), (len(caps) if caps else stated)
 
 
+def grid_declared(text):
+    """全局段有没有把「宫格」这件事说出来（决定模型会不会按格分配画面）。
+
+    `None` = 通篇没有 `[PANEL n]` 分段（纯文生图，无所谓）；`True`/`False` = 声明了/没声明。
+    判据复用 `MULTI_PANEL_PATTERNS` —— 与逐格模式清词共用一份表，避免两处口径分叉。
+
+    2026-10-27 实测：`examples/` 里验证过的配方全局段都带「单一故事板画布分割为严格对称网格，
+    恰好 N 个面板…」；把这句删掉后 7 个臂全部出现「不按格分配」，而 report 里毫无提示
+    （旧 C7 只对账段数与格数，看不见这一层）。
+    """
+    head, caps = split_panels(text)
+    if not caps:
+        return None
+    return any(pat.search(head or "") for pat in MULTI_PANEL_PATTERNS)
+
+
 def strip_multi_panel_words(text):
     """去掉全局描述里的"多格"措辞，只留风格/角色/环境。
 
@@ -187,8 +204,11 @@ def cell_bbox_to_centered(bbox, width, height):
     """
     u0, v0, u1, v1 = (float(v) for v in bbox)
     hx, hy = int(width) // 2, int(height) // 2
-    return [round(v0 * height) - hy, round(u0 * width) - hx,
-            round(v1 * height) - hy, round(u1 * width) - hx]
+    # 左/上 floor、右/下 ceil = 把框**包住**、绝不内缩，与官方
+    # `comfy_extras/nodes_moss_image.py` 及官方 compiler 的 centered_box 逐像素一致。
+    # ⚠ 别用 round：单边会内缩 ≤1px，框比官方节点给的偏小（小框/文字框最敏感）。
+    return [math.floor(v0 * height) - hy, math.floor(u0 * width) - hx,
+            math.ceil(v1 * height) - hy, math.ceil(u1 * width) - hx]
 
 
 def single_panel_json(global_caption, caption, width, height, label="object", elements=None):

@@ -76,15 +76,20 @@ def pad_prompt(text, n):
     return "\n\n".join(out)
 
 
+#: 只打本机宿主，必须绕开系统代理：本机设了 `HTTP_PROXY=127.0.0.1:6910`，
+#: urllib 会老实地走它，对 127.0.0.1:8188 的请求一律回 502（踩过，白跑一轮）。
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def get(url):
-    with urllib.request.urlopen(url, timeout=60) as r:
+    with _OPENER.open(url, timeout=60) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
 def post(url, payload):
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with _OPENER.open(req, timeout=60) as r:
         return json.loads(r.read().decode("utf-8"))
 
 

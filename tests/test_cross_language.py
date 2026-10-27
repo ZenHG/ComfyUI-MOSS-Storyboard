@@ -23,6 +23,7 @@ sys.path.insert(0, ROOT)
 from core import editor as E  # noqa: E402
 from core import interop as I  # noqa: E402
 from core import intake as IN  # noqa: E402
+from core import layout as L  # noqa: E402
 from core import planner as PL  # noqa: E402
 from core import presets as P  # noqa: E402
 
@@ -51,7 +52,7 @@ import {
     PRESET_IDS, PRESET_SPECS, presetItems, validateState, readState, emptyState,
     DEFAULT_GRID, DEFAULT_CANVAS, ASPECT_IDS, MAX_ITEMS, MAX_SIDE, MAX_STATE_CHARS, CANVAS_PRESETS,
     elementsToState, stateToElements, ELEMENTS_VERSION,
-    compileFinalPrompt, findPlaceholders, findIgnoredGridFields, parseStoryboard,
+    compileFinalPrompt, findPlaceholders, findIgnoredGridFields, parseStoryboard, gridCanvasPixels,
 } from "./extensions/pack/moss_sb_editor.js";
 import { readFileSync } from "node:fs";
 
@@ -60,6 +61,7 @@ const elements = JSON.parse(readFileSync("./elements.json", "utf8"));
 const states = JSON.parse(readFileSync("./states.json", "utf8"));
 const compiles = JSON.parse(readFileSync("./compiles.json", "utf8"));
 const texts = JSON.parse(readFileSync("./texts.json", "utf8"));
+const grids = JSON.parse(readFileSync("./grids.json", "utf8"));
 const out = { presets: {}, grid: {}, empty: emptyState(), default_grid: DEFAULT_GRID,
               default_canvas: DEFAULT_CANVAS, aspects: ASPECT_IDS, max_items: MAX_ITEMS,
               max_side: MAX_SIDE, max_state_chars: MAX_STATE_CHARS, canvas_presets: CANVAS_PRESETS,
@@ -82,6 +84,8 @@ out.elements_exports = out.elements_states.map((s) => stateToElements(s, "zh"));
 out.state_exports = states.map((s) => stateToElements(s, "zh"));
 // 外接稿反解析：同一段文本两侧必须切出同样的段数/景别/描述
 out.intake = texts.map((t) => parseStoryboard(t));
+// 宫格总画布：UI 里显示的像素必须等于 build_layout 算的像素
+out.grid_canvas = grids.map((g) => gridCanvasPixels(g));
 out.read_canvas = [32, 4112].map((w) => {
     const r = readState(JSON.stringify({ version: 3, preset: "free", style: "",
                                          canvas: { width: w, height: 864 }, items: [] }));
@@ -91,7 +95,7 @@ console.log("__RESULT__" + JSON.stringify(out));
 """
 
 
-def run_js(fixtures, elements=None, states=None, compiles=None, texts=None):
+def run_js(fixtures, elements=None, states=None, compiles=None, texts=None, grids=None):
     node = find_node()
     if not node:
         return None
@@ -115,6 +119,8 @@ def run_js(fixtures, elements=None, states=None, compiles=None, texts=None):
             json.dump(compiles or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "texts.json"), "w", encoding="utf-8") as f:
             json.dump(texts or [], f, ensure_ascii=False)
+        with open(os.path.join(tmp, "grids.json"), "w", encoding="utf-8") as f:
+            json.dump(grids or [], f, ensure_ascii=False)
         with open(os.path.join(tmp, "run.mjs"), "w", encoding="utf-8") as f:
             f.write(js_runner())
         r = subprocess.run([node, "run.mjs"], cwd=tmp, capture_output=True, text=True,
@@ -287,6 +293,29 @@ INTAKE_TEXTS = [
 ]
 
 
+def grid_size_cases():
+    """宫格总画布：比例 × 格数 × 边长 × 缝/边距的边界组合（只取 Python 认为合法的那部分）。
+
+    UI 里显示的「将生成 W×H」是 `build_layout` 的镜像实现 —— 差 1px 就是骗用户，
+    所以这一组必须逐组对死。边长故意混入 1537（非 16 倍数）与 64（下限）。
+    """
+    cases, py = [], []
+    for aspect in L.ASPECTS:
+        for cols, rows in ((1, 1), (2, 1), (2, 2), (3, 1), (4, 2), (3, 3)):
+            for edge in (64, 128, 256, 512, 768, 1024, 1537, 2048):
+                for gutter, margin in ((0, 0), (8, 8), (17, 3), (64, 64)):
+                    try:
+                        lay = L.build_layout(panels=cols * rows, cols=cols, rows=rows,
+                                             gutter=gutter, margin=margin,
+                                             panel_edge=edge, panel_aspect=aspect)
+                    except ValueError:
+                        continue
+                    cases.append({"cols": cols, "rows": rows, "panel_aspect": aspect,
+                                  "panel_edge": edge, "gutter": gutter, "margin": margin})
+                    py.append([lay.width, lay.height])
+    return cases, py
+
+
 def main():
     node = find_node()
     if not node:
@@ -295,7 +324,8 @@ def main():
     docs = element_docs()
     states = random_states()
     cases = compile_cases(states)
-    data = run_js(fixtures(), docs, states, cases, INTAKE_TEXTS)
+    gcases, gpy = grid_size_cases()
+    data = run_js(fixtures(), docs, states, cases, INTAKE_TEXTS, gcases)
     if data is None:
         print("JS runner 无结果")
         return 1
@@ -316,6 +346,13 @@ def main():
         check(f"grid {key} count", len(py["items"]) == len(js), f"{len(py['items'])} vs {len(js)}")
         check(f"grid {key} items", comparable(py["items"]) == comparable(js),
               json.dumps({"py": comparable(py["items"]), "js": comparable(js)}, ensure_ascii=False)[:900])
+
+    # 宫格总画布：UI 上那行「将生成 W×H」必须等于 build_layout 算的
+    js_gc = data.get("grid_canvas") or []
+    bad = [(g, p, j) for g, p, j in zip(gcases, gpy, js_gc, strict=False) if p != j]
+    check(f"宫格总画布 UI==build_layout（{len(gcases)} 组）",
+          len(js_gc) == len(gpy) and not bad,
+          json.dumps({"数量": [len(gpy), len(js_gc)], "不符": bad[:3]}, ensure_ascii=False))
 
     # 默认值
     py_empty = E.empty_state()

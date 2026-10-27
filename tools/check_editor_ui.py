@@ -256,8 +256,15 @@ ok("画布预设都是 16 倍数", CANVAS_PRESETS.length >= 5
     ok("单张预览键序 label,caption,bbox,text,palette",
         Object.keys(parsed.items[0]).join(",") === "label,caption,bbox,text,palette",
         Object.keys(parsed.items[0]).join(","));
-    ok("单张预览坐标中心原点（[y0,x0,y1,x1]）", parsed.items[0].bbox.join(",") === "-346,-645,-268,645",
+    ok("单张预览坐标中心原点（[y0,x0,y1,x1]）", parsed.items[0].bbox.join(",") === "-346,-646,-267,646",
         parsed.items[0].bbox.join(","));
+    // 取整必须是 floor(左/上) + ceil(右/下)：框要**包住**，与宿主
+    // comfy_extras/nodes_moss_image.py 和 KJ 的 _moss_bbox 同规则。
+    ok("单张预览 bbox 用 floor/ceil 包住框", (() => {
+        const [y0, x0, y1, x1] = parsed.items[0].bbox;
+        return y0 === Math.floor(0.10 * 864) - 432 && x0 === Math.floor(0.08 * 1536) - 768
+            && y1 === Math.ceil(0.19 * 864) - 432 && x1 === Math.ceil(0.92 * 1536) - 768;
+    })());
     ok("单张预览无元素时退化成全局段",
         compileFinalPrompt({ ...ss, items: [], style: " 只有风格 " }) === "只有风格");
     ok("单张预览非 text 元素不带 text 键", (() => {
