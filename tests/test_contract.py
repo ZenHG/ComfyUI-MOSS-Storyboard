@@ -399,6 +399,9 @@ def test_bounds(V1):
     check("Crop columns/rows 上限 = layout 单轴上限",
           (hi(crop, "columns"), hi(crop, "rows")) == (L.MAX_AXIS, L.MAX_AXIS),
           "%s / %s" % (hi(crop, "columns"), hi(crop, "rows")))
+    check("Paste columns/rows 上限 = layout 单轴上限",
+          (hi(paste, "columns"), hi(paste, "rows")) == (L.MAX_AXIS, L.MAX_AXIS),
+          "%s / %s" % (hi(paste, "columns"), hi(paste, "rows")))
     check("Crop index 上限 = 格数上限 - 1（0 起）",
           hi(crop, "index") == L.MAX_PANELS - 1, str(hi(crop, "index")))
     check("Paste index 上限 = 格数上限 - 1（0 起）",

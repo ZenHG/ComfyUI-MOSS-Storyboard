@@ -914,11 +914,11 @@ class MossStoryboardPaste:
                     "tooltip": "【接线】接 Layout/Sampler 的 spec，贴回位置才与生成时逐像素一致。",
                 }),
                 "columns": ("INT", {
-                    "default": 0, "min": 0, "max": 20, "step": 1,
+                    "default": 0, "min": 0, "max": L.MAX_AXIS, "step": 1,
                     "tooltip": "【未接 spec 时必填】列数。填 0 且无 spec 会报错，不会瞎猜。",
                 }),
                 "rows": ("INT", {
-                    "default": 0, "min": 0, "max": 20, "step": 1,
+                    "default": 0, "min": 0, "max": L.MAX_AXIS, "step": 1,
                     "tooltip": "【未接 spec 时必填】行数。",
                 }),
             },
