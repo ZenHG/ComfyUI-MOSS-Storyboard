@@ -586,6 +586,7 @@ class MossStoryboardSampler:
         panels_img = P.crop_panels(grid, lay, shave=shave)
 
         report = "\n".join([
+            S.profile_hint(steps, cfg),
             "几何来源：%s" % geom_src,
             "布局 %d 格 = %d 列 × %d 行，画布 %d × %d（%.2fMP）"
             % (lay.panels, lay.cols, lay.rows, lay.width, lay.height, lay.megapixels),
@@ -699,6 +700,7 @@ class MossStoryboardSampler:
         latent_batch = S.stack_latents(latents)
 
         report = "\n".join([
+            S.profile_hint(steps, cfg),
             "latent：%d 个单格 latent 的 batch（行主序 = 格号 1..%d，**不是拼版**）%s"
             % (lay.panels, lay.panels,
                "×".join(str(v) for v in latent_batch["samples"].shape)),

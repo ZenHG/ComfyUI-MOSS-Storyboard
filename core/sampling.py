@@ -164,6 +164,26 @@ def sample(model, positive, negative, latent, steps, cfg, sampler_name, schedule
     return {"samples": samples}
 
 
+#: 采样档位：步数与 cfg 各有一条官方口径。**混搭照样能跑**，只是包内那些实测数字
+#: （逐格更一致、蒸馏更快）都来自单一档位，混搭的产物对不上任何一条。
+_STEP_BANDS = ((8, "lora"), (24, "none"), (float("inf"), "card"))
+_CFG_BANDS = ((1.2, "lora"), (2.0, "none"), (float("inf"), "card"))
+_BAND_NAMES = {"lora": "蒸馏 LoRA 档", "none": "无官方口径", "card": "SFT 模型卡档"}
+
+
+def profile_hint(steps, cfg):
+    """首跑档位提示：步数与 cfg 各落在哪一档、是否混搭。只出声，不改参数。"""
+    def fam(value, bands):
+        return next(name for edge, name in bands if value <= edge)
+
+    fs, fc = fam(int(steps), _STEP_BANDS), fam(float(cfg), _CFG_BANDS)
+    if fs == fc:
+        return "档位：%s（%d 步 / cfg %.2f）" % (_BAND_NAMES[fs], int(steps), float(cfg))
+    return ("档位：混搭 —— 步数属%s，cfg 属%s（%d 步 / cfg %.2f）。只提示不拦："
+            "包内的一致性与耗时数字都来自单一档位，混搭对不上"
+            % (_BAND_NAMES[fs], _BAND_NAMES[fc], int(steps), float(cfg)))
+
+
 def stack_latents(outs):
     """把每格的 `{"samples": …}` 拼成**一个** `{"samples": [N, C, h, w]}`。
 

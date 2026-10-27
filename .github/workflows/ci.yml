@@ -24,7 +24,7 @@
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
 #   · 133/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
 #   ·  90/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
-#   ·   9/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent batch
+#   ·  12/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
 #   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #
 # ⚠️ **已知覆盖缺口（诚实记录，别当成已覆盖）**：
