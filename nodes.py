@@ -469,7 +469,8 @@ class MossStoryboardSampler:
                     "tooltip": "【填什么】怎么送提示词：\n"
                                "auto（默认）= 把每格描述转成布局框再送，纯生成；\n"
                                "layout = 同上，显式写法；\n"
-                               "plain = 原样送提示词，不加布局框（等于普通 txt2img）。\n"
+                               "plain = 纯提示词，不加布局框：整张=整段原样送（等于普通 txt2img）；\n"
+                               "        逐格=全局段（去掉多格措辞）+ 本格描述。\n"
                                "⚠ 本包不做图生图：起点恒为空 latent。实测模板 latent 起点\n"
                                "（35 步/0.85 纯黑，12/0.6 与 4/0.5 残影）在 MOSS 上不成立，\n"
                                "所以这条通路已移除。想改已有图见 README「只改一格」。",
@@ -601,6 +602,8 @@ class MossStoryboardSampler:
                        shave=0, sample_edge=1024):
         """逐格生成：每格独立采样，再按几何坐标拼成宫格。
 
+        返回的 `latent` 是 **N 个单格 latent 的 batch**（`[N,C,h,w]`，行主序），不是拼版。
+
         为什么值得多花 N 倍时间（2026-10-24 实测）：
         - 整张生成时，4 格里同一角色的帽子颜色、脸型**不统一**（模型把全局描述
           摊薄到 4 个区域，每格各"想象"一遍）；
@@ -651,6 +654,7 @@ class MossStoryboardSampler:
 
         # 逐格采样
         shots = []
+        latents = []
         sent = []
         for i, (caption, _cell) in enumerate(pairs):
             text = T.panel_prompt(head, caption, pw, ph, init_mode=init_mode, label=label)
@@ -660,6 +664,7 @@ class MossStoryboardSampler:
             out_i = S.sample(model, cond_pos, cond_neg, latent, steps=steps, cfg=cfg,
                              sampler_name=sampler_name, scheduler=scheduler,
                              denoise=denoise, seed=seed + i)
+            latents.append(out_i)
             img = S.decode(vae, out_i)
             if img.ndim == 3:
                 img = img.unsqueeze(0)
@@ -684,7 +689,13 @@ class MossStoryboardSampler:
         grid, panels_img = _assemble_per_panel(
             shots_t, lay, reborder=reborder, border_px=border_px, shave=shave)
 
+        # latent 每格各一个，拼成 batch 而不是拼版：拼版没有画质意义，拼了还得再切回来。
+        # 外层没有列表输出（宿主 V3 不支持），所以必须在这里 cat 成单个张量。
+        latent_batch = S.stack_latents(latents)
+
         report = "\n".join([
+            "latent：%d 个单格 latent 的 batch（行主序 = 格号 1..%d，**不是拼版**）%s"
+            % (lay.panels, lay.panels, "×".join(str(v) for v in latent_batch.shape)),
             "几何来源：%s" % geom_src,
             "逐格生成：%d 格各自独立采样后拼版" % lay.panels,
             "单格画布 %d × %d（%.2fMP）｜整张 %d × %d（%.2fMP）"
@@ -696,11 +707,11 @@ class MossStoryboardSampler:
                denoise, S.effective_denoise(steps, denoise)),
             "prompt_used = 原始故事板稿；每格**真正送模型**的那句在输出 `prompts_json`（%d 条）"
             % len(sent),
-            "输出：grid %s，panels %s｜逐格模式不产整张 latent ⇒ `latent` 为 None" % (
+            "输出：grid %s，panels %s" % (
                 "×".join(str(v) for v in grid.shape), "×".join(str(v) for v in panels_img.shape)),
         ] + notes) + _mp_note(lay, per_panel=True, sample_px=(pw, ph))
 
-        return (grid, panels_img, None, lay.spec(), (positive or "").strip(), report,
+        return (grid, panels_img, latent_batch, lay.spec(), (positive or "").strip(), report,
                 json.dumps(sent, ensure_ascii=False))
 
 
@@ -852,8 +863,9 @@ class MossStoryboardPaste:
                 }),
                 "shave": ("INT", {
                     "default": 0, "min": 0, "max": 64, "step": 1,
-                    "tooltip": "【可留 0】必须与当初 Crop 的 shave 一致。裁的时候缩了 s 像素，\n"
-                               "贴回就要写在缩过的矩形里，否则内容整体偏移 s 像素且不报错。",
+                    "tooltip": "【可留 0】必须与当初 Crop 的 shave 一致：裁时四边内缩 s 像素，\n"
+                               "贴回也写在同一个内缩矩形里。不一致不会静默偏移 —— 尺寸对不上会\n"
+                               "bicubic 重采样并写进 report，代价是画面变糊。",
                 }),
                 "show_guides": ("BOOLEAN", {
                     "default": False, "advanced": True,

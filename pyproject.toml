@@ -35,7 +35,8 @@ Issues = "https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/issues"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-exclude = ["__pycache__", ".git", "dist"]
+# 审计报告/ 是协作面（报告与一次性脚本），不随包分发，也不该让它的风格问题打红本包的 CI。
+exclude = ["__pycache__", ".git", "dist", "审计报告"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "B", "C4", "PIE", "RET", "RUF100"]

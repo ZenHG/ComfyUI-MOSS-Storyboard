@@ -155,7 +155,7 @@ export const COMBOS = {
         // 界面上只写"是什么"，不写"有没有用"——结论放 tooltip，且带版本口径。
         auto: "自动（纯布局）",
         layout: "纯布局",
-        plain: "原样提示词",
+        plain: "纯提示词",
     },
     label: { object: "物体", character: "人物", text: "文字" },
     target_aspect: { keep: "保持原样" },
@@ -294,7 +294,9 @@ export const TIPS = {
     "MossStoryboardSampler.init": {
         en: "[What to enter] How the prompt is sent.\n"
             + "auto / layout = panel captions are turned into native JSON layout boxes (recommended);\n"
-            + "plain = raw prompt, no layout boxes.\n"
+            + "plain = plain text, no layout boxes: whole-canvas mode sends the prompt as-is"
+            + " (like plain txt2img); per-panel mode sends the global section (multi-panel"
+            + " wording stripped) plus that panel's caption.\n"
             + "⚠ This pack does not do img2img: the latent starts empty, MOSS does not condition on reference images.",
     },
     "MossStoryboardSampler.mode": {

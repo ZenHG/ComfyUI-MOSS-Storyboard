@@ -15,7 +15,7 @@ python tests/test_planner.py              # 27 项：brief → elements 模板 /
 python tests/test_skill_draft.py          # 79 项：官方 prompt-enhancer 草稿 / 编译 / state / CLI（零 GPU）
 python tests/test_contract.py             # 132 项（--no-host，CI 口径）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
 python tests/test_cross_language.py       # 90 项：JS ↔ Python 预设/默认值/校验/elements/canvas/最终提示词/外接稿差分
-python tests/test_panel_assembly.py       # 5 项：逐格拼版 reborder 语义
+python tests/test_panel_assembly.py       # 8 项：逐格拼版 reborder 语义 / 逐格 latent batch
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
 python tools/smoke_nodes.py               # 58 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆

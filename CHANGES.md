@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### 逐格 latent：batch，不是拼版
+- `MossStoryboardSampler` 逐格模式**不再返回 `None`**：每格 `{"samples": …}` 拼成**一个**
+  `[N,C,h,w]`（`core.sampling.stack_latents`，行主序 = 格号 1..N），report 首行写清语义。
+- 宿主 V3 不提供列表输出（全仓无 `OUTPUT_IS_LIST`），所以必须是单个张量；
+  交 Python list 出去下游会静默坏掉。
+- **输出值变了**（原来 None → 现在张量），**画面不变**；接 `VAEDecode` 会得到 N 张单格图。
+
+### 文案对齐实现（审计 D-06 / D-08）
+- `plain` 由「原样提示词」改名「纯提示词」：整张 = 整段原样送（等于普通 txt2img），
+  逐格 = 全局段（去掉多格措辞）+ 本格描述。
+- Paste 的 `shave` 提示不再说「整体偏移且不报错」：尺寸不符会 bicubic 重采样并写进 report，
+  代价是画面变糊。
+
 ### 调度器与宿主同源
 - `MossStoryboardSampler.scheduler` 的候选**改为读宿主** `comfy.samplers.SCHEDULER_NAMES`，
   不再手写七项（漏了 `linear_quadratic` / `kl_optimal`）。宿主不可导入时回落到九项冻结清单。
