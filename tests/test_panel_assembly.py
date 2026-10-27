@@ -69,6 +69,14 @@ def main():
     check("档位：50/1 判混搭", "混搭" in mix_step, mix_step[:28])
     check("档位：8/3 混搭、4/1 蒸馏", "混搭" in mix_cfg and "蒸馏" in lora, lora)
 
+    # cfg≤1.2 时负面提示词不参与计算（宿主 cfg1 优化）⇒ 只在真的填了负面时才出声
+    check("负面空转：cfg 1.0 且填了负面 → 出声",
+          "不生效" in S.profile_hint(8, 1.0, "拼贴, 相框"))
+    check("负面空转：cfg 1.0 但没填负面 → 不出声",
+          "不生效" not in S.profile_hint(8, 1.0, "   "))
+    check("负面空转：cfg 3.0 填了负面 → 不误报",
+          "不生效" not in S.profile_hint(50, 3.0, "拼贴"))
+
     # 稿子-布局对账：段数与显式格数都必须等于布局格数；一致返回 None
     def board(n, head="[STYLE]: x"):
         return "\n\n".join([head] + ["[PANEL %d]: y" % i for i in range(1, n + 1)])

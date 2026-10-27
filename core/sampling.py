@@ -171,17 +171,23 @@ _CFG_BANDS = ((1.2, "lora"), (2.0, "none"), (float("inf"), "card"))
 _BAND_NAMES = {"lora": "蒸馏 LoRA 档", "none": "无官方口径", "card": "SFT 模型卡档"}
 
 
-def profile_hint(steps, cfg):
+def profile_hint(steps, cfg, negative=""):
     """首跑档位提示：步数与 cfg 各落在哪一档、是否混搭。只出声，不改参数。"""
     def fam(value, bands):
         return next(name for edge, name in bands if value <= edge)
 
     fs, fc = fam(int(steps), _STEP_BANDS), fam(float(cfg), _CFG_BANDS)
-    if fs == fc:
-        return "档位：%s（%d 步 / cfg %.2f）" % (_BAND_NAMES[fs], int(steps), float(cfg))
-    return ("档位：混搭 —— 步数属%s，cfg 属%s（%d 步 / cfg %.2f）。只提示不拦："
+    head = ("档位：%s（%d 步 / cfg %.2f）" % (_BAND_NAMES[fs], int(steps), float(cfg))
+            if fs == fc else
+            "档位：混搭 —— 步数属%s，cfg 属%s（%d 步 / cfg %.2f）。只提示不拦："
             "包内的一致性与耗时数字都来自单一档位，混搭对不上"
             % (_BAND_NAMES[fs], _BAND_NAMES[fc], int(steps), float(cfg)))
+    # cfg≤1 时宿主走 cfg1 优化（comfy/samplers.py），uncond 根本不进图 ⇒ 负面写了也是白写。
+    if float(cfg) <= 1.2 and str(negative or "").strip():
+        head += ("\n⚠ 负面提示词本次**不生效**：cfg %.2f ≤ 1.2 时宿主跳过 uncond 分支"
+                 "（蒸馏 LoRA 的标准档就是 cfg 1.0）。要让负面起作用，得回到 SFT 档 cfg 3.0。"
+                 % float(cfg))
+    return head
 
 
 def stack_latents(outs):
