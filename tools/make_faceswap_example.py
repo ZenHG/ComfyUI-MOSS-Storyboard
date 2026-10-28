@@ -20,8 +20,8 @@ OUT = os.path.join(ROOT, "examples", "moss-faceswap-ui.json")
 
 #: 提示词模板。**必须提到 `Picture 1`** —— 参考图是靠这个词进场景的。
 #: 前缀 `Picture 1: <|vision_start|>...` 由节点自动拼，这里不要自己写。
-PROMPT = ("A medium shot photograph of the woman in Picture 1, sitting at a wooden table "
-          "in a warm cafe at night, rain on the window, soft warm light on her face, "
+PROMPT = ("A medium shot photograph of the person in Picture 1, sitting at a wooden table "
+          "in a warm cafe at night, rain on the window, soft warm light on the face, "
           "35mm film, shallow depth of field")
 
 NOTE = """## 换脸（`MossStoryboardFaceSwap`）
@@ -43,6 +43,10 @@ NOTE = """## 换脸（`MossStoryboardFaceSwap`）
    - `ref` = 身份参考图，**紧特写**最好，只给一张（双视角实测更差：0.384 vs 0.463）
 2. **提示词**里保留 `in Picture 1` 这个说法 —— 换成别的措辞参考图就不进场景了。
 3. **`index`** 改成你要换的格（0 起、行主序）。
+
+### ⚠ 先用单人源图
+示例源图是**双人**场景，而「一格两个人」是本节点**已知不成立**的情况：两张脸都会被换掉。
+拿它跑通流程没问题，但要看效果请换一张**单人**图（脸占画幅越大越好）。
 
 ### `denoise` 是最容易看错的一个旋钮
 - `0.95`（默认，实测配方）在 **8 步下等价于 1.0**：源图被**完全丢弃**，构图由提示词决定。
