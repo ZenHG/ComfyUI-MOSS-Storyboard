@@ -15,9 +15,10 @@
 // 退出码：0 全过；1 有失败；2 环境缺依赖（playwright-core / 对应引擎没装）
 //
 // 覆盖：真前端的 capture 转发链路、三个引擎（Chromium / Firefox / WebKit）的
-//   deltaMode / Shift 轴 / 小数 delta / 焦点与 gesture 路径。
-// 不覆盖：本机是 Windows，**macOS 触控板与真 Safari 捏合没有真机取证**——
-//   亚像素 delta 用合成事件验，gesture* 只在 WebKit 上确认「不误伤其它引擎」。
+//   事件顺序、悬停不聚焦能不能滚、边缘会不会外泄、手势放行、以及「我们到底有没有
+//   接管滚动」（探针读 defaultPrevented——接管了就丢掉原生惯性）。
+// 不覆盖：本机是 Windows，**macOS 触控板与真 Safari 捏合没有真机取证**；
+//   gesture* 只在 WebKit 上确认「不误伤其它引擎」。
 //
 // ⚠ 测试内容是自己塞进文本框的长文本（不触发 input、不动 state）：这里验的是**滚轮
 //   归属**，不是内容管线——内容管线由 ui_smoke.mjs 与 tests/ 负责。
@@ -124,6 +125,27 @@ async function wheel(page, x, y, { dx = 0, dy = 0, ctrl = false, shift = false }
     if (shift) await page.keyboard.up("Shift");
     if (ctrl) await page.keyboard.up("Control");
     await page.waitForTimeout(180);
+}
+
+/**
+ * 带探针的滚轮：探针注册在扩展**之后**（同一 target 上按注册顺序跑），
+ * 因此能读到我们处理完之后 `defaultPrevented` 是什么——
+ * false = 我们放给浏览器原生滚；true = 我们吃掉了。
+ * 前提：实现里只能 `stopPropagation`，不能 `stopImmediatePropagation`。
+ */
+async function wheelWithProbe(page, x, y, opt = {}) {
+    await page.evaluate(() => {
+        globalThis.__wheelProbe = null;
+        globalThis.__wheelProbeFn = (e) => {
+            globalThis.__wheelProbe = { dp: e.defaultPrevented, dY: e.deltaY, dMode: e.deltaMode };
+        };
+        globalThis.addEventListener("wheel", globalThis.__wheelProbeFn, true);
+    });
+    await wheel(page, x, y, opt);
+    return page.evaluate(() => {
+        globalThis.removeEventListener("wheel", globalThis.__wheelProbeFn, true);
+        return globalThis.__wheelProbe;
+    });
 }
 
 /** 把某个元素塞成长文本（不触发 input ⇒ 不改 state，不会引发布局重算）。 */
@@ -268,27 +290,26 @@ async function runEngine(engine) {
         const v13 = await view(page);
         check("⑥ 节点标题栏上 Ctrl+滚轮：画布照常缩放", !same(v12, v13), `${fmt(v12)} → ${fmt(v13)}`);
 
-        // ---------- ⑦ 行模式滚轮（Windows/Linux 的 Firefox 鼠标是这种） ----------
+        // ---------- ⑦ 只抢归属、不接管滚动 ----------
+        // 判据：命中可滚容器时**不能** preventDefault——一旦 preventDefault 就是我们在
+        // 手算 scrollTop，原生惯性 / 行模式 / 小数 delta 全丢。
+        // 这个探针注册在扩展之后，靠 stopPropagation（而非 stopImmediate）才能跑到。
         await page.evaluate((s) => { document.querySelector(s).scrollTop = 0; }, ".mossed-root textarea.mossed-prompt-text");
-        const line = await page.evaluate((s) => {
-            const el = document.querySelector(s);
-            const before = el.scrollTop;
-            el.dispatchEvent(new WheelEvent("wheel", { deltaY: 3, deltaMode: 1, bubbles: true, cancelable: true }));
-            return { before, after: el.scrollTop };
-        }, ".mossed-root textarea.mossed-prompt-text");
-        check("⑦ deltaMode=1（行）按行高换算：3 行 ≈ 48px",
-            line.after - line.before >= 40 && line.after - line.before <= 56, JSON.stringify(line));
+        const probe = await wheelWithProbe(page, ta.cx, ta.cy, { dy: 200 });
+        const t7 = await stats(page, ".mossed-root textarea.mossed-prompt-text");
+        check("⑦ 命中滚动容器：不 preventDefault（浏览器原生滚，不自己算 scrollTop）",
+            !!probe && probe.dp === false, JSON.stringify(probe));
+        check("⑦ 原生滚动确实生效（文本动了）", !!t7 && t7.top > 0, `scrollTop=${t7?.top}`);
 
-        // ---------- ⑧ 小数 delta（macOS 触控板）不许被取整吃掉 ----------
-        const frac = await page.evaluate((s) => {
-            const el = document.querySelector(s);
-            el.scrollTop = 0;
-            for (let i = 0; i < 5; i++) {
-                el.dispatchEvent(new WheelEvent("wheel", { deltaY: 0.4, deltaMode: 0, bubbles: true, cancelable: true }));
-            }
-            return { after: el.scrollTop };
-        }, ".mossed-root textarea.mossed-prompt-text");
-        check("⑧ 5 × 0.4px 的小数滚轮累计生效（残差不丢）", frac.after >= 1, JSON.stringify(frac));
+        // ---------- ⑦b 非滚动区（预览画布）：吃掉滚轮，绝不误缩放 ----------
+        const svg = await rect(".mossed-svg");
+        if (svg) {
+            const v7b = await view(page);
+            const probeB = await wheelWithProbe(page, svg.x + svg.w / 2, svg.y + Math.min(40, svg.h / 2), { dy: 240 });
+            const v7c = await view(page);
+            check("⑦b 节点内非滚动区：preventDefault 吃掉滚轮", !!probeB && probeB.dp === true, JSON.stringify(probeB));
+            check("⑦b 节点内非滚动区：画布不动（不误缩放）", same(v7b, v7c), `${fmt(v7b)} → ${fmt(v7c)}`);
+        }
 
         // ---------- ⑨ 单张模式：描述框 / 属性面板 ----------
         await page.evaluate(() => {

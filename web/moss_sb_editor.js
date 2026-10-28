@@ -8,7 +8,7 @@
 //   · bbox 一律归一化 0–1；显示尺寸与像素尺寸解耦
 //   · widget 顺序一个字节都不动（铁律 1）；UI 本身是 `serialize:false` 的 DOM widget
 //
-// 结构（docs/08 §七 · 借鉴 ComfyUI-NewBie-LLM-Formatter 的 state-in-widget，MIT）：
+// 两种视图：
 //   grid 模式 = 只读宫格总览（格位由 cols/rows 算死）
 //   single 模式 = 可画框 / 拖动 / 8 向缩放 + 吸附（框边、中线、三分线、16px 网格）
 //
@@ -1400,45 +1400,16 @@ function scrollableFrom(node) {
 }
 
 /**
- * 小数残差：macOS 触控板 / 高 DPI 下 deltaY 常是 0.4、0.7 这种值，
- * 而 `scrollTop` 读回来是取整的 ⇒ 直接 `+=` 每次都被抹成 0，表现为「滚了没反应」。
- * 这里把没吃进去的零头记到下一次；到边界就清零，避免反向时突然跳一段。
+ * 滚轮归属：**只抢归属，不接管滚动**。
+ *
+ * 命中编辑器内的可滚容器 ⇒ `stopPropagation` 之后放手，滚动交给浏览器（原生惯性、行模式、
+ * 小数 delta、Shift 轴映射都是它本来就会做的事，自己算 `scrollTop` 反而会丢）。
+ * 命中不了 ⇒ `preventDefault` 吃掉，不让滚轮在节点内误缩放画布。
  */
-const WHEEL_REST = new WeakMap();
-
-function addScroll(sc, dx, dy) {
-    const rest = WHEEL_REST.get(sc) || { x: 0, y: 0 };
-    const beforeY = sc.scrollTop;
-    const beforeX = sc.scrollLeft;
-    const wantY = beforeY + dy + rest.y;
-    const wantX = beforeX + dx + rest.x;
-    if (dy !== 0) {
-        sc.scrollTop = wantY;
-        const stuckLo = sc.scrollTop <= 0 && wantY <= 0;
-        const stuckHi = sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1 && wantY >= sc.scrollTop;
-        rest.y = (stuckLo || stuckHi) ? 0 : wantY - sc.scrollTop;
-    }
-    if (dx !== 0) {
-        sc.scrollLeft = wantX;
-        const stuckLo = sc.scrollLeft <= 0 && wantX <= 0;
-        const stuckHi = sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 1 && wantX >= sc.scrollLeft;
-        rest.x = (stuckLo || stuckHi) ? 0 : wantX - sc.scrollLeft;
-    }
-    WHEEL_REST.set(sc, rest);
-}
-
-/**
- * 把滚轮折成像素。三种 `deltaMode` 都要认（Windows/Linux 的 Firefox 鼠标是「行」，
- * 少数环境是「页」）；Shift+滚轮在 Chrome/WebKit 给 deltaX、在 Firefox 给 deltaY+shiftKey。
- */
-function wheelScroll(node, e) {
-    const sc = scrollableFrom(node);
-    if (!sc) return false;
-    const unit = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? sc.clientHeight : 1);
-    let dx = e.deltaX;
-    let dy = e.deltaY;
-    if (e.shiftKey && Math.abs(dx) < 1) { dx = dy; dy = 0; }
-    addScroll(sc, dx * unit, dy * unit);
+function claimWheel(e, target) {
+    const sc = scrollableFrom(target);
+    e.stopPropagation();
+    if (!sc) { e.preventDefault(); return false; }
     return true;
 }
 
@@ -1462,8 +1433,10 @@ let wheelGuardOn = false;
  *
  * 唯一能抢在它前面的位置是 window 的 capture（DOM 标准：window → document → … → target，
  * 三段式 capture 顺序与操作系统、浏览器引擎无关）。这里按目标过滤，只处理编辑器内部；
- * 滚轮一律就地消化：能滚的区域自己滚，不能滚的也不外泄（否则又是缩放）。
  * Ctrl/Cmd + 滚轮是宿主的画布缩放手势（宿主把 ctrlKey/metaKey/横向滚动都算手势），放行。
+ *
+ * 只 `stopPropagation`（不 `stopImmediatePropagation`）：同一 target 上别的监听
+ * （宿主的「滚轮关闭弹层」等）照常跑，我们只掐断**往下去画布**这条路。
  */
 function installWheelGuard() {
     if (wheelGuardOn) return;
@@ -1471,11 +1444,8 @@ function installWheelGuard() {
     const onWheel = (e) => {
         if (!inEditor(e)) return;
         if (e.ctrlKey || e.metaKey) return;
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
         const path = typeof e.composedPath === "function" ? e.composedPath() : [];
-        wheelScroll(path[0] || e.target, e);
+        claimWheel(e, path[0] || e.target);
     };
     try {
         globalThis.addEventListener("wheel", onWheel, { capture: true, passive: false });
@@ -1492,10 +1462,7 @@ function mountRoot() {
         root.addEventListener(ev, (e) => e.stopPropagation());
     }
     // 节点内兜底（window capture 失效时仍不至于缩放画布）
-    root.addEventListener("wheel", (e) => {
-        e.stopPropagation();
-        if (!wheelScroll(e.target, e)) e.preventDefault();
-    }, { passive: false });
+    root.addEventListener("wheel", (e) => claimWheel(e, e.target), { passive: false });
     // Safari：触控板双指捏合走 gesture* 事件（根本不发 wheel）⇒ 不拦就是**整页**缩放，
     // DOM 组件与画布立刻错位。只在节点内拦，节点外照旧。其它引擎没有这几个事件，无副作用。
     for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {

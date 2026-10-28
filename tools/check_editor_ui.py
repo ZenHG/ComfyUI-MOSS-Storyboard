@@ -573,10 +573,11 @@ def check_wiring(contract, src):
     # 系统级差异只有三种输入形态（鼠标滚轮、触控板、捏合），这里逐条钉住。
     check("W17 目标判定走 composedPath（shadow DOM 里 e.target 会被重定向到宿主）",
           "function inEditor(e)" in src and "e.composedPath()" in src)
-    check("W18 滚轮按 deltaMode 三态换算 + Shift 横向（Chrome 给 deltaX，Firefox 给 deltaY）",
-          "deltaMode === 1" in src and "deltaMode === 2" in src and "e.shiftKey" in src)
-    check("W19 小数残差补偿（macOS 触控板 0.4px 不被 scrollTop 取整吃掉）",
-          "WHEEL_REST" in src and "WeakMap" in src)
+    check("W18 只抢归属不接管滚动：命中可滚容器放手（不 preventDefault），没有才吃掉",
+          "function claimWheel(e, target)" in src
+          and re.search(r"if\s*\(!sc\)\s*\{\s*e\.preventDefault\(\);\s*return false;\s*\}", src) is not None)
+    check("W19 不自己算 scrollTop（手算会丢原生惯性 / 行模式 / 小数 delta）",
+          "scrollTop +=" not in src and "WHEEL_REST" not in src and "scrollableFrom" in src)
     check("W20 编辑器内拦 Safari 捏合 gesture*（Safari 捏合不发 wheel，不拦就整页缩放）",
           '"gesturechange"' in src and "root.addEventListener(ev, (e) => e.preventDefault()" in src)
     check("W21 overscroll-behavior:contain 覆盖 根 / 属性面板 / 提示词框（JS 失效时的兜底）",
