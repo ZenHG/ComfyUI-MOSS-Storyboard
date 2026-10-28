@@ -462,6 +462,16 @@ export const TIPS = {
             + "On a 4-panel 496-edge board one cell is only 0.135 MP and the face is about 50x27 px — too small to identify.\n"
             + "0 = no upscale (sample at the cell size, lowest VRAM).",
     },
+    "MossStoryboardFaceSwap.auto_mask": {
+        en: "[On by default] Finds the face with insightface and builds the mask for you.\n"
+            + "Needs `pip install insightface onnxruntime`; if it is missing the node says so instead of guessing.\n"
+            + "A wired `mask` takes priority over this.",
+    },
+    "MossStoryboardFaceSwap.face_pick": {
+        en: "[Which face] When a panel has several people, name the one you want://n"
+            + "largest = biggest face; left / right = leftmost / rightmost.\n"
+            + "`report` prints how many faces were found and which one was used.",
+    },
     "MossStoryboardFaceSwap.mask": {
         en: "[Wire, strongly recommended] Only the masked region is repainted; everything outside stays pixel-identical.\n"
             + "Without it the whole panel is repainted and the colour grade always drifts (measured R +24 to +53).\n"

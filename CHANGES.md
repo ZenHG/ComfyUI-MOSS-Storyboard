@@ -20,6 +20,12 @@
 - 蒙版与图像走同一套几何：按 `spec` 裁到目标格，再跟着抬 `sample_edge`。
 - ⚠ 坑：`LoadImage` 的 `MASK` 是 alpha（`1-alpha`），灰度图没有 alpha 时返回 64×64 全零
   ⇒ 蒙版等于没接。示例改用 `ImageToMask(channel="red")`。
+- **自动蒙版（默认开）**：insightface 检脸 → 生成蒙版，不用手画。手画的椭圆只对一张图有效，
+  换图就错位、宫格里还会偏到另一个人脸上，而且不报错。
+- `face_pick`：`largest` / `left` / `right`，一格多个人时点名换哪张；`report` 写「检测到 N 张脸、用了哪张」。
+  示例实测 `face_pick=right` 改动面积 3.38%（整格重画是 22.8%）。
+- 修两个静默失败：V3 外壳把没接的可选入参传 `None`（不落 Python 默认值）⇒ `auto_mask` 曾被当 False；
+  以及蒙版判据误用 `mask` 而不是生成出来的 `m`。
 - 配方与判据写成 `docs/17-faceswap-recipe.md`（含 E26 成功配方的原文提示词与两个坑）。
 
 ### 接线断言抓到的真 bug
