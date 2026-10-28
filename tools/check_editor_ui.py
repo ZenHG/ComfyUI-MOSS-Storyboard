@@ -592,8 +592,19 @@ def check_wiring(contract, src):
           "OWN.has(nodeData?.name)" in compat and "repairValues" in compat)
     check("W23 长度一致时绝不猜（单个非法值更可能是用户手改，不替人做主）",
           "delta === 0" in order and "return null" in order)
-    check("W24 只有 serialize:false **且**是 DOM 组件才不占位（control_after_generate 要占位）",
-          "w.options.serialize === false && w.element" in order)
+    # 2026-10-28 真机实测：serialize() 不按 type / serialize:false / element 过滤
+    # （基线 22 → 加 button 23 → 再加 DOM 组件 24）。任何"某类 widget 不占位"的过滤
+    # 都会少算格子，反而造出错位 —— 这里钉住"一个都不过滤"。
+    check("W24 每个 widget 都占位（serialize 不按类型过滤）",
+          "const list = (widgets || []).filter(Boolean);" in order
+          and "options.serialize" not in order)
+    # i18n 语言条不进存档，所以存档格数天生比 widget 数少 1；
+    # 若要求候选长度严格等于 widget 数，一份"中间缺一格"的稿子（差 2 格）就永远补不进去。
+    check("W25 允许候选短于 widget 数（尾部缺格不算错位）",
+          "cand.length <= list.length" in order)
+    # 负对照：key 拼 `${type}:${delta}:${at}` 时，同类型的第二个旧稿不写 properties（实测漏）。
+    check("W26 留痕按节点实例去重（拼类型做 key 会吞掉同类型的第二个旧稿）",
+          "new WeakSet" in compat and "HINTED.has(node)" in compat)
 
 
 def main():
