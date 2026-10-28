@@ -26,6 +26,7 @@ import {
 const TAG = "[MOSS SB] i18n";
 const BTN_CLASS = "mosssb-i18n-btn";
 const STYLE_ID = "mosssb-i18n-btn-style";
+const BAR_NAME = "mosssb_i18n_bar";
 
 let _lang = null;
 let booted = false;
@@ -140,6 +141,36 @@ function makeBtn() {
     return btn;
 }
 
+/**
+ * 把语言条那一格从存档里去掉。
+ *
+ * 为什么必须自己剔：`addDOMWidget(..., { serialize: false })` 只是**告诉宿主**别存，
+ * 实测（前端 1.57.4）这版 litegraph 的 `serialize()` 照样把它写进 `widgets_values`。
+ * 而载入时它是 `configure` **之后**才挂上的 —— 于是「存档 n 项 / 载入时 n-1 个 widget」，
+ * 每保存一次就差一格，下次打开整条值右移一位、`panels/panel_aspect/init` 一起变红。
+ * 在这里剔掉，存出去的长度与载入时天然一致，连"修"都不需要。
+ *
+ * 只在「存档长度 == widget 总数」时动（那时才是一一对应，splice 位置才可靠）。
+ */
+function dropBarFromSave(node) {
+    if (!node || node.__mosssbSave) return;
+    node.__mosssbSave = true;
+    const orig = node.serialize;
+    if (typeof orig !== "function") return;
+    node.serialize = function (...args) {
+        const out = orig.apply(this, args);
+        try {
+            const ws = out && out.widgets_values;
+            const all = this.widgets || [];
+            if (Array.isArray(ws) && ws.length === all.length) {
+                const i = all.findIndex((w) => w && w.name === BAR_NAME);
+                if (i >= 0) ws.splice(i, 1);
+            }
+        } catch (e) { /* 存出去多一格也比崩了强 */ }
+        return out;
+    };
+}
+
 function mountBtn(node) {
     // 🔴 只给本包节点加按钮。官方节点、别人的节点一律不加（挂了就是往人家界面上塞东西）。
     if (!node || node.__mosssbBar) return false;
@@ -152,12 +183,13 @@ function mountBtn(node) {
             bar.addEventListener(ev, (e) => e.stopPropagation());   // 别让点按钮变成拖节点
         }
         // `serialize:false` = 绝不进工作流 JSON（分享出去不污染别人的图）
-        node.addDOMWidget("mosssb_i18n_bar", "custom", bar, {
+        node.addDOMWidget(BAR_NAME, "custom", bar, {
             serialize: false,
             hideOnZoom: false,
             getMinHeight: () => 28,
         });
         node.__mosssbBar = bar;
+        dropBarFromSave(node);
         return true;
     } catch (e) {
         // 跨前端版本可能没有 addDOMWidget ⇒ 不掀画布，降级为"没有按钮但翻译照常"

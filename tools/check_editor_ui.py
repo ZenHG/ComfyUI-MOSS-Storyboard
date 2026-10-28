@@ -614,6 +614,15 @@ def check_wiring(contract, src):
           all("./ui_kit.mjs" in t for t in ui_text.values())
           and not any("function findPwCore" in t for t in ui_text.values()))
 
+    # 实测（前端 1.57.4）：`addDOMWidget(..., {serialize:false})` 只是"告诉宿主"，这版
+    # litegraph 的 serialize() 照样把它写进 widgets_values；而语言条是 configure **之后**才挂的，
+    # 于是"存档 n 项 / 载入时 n-1 个 widget"，每保存一次就差一格、下次打开整条右移变红。
+    # 所以必须在 serialize 上自己剔掉那一格。
+    i18n_ui = open(os.path.join(ROOT, "web", "moss_sb_i18n_ui.js"), encoding="utf-8").read()
+    check("W28 语言条不进存档（自己剔，不指望 serialize:false）",
+          "function dropBarFromSave" in i18n_ui and "ws.splice(i, 1)" in i18n_ui
+          and "dropBarFromSave(node)" in i18n_ui)
+
 
 def main():
     src = open(EDITOR, encoding="utf-8").read()

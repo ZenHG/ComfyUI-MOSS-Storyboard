@@ -16,8 +16,13 @@
 - **不动手的情形**：只坏一个值（更像用户手改）、差超过 3 格、怎么对齐都合法不了。
   修完写 `console.warn` 与 `node.properties.msb_widgets_repaired`，并提示重新保存。
 - 钩子只挂在 `beforeRegisterNodeDef` 里本包节点上，外来节点不碰。**不必重建旧稿**。
+- **根子上的那一格也补掉了**：i18n 语言条是 `addDOMWidget(..., {serialize:false})`，
+  但这版 litegraph（前端 1.57.4）**不认**这个标记，`serialize()` 照样把它写进 `widgets_values`；
+  而它是 `configure` **之后**才挂上的 ⇒「存档 n 项 / 载入时 n-1 个 widget」，
+  **每保存一次就差一格，下次打开整条值右移**。现在在 `serialize` 上自己剔掉那一格，
+  存出去的长度与载入时天然一致 —— 打开→保存→再打开→刷新，四步都不再需要"修"。
 - 纯函数层 `web/moss_sb_widget_order.js` 由 `tests/test_compat.mjs` 直接跑（33 项）；
-  `check_editor_ui.py` 新增 W22–W27，141 → 147 项。
+  `check_editor_ui.py` 新增 W22–W28，141 → 148 项。
 
 ### 前端真机测试：公共底座 `tools/ui_kit.mjs`
 - 原先 `ui_smoke.mjs` / `ui_wheel_check.mjs` 各抄一份「找 playwright-core / 找 chromium /
@@ -25,9 +30,9 @@
 - 三条纪律写进底座：缺依赖 **exit 2**（跳过 ≠ 通过）；等 `app.graph` **和** `app.canvas`
   都就绪再载工作流（早载会被随后的自动恢复覆盖成空图）；断言读 **`widget.value`**（界面值），
   不是 `widgets_values`（存档数组）——只读存档会得到假绿。
-- 新增 `tools/ui_widget_compat.mjs`（11 项）：对齐稿不许被改 / 人为错位稿加载后归位 /
-  **刷新后**仍不红 / `widget 数 == serialize 长度`。刷新那条是用户报的路径，只测
-  `loadGraphData` 会漏。
+- 新增 `tools/ui_widget_compat.mjs`（14 项）：对齐稿不许被改 / 人为错位稿加载后归位 /
+  **刷新后**仍不红 / 存档长度 = widget 数 − 语言条 / **存出去再打开**仍不红且不必修。
+  刷新与"存完再开"是用户真实走的两条路径，只测 `loadGraphData` 会漏。
 
 ### 稿子与布局对账：不一致就停在采样前（只拦不改写）
 - 布局模式下（`init=layout`/`auto` + 整张），`[PANEL n]` 段数与全局段的显式格数
