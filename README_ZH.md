@@ -304,8 +304,10 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 5. 后面接普通 `KSampler`——MOSS-Image-SFT 模型卡口径是 50 步 / cfg 3 / euler；
    叠 4 步蒸馏 LoRA 时用 4 步 / cfg 1.0。
 
-> ⚠ **单张模式的 `prompt` 不要接「故事板 · 生成」。** 单张模式的 `prompt` 已经是布局 JSON，
-> 而「生成」节点会把它当 `[PANEL n]` 段落再解析一遍，接过去就错了。单张就用普通 `KSampler`。
+> **单张模式现在也给 `spec`（1 格）。** 把编辑器的 `spec` 接进「生成」节点，两边就**对应得上**：
+> 画布来自编辑器、出 1 张、提示词按布局 JSON 原样送。0.3.0 之前这里给的是空串，
+> 接上去等于没接——「生成」静默回退到自己的 `panels=4`，于是选了海报预设、出来的还是四宫格。
+> 想走普通 `KSampler` 也行，两条路都成立。
 >
 > （顺带说清一个容易混的地方：**不经过编辑器**、只想出一张不分格的图时，可以只在「生成」上把
 > `panels` 设为 1——那条路走的是提示词，不是 JSON，和上面这条警告不是一回事。）
@@ -450,7 +452,8 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 > `negative` 只在**单张模式 + 打开「融合成一张」**时非空（几个防拼贴的词）；宫格模式恒为空串。
 > 它的作用是不用手抄那几个词；不接也能出图。
-> 单张模式下 `spec` 是空串（没有宫格可裁），`template` 是一张纯色占位图。
+> 单张模式下 `spec` 是 **1 格宫格**（画布 = 编辑器画布，缝与边距都是 0），可接「生成」「裁格」「贴回」；
+> `template` 是一张纯色占位图。
 > 宫格模式下两者都可用，`spec` 能接「裁格」「贴回」。
 
 | 参数 | 说明 |
@@ -476,8 +479,8 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 | **单张** | `左右分栏` `上下分栏` `标题 + 主体 + 正文` `三列` `中心主体` `层叠` `自由` | 一个多元素 layout JSON，**一次采样整张** | `CLIPTextEncode` 的 `text`，再接普通 `KSampler` |
 | **宫格** | `宫格` | `[STYLE]` + 逐格 `[PANEL n]` | 「生成」节点的 `positive` + `spec`；默认 `mode=整张`，要逐格返工或每格更高像素时切 `逐格` |
 
-> 单张模式下 `prompt` 输出的是**已经是布局 JSON**，直接喂 `CLIPTextEncode` 就行，
-> 不要再套「生成」节点（它会再解析一次段落）。
+> 单张模式下 `prompt` 输出的是**已经是布局 JSON**，直接喂 `CLIPTextEncode` 就行；
+> 接「生成」节点也可以——`spec` 走 1 格，提示词原样送，不会再被当成段落解析。
 > `width` / `height` 接 `EmptyFlux2LatentImage` 的尺寸。
 
 **画布怎么用**

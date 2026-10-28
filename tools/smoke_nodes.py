@@ -67,7 +67,7 @@ def main():
 
     print("\n== 3. V3 出口 ==")
     from moss_sb.v3.nodes_v3 import NODES
-    check("V3 清单 6 个节点", len(NODES) == 6, str([c.__name__ for c in NODES]))
+    check("V3 清单 7 个节点", len(NODES) == 7, str([c.__name__ for c in NODES]))
     for cls in NODES:
         try:
             sch = cls.GET_SCHEMA()
