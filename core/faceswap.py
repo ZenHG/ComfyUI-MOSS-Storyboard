@@ -100,8 +100,6 @@ def crop_mask(mask, layout, index):
     与 `crop_panels` 用**同一套整数坐标**：蒙版和图像如果各裁各的，脸框就会偏，
     而这种偏不会报错，只会让「蒙版外不动」这句话变成假的。
     """
-    import torch
-
     if mask is None:
         return None
     if mask.ndim == 2:

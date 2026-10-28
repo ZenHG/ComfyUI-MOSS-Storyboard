@@ -85,7 +85,6 @@ def pick(faces, mode="largest", index=0):
         return faces[0], "最左那张（共 %d 张）" % len(faces)
     if mode == "right":
         return faces[-1], "最右那张（共 %d 张）" % len(faces)
-    i = max(0, min(int(index), len(faces) - 1))
     best = max(faces, key=lambda f: f["area"])
     return best, "最大那张（共 %d 张，占 %.1f%%）" % (
         len(faces), 100.0 * best["area"] / max(1e-6, sum(f["area"] for f in faces)))
@@ -110,12 +109,12 @@ def build_mask(size_hw, face, grow=0.05, blur=None):
         top = y1 + 0.50 * fh
     bottom = min(h, y2 + 0.06 * fh)
 
-    m = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(m).rectangle(
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rectangle(
         [int(max(0, x1 - grow * fw)), int(max(0, top)),
          int(min(w, x2 + grow * fw)), int(bottom)], fill=255)
-    m = m.filter(ImageFilter.GaussianBlur(radius=blur if blur else max(3, int(fw * 0.02))))
-    return m
+    return mask.filter(
+        ImageFilter.GaussianBlur(radius=blur if blur else max(3, int(fw * 0.02))))
 
 
 def auto_mask(rgb, size_hw, mode="largest", index=0, grow=0.05):
