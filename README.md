@@ -680,65 +680,21 @@ This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or
 
 ### 🎬 Storyboard · Face Swap (`MossStoryboardFaceSwap`)
 
-Puts the **face from a reference image** into **one panel** (or into a single image). One node, one sampling pass.
+Reference face → **one panel** (or a single image). MIT, like the rest of the pack.
 
-Two channels, each owning half of the job:
-
-| Channel | Owns | Knob |
-|---|---|---|
-| reference image → vision tower | **who it is** (identity) | `vision_megapixels`, default `1.05` |
-| source image → `VAEEncode` (img2img) | **what is drawn** (composition, scene) | `denoise` + `prompt` |
-
-**Inputs**
-
-| Input | Notes |
+| | |
 |---|---|
-| `model` / `clip` / `vae` | The usual three. Measured recipe: the 8-step DMD2 distil LoRA **first**, then the Moss-Image-Edit LoRA |
-| `image` | What to swap into. With `spec` connected, feed the **whole board** — the node crops panel `index` itself |
-| `ref` | Identity reference, a **tight close-up** works best. **One image only**: two views measured worse than one (`0.384` vs `0.463`, the vision tokens get diluted) |
-| `prompt` | The scene to repaint, in English, and it must mention the reference — e.g. `... the woman in Picture 1, sitting at a wooden table ...`. **Do not type the `Picture 1:` prefix**: the node adds it, and strips one you wrote yourself so there is never a duplicate |
-| `spec` / `index` | Optional. With `spec` the node swaps panel `index` and writes it back; the gutters, margins and every other panel stay **byte-identical** (measured: `max|Δ| = 0` outside the target cell) |
-| `sample_edge` | `1024`. The panel is upscaled to this long edge for sampling, then scaled back into its cell — the same mechanism per-panel mode uses. On a 4-panel 496-edge board one cell is `0.135 MP` and the face is about `50×27 px`, too small to identify |
+| `ref` → vision channel | decides **who**. `vision_megapixels` default `1.05` (at the host default `0.147` the reference scores about `0.008`, i.e. nothing) |
+| `image` + `prompt` → img2img | decides **what is drawn**. The prompt must mention the reference (`in Picture 1`); the node adds the prefix |
+| `spec` + `index` | only that panel changes — gutters, margins and the other panels stay pixel-identical (measured `max|Δ| = 0`) |
 
-**`denoise` is the knob people misread.** The host truncates sigma by `int(steps/denoise)`:
+**`denoise` is the one knob to get right.** At 8 steps `0.95` **equals `1.0`**: the source is discarded and composition comes from the prompt. Use `≤0.875` to keep the source composition. `report` prints the value that actually took effect.
 
-| `denoise` at 8 steps | What actually happens |
-|---|---|
-| `0.95` (default) | **equals `1.0`** — the source image is discarded entirely; composition comes from the prompt, identity from the reference. This is the measured recipe |
-| `0.875` | the first value that really keeps the source composition (`int(8/0.875) = 9 > 8`) |
-| `0.875 … 0.99` | all behave as `1.0` at 8 steps |
+Recipe: 8-step DMD2 LoRA **then** the Moss-Image-Edit LoRA · 8 steps / cfg 1.0 / euler + simple · **one** reference image (two views measured worse).
 
-`report` prints the **value that really took effect**, not the nominal one — do not trust the widget alone.
+**Known limits**: two people in one panel, pose changes, and chaining two swaps do not work. No identity score is published — the ruler has no discriminating power in this domain. Knobs that were tried and why they stay at their defaults: [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md).
 
-**Identity: the ruler itself does not work here — that is the newest finding (2026-10-28).** This page publishes **no absolute "does it look like the person" score**, and sets no threshold. Two measured reasons:
-
-1. **Comparing a cosine to a threshold measured under other conditions is invalid.** A same-person ceiling taken from studio-lit frontal close-ups does not transfer to a multi-pose, multi-shot, behind-glass frame. The only usable method is a **same-condition floor**: if two identities appear in the same batch, their cross-pair cosine is the floor, and the split is found from the largest gap between clusters — not from a magic number.
-2. **In this domain the cosine has no discriminative power at all.** Measured on MOSS-generated East Asian women: *different* people scored `0.521` while the *same* person scored `0.468` — the diagonal loses. Any cosine on such a batch (0.35 or 0.62) is unreadable. **Eyeballing is the only valid evidence there.** In the male domain the same ruler keeps a `+0.775` margin and is usable.
-
-Consequence: earlier write-ups that reported "`0.4633` = 68 % of the way to the same-person ceiling" are **withdrawn** — that percentage was a cross-condition comparison. The numbers below are kept only as **within-condition relative ordering**, which is all they can support.
-
-| Tried | Result (relative, same conditions) |
-|---|---|
-| 30 steps / cfg 3 | worse — and an extra face appears in frame |
-| Two reference views | worse — the vision tokens get diluted |
-| `reference_latents` on with a late window | worse — it drags the reference's *composition* in |
-| `image_strength` 1 / 2 / 4 / 8 | non-monotonic; the default `1.0` is best |
-| `vision_megapixels` 1.05 / 1.5 / 2.0 | **identical** — scaling only ever goes down |
-
-**Where it does not work** (pixel or behaviour evidence, no cosine involved)
-
-- **Two people in one panel: no.** Both faces get swapped and the pair drifts apart; at ~68 px per face the measurement is unreliable too. Not solved.
-- **Pose: no.** "Turn her head" produces no head turn at `denoise` 0.75 or 0.90, long or short phrasing. Changing clothes colour and environment **does** work — this model is good at attributes and scenes, bad at body pose.
-- **Big close-ups: the model refuses.** Feed a face at 0.483 of the frame width and it comes back at 0.324.
-- **Swapping twice is a no-op.** Feeding a swapped result back in at `denoise 0.90` returns a pixel-identical image. Cause unknown — do not chain two swaps.
-- **No mask-based local retouch.** That path was measured separately and leaves a visible skin seam at the mask border (ΔE 9–11 inside vs outside). This node repaints the whole panel instead, on purpose.
-- **These numbers are the full-image path.** This node samples each **panel** after upscaling it to `sample_edge`; that path has no separate measurement yet. Same mechanism, different sampling canvas.
-
-Measured production shape: **swap once, then derive every scene from that result in a star** (`denoise 0.88`), never chain scene-to-scene — face width held at 0.191–0.206 across four scenes and identity did not decay. About 22 s per panel at 8 steps.
-
-**Licensing.** The vision-budget behaviour follows the host's public `TextEncodeMOSSImageEdit` contract, but the implementation here is written independently against ComfyUI's public API — no GPL source was copied. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md), and [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) for why this node could join an MIT pack while the community `HiRes` encoder could not.
-
-Example: `examples/moss-faceswap-ui.json` — 4-panel board in, panel 0 swapped, board out.
+Example: `examples/moss-faceswap-ui.json`.
 
 ---
 
