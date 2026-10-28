@@ -25,7 +25,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.2.3** |
+| 版本 | **0.3.0** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（MOSS-Image 原生支持自 PR #17095 起） |
 | 依赖 | **零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供） |
@@ -142,7 +142,7 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。这不
 | **中英双语界面** | 每个本包节点上有「中 / EN」按钮，只改显示、不改存档 |
 | **零 GPU 机检** | 全部离线断言（清单见 [`CONTRIBUTING.md`](CONTRIBUTING.md)） |
 
-**六个节点，一个入口就够。仓库示例接的是完整故事板链；最小工作流只需要「生成」一个** ——
+**七个节点，一个入口就够。仓库示例接的是完整故事板链；最小工作流只需要「生成」一个** ——
 它自带全套几何参数。「布局编辑器」是另一个入口：不写提示词段落，改在画布上摆框，
 适合海报、封面、产品图。「宫格几何」是可选的前置：用来先看宫格形状，或把几何固化成
 一根 `spec` 传给多个下游。「提示词 · 草稿编译」是官方提示词 skill 的桥：贴官方草稿，
@@ -156,6 +156,7 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。这不
 | 🎬 故事板 · 裁格 | `MossStoryboardCrop` | 可选 | 只裁格。接 `spec` 就与生成时逐像素一致，也能切已有的宫格图 |
 | 🎬 故事板 · 贴回 | `MossStoryboardPaste` | 可选 | 把改好的单格按 `spec` 贴回宫格，输出改好的整图。改一格不用重跑整张 |
 | 🎬 提示词 · 草稿编译 | `MossPromptCompiler` | 可选（官方 skill 桥） | 贴官方 prompt-enhancer 草稿 → MOSS 提示词 + 布局编辑器 state。**不加载模型**，秒出 |
+| 🎬 故事板 · 换脸 | `MossStoryboardFaceSwap` | 可选 | 参考图的脸 → 某一格（或单图），vision 注入身份 + 图生图重画。**要加载模型** |
 
 > 节点名在**英文界面**下按上表顺序是 `MOSS Layout Editor` / `MOSS Storyboard Sampler` /
 > `MOSS Storyboard Layout` / `MOSS Storyboard Crop` / `MOSS Storyboard Paste` / `MOSS Prompt Compiler`。
@@ -207,11 +208,11 @@ cd <你的 ComfyUI>/custom_nodes
 git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 ```
 
-重启 ComfyUI。节点菜单 **`moss/storyboard`** 下出现六个节点，启动日志里有一行
+重启 ComfyUI。节点菜单 **`moss/storyboard`** 下出现七个节点，启动日志里有一行
 （`<版本号>` 为实际安装的版本）：
 
 ```
-[MOSS SB] v<版本号> 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v<版本号> 已加载｜节点 7 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
 **没这行 = 包没加载**，这比任何配置检查都直接。
@@ -281,6 +282,9 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 > 草稿编译示例：`examples/moss-prompt-compiler.json`（**零模型、不占显存**）——
 > 粘一份官方 prompt-enhancer 草稿，出提示词与可导入编辑器的 state。
 > 三个输出各接一个宿主的 `PreviewAny`（界面显示为「Preview as Text」），图里没有别的东西。
+>
+> 换脸示例：`examples/moss-faceswap-ui.json`——4 格宫格进、换第 0 格、整张宫格出
+> （要 8 步 DMD2 蒸馏 LoRA **和** Moss-Image-Edit 编辑 LoRA 两个都装）。
 
 > ⚠ **四份带模型的示例里都有宿主的 `LazyCache` 节点**（默认 `reuse_threshold 0.2` / `start 0.15` /
 > `end 0.95`），夹在 LoRA 与采样器之间。它**不是本包的节点**，是 ComfyUI 自带的
@@ -841,9 +845,54 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 
 ---
 
+### 🎬 故事板 · 换脸（`MossStoryboardFaceSwap`）
+
+把**参考图的脸**换到**某一格**（或一张单图）。一个节点、一次采样。
+
+两条通道各管一半：
+
+| 通道 | 管什么 | 旋钮 |
+|---|---|---|
+| 参考图 → vision tower | **是谁**（身份） | `vision_megapixels`，默认 `1.05` |
+| 源图 → `VAEEncode`（图生图） | **画什么**（构图、场景） | `denoise` + `prompt` |
+
+**入参**
+
+| 入参 | 说明 |
+|---|---|
+| `model` / `clip` / `vae` | 老三样。实测配方：**先**接 8 步 DMD2 蒸馏 LoRA，**再**接 Moss-Image-Edit 编辑 LoRA |
+| `image` | 要换进去的图。接了 `spec` 就给**整张宫格**——节点自己裁第 `index` 格 |
+| `ref` | 身份参考图，**紧特写**最好。**只给一张**：实测双视角比单张更差（`0.384` vs `0.463`，视觉 token 被摊薄） |
+| `prompt` | 重画用的场景描述，**英文**，且必须提到参考图，例如 `... the woman in Picture 1, sitting at a wooden table ...`。**不要自己写 `Picture 1:` 前缀**——节点会拼；你自己写的那条也会被剥掉，不会变成两条 |
+| `spec` / `index` | 可选。接了 `spec` 就只换第 `index` 格再贴回；缝、外边距与其他格**逐像素不变**（实测目标格之外 `max|Δ| = 0`） |
+| `sample_edge` | `1024`。单格先抬到这个长边再采样，采样完缩回格子——与「逐格」模式同一机制。4 格 496 长边时一格只有 `0.135 MP`，脸约 `50×27` 像素，那个尺度认不出是谁 |
+
+**`denoise` 是最容易被看错的旋钮。** 宿主按 `int(步数/降噪)` 截断 sigma：
+
+| 8 步时的 `denoise` | 实际发生什么 |
+|---|---|
+| `0.95`（默认） | **等于 `1.0`**——源图被完全丢弃，构图来自提示词、身份来自参考图。这就是实测配方 |
+| `0.875` | 第一个真正保住源图构图的值（`int(8/0.875) = 9 > 8`） |
+| `0.875 … 0.99` | 在 8 步下**全部等于 `1.0`** |
+
+`report` 打印的是**实际生效值**，不是名义值——别只看面板上的数字。
+
+**身份：哪些是测过的，哪些不是。** 本节点封装的配方实测 ArcFace 余弦 `0.4633`（中景）/ `0.4976`（大特写），
+本域同人上限 `0.605` ⇒ 走完 **68–76%**；但那组读数来自**整图 img2img**，
+**本节点的分格路径还没有读数**：机制相同，采样画布不同。本页的规矩照旧——
+同一把尺子、只报相对高低、不设阈值。
+
+**许可边界。** 参考图的像素预算行为按宿主 `TextEncodeMOSSImageEdit` 的**公开契约**实现，
+代码是对 ComfyUI 公开 API 的独立编写，**没有复制任何 GPL 源码**。
+出处与声明见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)。
+
+示例：`examples/moss-faceswap-ui.json`——4 格宫格进，换第 0 格，出整张宫格。
+
+---
+
 ## 节点中英切换
 
-每个**本包节点**的标题栏上有一个「**中 / EN**」按钮。点一下，本包六个节点的
+每个**本包节点**的标题栏上有一个「**中 / EN**」按钮。点一下，本包七个节点的
 标题、参数标签、下拉框显示、悬浮提示一起切换。默认跟随 ComfyUI 的语言设置。
 
 - **只改本包节点**，官方和别人的节点一个字段都不动。
@@ -913,9 +962,10 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
   `report` 会打印「名义 / 实际」，以实际值为准。
 - **每格画什么只是「大体照办」。** 布局框是文字建议，不是选区——见 [布局框只是参考](#布局框只是参考不可能指哪打哪)。
   MOSS 的布局能力官方标 *experimental*，本包没做成片评分。
-- **不做人物身份一致性，也不做换脸。** 本包只管几何、提示词与拼版；跨格是不是同一张脸由模型
-  采样决定，本包不承诺。「先定一张角色卡、再逐格派生」那条链要额外的独立节点包，不在本包，
-  也不随本包安装。
+- **不承诺人物身份一致性。给的是换脸工具，不是保证。** 跨格是不是同一张脸仍由模型采样决定，
+  本包不承诺。本包提供的是一个**工具**：「🎬 故事板 · 换脸」把参考图的脸换进**一格**
+  （见该节点章节）——一次一格、靠参考图驱动，**不等于**「先定一张角色卡、再逐格派生」那条链；
+  那条链仍要额外的独立节点包，不在本包，也不随本包安装。
 - **8/9 格每格偏小**：交付工作流的 496 档约 496×272，出厂 512 档约 512×288。
   小字、细纹理最先糊——这是分辨率账，不是节点 bug。
 
@@ -1006,7 +1056,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) | state v3 冻结契约（实现、示例与测试的唯一真相源） |
 | [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) | 互操作：elements-v1（0–1000 bbox）⇄ state v3、命令行校验器 |
 | [`docs/13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) | 官方提示词 skill 的草稿格式、编译规则、置信度与未测项 |
-| [`docs/14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) | 顶层设计：六个节点各管什么、面板/元素/角色三种语义、提示词透明与占位守卫的判据 |
+| [`docs/14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) | 顶层设计：七个节点各管什么、面板/元素/角色三种语义、提示词透明与占位守卫的判据 |
 | [`docs/15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) | 配方契约：验证过的配方里哪些项是必需的（网格声明 / 段数=格数 / 自检命令） |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |

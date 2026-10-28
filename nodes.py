@@ -19,10 +19,12 @@ import json
 import os
 
 from .core import editor as E
+from .core import faceswap as FS
 from .core import intake as IN
 from .core import layout as L
 from .core import pixels as P
 from .core import prompt as T
+from .core import refimage as RI
 from .core import skill_draft as S
 
 CATEGORY = "moss/storyboard"
@@ -966,6 +968,169 @@ class MossStoryboardPaste:
         return (out, marked, report)
 
 
+class MossStoryboardFaceSwap:
+    """换脸：把参考图的身份换到某一格（或整图）。图生图 + vision 通道注入。
+
+    与「贴回」的分工：贴回处理**几何**（把改好的格子按 spec 坐标写回去），
+    本节点处理**身份**（用参考图重画这张图）。两者可以串起来用。
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "【接线】MOSS-Image 模型。产线配方：先接 8 步 DMD2 蒸馏 LoRA，"
+                                               "再接 Moss-Image-Edit 编辑 LoRA。"}),
+                "clip": ("CLIP", {"tooltip": "【接线】CLIPLoader，type 必须是 moss_image。\n"
+                                             "参考图就是从这里进 Qwen3.5 vision tower 的。"}),
+                "vae": ("VAE", {"tooltip": "【接线】FLUX.2 VAE。源图要它编码成 latent（图生图），"
+                                           "结果也要它解码。"}),
+                "image": ("IMAGE", {"tooltip": "【接线】要换脸的图。接了 spec 时给**整张宫格**，"
+                                               "节点自己裁第 index 格；不接 spec 就当单格处理。"}),
+                "ref": ("IMAGE", {"tooltip": "【接线】身份参考图，**紧特写**最好（脸占画幅越大越好）。\n"
+                                             "⚠ 只给一张：实测双视角比单张更差（0.384 vs 0.463，视觉 token 被摊薄）。"}),
+                "prompt": ("STRING", {
+                    "multiline": True, "default": "",
+                    "tooltip": "【填什么】重画时用的场景描述，**用英文写**，并且要提到参考图，例如：\n"
+                               "A medium shot photograph of the man in Picture 1, sitting at a wooden table "
+                               "in a warm cafe, soft warm light on his face.\n"
+                               "⚠ 不要自己写 `Picture 1:` 前缀，节点会自动拼。",
+                }),
+                "steps": ("INT", {
+                    "default": 8, "min": 1, "max": 200, "step": 1,
+                    "tooltip": "【填什么】默认 8 = 8 步 DMD2 蒸馏 LoRA 的口径。\n"
+                               "没接蒸馏 LoRA 时按模型卡 50 步。",
+                }),
+                "cfg": ("FLOAT", {
+                    "default": 1.0, "min": 0.0, "max": 30.0, "step": 0.1,
+                    "tooltip": "【填什么】默认 1.0 = 蒸馏档。cfg=1.0 时宿主跳过负面分支，"
+                               "负面提示词填了也不生效。",
+                }),
+                "sampler_name": (["euler", "euler_ancestral", "heun", "dpmpp_2m", "dpmpp_2m_sde",
+                                  "dpmpp_3m_sde", "res_multistep", "er_sde", "lms"], {
+                    "default": "euler", "tooltip": "【填什么】默认 euler = 实测配方。"}),
+                "scheduler": (_scheduler_names(), {
+                    "default": "simple", "tooltip": "【填什么】默认 simple = 实测配方（8 步档）。"}),
+                "seed": ("INT", {
+                    "default": 0, "min": 0, "max": 0xFFFFFFFF, "step": 1,
+                    "tooltip": "【填什么】随机种。同种子同参数才可复现。",
+                }),
+                "denoise": ("FLOAT", {
+                    "default": 0.95, "min": 0.05, "max": 1.0, "step": 0.01,
+                    "tooltip": "【填什么】降噪强度。这是「换多少」的总闸：\n"
+                               "· 0.95（默认）= 实测配方，**8 步下等价于 1.0**：源图被完全丢弃，"
+                               "构图由提示词决定，身份由参考图决定。\n"
+                               "· ≤0.875 才真的保住源图构图（8 步时 0.875 是分水岭："
+                               "int(8/0.875)=9>8 才触发 img2img）。\n"
+                               "⚠ 宿主按 int(步数/降噪) 截断 sigma，所以 0.875~0.99 之间"
+                               "在 8 步下**全部等于 1.0**。report 会打印真实生效值。",
+                }),
+                "vision_megapixels": ("FLOAT", {
+                    "default": 1.05, "min": 0.0, "max": 4.0, "step": 0.01,
+                    "tooltip": "【填什么】每张参考图进 vision tower 前的像素预算。\n"
+                               "· 1.05（默认）= 实测产线值，约 1024×1025\n"
+                               "· 0 = 原生分辨率，不缩放\n"
+                               "· 0.59 = 768²，实测安全线\n"
+                               "⚠ 0.147 是宿主默认值，那个值下身份余弦只有 0.008；"
+                               "0.30 会**变成另一个人**（塌陷带）。",
+                }),
+            },
+            "optional": {
+                "spec": ("STRING", {
+                    "default": "", "forceInput": True,
+                    "tooltip": "【接线】接 Layout/Sampler 的 spec：给整张宫格 + index，只换那一格。\n"
+                               "不接就按单格处理（整张 image 当成一张图）。",
+                }),
+                "index": ("INT", {
+                    "default": 0, "min": 0, "max": L.MAX_PANELS - 1, "step": 1,
+                    "tooltip": "【接了 spec 时生效】换第几格，**0 起、行主序**。",
+                }),
+                "sample_edge": ("INT", {
+                    "default": FS.DEFAULT_SAMPLE_EDGE, "min": 0, "max": 2048, "step": 16,
+                    "tooltip": "【可留 1024】单格抬到多长边再采样，采样完缩回格子。\n"
+                               "4 格 496 长边时一格只有 0.135MP，脸约 50×27 像素——那个尺度认不出是谁。\n"
+                               "0 = 不抬（严格按格子尺寸采样，最省显存）。",
+                }),
+                "negative": ("STRING", {
+                    "multiline": True, "default": "", "advanced": True,
+                    "tooltip": "【可选】负面提示词。默认 cfg=1.0 时宿主跳过负面分支，填了也不生效。",
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "report")
+    FUNCTION = "run"
+    CATEGORY = CATEGORY
+    DESCRIPTION = ("换脸：把参考图的脸换到某一格（或整图）。参考图走 vision 通道，"
+                   "源图走图生图重画。接了 spec 就只换那一格，其余格与宫格线不动。")
+    SEARCH_ALIASES = ["face swap", "faceswap", "换脸", "人脸替换", "换人脸", "identity", "参考图"]
+
+    @_node_errors("index", "denoise", "vision_megapixels", "sample_edge")
+    def run(self, model, clip, vae, image, ref, prompt, steps, cfg,
+            sampler_name, scheduler, seed, denoise, vision_megapixels,
+            spec="", index=0, sample_edge=FS.DEFAULT_SAMPLE_EDGE, negative=""):
+        from .core import sampling as S      # 惰性导入：本文件顶层不拉 torch
+
+        if not str(prompt or "").strip():
+            raise ValueError(
+                "prompt 为空：换脸要重画这张图，必须给场景描述，"
+                "并且里面要提到参考图（例如 the man in Picture 1）。")
+
+        lay = L.parse_spec(spec) if str(spec or "").strip() else None
+        panel, where = FS.resolve_target(image, lay, index)
+        cell_w, cell_h = int(panel.shape[2]), int(panel.shape[1])
+
+        # 抬分辨率必须在编码之前：源图 latent 的尺寸决定了输出尺寸
+        panel_up, up = FS.to_sampling(panel, sample_edge)
+        positive, ref_rep = RI.encode(clip, prompt, ref, vision_megapixels)
+        negative_cond = S.encode_text(clip, str(negative or ""))
+
+        latent = vae.encode(panel_up)
+        sampled = S.sample(model, positive, negative_cond, latent, steps, cfg,
+                           sampler_name, scheduler, denoise=denoise, seed=seed)
+        out = S.decode(vae, sampled)
+        out = FS.to_cell(out, (cell_w, cell_h))
+
+        if lay is None:
+            final, paste_notes = out, []
+        else:
+            final, paste_notes = P.paste_panel(image, lay, index, out, shave=0)
+
+        real_denoise = S.effective_denoise(steps, denoise)
+        lines = [
+            "换哪一张：%s" % where,
+            "格子 %d×%d（%.3f MP）→ 采样 %d×%d（%.3f MP）"
+            % (cell_w, cell_h, FS.megapixels(panel), up["sampled"][0], up["sampled"][1],
+               FS.megapixels(panel_up)),
+            "参考图 %d×%d（%.3f MP）→ 进 vision %d×%d（%.3f MP，系数 %.2f）"
+            % (ref_rep["native"][0], ref_rep["native"][1], ref_rep["native_megapixels"],
+               ref_rep["target"][0], ref_rep["target"][1], ref_rep["target_megapixels"],
+               ref_rep["scale"]),
+            "采样：%d 步 / cfg %.2f / %s + %s / 种子 %d"
+            % (int(steps), float(cfg), sampler_name, scheduler, int(seed)),
+            "降噪：名义 %.2f → **实际 %.2f**%s"
+            % (float(denoise), real_denoise,
+               "（源图被完全丢弃，构图来自提示词）" if real_denoise >= 1.0
+               else "（保留源图构图）"),
+        ]
+        if ref_rep.get("batch_dropped", 1) > 1:
+            lines.append("参考图批次 %d 张，只用了第一张。" % ref_rep["batch_dropped"])
+        lines += ref_rep.get("notes", [])
+        if up["scale"] > 1.0:
+            lines.append("单格被抬了 %.2f 倍再采样：脸在那个尺度上才认得出，缩回后细节更实。"
+                         % up["scale"])
+        lines += paste_notes
+        if real_denoise >= 1.0 and float(denoise) < 1.0:
+            lines.append(
+                "⚠ 名义降噪 %.2f 在 %d 步下被宿主截断成 1.0（int(%d/%.2f)=%d 不大于步数）。"
+                "想真的保住源图构图，要 ≤%.3f。"
+                % (float(denoise), int(steps), int(steps), float(denoise),
+                   int(int(steps) / float(denoise)) if denoise else 0,
+                   max(0.05, 1.0 - 1.0 / int(steps))))
+        return (final, "\n".join(lines))
+
+
 class MossPromptCompiler:
     """把官方 MOSS-Image Prompt Enhancer 的 caption / layout 草稿编译成提示词。零模型。"""
 
@@ -1028,6 +1193,7 @@ NODE_CLASS_MAPPINGS = {
     "MossStoryboardCrop": MossStoryboardCrop,
     "MossStoryboardPaste": MossStoryboardPaste,
     "MossPromptCompiler": MossPromptCompiler,
+    "MossStoryboardFaceSwap": MossStoryboardFaceSwap,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1037,6 +1203,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "MossStoryboardCrop": "MOSS Storyboard Crop",
     "MossStoryboardPaste": "MOSS Storyboard Paste",
     "MossPromptCompiler": "MOSS Prompt Compiler",
+    "MossStoryboardFaceSwap": "MOSS Storyboard Face Swap",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

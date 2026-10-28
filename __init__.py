@@ -6,7 +6,7 @@
 
 给 MOSS-Image（5B 单流 DiT + Qwen3.5-9B + FLUX.2 VAE）用的故事板宫格与布局节点包。
 
-六个节点（分类 `moss/storyboard`）：
+七个节点（分类 `moss/storyboard`）：
 - **MOSS Layout Editor** 画布式布局编辑器：元素 / 文字 / 宫格，出提示词与几何。零模型。
 - **MOSS Storyboard Layout** 算 3/4/6/8/9 宫格几何，出 MOSS 原生布局提示词与模板预览。零模型。
 - **MOSS Storyboard Sampler** 一步出故事板：布局约束 + 采样 + 复绘宫格线 + 裁格。
@@ -15,6 +15,8 @@
 - **MOSS Storyboard Paste** 把改好的单格按 spec 坐标贴回整张宫格。
 - **MOSS Prompt Compiler** 把官方 prompt-enhancer 的 caption/layout 草稿编译成
   MOSS 提示词；layout 草稿另出 state v3（可导入布局编辑器）。零模型。
+- **MOSS Storyboard Face Swap** 换脸：参考图走 vision 通道注入身份，源图走图生图重画；
+  接了 spec 就只换那一格，其余格与宫格线不动。
 
 三步跑通：
 1. 接 `UNETLoader(moss_image_sft_bf16)` / `CLIPLoader(type=moss_image)` / `VAELoader(flux2-vae)`。
@@ -51,7 +53,7 @@ else:
     from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
     __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
-__version__ = "0.2.3"
+__version__ = "0.3.0"
 
 # 前端扩展目录：中英切换（web/moss_sb_i18n.js 纯逻辑 + moss_sb_i18n_ui.js 挂钩）。
 # ⚠ 宿主只在这个变量**非 None 且目录存在**时注册；写错路径是静默失效（画布上没按钮、没翻译）。

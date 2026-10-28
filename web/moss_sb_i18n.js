@@ -79,6 +79,10 @@ export const NODES = {
         zh: "🎬 提示词 · 草稿编译", en: "🎬 Prompt · Draft Compiler",
         legacy: "MOSS Prompt Compiler",
     },
+    MossStoryboardFaceSwap: {
+        zh: "🎬 故事板 · 换脸", en: "🎬 Storyboard · Face Swap",
+        legacy: "MOSS Storyboard Face Swap",
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -393,6 +397,73 @@ export const TIPS = {
             + "The prompt output wires into CLIPTextEncode or the Sampler positive; a layout draft also outputs\n"
             + "state v3, which can be pasted into the Layout Editor import box.\n"
             + "⚠ At most 256 items; unknown fields, out-of-bounds boxes and canvases not divisible by 16 are rejected.",
+    },
+    "MossStoryboardFaceSwap.model": {
+        en: "[Wire] MOSS-Image model. Production recipe: the 8-step DMD2 distil LoRA first, then the Moss-Image-Edit LoRA.",
+    },
+    "MossStoryboardFaceSwap.clip": {
+        en: "[Wire] CLIPLoader with type = moss_image. The reference image enters the Qwen3.5 vision tower through here.",
+    },
+    "MossStoryboardFaceSwap.vae": {
+        en: "[Wire] FLUX.2 VAE. The source image is encoded to a latent with it (img2img) and the result is decoded with it.",
+    },
+    "MossStoryboardFaceSwap.image": {
+        en: "[Wire] The image to swap a face in. With spec connected, feed the whole board and the node crops panel `index` itself;\n"
+            + "without spec the whole image is treated as one panel.",
+    },
+    "MossStoryboardFaceSwap.ref": {
+        en: "[Wire] Identity reference, a tight close-up works best (the bigger the face in frame, the better).\n"
+            + "⚠ One image only: two views measured worse than one (0.384 vs 0.463 — the vision tokens get diluted).",
+    },
+    "MossStoryboardFaceSwap.prompt": {
+        en: "[What to enter] The scene to repaint, in English, and it must mention the reference, e.g.\n"
+            + "\"A medium shot photograph of the man in Picture 1, sitting at a wooden table in a warm cafe.\"\n"
+            + "⚠ Do not type the `Picture 1:` prefix yourself — the node adds it.",
+    },
+    "MossStoryboardFaceSwap.steps": {
+        en: "[What to enter] 8 = the 8-step DMD2 distil LoRA caliber. Without that LoRA use the model card's 50.",
+    },
+    "MossStoryboardFaceSwap.cfg": {
+        en: "[What to enter] 1.0 for the distil recipe. At cfg = 1.0 the host skips the negative branch entirely.",
+    },
+    "MossStoryboardFaceSwap.sampler_name": {
+        en: "[What to enter] euler is the measured recipe.",
+    },
+    "MossStoryboardFaceSwap.scheduler": {
+        en: "[What to enter] simple is the measured recipe for the 8-step tier.",
+    },
+    "MossStoryboardFaceSwap.seed": {
+        en: "[What to enter] Same seed plus the same settings is the only way to reproduce an image.",
+    },
+    "MossStoryboardFaceSwap.denoise": {
+        en: "[What to enter] How much gets repainted.\n"
+            + "· 0.95 (default) = the measured recipe, and at 8 steps it **equals 1.0**: the source image is discarded\n"
+            + "  entirely, composition comes from the prompt and identity from the reference.\n"
+            + "· ≤0.875 is what actually keeps the source composition at 8 steps (int(8/0.875)=9>8 triggers img2img).\n"
+            + "⚠ The host truncates sigma by int(steps/denoise), so 0.875–0.99 all behave as 1.0 at 8 steps.\n"
+            + "`report` prints the value that really took effect.",
+    },
+    "MossStoryboardFaceSwap.vision_megapixels": {
+        en: "[What to enter] Pixel budget per reference image before it enters the vision tower.\n"
+            + "· 1.05 (default) = the measured production value, about 1024x1025\n"
+            + "· 0 = native resolution, never scaled\n"
+            + "· 0.59 = 768 squared, the measured safety line\n"
+            + "⚠ 0.147 is the host default, where identity cosine is about 0.008; 0.30 turns the person into someone else.",
+    },
+    "MossStoryboardFaceSwap.spec": {
+        en: "[Wire] The spec from Layout/Sampler: feed the whole board plus `index` and only that panel is swapped.\n"
+            + "Without it the image is treated as a single panel.",
+    },
+    "MossStoryboardFaceSwap.index": {
+        en: "[Used when spec is connected] Which panel to swap, 0-based, row-major.",
+    },
+    "MossStoryboardFaceSwap.sample_edge": {
+        en: "[1024 is fine] Long edge each panel is upscaled to before sampling, then scaled back into its cell.\n"
+            + "On a 4-panel 496-edge board one cell is only 0.135 MP and the face is about 50x27 px — too small to identify.\n"
+            + "0 = no upscale (sample at the cell size, lowest VRAM).",
+    },
+    "MossStoryboardFaceSwap.negative": {
+        en: "[Optional] Negative prompt. At cfg = 1.0 the host skips the negative branch, so this does nothing.",
     },
 };
 

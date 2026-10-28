@@ -55,7 +55,7 @@ check("1.4 defaultLang：非法语言码 ⇒ en（宿主常见 fr/ja）",
 
 // ---- 2. 词表完整性 ----
 const types = Object.keys(NODES);
-check("2.1 六个节点都有 zh/en", types.length === 6 && types.every((t) => NODES[t].zh && NODES[t].en),
+check("2.1 七个节点都有 zh/en", types.length === 7 && types.every((t) => NODES[t].zh && NODES[t].en),
     types.join(","));
 check("2.2 标题 zh 与 en 不相同", types.every((t) => NODES[t].zh !== NODES[t].en));
 const tipKeys = Object.keys(TIPS);

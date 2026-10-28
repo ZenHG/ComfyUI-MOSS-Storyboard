@@ -6,7 +6,7 @@
 
 - **What it is** — layout nodes for MOSS-Image: place elements (characters / objects / text) on a canvas, get one image — a panel grid or a single poster.
 - **What it does not do** — the boxes you draw are **a hint, not a bullseye**. Each box becomes one line of text in the prompt, and the model decides where things land: it can overshoot, drift, merge two boxes into one, or ignore them. See [Bounding boxes are a hint](#bounding-boxes-are-a-hint-not-a-bullseye).
-- **Where to find it** — after install and restart, all six nodes sit under the **`moss/storyboard`** category.
+- **Where to find it** — after install and restart, all seven nodes sit under the **`moss/storyboard`** category.
 - **First example** — [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json): a complete 4-panel storyboard graph, open and queue.
 
 **What this pack guarantees:** canvas size, per-panel coordinates, crop rectangles, grid-line position — arithmetic, aligned to the pixel.
@@ -16,7 +16,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.2.3** |
+| Version | **0.3.0** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*` |
@@ -134,6 +134,7 @@ The official ComfyUI template already supports **layout boxes on one canvas**. T
 | 🎬 Storyboard · Split Panels / 故事板 · 裁格 | `MossStoryboardCrop` | Optional | Crops only; feed `spec` to cut the panels that were generated |
 | 🎬 Storyboard · Paste Panel / 故事板 · 贴回 | `MossStoryboardPaste` | Optional | Pastes a corrected panel back at the `spec` coordinates, returning the full corrected board |
 | 🎬 Prompt · Draft Compiler / 提示词 · 草稿编译 | `MossPromptCompiler` | Optional (official skill bridge) | Prompt-enhancer draft → MOSS prompt + editor state. **No model loaded** |
+| 🎬 Storyboard · Face Swap / 故事板 · 换脸 | `MossStoryboardFaceSwap` | Optional | Reference face → one panel (or a single image) via vision + img2img. **Loads a model** |
 
 > Node labels switch with the UI language.
 > **When `spec` is connected it wins.** The Sampler's `panels` / `panel_edge` / `gutter` / `margin` widgets are still there but no longer take effect, and its `report` says so in the first line. That is the most common trap.
@@ -180,10 +181,10 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 Restart ComfyUI. Six nodes appear under **`moss/storyboard`**, and the startup log shows a line like this (`<version>` is whatever you installed):
 
 ```
-[MOSS SB] v<version> 已加载｜节点 6 个（出口 v3）｜3/4/6/8/9 宫格
+[MOSS SB] v<version> 已加载｜节点 7 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
-> That is Chinese for "v`<version>` loaded | 6 nodes (v3 exit) | 3/4/6/8/9 grids".
+> That is Chinese for "v`<version>` loaded | 7 nodes (v3 exit) | 3/4/6/8/9 grids".
 
 **No such line = the pack did not load** — that check is more direct than any setting. To fall back to the legacy V1 node API, set the environment variable `MOSSSB_NODE_API=v1`.
 
@@ -230,6 +231,7 @@ Rainy-night cafe, one canvas divided into a strict grid of 4 panels, thin white 
 A ready-made plain graph is in `examples/moss-storyboard-4panels-ui.json`.
 Editor examples: `examples/moss-layout-editor-poster.json` (poster) and `examples/moss-layout-editor-storyboard.json` (4-panel storyboard).
 Draft compiler (no model, no GPU): `examples/moss-prompt-compiler.json` — paste an official prompt-enhancer draft, get a prompt plus an editor state. The three outputs go to three of the host's `PreviewAny` nodes (displayed as *Preview as Text*); nothing else is in the graph.
+Face swap: `examples/moss-faceswap-ui.json` — a 4-panel board in, panel 0 swapped, the whole board out (needs the DMD2 distil LoRA **and** the Moss-Image-Edit LoRA).
 
 > **The four model examples carry the host's `LazyCache` node** (defaults: `reuse_threshold 0.2` / `start 0.15` / `end 0.95`), sitting between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core (`comfy_extras/nodes_easycache.py`), marked experimental, filed under `advanced/debug`, and it lets the sampler reuse steps. **Bypass it (`Ctrl+B`) or delete it before comparing anything against the numbers in this page**: with it on, the sampler is not doing the work those numbers were measured on. If your host build predates the node, ComfyUI reports a missing node type — delete it and the graph runs. The compiler example loads no model, so it has no `LazyCache`.
 
@@ -676,6 +678,46 @@ This LoRA is a **single-panel touch-up** tool: fix one panel's colour, outfit or
 
 ---
 
+### 🎬 Storyboard · Face Swap (`MossStoryboardFaceSwap`)
+
+Puts the **face from a reference image** into **one panel** (or into a single image). One node, one sampling pass.
+
+Two channels, each owning half of the job:
+
+| Channel | Owns | Knob |
+|---|---|---|
+| reference image → vision tower | **who it is** (identity) | `vision_megapixels`, default `1.05` |
+| source image → `VAEEncode` (img2img) | **what is drawn** (composition, scene) | `denoise` + `prompt` |
+
+**Inputs**
+
+| Input | Notes |
+|---|---|
+| `model` / `clip` / `vae` | The usual three. Measured recipe: the 8-step DMD2 distil LoRA **first**, then the Moss-Image-Edit LoRA |
+| `image` | What to swap into. With `spec` connected, feed the **whole board** — the node crops panel `index` itself |
+| `ref` | Identity reference, a **tight close-up** works best. **One image only**: two views measured worse than one (`0.384` vs `0.463`, the vision tokens get diluted) |
+| `prompt` | The scene to repaint, in English, and it must mention the reference — e.g. `... the woman in Picture 1, sitting at a wooden table ...`. **Do not type the `Picture 1:` prefix**: the node adds it, and strips one you wrote yourself so there is never a duplicate |
+| `spec` / `index` | Optional. With `spec` the node swaps panel `index` and writes it back; the gutters, margins and every other panel stay **byte-identical** (measured: `max|Δ| = 0` outside the target cell) |
+| `sample_edge` | `1024`. The panel is upscaled to this long edge for sampling, then scaled back into its cell — the same mechanism per-panel mode uses. On a 4-panel 496-edge board one cell is `0.135 MP` and the face is about `50×27 px`, too small to identify |
+
+**`denoise` is the knob people misread.** The host truncates sigma by `int(steps/denoise)`:
+
+| `denoise` at 8 steps | What actually happens |
+|---|---|
+| `0.95` (default) | **equals `1.0`** — the source image is discarded entirely; composition comes from the prompt, identity from the reference. This is the measured recipe |
+| `0.875` | the first value that really keeps the source composition (`int(8/0.875) = 9 > 8`) |
+| `0.875 … 0.99` | all behave as `1.0` at 8 steps |
+
+`report` prints the **value that really took effect**, not the nominal one — do not trust the widget alone.
+
+**Identity: what is measured, and what is not.** The recipe this node wraps was measured at ArcFace cosine `0.4633` (medium shot) and `0.4976` (tight close-up) against a same-person ceiling of `0.605` in this domain — i.e. **68–76 % of the ceiling**, on a full-image img2img path. **This node's per-panel path has no published number yet**; the mechanism is the same, the sampling canvas is not. As everywhere else in this page: same ruler, relative order only, no threshold.
+
+**Licensing.** The vision-budget behaviour follows the host's public `TextEncodeMOSSImageEdit` contract, but the implementation here is written independently against ComfyUI's public API — no GPL source was copied. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
+Example: `examples/moss-faceswap-ui.json` — 4-panel board in, panel 0 swapped, board out.
+
+---
+
 ## Common errors
 
 Our error text is **Chinese** — that is what the node raises, quoted verbatim below, with a short English gloss.
@@ -732,7 +774,7 @@ Every row states its LoRA and step configuration.
 - ⚠ **Steps and cfg follow the official model card for the checkpoint you load.** SFT (the shipped checkpoint) and Base both use **50 steps / cfg 3 / euler** on the model card (SFT: [ModelScope card](https://www.modelscope.cn/models/openmoss/MOSS-Image-SFT); Base: official CFG range 3–6). The card also specifies shift 5 (built into the native ComfyUI model) and negative-branch skipping at layer 22 (wire the host's `SkipLayerGuidanceDiTSimple`, `single_layers` `22`; the shipped examples do not include it). The native ComfyUI template uses different values (25 steps / cfg 2.5 / er_sde, Comfy-Org's choice) — it is not the model-card recipe. With a 4-step distilled LoRA: **4–8 steps / cfg 1.0** — the LoRA was distilled at cfg 1, so raising it breaks the distillation. Mixing a distilled LoRA with the base recipe (e.g. LoRA loaded but 50 steps / cfg 3) will not error, it just wastes the run.
 - ⚠ **Keep `denoise` at 1.0.** There is no image to reference; lowering it only truncates sigma (fewer steps). `report` prints nominal vs. effective — trust the effective value.
 - **Per-panel composition is only approximate.** Boxes are a hint, not a bullseye — see [Bounding boxes](#bounding-boxes-are-a-hint-not-a-bullseye). MOSS's layout capability is *experimental*; this pack does no quality scoring.
-- **No character-identity consistency, and no face swap.** This pack handles geometry, prompts and assembly only. Whether the same face survives across panels is decided by sampling; this pack does not promise it. The "pin one character card, then derive panel by panel" workflow needs a separate node pack — it is not part of this one and is not installed with it.
+- **No character-identity consistency. A face-swap tool, not a guarantee.** Whether the same face survives across panels is still decided by sampling; this pack does not promise it. What it does ship is a **tool**: 🎬 Storyboard · Face Swap puts a reference face into **one panel** at a time, driven by that reference image (see its section). That is **not** the "pin one character card, then derive every panel from it" workflow — that one still needs a separate node pack, which is not part of this one and is not installed with it.
 - **No cross-panel consistency promise.** Our whole-canvas vs per-panel metrics change direction between the human and the animal scene. The certain gain of per-panel is that one panel can be redone on its own.
 - **At 8/9 panels each panel is small** — about 496×272 with the shipped 496 px edge (512×288 at the factory default). Small text and fine texture degrade first — a resolution budget, not a node bug.
 
@@ -776,7 +818,7 @@ Selected deep dives live in the GitHub repo's [`docs/`](https://github.com/ZenHG
 [`10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) state v3 frozen contract ·
 [`12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) elements-v1 interchange ·
 [`13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) official prompt-enhancer bridge ·
-[`14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) top-level design: what each of the six nodes owns ·
+[`14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) top-level design: what each of the seven nodes owns ·
 [`15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) recipe contract: what a verified recipe must contain.
 Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) · release history: [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md).
 

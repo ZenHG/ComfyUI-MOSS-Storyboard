@@ -142,7 +142,7 @@ def verify(pkg_dir, host):
     V1 = importlib.import_module("moss_dist.nodes")
     PR = importlib.import_module("moss_dist.core.presets")
 
-    check("节点 6 个", len(V1.NODE_CLASS_MAPPINGS) == 6, sorted(V1.NODE_CLASS_MAPPINGS))
+    check("节点 7 个", len(V1.NODE_CLASS_MAPPINGS) == 7, sorted(V1.NODE_CLASS_MAPPINGS))
     check("WEB_DIRECTORY = ./web", str(mod.WEB_DIRECTORY).replace("\\", "/").rstrip("/") == "./web",
           mod.WEB_DIRECTORY)
     for js in ("moss_sb_editor.js", "moss_sb_i18n.js", "moss_sb_i18n_ui.js"):

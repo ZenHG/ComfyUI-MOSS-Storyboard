@@ -52,6 +52,25 @@
 - **无**额外 pip 依赖。`torch` 与 `comfy*` 由宿主提供。
 - 因此 `requirements.txt` 只有注释，ComfyUI-Manager 安装本包不会拉任何新包。
 
+## 四之二、换脸节点的许可边界（`core/refimage.py` / `core/faceswap.py`）
+
+这两个文件实现「参考图按像素预算进 Qwen3.5 vision tower」，行为与宿主
+`comfy_extras/nodes_moss_image.py::TextEncodeMOSSImageEdit` 的**公开契约**一致：
+同样的 `Picture N:` 前缀形态、同样的 `<|image_pad|>` 锚点、同样的 `clip.tokenize(images=…)`
+与 `node_helpers.conditioning_set_values` 调用面。
+
+**但代码是本包独立编写的（MIT），没有复制任何 GPL 源码。** 依据：
+
+- 宿主与社区包 `ComfyUI-MOSS-RefHiRes` 都是 GPL-3.0（后者自述「与宿主逐行同构」的派生），
+  本包**没有** `import` 它们、**没有**逐行照搬，只按公开行为重新实现；
+- 用到的全部是宿主**公开 API**（`comfy.utils.common_upscale`、`clip.tokenize`、
+  `node_helpers.conditioning_set_values`），与本包其余节点一致（见 §一：只在进程内 `import`，
+  不复制宿主源码）；
+- 本包**不**实现 `reference_latents` 那条路（`edit_format` + ref 窗口），因此也不涉及
+  宿主那张 `EDIT_FORMATS` 表的复制或改写。
+
+如后续要复用该社区包的代码，**必须**按 GPL-3.0 处理，不能并入本 MIT 包。
+
 ## 五、复核状态
 
 - 缺口表与"未实测项"（模板 img2img 在 MOSS 上的实际效果）见 README「已知边界」。凡未实测的结论
