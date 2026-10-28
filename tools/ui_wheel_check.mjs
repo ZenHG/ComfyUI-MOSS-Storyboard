@@ -23,18 +23,10 @@
 // ⚠ 测试内容是自己塞进文本框的长文本（不触发 input、不动 state）：这里验的是**滚轮
 //   归属**，不是内容管线——内容管线由 ui_smoke.mjs 与 tests/ 负责。
 
-import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { arg, checks, launch, ROOT } from "./ui_kit.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const require_ = createRequire(import.meta.url);
-
-const arg = (n, d) => {
-    const i = process.argv.indexOf("--" + n);
-    return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d;
-};
 const URL_ = arg("url", process.env.COMFY_API || "http://127.0.0.1:8188");
 const ENGINES = (() => {
     const e = arg("engine", "all");
@@ -43,67 +35,8 @@ const ENGINES = (() => {
 const OUTDIR = arg("out", join(ROOT, "docs"));
 const JSONOUT = arg("json", "");
 
-function findPwCore() {
-    if (process.env.PWCORE) return process.env.PWCORE;
-    const bases = [join(process.env.APPDATA || "", "npm", "node_modules"),
-                   join(process.env.LOCALAPPDATA || "", "npm-cache", "_npx")];
-    for (const b of bases) {
-        if (!b || !existsSync(b)) continue;
-        if (b.endsWith("node_modules")) {
-            const p = join(b, "playwright-core");
-            if (existsSync(p)) return p;
-            continue;
-        }
-        for (const d of readdirSync(b)) {
-            const p = join(b, d, "node_modules", "playwright-core");
-            if (existsSync(p)) return p;
-        }
-    }
-    return null;
-}
-
-const BROWSERS = () => process.env.PWBROWSERS || join(process.env.LOCALAPPDATA || "", "ms-playwright");
-
-/** 各引擎可执行文件（找不到就返回 null，让 playwright-core 按自己的登记表去找）。 */
-function findExe(engine) {
-    const base = BROWSERS();
-    if (!existsSync(base)) return null;
-    const pick = (prefix, rel) => {
-        for (const d of readdirSync(base)) {
-            if (!d.startsWith(prefix)) continue;
-            const p = join(base, d, ...rel.split("/"));
-            if (existsSync(p)) return p;
-        }
-        return null;
-    };
-    if (engine === "chromium") return pick("chromium-", "chrome-win64/chrome.exe") || pick("chromium-", "chrome-linux/chrome");
-    if (engine === "firefox") return pick("firefox-", "firefox/firefox.exe") || pick("firefox-", "firefox/firefox");
-    if (engine === "webkit") return pick("webkit-", "pw_run.sh") || pick("webkit-", "Playwright.exe");
-    return null;
-}
-
-const pwPath = findPwCore();
-if (!pwPath) { console.log("找不到 playwright-core；用 PWCORE=<path> 指定"); process.exit(2); }
-const pw = require_(pwPath);
-
-const pass = [], fails = [];
-let prefix = "";
-const check = (name, cond, detail = "") => {
-    const n = prefix ? `${prefix}｜${name}` : name;
-    if (cond) { pass.push(n); console.log("  [OK]   " + n + (detail ? "  " + detail : "")); }
-    else { fails.push(n + (detail ? "  " + detail : "")); console.log("  [FAIL] " + n + (detail ? "  " + detail : "")); }
-};
-
-async function launch(engine) {
-    const type = pw[engine];
-    if (!type) throw new Error("playwright-core 里没有 " + engine);
-    try { return await type.launch({ headless: true }); }
-    catch (e) {
-        const exe = findExe(engine);
-        if (!exe) throw e;
-        return await type.launch({ headless: true, executablePath: exe });
-    }
-}
+const c = checks("MOSS Storyboard · 滚轮归属 真机验收");
+const check = (n, cond, d) => c.check(n, cond, d);
 
 // ---------------------------------------------------------------------------
 // 页面侧小工具
@@ -171,7 +104,7 @@ const stats = (page, sel) => page.evaluate((s) => {
 // 一个引擎跑一遍
 // ---------------------------------------------------------------------------
 async function runEngine(engine) {
-    prefix = engine;
+    c.setPrefix(engine);
     console.log(`\n===== ${engine} =====`);
     const browser = await launch(engine);
     const page = await browser.newPage({ viewport: { width: 1600, height: 1200 } });
@@ -394,10 +327,10 @@ for (const e of ENGINES) {
     catch (err) { check("引擎可启动", false, e + ": " + String(err).slice(0, 160)); }
 }
 
-console.log("\n结果：通过 " + pass.length + " / 失败 " + fails.length);
 if (JSONOUT) {
     mkdirSync(dirname(JSONOUT), { recursive: true });
-    writeFileSync(JSONOUT, JSON.stringify({ when: new Date().toISOString(), engines: ENGINES, pass, fails }, null, 2) + "\n");
+    writeFileSync(JSONOUT, JSON.stringify({ when: new Date().toISOString(), engines: ENGINES,
+        pass: c.pass, fails: c.fails }, null, 2) + "\n");
     console.log("记账 =", JSONOUT);
 }
-if (fails.length) { for (const f of fails) console.log("  - " + f); process.exit(1); }
+process.exit(c.done());

@@ -7,8 +7,10 @@
 //   ⇒ 只要参数个数变过一次，老工作流就会整体错位一位：格数拿到 "16:9"、下拉拿到 512，
 //   界面上那几个下拉直接变红，而且**不会报错**——用户只会觉得"这节点坏了"。
 //
-// 判据只有一条：**长度对不上才修，且修完必须每个值都合法**。
-//   长度对得上时哪怕有单个非法值也**不猜**——那更可能是用户手改的，替人做主比报错更坏。
+// 判据：**修完必须每个值都合法，且坏值至少两个**。
+//   只坏一个值时更可能是用户手改的，不猜——替人做主比报错更坏。
+//   两种错位都要认：长度对不上（补/删），以及长度对得上但内容整体左移
+//   （中间若干值被丢掉、尾部补了同样多的填充值；2026-10-28 真机稿就是这么坏的）。
 //
 // 纯函数（不 import 宿主），所以 `tests/test_compat.mjs` 能直接跑。
 
@@ -38,22 +40,43 @@ export function valueOk(spec, v) {
  *   null = 不需要修 / 不敢修（长度一致、或一个候选都对不上）
  */
 export function repairValues(values, widgets, opts = {}) {
-    // 每个 widget 都占位，一个不能少。2026-10-28 真机实测：这版 litegraph 的 serialize()
-    // 不按 type、不按 serialize:false、不按有没有 element 过滤（button 与 DOM 组件都会写值）。
     const list = (widgets || []).filter(Boolean);
     if (!Array.isArray(values) || !list.length) return null;
 
-    const delta = list.length - values.length;
-    if (delta === 0) return null;                       // 长度一致 ⇒ 不动
-    // 23 格的节点上，旧稿差 1–3 格都还在"同一张图"的范围内
-    const maxShift = opts.maxShift == null ? 3 : opts.maxShift;
-    if (Math.abs(delta) > maxShift) return null;        // 差太多，多半不是同一张图
-
     const specs = list.map(widgetSpec);
     const defaults = list.map((w) => w.value);
-    const broken = values.filter((v, i) => i < specs.length && !valueOk(specs[i], v)).length;
+    const bad = (v, i) => i < specs.length && !valueOk(specs[i], v);
     // 只错一个值时更可能是用户手改过的脏数据；整体错位一定会连带坏好几个。
-    if (broken < 2) return null;
+    if (values.filter(bad).length < 2) return null;
+
+    // 23 格的节点上，旧稿差 1–3 格都还在"同一张图"的范围内
+    const maxShift = opts.maxShift == null ? 3 : opts.maxShift;
+    const delta = list.length - values.length;
+    if (Math.abs(delta) > maxShift) return null;        // 差太多，多半不是同一张图
+
+    // 长度对得上 ≠ 内容对得上：中间丢了 k 个值、尾部补了 k 个填充值，长度照样相等。
+    // 判据是"从第一个非法位置起，这些值整体右移 k 格后**每一个**都合法"。
+    const shiftFix = (vals) => {
+        if (vals.length !== list.length) return null;
+        const p = vals.findIndex(bad);
+        if (p < 0) return null;
+        for (let k = 1; k <= maxShift; k += 1) {
+            const shifted = vals.slice(p, vals.length - k);
+            if (!shifted.every((v, i) => valueOk(specs[p + k + i], v))) continue;
+            const cand = vals.slice(0, p).concat(defaults.slice(p, p + k), shifted);
+            if (cand.length === list.length && cand.every((v, i) => valueOk(specs[i], v))) {
+                return { values: cand, at: p, delta: k, shifted: true,
+                         added: list.slice(p, p + k).map((w) => w.name), removed: [] };
+            }
+        }
+        return null;
+    };
+
+    // 先按 widget 数截断再试：i18n 语言条是在 `configure` **之后**才挂上的，
+    // 所以加载旧稿那一刻"值 23 项 / widget 22 个"是正常形态（2026-10-28 真机实测）。
+    const aligned = shiftFix(values.slice(0, list.length));
+    if (aligned) return aligned;
+    if (delta === 0) return null;
 
     // 允许候选**短于** widget 数：尾部缺失不算错位（宿主会用默认值兜底），
     // 而且 i18n 语言条这类 widget 本来就不进存档，天生差一格。

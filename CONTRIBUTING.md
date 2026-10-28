@@ -18,19 +18,23 @@ python tests/test_cross_language.py       # 95 项：JS ↔ Python 预设/默认
 python tests/test_panel_assembly.py       # 19 项：逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
-node   tests/test_compat.mjs              # 24 项：旧工作流 widgets_values 错位修复（长度一致时绝不猜）
+node   tests/test_compat.mjs              # 33 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
 python tools/smoke_nodes.py               # 58 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 6 份共 88 项：连线 + 槽位（不带文件参数只查内建那一份 = 15 项）
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_editor_ui.py           # 146 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
+python tools/check_editor_ui.py           # 147 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 42 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息/临时产物/提交格式/SPDX）
 node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
+node   tools/ui_widget_compat.mjs         # 11 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红）
 node   tools/ui_wheel_check.mjs           # 每引擎 20 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 ```
 
-`ui_smoke.mjs` 需要**跑着的 ComfyUI**（默认 `http://127.0.0.1:8188`，`--url` 可改）+ 本机 playwright-core 与 chromium；
-它只读界面、**不排 GPU 任务**（排队确认框一律 stub 成"取消"）。CI 里没有宿主，所以这道闸只在本地/发布前跑。
+三个 `ui_*.mjs` 都是**真机**（要跑着的 ComfyUI，默认 `http://127.0.0.1:8188`，`--url` 可改）+ 本机 playwright-core 与 chromium。
+公共底座是 `tools/ui_kit.mjs`（找依赖 / 起浏览器 / 等 `graph`+`canvas` 就绪 / 载入 / **刷新** / 快照 / 截图 / 计数），
+用例脚本只写"验什么"——新增用例照 `tools/ui_widget_compat.mjs` 抄即可。
+`PWCORE=`、`CHROME=` 可显式指定依赖；**缺依赖返回 2、断言失败返回 1**（"跳过了"不能混进"通过了"）。
+`ui_smoke` 只读界面、**不排 GPU 任务**（排队确认框一律 stub 成"取消"）。CI 里没有宿主，所以这三道闸只在本地/发布前跑。
 
 `ui_wheel_check.mjs` 同样需要活宿主，另加三个引擎的浏览器（`playwright install chromium firefox webkit`）。
 它自带**负对照**：临时摘掉 `.mossed-root` 标记后，同一位置必须变成缩放画布——否则说明"画布没动"只是

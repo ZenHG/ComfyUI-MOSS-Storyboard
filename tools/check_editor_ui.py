@@ -606,6 +606,14 @@ def check_wiring(contract, src):
     check("W26 留痕按节点实例去重（拼类型做 key 会吞掉同类型的第二个旧稿）",
           "new WeakSet" in compat and "HINTED.has(node)" in compat)
 
+    # 真机脚本曾经各抄一份"找 playwright / 起浏览器 / 等就绪"，改一处漏两处。
+    # 统一进 tools/ui_kit.mjs：用例只写"验什么"。
+    uis = ["ui_smoke.mjs", "ui_wheel_check.mjs", "ui_widget_compat.mjs"]
+    ui_text = {f: open(os.path.join(ROOT, "tools", f), encoding="utf-8").read() for f in uis}
+    check("W27 前端真机脚本共用 ui_kit（不再各抄一份 findPwCore / launch）",
+          all("./ui_kit.mjs" in t for t in ui_text.values())
+          and not any("function findPwCore" in t for t in ui_text.values()))
+
 
 def main():
     src = open(EDITOR, encoding="utf-8").read()

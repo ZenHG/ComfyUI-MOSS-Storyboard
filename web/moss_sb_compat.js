@@ -21,21 +21,27 @@ const HINTED = new WeakSet();
 
 function notice(res, node) {
     const up = res.delta > 0;
-    const what = up
-        ? `补上 ${res.added.join(" / ")} 的默认值`
-        : `删掉 ${res.removed.join(" / ")} 这个多余值`;
-    // 补值 ⇒ 后段右移；删值 ⇒ 后段左移。说反了比不说更误导。
-    // 用模板字符串而不是 `%s` 占位：占位符依赖控制台插值，日志被转发/收集时常常原样露出。
-    console.warn(`${TAG}: 旧工作流的参数比当前版本${up ? "少" : "多"} ${Math.abs(res.delta)} 格，`
-        + `已在第 ${res.at + 1} 项${what}，其余值向${up ? "右" : "左"}移。`
-        + "界面上的红框会消失，但**请重新保存一次工作流**。");
+    let msg;
+    if (res.shifted) {
+        msg = `旧工作流的参数从第 ${res.at + 1} 项起少了 ${res.delta} 个值`
+            + `（尾部多了 ${res.delta} 个填充值），已补回 ${res.added.join(" / ")} 的默认值。`;
+    } else {
+        const what = up
+            ? `补上 ${res.added.join(" / ")} 的默认值`
+            : `删掉 ${res.removed.join(" / ")} 这个多余值`;
+        // 补值 ⇒ 后段右移；删值 ⇒ 后段左移。说反了比不说更误导。
+        msg = `旧工作流的参数比当前版本${up ? "少" : "多"} ${Math.abs(res.delta)} 格，`
+            + `已在第 ${res.at + 1} 项${what}，其余值向${up ? "右" : "左"}移。`;
+    }
+    // 用模板字符串而不是 `%s` 占位：占位符依赖控制台插值，日志被转发/收集时常原样露出。
+    console.warn(`${TAG}: ${msg}界面上的红框会消失，但**请重新保存一次工作流**。`);
     if (!node || HINTED.has(node)) return;
     HINTED.add(node);
     try {
         node.properties = node.properties || {};
-        node.properties.msb_widgets_repaired = up
-            ? `+${res.added.join(",")}`
-            : `-${res.removed.join(",")}`;
+        node.properties.msb_widgets_repaired = res.shifted
+            ? `~+${res.added.join(",")}`
+            : up ? `+${res.added.join(",")}` : `-${res.removed.join(",")}`;
     } catch (e) { /* properties 写不进去不影响值 */ }
 }
 
