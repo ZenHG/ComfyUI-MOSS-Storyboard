@@ -560,6 +560,15 @@ def check_wiring(contract, src):
           and "elementsToState(obj" in src)
     check("W14 有 Queue 接线且不改值", "ui.queueBtn.addEventListener" in src
           and "app.queuePrompt(0, 1)" in src and "widgets_values" not in src)
+    # 滚轮：宿主在画布外层 transform pane 的 **capture** 阶段转发给画布（放大缩小），
+    # 节点内的 bubble 拦截永远轮不到 ⇒ 必须在 window capture 抢在它前面。
+    # 这两条缺任一，滚文本框都会变成缩放画布（2026-10-28 复发的那个 bug）。
+    check("W15 滚轮守卫在 window capture（早于宿主 onWheelCapture）",
+          re.search(r'addEventListener\("wheel",\s*onWheel,\s*\{\s*capture:\s*true', src) is not None
+          and 'closest(".mossed-root")' in src)
+    check("W16 根节点声明 data-capture-wheel（宿主自带判定）",
+          'setAttribute("data-capture-wheel", "true")' in src
+          and 'data-capture-wheel", "false"' not in src)
 
 
 def main():
