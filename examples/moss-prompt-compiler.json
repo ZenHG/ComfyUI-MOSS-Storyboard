@@ -74,7 +74,7 @@
    "widgets_values": [
     "{\n \"width\": 1024,\n \"height\": 576,\n \"bbox_coord_space\": \"abs\",\n \"bbox_format\": \"xyxy\",\n \"summary\": {\n  \"caption\": \"雨夜咖啡店靠窗双人桌，暖黄吊灯，玻璃雨痕。\"\n },\n \"items\": [\n  {\n   \"label\": \"object\",\n   \"caption\": \"中景，苏晚与陈屿同框对坐\",\n   \"bbox\": [\n    16,\n    16,\n    496,\n    272\n   ]\n  },\n  {\n   \"label\": \"object\",\n   \"caption\": \"特写，苏晚克制的神情\",\n   \"bbox\": [\n    512,\n    16,\n    1008,\n    272\n   ]\n  },\n  {\n   \"label\": \"object\",\n   \"caption\": \"中近景，陈屿手指在杯上收紧\",\n   \"bbox\": [\n    16,\n    288,\n    496,\n    560\n   ]\n  },\n  {\n   \"label\": \"object\",\n   \"caption\": \"特写，苏晚视线落在桌面\",\n   \"bbox\": [\n    512,\n    288,\n    1008,\n    560\n   ]\n  }\n ]\n}"
    ],
-   "title": "草稿编译（零模型）"
+   "title": "🎬 提示词 · 草稿编译（零模型）"
   },
   {
    "id": 3,

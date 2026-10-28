@@ -247,7 +247,7 @@ No `[PANEL n]` blocks — place boxes instead:
 4. Wire `prompt` → `CLIPTextEncode.text`, `width` / `height` → `EmptyFlux2LatentImage`.
 5. Follow with a plain `KSampler` — MOSS-Image-SFT model card settings are 50 steps / cfg 3 / euler.
 
-> ⚠ **Single mode's `prompt` is already layout JSON — do not feed it to the storyboard Sampler.** The Sampler would re-parse it as `[PANEL n]` blocks and get it wrong. Use a plain `KSampler`.
+> **Single mode now emits a 1-panel `spec`.** Wire the editor's `spec` into the Sampler and the two correspond: canvas from the editor, one image out, prompt sent as layout JSON. Before 0.3.0 that `spec` was an empty string, so the wire was effectively dead and the Sampler silently fell back to its own `panels` — you picked a poster preset and still got a 4-panel board. A plain `KSampler` still works too.
 >
 > (Related but different: if you skip the editor and just want one non-grid image, set `panels = 1` on the Sampler. That path sends prompt text, not JSON, so the warning above does not apply.)
 

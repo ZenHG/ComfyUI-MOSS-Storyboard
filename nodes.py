@@ -386,7 +386,12 @@ class MossLayoutEditor:
             template = P.render_template(lay)
         else:
             prompt_text = E.layout_json(state)
-            spec = ""
+            # 单张模式也出 spec（panels=1）。**这是「选了什么预设」与「出几张」之间的契约**：
+            # 以前这里给空串，接到 Sampler 上就等于「这根线等于没接」，Sampler 静默回退到
+            # 自己的 panels=4 —— 编辑器选的是海报，出来还是四宫格，谁也说不清为什么。
+            # 1 格宫格的画布就是编辑器画布本身，缝与边距都是 0，不会多画一圈线。
+            spec = L.build_layout(1, cols=1, rows=1, panel_w=width, panel_h=height,
+                                  gutter=0, margin=0).spec()
             template = _blank_image(width, height)
 
         rep = E.report(state)
@@ -593,7 +598,8 @@ class MossStoryboardSampler:
 
         # ---- 提示词：layout 时转成布局 JSON ----
         if init_mode == "layout":
-            if T.grid_declared(positive) is False:
+            # 1 格时这条告警没有意义：单张海报的稿子本来就不该声明宫格。
+            if lay.panels > 1 and T.grid_declared(positive) is False:
                 # 只出声不改写：模型是靠**语义**画宫格的，全局段不说「分成 N 格」就会不按格分配。
                 notes.append("⚠ 全局段未声明宫格（没有「恰好 N 个面板」这类说法）⇒ 模型可能不按格"
                              "分配画面；写法参考 examples/moss-storyboard-4panels-ui.json")
