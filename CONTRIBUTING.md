@@ -23,7 +23,7 @@ python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 6 份共 88 项：连线 + 槽位（不带文件参数只查内建那一份 = 15 项）
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
 python tools/check_editor_ui.py           # 141 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 界面文案中英齐全
-python tools/check_release_ready.py       # 35 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
+python tools/check_release_ready.py       # 42 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息/临时产物/提交格式/SPDX）
 node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
 node   tools/ui_wheel_check.mjs           # 每引擎 20 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 ```
@@ -89,3 +89,8 @@ python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 - 涉及行为变更的，请贴一条**可复跑的命令**或一张产物，而不是"我试过可以"。
 - 不接受把断言改松（改判据可以，改数据不行）。真发现闸本身错了，请在 PR 里说明
   是"假红"还是"假绿"，并补一条新断言防回归。
+
+## 发布
+
+维护者发布走 `tools/release.py`（GitHub + Comfy Registry 双渠道，带交叉验证）。
+步骤、凭据纪律与失败处置见 [`RELEASING.md`](RELEASING.md)。

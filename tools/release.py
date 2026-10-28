@@ -695,7 +695,7 @@ def main() -> int:
     say("=" * 74)
     say("MOSS Storyboard 发布器 ｜ 目标 GitHub %s ｜ registry %s/%s ｜ 版本 %s ｜ HEAD %s"
         % (slug, f["publisher"], f["name"], f["version"], f["head"][:10]))
-    say("（规范正文见 维护者本地发布文档；本脚本是它的执行体）")
+    say("（规范正文见 RELEASING.md；本脚本是它的执行体）")
     say("=" * 74)
 
     if a.verify_only:

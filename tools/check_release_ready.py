@@ -188,7 +188,7 @@ def s4_package(files: list[str]) -> None:
     if not check(".comfyignore 存在且有规则", bool(rules), "%d 行" % len(rules)):
         return
     must_exclude = ["tests/test_core.py", "tools/smoke_nodes.py", "docs/10-contract.md",
-                    ".github/workflows/ci.yml", "CHANGES.md"]
+                    ".github/workflows/ci.yml", "CHANGES.md", "RELEASING.md"]
     must_keep = ["__init__.py", "nodes.py", "core/layout.py", "core/sampling.py",
                  "core/editor.py", "core/presets.py",
                  "v3/_compat.py", "web/moss_sb_i18n.js", "web/moss_sb_editor.js",
@@ -380,7 +380,7 @@ def s11_public_refs(files: list[str]) -> None:
     """
     say("\nS11 公开文档只引仓库里真实存在的路径")
     PUBLIC = ("README.md", "README_ZH.md", "README_EN.md", "CHANGES.md",
-              "RELEASE-NOTES.md", "CONTRIBUTING.md", "SECURITY.md",
+              "RELEASE-NOTES.md", "RELEASING.md", "CONTRIBUTING.md", "SECURITY.md",
               "CODE_OF_CONDUCT.md", "THIRD-PARTY-NOTICES.md")
     targets = [f for f in files if f in PUBLIC or (f.startswith("docs/") and f.endswith(".md"))]
     #: 只在内部工作区存在的目录/文件名；出现即死链。
@@ -410,6 +410,99 @@ def s11_public_refs(files: list[str]) -> None:
     check("相对链接都指向真实文件", not broken, "；".join(broken[:8]))
 
 
+# --------------------------------------------------------------------------- S12 临时产物
+#: 名字形态。S3 的 `JUNK_RE` 管的是 `*.bak` / `*.orig` / `dist/` 那一类，**不认** `oi_tmp.json`
+#: （2026-10-28 实测：7 MB 的 `/object_info` dump 就是这么被 `git add -A` 带进提交的）。
+TEMP_NAME_RE = re.compile(
+    r"(^|/)(?:[^/]*(?:_tmp|[-.]tmp|_dump|_bak)\.[A-Za-z0-9]+"
+    r"|oi_[^/]*\.json|node\.zip|core\.\d+)$", re.I)
+#: 体积口径只对文本类生效（图片有自己的阈值，见 S7）。
+TEXT_EXT = (".py", ".js", ".mjs", ".json", ".md", ".txt", ".yml", ".yaml",
+            ".toml", ".cfg", ".ini", ".csv", ".html", ".css")
+TEXT_SIZE_LIMIT = 512 * 1024
+
+
+def s12_temp_artifacts(files: list[str]) -> None:
+    say("\nS12 临时产物 / 文本 dump 不跟着提交走")
+    by_name = [f for f in files if TEMP_NAME_RE.search(f)]
+    check("受控文件里没有临时产物名", not by_name, "；".join(by_name[:5]))
+
+    big = []
+    for rel in files:
+        if not rel.lower().endswith(TEXT_EXT):
+            continue
+        p = os.path.join(ROOT, rel)
+        if os.path.isfile(p) and os.path.getsize(p) > TEXT_SIZE_LIMIT:
+            big.append("%s（%.0f KB）" % (rel, os.path.getsize(p) / 1024))
+    check("受控文本文件都 ≤512 KB（更大的多半是 dump）", not big, "；".join(big[:4]))
+
+    # 暂存区单独看一次：事故发生在**提交那一刻**，而本脚本平时是发布前才跑。
+    staged = [ln.strip().replace("\\", "/")
+              for ln in (git("diff", "--cached", "--name-only").stdout or "").splitlines() if ln.strip()]
+    hits = [f for f in staged if TEMP_NAME_RE.search(f)]
+    check("暂存区没有临时产物（`git add -A` 最爱顺手带上）", not hits, "；".join(hits[:5]))
+
+
+# --------------------------------------------------------------------------- S13 提交格式
+#: 允许 `type(scope): 描述`；scope 含版本号是合法的（`feat(0.2.2): …` 在历史里出现过）。
+MSG_PREFIX_RE = re.compile(
+    r"^(feat|fix|docs|refactor|test|chore|perf|build|ci|style|revert)"
+    r"(\([a-z0-9][a-z0-9.,\-]*\))?: \S")
+#: 这些是工具生成的，不套模板。
+MSG_SKIP_RE = re.compile(r"^(Merge |Revert \"|fixup! |squash! )")
+
+
+def _width(s: str) -> int:
+    """按终端列宽算：CJK 占 2 列。"""
+    import unicodedata
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in s)
+
+
+def s13_commit_format() -> None:
+    say("\nS13 提交信息格式（前缀 / 长度）")
+    out = git("log", "-n", "50", "--format=%h%x1f%s%x1f%b%x1e").stdout or ""
+    bad_prefix, long_subject, long_body = [], [], []
+    for rec in out.split("\x1e"):
+        rec = rec.strip("\n")
+        if not rec.strip():
+            continue
+        sha, _, rest = rec.partition("\x1f")
+        subject, _, body = rest.partition("\x1f")
+        sha = sha.strip()
+        if MSG_SKIP_RE.match(subject):
+            continue
+        if not MSG_PREFIX_RE.match(subject):
+            bad_prefix.append("%s（%s）" % (sha, subject[:28]))
+        if len(subject) > 100:
+            long_subject.append("%s（%d 字符）" % (sha, len(subject)))
+        for i, line in enumerate(body.splitlines(), 2):
+            if _width(line) > 120:
+                long_body.append("%s:%d（%d 列）" % (sha, i, _width(line)))
+    check("subject 形如 `type(scope): 描述`", not bad_prefix, "；".join(bad_prefix[:5]))
+    check("subject ≤100 字符", not long_subject, "；".join(long_subject[:5]))
+    check("正文每行 ≤120 列（中文按 2 列）", not long_body, "；".join(long_body[:5]))
+
+
+# --------------------------------------------------------------------------- S14 SPDX
+#: 第三方原文照抄目录不套本仓的许可头（它有自己的 LICENSE 与 PROVENANCE）。
+SPDX_SKIP_PREFIX = ("docs/reference/",)
+
+
+def s14_spdx(files: list[str]) -> None:
+    say("\nS14 源码文件都带 SPDX 许可头")
+    srcs = [f for f in files if f.endswith((".py", ".js", ".mjs"))
+            and not f.startswith(SPDX_SKIP_PREFIX)]
+    miss = []
+    for rel in srcs:
+        try:
+            head = "\n".join(read(rel).splitlines()[:5])
+        except OSError:
+            continue
+        if "SPDX-License-Identifier" not in head:
+            miss.append(rel)
+    check("源码 %d 个都有 SPDX 标识" % len(srcs), not miss, "；".join(miss[:6]))
+
+
 def main() -> int:
     say("MOSS Storyboard · 发布前开源卫生检查")
     say("=" * 64)
@@ -430,6 +523,9 @@ def main() -> int:
     s9_commits()
     s10_doc_counts()
     s11_public_refs(files)
+    s12_temp_artifacts(files)
+    s13_commit_format()
+    s14_spdx(files)
 
     say("\n" + "=" * 64)
     say("结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
