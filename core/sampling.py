@@ -11,6 +11,8 @@ MOSS-Image 事实（`comfy/latent_formats.py::Flux2`）：latent 128 通道、�
 所以画布宽高必须是 16 的倍数——这条已由 `core.layout` 强制。
 """
 
+import math
+
 import torch
 
 from . import layout as L
@@ -182,11 +184,12 @@ def profile_hint(steps, cfg, negative=""):
             "档位：混搭 —— 步数属%s，cfg 属%s（%d 步 / cfg %.2f）。只提示不拦："
             "包内的一致性与耗时数字都来自单一档位，混搭对不上"
             % (_BAND_NAMES[fs], _BAND_NAMES[fc], int(steps), float(cfg)))
-    # cfg≤1 时宿主走 cfg1 优化（comfy/samplers.py），uncond 根本不进图 ⇒ 负面写了也是白写。
-    if float(cfg) <= 1.2 and str(negative or "").strip():
-        head += ("\n⚠ 负面提示词本次**不生效**：cfg %.2f ≤ 1.2 时宿主跳过 uncond 分支"
-                 "（蒸馏 LoRA 的标准档就是 cfg 1.0）。要让负面起作用，得回到 SFT 档 cfg 3.0。"
-                 % float(cfg))
+    # cfg 恰为 1.0 时宿主走 cfg1 优化（`comfy/samplers.py:610` 的 `math.isclose`），
+    # uncond 根本不进图 ⇒ 负面写了也是白写。**只有 1.0**：1.01 起 uncond 照常参与。
+    if math.isclose(float(cfg), 1.0, rel_tol=1e-9) and str(negative or "").strip():
+        head += ("\n⚠ 负面提示词本次**不生效**：cfg 恰为 1.0 时宿主跳过 uncond 分支"
+                 "（蒸馏 LoRA 的标准档就是 cfg 1.0）。要让负面起作用，"
+                 "把 cfg 调到 1.0 以上（SFT 档是 3.0）。")
     return head
 
 

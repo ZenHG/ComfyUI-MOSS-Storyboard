@@ -989,6 +989,46 @@ function cellBboxToCentered(bbox, width, height) {
         Math.ceil(v1 * height) - hy, Math.ceil(u1 * width) - hx];
 }
 
+const BLEND_EPS = 0.04;
+const BLEND_CLAUSE = "整幅是一张连续画面：所有元素都长在同一个空间里，互相遮挡、自然叠合；"
+    + "不要分格，不要相框，不要边框，不要拼贴。";
+
+/** 把相邻框之间的小空档并掉（= `core/editor.py::seal_gaps`；改一边必须改另一边）。
+ *  只并"确实挨着"的两框：对面距离 ≤ eps，且另一轴重叠 ≥ 30%。贴边先做，整体跑到不动点。 */
+export function sealGaps(items, eps = BLEND_EPS) {
+    const boxes = (items || []).filter(Boolean).map((it) => (it.bbox || []).map(Number));
+    for (let round = 0; round < 3; round += 1) {
+        const prev = JSON.stringify(boxes);
+        for (const b of boxes) {
+            for (const axis of [0, 1]) {
+                if (b[axis] > 0 && b[axis] <= eps) b[axis] = 0;
+                if (b[axis + 2] >= 1 - eps && b[axis + 2] < 1) b[axis + 2] = 1;
+            }
+        }
+        for (let i = 0; i < boxes.length; i += 1) {
+            for (let j = i + 1; j < boxes.length; j += 1) {
+                for (const axis of [0, 1]) {
+                    for (const [p, q] of [[boxes[i], boxes[j]], [boxes[j], boxes[i]]]) {
+                        const gap = q[axis] - p[axis + 2];
+                        if (!(gap > 0 && gap <= eps)) continue;
+                        const o = 1 - axis;
+                        const ov = Math.min(p[o + 2], q[o + 2]) - Math.max(p[o], q[o]);
+                        const span = Math.min(p[o + 2] - p[o], q[o + 2] - q[o]);
+                        if (span > 0 && ov / span >= 0.3) {
+                            const mid = (p[axis + 2] + q[axis]) / 2;
+                            p[axis + 2] = mid;
+                            q[axis] = mid;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (JSON.stringify(boxes) === prev) break;
+    }
+    return boxes;
+}
+
 function sizePrefix(size, caption) {
     const cap = String(caption ?? "").trim();
     const sz = String(size ?? "").trim();
@@ -1009,12 +1049,20 @@ export function gridPromptText(state) {
     return lines.join("\n").trim();
 }
 
-/** 单张模式：所有元素合成一个 MOSS 原生布局 JSON（一次采样整张）。 */
+/** 单张模式：所有元素合成一个 MOSS 原生布局 JSON（一次采样整张）。
+ *  `blend` 为真时先并缝、再在 summary 里追加连续画面子句（= `core/editor.py::layout_json`）。 */
 export function layoutJsonText(state) {
     const c = state?.canvas ?? {};
     const w = Math.trunc(Number(c.width));
     const h = Math.trunc(Number(c.height));
-    const items = (state?.items ?? []).filter(Boolean).map((it) => {
+    let src = (state?.items ?? []).filter(Boolean);
+    let summary = String(state?.style ?? "").trim();
+    if (state?.blend && src.length) {
+        const boxes = sealGaps(src);
+        src = src.map((it, k) => ({ ...it, bbox: boxes[k] }));
+        summary = (summary ? `${summary.replace(/。+$/, "")}。` : "") + BLEND_CLAUSE;
+    }
+    const items = src.map((it) => {
         const out = { label: it.label, caption: String(it.caption ?? "").trim(),
             bbox: cellBboxToCentered(it.bbox, w, h) };
         if (it.label === "text") out.text = String(it.text ?? "").trim();
@@ -1025,7 +1073,7 @@ export function layoutJsonText(state) {
     });
     if (!items.length) return String(state?.style ?? "").trim();
     return JSON.stringify({
-        summary: { caption: String(state?.style ?? "").trim() },
+        summary: { caption: summary },
         items,
         bbox_coord_space: "abs_centralized",
         bbox_format: "yxyx",

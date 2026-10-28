@@ -234,6 +234,9 @@ def random_states(n=100):
             items.append(item)
         out.append({"version": 3, "preset": rng.choice(["free", "title-body"]),
                     "style": "s%d" % k if rng.random() < 0.5 else "",
+                    # 一半开 blend：并缝 + 连续画面子句过去只在 Python 侧实现，
+                    # 随机用例全都没有这个字段 ⇒ 预览与出图的差一直测不出来。
+                    "blend": rng.random() < 0.5,
                     "canvas": rng.choice([{"width": 1536, "height": 864},
                                           {"width": 1024, "height": 1024}]),
                     "items": items})
@@ -266,12 +269,31 @@ def compile_cases(states):
     }
     blank = {"version": 3, "preset": "free", "style": "  只有风格  ",
              "canvas": {"width": 1024, "height": 1024}, "items": []}
+    # blend：1.5% 的中缝要并掉、2% 的外边距要贴边、summary 追加连续画面子句。
+    blend_gap = {
+        "version": 3, "preset": "title-body", "style": "雨夜咖啡店", "blend": True,
+        "canvas": {"width": 1536, "height": 864},
+        "items": [
+            {"id": "a", "label": "object", "caption": "左", "bbox": [0.02, 0.06, 0.48, 0.94]},
+            {"id": "b", "label": "character", "caption": "右", "bbox": [0.495, 0.06, 0.98, 0.94]},
+        ],
+    }
+    # blend 的不动点：贴边把 y 重叠从 11% 拉到 100% 之后这一对才可并 ——
+    # 贴边若排在并缝之后，这里会留下一条约 3.4% 的白缝（跑两遍结果不同）。
+    blend_fix = {
+        "version": 3, "preset": "free", "style": "", "blend": True,
+        "canvas": {"width": 1536, "height": 864},
+        "items": [
+            {"id": "a", "label": "object", "caption": "顶条", "bbox": [0.48, 0.035, 0.50, 0.0405]},
+            {"id": "b", "label": "object", "caption": "主体", "bbox": [0.30, 0.0399, 0.4465, 0.30]},
+        ],
+    }
     nos = [{**it, "no": n} for it, n in zip(grid_items, (7, 3, 8, 1, 5, 2, 6, 4), strict=True)]
     dup_size = [{**it, "size": "中景", "caption": cap} for it, cap in zip(
         grid_items, ["中景里的桌面", "别的东西", "中景", "杯子", "窗外", "雨", "招牌", "街"],
         strict=True)]
     return [
-        single, tie, blank,
+        single, tie, blank, blend_gap, blend_fix,
         {"version": 3, "preset": "grid", "style": "格风格", "grid": GRID, "items": nos},
         {"version": 3, "preset": "grid", "style": "", "grid": GRID, "items": dup_size},
         {"version": 3, "preset": "grid", "style": "  ",
