@@ -315,7 +315,7 @@ try {
         const added = nag.after && nag.before
             ? nag.after.filter((id) => !nag.before.includes(id)) : ["读不到队列"];
         check("取消确认后没有多出一条队列任务", added.length === 0,
-            "新增 %s｜点前 %d 条（>0 = 宿主被别人占用）" % (JSON.stringify(added), nag.before.length));
+            `新增 ${JSON.stringify(added)}｜点前 ${nag.before.length} 条（>0 = 宿主被别人占用）`);
     }
 
     await page.evaluate(() => globalThis.MOSS_SB_LANG.set("en"));

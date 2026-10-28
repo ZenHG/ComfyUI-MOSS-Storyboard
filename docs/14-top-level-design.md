@@ -109,6 +109,7 @@ state v3 用一个 `items` 数组同时承载前两种，所以**模式决定哪
 | 分辨率告警按模式判：整张看画布/单格 MP，逐格只看**单格采样画布**（拼版后的整张从不进模型） | `_mp_note(layout, per_panel, sample_px)` | `smoke_nodes.py` §5（含"枚举不残缺"）+ 真机两档 `sample_edge` |
 | 纯调试项 `show_guides` 归入高级（V1/V3 同一口径） | Crop / Paste | `test_contract.py` tooltip 检查 |
 | 真机（无头浏览器 + 活宿主）验：控件随模式收起、预览在可见区内、预览 == JS 编译器、占位确认且取消不入队 | `tools/ui_smoke.mjs` 编辑器段（31 项） | 本机跑，CI 无宿主 |
+| 节点内滚轮只滚编辑器、绝不缩放画布（跨操作系统：行模式 / 小数 delta / Safari 捏合） | `web/moss_sb_editor.js::installWheelGuard` / `wheelScroll` | `check_editor_ui.py` W15–W21 + `tools/ui_wheel_check.mjs`（Chromium/Firefox/WebKit 各 18 项，含负对照） |
 
 **`prompts_json` 的真机取证**（2026-10-26，宿主 `MOSS 故事板宫格.json`，3 格 / `panel_edge=256` / 4 步，
 `SaveText` 直接落盘第 6/7 号输出）：整张 **1 条**（23s）、逐格 **3 条**（41s），

@@ -1248,7 +1248,7 @@ function ensureStyle() {
         const st = document.createElement("style");
         st.id = STYLE_ID;
         st.textContent = `
-.mossed-root{position:relative;display:flex;flex-direction:column;gap:7px;width:100%;height:100%;box-sizing:border-box;padding:8px;color:var(--input-text,#ddd);background:var(--comfy-menu-bg,#1e1e1e);border-radius:8px;overflow:hidden;font:12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
+.mossed-root{position:relative;display:flex;flex-direction:column;gap:7px;width:100%;height:100%;box-sizing:border-box;padding:8px;color:var(--input-text,#ddd);background:var(--comfy-menu-bg,#1e1e1e);border-radius:8px;overflow:hidden;overscroll-behavior:contain;font:12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
 .mossed-bar{display:flex;align-items:center;gap:6px;flex:0 0 auto;flex-wrap:wrap}
 .mossed-row{display:flex;align-items:center;gap:10px;flex:0 0 auto;flex-wrap:wrap}
 .mossed-field{display:flex;align-items:center;gap:4px;white-space:nowrap;color:var(--input-text,#ddd)}
@@ -1327,7 +1327,7 @@ function ensureStyle() {
 .mossed-help-note{font-size:11px;opacity:.65;border-top:1px solid #2a2f38;padding-top:6px}
 .mossed-status{flex:0 0 auto;font-size:11px;opacity:.68;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .mossed-status-warn{color:#f0b35a;opacity:1}
-.mossed-prop{flex:1 1 auto;height:auto;min-height:0;max-height:none;overflow:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
+.mossed-prop{flex:1 1 auto;height:auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
 .mossed-empty{opacity:.6;font-size:11px;padding:6px 2px}
 .mossed-empty[hidden]{display:none}
 .mossed-form{display:flex;flex-direction:column;gap:6px}
@@ -1382,7 +1382,10 @@ function growCaption(ta) {
     ta.style.overflowY = need > max + 1 ? "auto" : "hidden";
 }
 
-/** 从事件目标往上找第一个可纵向滚动的祖先（最终提示词 / 属性面板）。 */
+/**
+ * 从事件目标往上找第一个可纵向滚动的祖先（最终提示词 / 描述框 / 属性面板）。
+ * **只认编辑器内部的**：出了 `.mossed-root` 就是宿主的画布/侧栏，交出去只会缩放画布。
+ */
 function scrollableFrom(node) {
     let n = node instanceof Element ? node : null;
     while (n && n !== document.body) {
@@ -1390,19 +1393,64 @@ function scrollableFrom(node) {
             const oy = getComputedStyle(n).overflowY;
             if (oy === "auto" || oy === "scroll") return n;
         }
+        if (n.classList && n.classList.contains("mossed-root")) return null;
         n = n.parentElement;
     }
     return null;
 }
 
-/** 把滚轮折成像素（行 / 页模式按 16px 与可视高度换算）。 */
+/**
+ * 小数残差：macOS 触控板 / 高 DPI 下 deltaY 常是 0.4、0.7 这种值，
+ * 而 `scrollTop` 读回来是取整的 ⇒ 直接 `+=` 每次都被抹成 0，表现为「滚了没反应」。
+ * 这里把没吃进去的零头记到下一次；到边界就清零，避免反向时突然跳一段。
+ */
+const WHEEL_REST = new WeakMap();
+
+function addScroll(sc, dx, dy) {
+    const rest = WHEEL_REST.get(sc) || { x: 0, y: 0 };
+    const beforeY = sc.scrollTop;
+    const beforeX = sc.scrollLeft;
+    const wantY = beforeY + dy + rest.y;
+    const wantX = beforeX + dx + rest.x;
+    if (dy !== 0) {
+        sc.scrollTop = wantY;
+        const stuckLo = sc.scrollTop <= 0 && wantY <= 0;
+        const stuckHi = sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1 && wantY >= sc.scrollTop;
+        rest.y = (stuckLo || stuckHi) ? 0 : wantY - sc.scrollTop;
+    }
+    if (dx !== 0) {
+        sc.scrollLeft = wantX;
+        const stuckLo = sc.scrollLeft <= 0 && wantX <= 0;
+        const stuckHi = sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 1 && wantX >= sc.scrollLeft;
+        rest.x = (stuckLo || stuckHi) ? 0 : wantX - sc.scrollLeft;
+    }
+    WHEEL_REST.set(sc, rest);
+}
+
+/**
+ * 把滚轮折成像素。三种 `deltaMode` 都要认（Windows/Linux 的 Firefox 鼠标是「行」，
+ * 少数环境是「页」）；Shift+滚轮在 Chrome/WebKit 给 deltaX、在 Firefox 给 deltaY+shiftKey。
+ */
 function wheelScroll(node, e) {
     const sc = scrollableFrom(node);
     if (!sc) return false;
     const unit = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? sc.clientHeight : 1);
-    sc.scrollTop += e.deltaY * unit;
-    sc.scrollLeft += e.deltaX * unit;
+    let dx = e.deltaX;
+    let dy = e.deltaY;
+    if (e.shiftKey && Math.abs(dx) < 1) { dx = dy; dy = 0; }
+    addScroll(sc, dx * unit, dy * unit);
     return true;
+}
+
+/** 事件是否落在编辑器内。shadow DOM 里 `e.target` 会被重定向到宿主 ⇒ 优先走 composedPath。 */
+function inEditor(e) {
+    const path = typeof e.composedPath === "function" ? e.composedPath() : null;
+    if (path && path.length) {
+        for (const n of path) if (n && n.classList && n.classList.contains("mossed-root")) return true;
+        return false;
+    }
+    const t = e.target;
+    return t instanceof Element && !!t.closest(".mossed-root");
 }
 
 let wheelGuardOn = false;
@@ -1412,21 +1460,22 @@ let wheelGuardOn = false;
  * （`GraphView` → `forwardEventToCanvas`），它比节点里任何监听都早 ⇒ 在节点内
  * `stopPropagation()` 拦不住，滚文本框会缩放整个画布。
  *
- * 唯一能抢在它前面的位置是 window 的 capture。这里按目标过滤，只处理编辑器内部；
+ * 唯一能抢在它前面的位置是 window 的 capture（DOM 标准：window → document → … → target，
+ * 三段式 capture 顺序与操作系统、浏览器引擎无关）。这里按目标过滤，只处理编辑器内部；
  * 滚轮一律就地消化：能滚的区域自己滚，不能滚的也不外泄（否则又是缩放）。
- * Ctrl/Cmd + 滚轮是宿主的画布缩放手势，放行。
+ * Ctrl/Cmd + 滚轮是宿主的画布缩放手势（宿主把 ctrlKey/metaKey/横向滚动都算手势），放行。
  */
 function installWheelGuard() {
     if (wheelGuardOn) return;
     wheelGuardOn = true;
     const onWheel = (e) => {
-        const tgt = e.target;
-        if (!(tgt instanceof Element) || !tgt.closest(".mossed-root")) return;
+        if (!inEditor(e)) return;
         if (e.ctrlKey || e.metaKey) return;
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        wheelScroll(tgt, e);
+        const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+        wheelScroll(path[0] || e.target, e);
     };
     try {
         globalThis.addEventListener("wheel", onWheel, { capture: true, passive: false });
@@ -1447,6 +1496,11 @@ function mountRoot() {
         e.stopPropagation();
         if (!wheelScroll(e.target, e)) e.preventDefault();
     }, { passive: false });
+    // Safari：触控板双指捏合走 gesture* 事件（根本不发 wheel）⇒ 不拦就是**整页**缩放，
+    // DOM 组件与画布立刻错位。只在节点内拦，节点外照旧。其它引擎没有这几个事件，无副作用。
+    for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
+        root.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+    }
     installWheelGuard();
     return root;
 }
