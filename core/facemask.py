@@ -75,7 +75,7 @@ def detect(rgb, det_size=640):
 def pick(faces, mode="largest", index=0):
     """挑一张脸。返回 `(face, 说明)`；没有脸就报错。
 
-    `left` / `right` 取**最左 / 最右**那张 —— 用户说「换右边那个男的」时，
+    `left` / `right` 取**最左 / 最右**那张 —— 要「换右边那个男的」时，
     这是唯一不靠猜的表达方式。
     """
     if not faces:
