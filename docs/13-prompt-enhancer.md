@@ -96,3 +96,7 @@ python tools/compile_skill_draft.py draft.json --output prompt.txt --state state
 - 官方 skill：<https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer>
 - 官方模型卡（采样口径）：<https://www.modelscope.cn/models/openmoss/MOSS-Image-SFT>
 - 许可：Apache-2.0；本包只参考 schema 与转换规则，未复制其代码。
+- **上游原文照抄一份在本仓**：`docs/reference/moss-image-prompt-enhancer/`（上游提交 `20f559207791`，
+  逐文件 sha256 与抓取日期见该目录 `PROVENANCE.md`）。用途是**离线核对**——上游改版后能直接比出
+  差异；这是参考件，不参与运行、**不进发行包**（`tools/make_dist.py` 把 `docs/` 排除在外）。
+  第三方披露见仓库根 `THIRD-PARTY-NOTICES.md` §三。

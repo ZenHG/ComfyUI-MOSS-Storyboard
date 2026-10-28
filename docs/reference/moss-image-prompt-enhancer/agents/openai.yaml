@@ -1,0 +1,4 @@
+interface:
+  display_name: "MOSS-Image Prompt Enhancer"
+  short_description: "Expand image ideas into captions or pixel layouts"
+  default_prompt: "Use $moss-image-prompt-enhancer to turn my image idea into a detailed caption or a generation-ready layout."

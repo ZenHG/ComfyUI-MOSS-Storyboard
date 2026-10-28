@@ -39,9 +39,13 @@
   本包**未复制其源码**；CSS、交互、state v3 字段与编译规则均为本包自写。
 - **MOSS-Image Prompt Enhancer skill（Apache-2.0）**：`MossPromptCompiler` 按
   <https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer>
-  的**公开文档格式**独立实现草稿解析与编译。本包**未打包该 skill，也未复制其代码**；
+  的**公开文档格式**独立实现草稿解析与编译。运行时代码为本包自写，**未复制该 skill 的代码**；
   坐标换算（左/上 floor、右/下 ceil、减中心）与字段校验口径按官方文档与公开实现对齐，
   并用官方示例做了离线回归。skill 的版权归 OpenMOSS 作者所有。
+  - 为便于离线核对，仓库内 `docs/reference/moss-image-prompt-enhancer/` 存了一份**上游原文照抄**
+    （`SKILL.md` + `references/` + `scripts/` + `agents/`，随附 Apache-2.0 全文，见该目录 `PROVENANCE.md`，
+    记录了提交 `20f559207791`）。该目录**只进仓库、不进发行包**（`tools/make_dist.py` 的
+    `DEV_PREFIXES` 已排除 `docs/`），也不参与运行时；引用请以上游为准。
 
 ## 四、本包依赖
 
