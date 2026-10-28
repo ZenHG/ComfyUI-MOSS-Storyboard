@@ -89,10 +89,29 @@ try {
             .join(" ") === pick(s2, "MossStoryboardSampler", ["panels", "panel_aspect", "panel_edge"]).join(" "),
         pick(s3, "MossStoryboardSampler", ["panels", "panel_aspect", "panel_edge"]).join(" "));
 
-    // ---------- ④ 占位口径：每个 widget 都要占一格（过滤掉任何一类都会错位） ----------
-    const mismatch = s3.filter((n) => n.serialized !== n.widgets.length)
-        .map((n) => `${n.type} widgets=${n.widgets.length} serialize=${n.serialized}`);
-    c.check("widget 数 = serialize 长度（不按类型过滤）", mismatch.length === 0, mismatch.join("；") || "");
+    // ---------- ④ 存档口径：语言条不进存档，其余每个 widget 都要占一格 ----------
+    // 实测（前端 1.57.4）：`serialize()` 不认 `serialize:false`，会连语言条一起写；
+    // 而语言条是 `configure` **之后**才挂上的 ⇒ 存档比"载入时的 widget 数"多一格，
+    // 每保存一次就整体错位一位。所以期望是「widget 数 - 语言条」。
+    const slots = (n) => n.widgets.length - (n.widgets.some((w) => w.name === "mosssb_i18n_bar") ? 1 : 0);
+    const mismatch = s3.filter((n) => n.serialized !== slots(n))
+        .map((n) => `${n.type} widgets=${n.widgets.length} 期望存档=${slots(n)} 实际=${n.serialized}`);
+    c.check("存档长度 = widget 数 - 语言条（不多不少）", mismatch.length === 0, mismatch.join("；") || "");
+
+    // ---------- ⑤ 保存 → 再打开：用户真正的循环，也是"存一次多一格"最容易翻车的地方 ----------
+    const saved = await page.evaluate(() => globalThis.app.graph.serialize());
+    const sNode = (saved.nodes || []).find((n) => n.type === "MossStoryboardSampler");
+    c.check("存出来的采样节点存档长度 = widget 数 - 1",
+        Array.isArray(sNode?.widgets_values) && sNode.widgets_values.length === 22,
+        `长度 ${sNode?.widgets_values?.length}`);
+
+    compatLogs.length = 0;
+    const r5 = await loadGraph(page, saved);
+    const s5 = await snapNodes(page, { prefix: PREFIX });
+    c.check("把存出来的结果重新打开：无红框", r5.ok && reds(s5).length === 0,
+        reds(s5).join("；") || summary(s5));
+    c.check("重新打开不需要再修（存出来的就是对齐的）", compatLogs.length === 0,
+        compatLogs[0]?.slice(0, 140) || "");
 
     await shotNode(page, "MossStoryboardSampler", OUT);
     console.log(`  截图：${OUT}`);
