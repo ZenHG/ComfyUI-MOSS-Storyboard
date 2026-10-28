@@ -5,8 +5,12 @@
 ![MOSS Storyboard for ComfyUI: the visual layout editor, one generated 4-panel grid, and the four panel crops](assets/hero-storyboard.png)
 
 - **What it is** — layout nodes for MOSS-Image: place elements (characters / objects / text) on a canvas, get one image — a panel grid or a single poster.
+- **What it does not do** — the boxes you draw are **a hint, not a bullseye**. Each box becomes one line of text in the prompt, and the model decides where things land: it can overshoot, drift, merge two boxes into one, or ignore them. See [Bounding boxes are a hint](#bounding-boxes-are-a-hint-not-a-bullseye).
 - **Where to find it** — after install and restart, all six nodes sit under the **`moss/storyboard`** category.
 - **First example** — [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json): a complete 4-panel storyboard graph, open and queue.
+
+**What this pack guarantees:** canvas size, per-panel coordinates, crop rectangles, grid-line position — arithmetic, aligned to the pixel.
+**What it does not guarantee:** what ends up inside the panels, where elements land, or that the same face survives across panels. Sampling decides those.
 
 **Two uses:** a **storyboard / comic page** — one canvas split into equal panels, one caption per panel, one crop per panel · a **poster / cover / product shot** — subject and text blocks each get a region, and text is rendered verbatim.
 
@@ -19,9 +23,76 @@
 
 ---
 
+## Three things that prevent most misunderstandings
+
+1. **Layout boxes are a hint, not a bullseye.** A box becomes one line of text holding coordinates, and that text goes into the prompt; the model decides where to draw. There is no mask and no regional conditioning behind a box. The next section covers what boxes can and cannot do.
+
+2. **By default the whole board is generated in one sampling pass.** The optional `逐格` mode — that literal Chinese label is the value shown in the widget, meaning "per panel" — samples every panel on its own and then assembles the board. The default is faster, and the same face is more stable across panels. Per-panel gives each panel more pixels (more detail) and lets you rework one panel later, and it is slower — one sampling pass per panel. Panel size is set by `panel_edge` and does not shrink as you add panels: 512×288 at the factory default, 496×272 in the shipped example. What grows with the panel count is the canvas — and the VRAM that comes with it.
+
+3. **Grid lines are redrawn after decoding (`reborder` on by default).** The lines are drawn from the same cell coordinates that the crops use, so a line and a crop edge always agree. Turn it off only if you want the model to draw the lines itself — those lines may wobble or break.
+
+---
+
+## Bounding boxes are a hint, not a bullseye
+
+This is the most over-estimated part of the pack. If your requirement is "draw exactly inside the box", this pack cannot do it — and neither can any other node built on the same MOSS mechanism.
+
+### What the model actually receives
+
+You draw a box; the pack turns it into **one line of text with coordinates**:
+
+```
+{"caption": "a person on a bicycle", "bbox": [y0, x0, y1, x1]}
+```
+
+That line goes into `CLIPTextEncode` together with everything else, so it becomes **an ordinary text condition**:
+
+- no mask;
+- no regional conditioning;
+- no separate layout channel, and nothing crops attention to those coordinates while sampling.
+
+The official MOSS template, KJ's layout node and this pack all work this way. It is not a shortcut taken here — it is how MOSS works today.
+
+### What that means in practice
+
+- elements come out **larger or smaller** than the box, and **slightly off**;
+- **two boxes can merge** — you place the person and the table apart, the model puts the person on the table;
+- the model can **ignore the boxes entirely** and cram everything into one panel;
+- **small boxes are ignored first**: small text and small objects disappear before anything else;
+- the same prompt with a different seed follows the boxes differently.
+
+### What the boxes do buy you
+
+**They shift roughly where things go and roughly how big they are. They do not place anything precisely.**
+
+In one controlled comparison a box was moved from outside the frame to the lower-left corner with nothing else changed: the bicycle went from "cropped out" to "fully visible, lower left", reproducible across 3 seeds (36 images; see [Known limits](#known-limits-read-before-filing-a-bug)).
+
+That is a **directional** change — presence, side, rough size. It is not coordinate-level placement: the model does not honour where the box edge falls to the pixel.
+
+### What they are good for
+
+- **separating regions** in a multi-element image, which clearly reduces elements invading each other;
+- making sure an element **exists** and is **roughly over there** — more reliable than prose alone;
+- **in grid mode, each panel's box and its crop rectangle come from the same arithmetic.** That is *geometric* precision — crops line up to the pixel. It is not *pictorial* precision. The two are constantly confused.
+
+### Do not use boxes for
+
+| Not possible | Why |
+|---|---|
+| pinning eyes, fingers or a small prop to a spot | a box is coordinates inside text; nothing crops attention to it |
+| guaranteeing a text box never overflows by a pixel | box height does not control type size — a 43 px tall box rendered ~130 px tall text in our runs (see [Text](#text-what-works-what-does-not)) |
+| keeping two elements from overlapping | boxes carry no mutual constraint; the model may paint them into each other |
+| keeping the same face across panels | identity is not a box problem, and this pack does not promise it (see [Not possible](#not-possible-in-this-version)) |
+
+**For pixel-level control you need a model or a ControlNet with masks or regional conditioning — that is outside this pack.** What this pack does: write the prompt correctly, compute the canvas, cut the panels, and paste an edited panel back.
+
+---
+
 ## What this adds over the official MOSS-Image layout
 
-The official ComfyUI template already supports **layout boxes on one canvas**. This pack builds the repeatable multi-panel workflow around that capability:
+The official ComfyUI template already supports **layout boxes on one canvas**. This pack builds the repeatable multi-panel workflow around that capability.
+
+**Let us be precise about the pitch**: this pack does **not** sell "control over composition" — as the previous section shows, boxes are hints and nobody can do better on this mechanism. What it sells is **removing the manual work**: canvas size, per-panel coordinates, crops and pasting back are arithmetic, and this pack gets that arithmetic right. What the picture contains is still up to the model.
 
 | | Official MOSS layout | This pack |
 |---|---|---|
@@ -38,23 +109,13 @@ The official ComfyUI template already supports **layout boxes on one canvas**. T
 
 ---
 
-## Three things that prevent most misunderstandings
-
-1. **By default the whole board is generated in one sampling pass.** The optional `逐格` (per panel) mode samples every panel on its own and then assembles the board. The default is faster, and the same face is more stable across panels. Per-panel gives each panel more pixels (more detail) and lets you rework one panel later, and it is slower — one sampling pass per panel. Panel size is set by `panel_edge` and does not shrink as you add panels: 512×288 at the factory default, 496×272 in the shipped example. What grows with the panel count is the canvas — and the VRAM that comes with it.
-
-2. **Grid lines are redrawn after decoding (`reborder` on by default).** The lines are drawn from the same cell coordinates that the crops use, so a line and a crop edge always agree. Turn it off only if you want the model to draw the lines itself — those lines may wobble or break.
-
-3. **There is no quantitative score for layout-box adherence.** A box here is a soft constraint, not a control channel: the pack compiles your boxes into layout JSON, `CLIPTextEncode` encodes that JSON as plain text, and the model decides. There is no `area`, no mask and no conditioning input behind a box. MOSS's layout capability is officially marked *experimental*; strict per-panel compliance is not guaranteed. This pack guarantees geometry, wiring and crops. Composition needs visual review.
-
----
-
 ## Features
 
 | Capability | Notes |
 |---|---|
 | **3 / 4 / 6 / 8 / 9 panels** | Panel count is an input (`panels`); layout and canvas size are derived, then rounded up to a multiple of 16 |
 | **Per-panel captions** | `[PANEL 1]`…`[PANEL n]` blocks become MOSS layout boxes |
-| **Visual layout** | A canvas inside the node: drag boxes to say which region each element occupies, then fill in its description. Text elements also take the literal string to render |
+| **Visual layout** | A canvas inside the node: drag boxes to say **roughly** which region each element occupies, then fill in its description. Boxes become coordinates in the prompt — **a hint, not a promise** (see [Bounding boxes](#bounding-boxes-are-a-hint-not-a-bullseye)). Text elements also take the literal string to render |
 | **8 layout presets** | grid / split vertical / split horizontal / title + subject + body / three columns / centered subject / stacked / free (blank canvas) |
 | **Text posters** | Chinese, English, mixed and two-line text have small-sample measurements (see Known limits) |
 | **Deterministic grid lines** | Redrawn from the cell coordinates after decoding (`reborder` on by default) |
@@ -62,7 +123,7 @@ The official ComfyUI template already supports **layout boxes on one canvas**. T
 | **Official prompt-enhancer bridge** | Paste a draft from OpenMOSS's MOSS-Image Prompt Enhancer skill: get a validated MOSS prompt, and for layout drafts a state v3 for the Layout Editor |
 | **Bilingual UI (zh / en)** | A 中 / EN button on each of our nodes; display-only, never touches saved values |
 
-**Six nodes, one entry point.** The shipped example wires the full storyboard path. A minimal graph needs only the Sampler, which carries every geometry parameter. The Layout Editor is the other entry point: no `[PANEL n]` blocks — place boxes instead, for posters, covers and product shots. Storyboard · Grid Layout is an optional front end: preview the grid shape, or freeze the geometry into one `spec` that several downstream nodes can share. Prompt · Draft Compiler is the bridge to the official prompt skill: paste the official draft, get a MOSS prompt, and for layout drafts a second state you can import into the Layout Editor.
+**Six nodes, one entry point.** The shipped example wires the full storyboard path. A minimal graph needs only the Sampler, which carries every geometry parameter. The Layout Editor is the other entry point: in its **single mode** there are no `[PANEL n]` blocks — you place boxes instead, which suits posters, covers and product shots. (Its grid mode does compile `[STYLE]` + `[PANEL n]`; the table in the Layout Editor section lists both modes.) Storyboard · Grid Layout is an optional front end: preview the grid shape, or freeze the geometry into one `spec` that several downstream nodes can share. Prompt · Draft Compiler is the bridge to the official prompt skill: paste the official draft, get a MOSS prompt, and for layout drafts a second state you can import into the Layout Editor.
 
 | Node (English / 中文) | Type | Required? | Role |
 |---|---|---|---|
@@ -132,8 +193,10 @@ Restart ComfyUI. Six nodes appear under **`moss/storyboard`**, and the startup l
 **Fastest path — open the shipped graph**
 
 1. Install the pack and the three model files above.
-2. Open [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json).
+2. **Drag** [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json) **into the ComfyUI window** (or `Workflow → Open`). Everything is already wired.
 3. Queue. Outputs: a **1024×576** grid and four **496×272** panels.
+
+> **Where do the images go?** This pack does not save anything itself. The shipped graph wires `SaveImage`, so files land in `output/moss/storyboard/` under your ComfyUI root — `grid_*.png` and `panel_*.png`. **With no save node attached, the image only exists in memory and is gone when the run ends**, so remember to add one when you wire your own graph.
 
 **Text-only path — one Sampler node**
 
@@ -156,7 +219,12 @@ Rainy-night cafe, one canvas divided into a strict grid of 4 panels, thin white 
 [PANEL 4]: tabletop close-up, two hands resting on the rim
 ```
 
-7. Queue. Outputs: `grid` (the canvas) + `panels` (one image per panel).
+7. Queue. Then wire the outputs — **both are images and neither is saved for you**:
+
+| Output | What it is | Wire to |
+|---|---|---|
+| `grid` | the whole canvas | `SaveImage` (write to disk) or `PreviewImage` (look only) |
+| `panels` | one image per panel | `SaveImage` — writes N files in one go |
 
 A ready-made plain graph is in `examples/moss-storyboard-4panels-ui.json`.
 Editor examples: `examples/moss-layout-editor-poster.json` (poster) and `examples/moss-layout-editor-storyboard.json` (4-panel storyboard).
@@ -173,7 +241,35 @@ No `[PANEL n]` blocks — place boxes instead:
 4. Wire `prompt` → `CLIPTextEncode.text`, `width` / `height` → `EmptyFlux2LatentImage`.
 5. Follow with a plain `KSampler` — MOSS-Image-SFT model card settings are 50 steps / cfg 3 / euler.
 
-> ⚠ In single mode do **not** chain the storyboard Sampler — it would re-parse the layout JSON as caption blocks. Use a plain `KSampler`.
+> ⚠ **Single mode's `prompt` is already layout JSON — do not feed it to the storyboard Sampler.** The Sampler would re-parse it as `[PANEL n]` blocks and get it wrong. Use a plain `KSampler`.
+>
+> (Related but different: if you skip the editor and just want one non-grid image, set `panels = 1` on the Sampler. That path sends prompt text, not JSON, so the warning above does not apply.)
+
+---
+
+## When something goes wrong
+
+**Match the error text first.** Every row below is copied verbatim from a `ValueError` in the source. Note that **the error messages themselves are in Chinese** — paste a few characters into a search here to find your row.
+
+| Error text (Chinese, verbatim) | What it means | Fix |
+|---|---|---|
+| `提示词有 4 段 [PANEL]，但布局是 8 格` | the script has a different number of blocks than there are panels | add blocks to match, set `panels` to the block count, or switch `init` to `plain` |
+| `全局段写「恰好 4 个面板」，但布局是 8 格` | the count written inside the global section disagrees with the real panel count | change that number to the real count, or delete the phrase |
+| `图像 1024x576 不能被 3x3 整除` | the crop node has no `spec`, so it can only divide by columns × rows | connect `spec` (recommended), or use a canvas that divides evenly |
+| `draft 为空：请粘贴官方 prompt-enhancer 的 caption/layout 草稿 JSON。` | the Draft Compiler received nothing | paste the **draft**, not the compiler's own output |
+| `元素 3 没有描述（caption 不能为空）` | a box on the canvas has an empty caption | give it a caption, or delete the box |
+| `label 只能是 object/character/text（收到 'xxx'）` | a hand-edited state or draft used another type | only those three values are allowed |
+
+**No error, but the result is wrong:**
+
+| Symptom | Check first |
+|---|---|
+| All black | mismatched recipe: a 4-step distilled LoRA with 50 steps / cfg 3, or no LoRA with 4 steps / cfg 1.0 |
+| Right panel count, everything crammed into one panel | the model ignored the boxes (see [Bounding boxes](#bounding-boxes-are-a-hint-not-a-bullseye)); shorten each caption to one shot |
+| Canvas shape differs from the preview | is `spec` connected? When it is, the Sampler's panel-count widgets are ignored |
+| Can't find the nodes | category `moss/storyboard`; searching `故事板`, `storyboard` or `宫格` also works |
+
+The rest of the Q&A (OOM, the 中 / EN button, negative prompts) is in [FAQ](#faq) at the end.
 
 ---
 
@@ -189,7 +285,7 @@ No `[PANEL n]` blocks — place boxes instead:
 |---|---|
 | `[PANEL 1]: …` `[PANEL 2]: …` with `panels = 2` | Two captions → panels 1 and 2 |
 | `[画面 1]: …` `[分镜 1]: …` | Also valid (Chinese markers are recognised) |
-| No `[PANEL]` at all, `init = plain` | The whole text is a plain prompt; **no layout boxes** (pure txt2img; `report` says so) |
+| No `[PANEL]` at all, `init = plain` | The whole text is a plain prompt; **no layout boxes** are compiled (`report` says so). The canvas is still the grid canvas — see the note in the FAQ |
 | 4 panels and 4 captions | Normal case |
 | 8 panels but only 4 captions | **Error.** Add four more blocks, set `panels = 4`, or switch `init` to `plain` |
 | One caption spread over several lines | Merged into a single caption; no effect |
@@ -207,7 +303,7 @@ No `[PANEL n]` blocks — place boxes instead:
 
 **Why 16 matters**: MOSS's VAE downscales by 16, so a width or height that is not a multiple of 16 misaligns. The node aligns everything for you.
 
-Numbers below: panel 16:9, long edge 496, gutter 8, margin 8.
+Numbers below: panel 16:9, long edge 496, gutter 8, margin 8 — the shipped workflow's settings (4 panels come out 1024 wide, hence "the 1024 tier"). **The factory default is 512**, two notches larger, with a correspondingly larger canvas. Any table using one of the two says which.
 
 | Panels | Shape | Canvas | MP | Panel size |
 |---|---|---|---|---|
@@ -252,6 +348,8 @@ The first three rows use the shipped workflow's 496 px panel edge; the last row 
 
 **Measured tiers on a single 12 GB card, whole-canvas mode** (50 steps / cfg 3.0 / euler + sgm_uniform / 16:9). ⚠ This set ran **with the 4-step distil LoRA attached**, so it is not the same operating point as the 50/3 rows elsewhere — use it for headroom, not for quality.
 
+⚠ **The raw data only records peak VRAM and whether the run OOMed** (all six runs: `success`). **Nobody graded the images.** "It fit" does not mean "the picture was right", and this combination — 4-step LoRA with 50 steps — is one of the mismatched recipes the FAQ lists as a common cause of black output. Do not read this table as a recommended recipe.
+
 | panels × `panel_edge` | canvas | MP | peak MB |
 |---|---|---|---|
 | 4 × 512 | 1056×608 | 0.64 | 11359 |
@@ -289,7 +387,7 @@ Each of **our** nodes has a **中 / EN** button switching titles, labels, combo 
 
 **Start here for posters, covers, product shots, or any free-form layout.**
 
-The node is a canvas: place boxes on the left, fill in descriptions on the right. **A box is a soft constraint, not a placement command.** Boxes are compiled into layout JSON and handed to the model as text through `CLIPTextEncode` — there is no `area`, no mask and no conditioning channel behind them. A box steers where an element tends to appear. It does not pin it there.
+The node is a canvas: place boxes on the left, fill in descriptions on the right. **A box is a hint, not a bullseye.** Boxes are compiled into layout JSON and handed to the model as text through `CLIPTextEncode` — there is no `area`, no mask and no conditioning channel behind them. A box steers roughly where an element appears; it cannot pin it there. The model can overshoot, drift or ignore it entirely (see [Bounding boxes](#bounding-boxes-are-a-hint-not-a-bullseye)).
 
 Outputs (7): `prompt` `width` `height` `spec` `template` `report` `negative`
 
@@ -364,7 +462,11 @@ The skill itself is external Apache-2.0 content and is **not bundled**; the comp
 
 ### 🎬 Storyboard · Grid Layout (`MossStoryboardLayout`, no model)
 
-Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `report` `elements`.
+Outputs nine: `width` `height` `columns` `rows` `spec` `layout_json` `template` `report` `elements`.
+
+- **`width` / `height`** (INT) — canvas size. Wire to `EmptyFlux2LatentImage`.
+- **`columns` / `rows`** (INT) — the layout actually used. Wire them into Split Panels / Paste and those nodes do not need `spec`.
+- **`template`** (IMAGE) — a picture of the grid (flat colours + gutters) for eyeballing where the panels sit. **Never enters the sampler.**
 
 | Input | Notes |
 |---|---|
@@ -400,8 +502,9 @@ Outputs `width` `height` `columns` `rows` `spec` `layout_json` `template` `repor
 
 ### 🎬 Storyboard · Generate (`MossStoryboardSampler`)
 
-Outputs `grid` `panels` `latent` `spec` `prompt_used` `report` `prompts_json`.
+Outputs `grid` `panels` `latent` `spec` `prompt_used` `report` `prompts_json` — **seven**.
 
+- **`prompt_used`** — the **script you typed**, passed straight through. It is **not** what the model saw: the per-panel text actually sent lives in `prompts_json`. Use `prompt_used` to check "what did I write", `prompts_json` to check "what did the model read".
 - **`latent`** — whole-canvas mode: the full-canvas latent; per-panel mode: a batch of N single-panel latents (`{"samples": [N,C,h,w]}`, row-major = panels 1..N, **not** a spatial stitch). Wire it to `VAEDecode` to decode the batch panel by panel.
 - **`prompts_json`** — the text handed to the model, as a JSON array: one entry in `整张` mode, one entry per panel in `逐格` mode (global paragraph included, multi-panel wording stripped). Wire it to a text file if you want to audit prompts later.
 
@@ -424,10 +527,13 @@ Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** 
 | Redraw grid lines `reborder` | on | redraw grid lines after decode |
 | Sample edge `sample_edge` | 1024 | per-panel mode only, see below |
 | Negative prompt `negative` | empty | in the **Advanced** fold, optional. At **exactly `cfg = 1.0`** the host skips the negative branch entirely; any other value, including 1.01, evaluates it |
+| Random seed `seed` | 0 | 0–4294967295. **The same seed plus the same settings is the only way to reproduce an image.** Changing it changes the composition — and how closely the boxes are followed |
 
 > Why `negative` is folded away: it is an **optional** input that defaults to empty. The model card's `cfg = 3` is above 1, so anything you type does reach the negative branch. Folding it under **Advanced** only stops it from looking required.
 
 **`mode` (how the panels are produced)**
+
+> ⚠ **Two similar terms, opposite meanings.** **Single mode** = the Layout Editor's one-image, no-panel layout (posters, covers). **`整张`** = this node's whole-canvas option: one canvas split into N panels, generated in one pass. The table below is about the latter.
 
 | Option | What it does | Pick it when |
 |---|---|---|
@@ -462,7 +568,21 @@ VRAM scales with the pixel count. Ignored in whole-canvas mode.
 
 ### 🎬 Storyboard · Split Panels (`MossStoryboardCrop`)
 
-Outputs `panels` (per-panel images), `preview` (the full canvas as-is; red crop guides are drawn only when the advanced `show_guides` toggle is on), `report` and `index` (the panel number).
+**Inputs** — only `image` must be connected; everything else can stay at its default:
+
+| Input | Default | Notes |
+|---|---|---|
+| `image` | — | **required.** the full board (`KSampler → VAEDecode`) |
+| `spec` | empty | from Generate or Grid Layout ⇒ crops land exactly where the board was generated. **Without it you must fill `columns` / `rows`** |
+| `columns` / `rows` | 0 / 0 | **required when there is no `spec`**; leaving them at 0 raises instead of guessing |
+| `index` | -1 | `-1` outputs every panel; a 0-based number outputs that one panel and emits the number on the `index` output |
+| `shave` | 0 | pixels trimmed from each side of a panel, to eat an overflowing gutter. If you change it, use the same value in Paste |
+| `resize_edge` | 0 | `0` keeps the original size (recommended); `>0` scales each panel's long edge to that value |
+| `target_aspect` | `keep` | keeps the panel's own ratio (no resampling); a specific ratio centre-crops |
+| `padding_mode` | `crop` | `crop` trims the excess; `pad` adds black bars (loses nothing) |
+| `show_guides` | off | advanced. draws red crop lines on `preview` for eyeballing |
+
+**Outputs** `panels` (per-panel images), `preview` (the full canvas as-is), `report`, `index` (the panel number).
 
 With `spec` → no resampling: the crop uses the same integers that generated the board. Without `spec` → `columns × rows` must divide the image evenly, and the node **raises** otherwise.
 
@@ -470,7 +590,19 @@ With `spec` → no resampling: the crop uses the same integers that generated th
 
 ### 🎬 Storyboard · Paste Panel (`MossStoryboardPaste`)
 
-Inputs `grid` (the full board), `panel` (the corrected panel) and `index` (which panel to write). Outputs `grid` (the corrected board), `marked` (debug: frames the pasted region in red) and `report`.
+**Inputs**
+
+| Input | Default | Notes |
+|---|---|---|
+| `grid` | — | **required.** the full board (Generate's `grid`, or the previous Paste's output) |
+| `panel` | — | **required.** the corrected panel (a single image). Feeding Split Panels' one-panel output is the safest |
+| `index` | 0 | which panel to write, **0-based, row-major**. Wiring Split Panels' `index` output overrides it, so they cannot disagree |
+| `shave` | 0 | **must match the value used when cropping** — see below |
+| `spec` | empty | exact placement needs it; without it, fill `columns` / `rows` |
+| `columns` / `rows` | 0 / 0 | required when there is no `spec` |
+| `show_guides` | off | advanced. frames the pasted region in pure red on `marked` |
+
+**Outputs** `grid` (the corrected board), `marked` (debug), `report`.
 
 **Purpose: fix one panel without re-running the whole board.** Re-running moves the seed of every panel at once. Instead: cut the panel out, correct it however you like, then paste it back at the `spec` coordinates.
 
@@ -580,7 +712,7 @@ Every row states its LoRA and step configuration.
 - 🔴 **No img2img.** This pack always starts from an empty canvas. To edit an existing image with a reference, use the host's `Text Encode MOSS-Image Edit` (see **🎬 Storyboard · Paste Panel**) — a separate path.
 - ⚠ **Steps and cfg follow the official model card for the checkpoint you load.** SFT (the shipped checkpoint) and Base both use **50 steps / cfg 3 / euler** on the model card (SFT: [ModelScope card](https://www.modelscope.cn/models/openmoss/MOSS-Image-SFT); Base: official CFG range 3–6). The card also specifies shift 5 (built into the native ComfyUI model) and negative-branch skipping at layer 22 (wire the host's `SkipLayerGuidanceDiTSimple`, `single_layers` `22`; the shipped examples do not include it). The native ComfyUI template uses different values (25 steps / cfg 2.5 / er_sde, Comfy-Org's choice) — it is not the model-card recipe. With a 4-step distilled LoRA: **4–8 steps / cfg 1.0** — the LoRA was distilled at cfg 1, so raising it breaks the distillation. Mixing a distilled LoRA with the base recipe (e.g. LoRA loaded but 50 steps / cfg 3) will not error, it just wastes the run.
 - ⚠ **Keep `denoise` at 1.0.** There is no image to reference; lowering it only truncates sigma (fewer steps). `report` prints nominal vs. effective — trust the effective value.
-- **Per-panel composition is only approximate.** MOSS's layout capability is *experimental*; this pack does no quality scoring. Boxes are text, not a control channel.
+- **Per-panel composition is only approximate.** Boxes are a hint, not a bullseye — see [Bounding boxes](#bounding-boxes-are-a-hint-not-a-bullseye). MOSS's layout capability is *experimental*; this pack does no quality scoring.
 - **No character-identity consistency, and no face swap.** This pack handles geometry, prompts and assembly only. Whether the same face survives across panels is decided by sampling; this pack does not promise it. The "pin one character card, then derive panel by panel" workflow needs a separate node pack — it is not part of this one and is not installed with it.
 - **No cross-panel consistency promise.** Our whole-canvas vs per-panel metrics change direction between the human and the animal scene. The certain gain of per-panel is that one panel can be redone on its own.
 - **At 8/9 panels each panel is small** — about 496×272 with the shipped 496 px edge (512×288 at the factory default). Small text and fine texture degrade first — a resolution budget, not a node bug.
@@ -599,7 +731,7 @@ Every row states its LoRA and step configuration.
 
 **All black.** Check `report` for nominal vs. effective denoise, and the step count. The most common cause is **mismatched bands**: a 4-step distilled LoRA loaded but 50 steps / cfg 3 used, or no LoRA but 4 steps / cfg 1.0. Match the recipes listed under "Not possible".
 
-**Right panel count, wrong content / everything crammed into one panel.** Layout boxes are soft constraints. Shorten each caption to one shot, and check that `report` parsed as many captions as there are panels.
+**Right panel count, wrong content / everything crammed into one panel.** Layout boxes are hints, and the model may ignore them (see [Bounding boxes](#bounding-boxes-are-a-hint-not-a-bullseye)). Shorten each caption to one shot, and check that `report` parsed as many captions as there are panels.
 
 **The canvas shape differs from the preview.** Check whether `spec` is connected: when it is, the Sampler's `panels` / `panel_edge` / `gutter` / `margin` widgets are ignored, and its `report` says so.
 
