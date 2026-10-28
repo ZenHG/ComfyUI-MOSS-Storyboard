@@ -24,7 +24,7 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "## 草稿编译（`MossPromptCompiler`）\n\n**零模型、不占显存**，秒出。它只做一件事：把**官方 MOSS-Image Prompt Enhancer 的草稿**\n编译成能直接用的东西。\n\n### 填什么\n把草稿 JSON 粘进 `draft`。两种草稿：\n\n| 草稿类型 | 长什么样 | 输出 |\n|---|---|---|\n| **caption** | `{\"caption\": \"...\"}` | `prompt` = 提示词文本；`state` 为空 |\n| **layout** | `width/height/bbox_coord_space/bbox_format/summary/items` | `prompt` = 原生布局 JSON；`state` = 编辑器 state |\n\n本工作流填的是 **layout 草稿**（4 格）。\n\n### 两个输出拿去干嘛\n- **`prompt`** → 接宿主核心节点 `MOSS-Image Layout Prompt`，或 `CLIPTextEncode`。\n- **`state`** → 复制，粘进**布局编辑器**的「导入」框 —— 草稿里的框就变成可拖的画布。\n\n### 注意\n- 最多 256 个元素；未知字段、越界坐标、非 16 倍数的画布**直接报错**，不猜。\n- `report` 会说清编译时做了什么（改坐标系 / 量化 / 丢弃了什么）。\n\n> 本包不做图生图，这个节点也不加载任何模型。想直接出图请用另外三个示例。\n"
+    "## 草稿编译（MossPromptCompiler）\n\n**零模型、不占显存**，秒出。它只做一件事：把**官方 MOSS-Image Prompt Enhancer 的草稿**\n编译成能直接用的东西。\n\n### 填什么\n把草稿 JSON 粘进 draft。两种草稿：\n\n| 草稿类型 | 长什么样 | 输出 |\n|---|---|---|\n| **caption** | {\"caption\": \"...\"} | prompt = 提示词文本；state 为空 |\n| **layout** | width/height/bbox_coord_space/bbox_format/summary/items | prompt = 原生布局 JSON；state = 编辑器 state |\n\n本工作流填的是 **layout 草稿**（4 格）。\n\n### 两个输出拿去干嘛\n- **prompt** → 接宿主核心节点 MOSS-Image Layout Prompt，或 CLIPTextEncode。\n- **state** → 复制，粘进**布局编辑器**的「导入」框 —— 草稿里的框就变成可拖的画布。\n\n### 注意\n- 最多 256 个元素；未知字段、越界坐标、非 16 倍数的画布**直接报错**，不猜。\n- report 会说清编译时做了什么（改坐标系 / 量化 / 丢弃了什么）。\n\n> 本包不做图生图，这个节点也不加载任何模型。想直接出图请用另外三个示例。\n"
    ],
    "title": "这是什么 · 怎么用"
   },
