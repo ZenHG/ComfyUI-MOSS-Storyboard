@@ -1,15 +1,15 @@
 {
  "id": "moss-storyboard-grid",
  "revision": 0,
- "last_node_id": 10,
- "last_link_id": 8,
+ "last_node_id": 11,
+ "last_link_id": 9,
  "nodes": [
   {
    "id": 1,
    "type": "UNETLoader",
    "pos": [
     -1150,
-    -100
+    -120
    ],
    "size": [
     340,
@@ -59,7 +59,7 @@
    "type": "CLIPLoader",
    "pos": [
     -1150,
-    -6
+    20
    ],
    "size": [
     340,
@@ -118,7 +118,7 @@
    "type": "VAELoader",
    "pos": [
     -1150,
-    120
+    180
    ],
    "size": [
     340,
@@ -159,7 +159,7 @@
    "type": "LoraLoaderModelOnly",
    "pos": [
     -1150,
-    214
+    290
    ],
    "size": [
     340,
@@ -404,7 +404,7 @@
     {
      "name": "model",
      "type": "MODEL",
-     "link": 2
+     "link": 9
     },
     {
      "name": "clip",
@@ -664,7 +664,7 @@
    "type": "PreviewImage",
    "pos": [
     -740,
-    560
+    614
    ],
    "size": [
     470,
@@ -780,11 +780,11 @@
    "type": "MarkdownNote",
    "pos": [
     -1150,
-    230
+    658
    ],
    "size": [
     340,
-    560
+    590
    ],
    "flags": {},
    "order": 9,
@@ -795,9 +795,82 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "## 三步\n1. ② 改 `panels`（3/4/6/8/9），画布自动算。\n2. ③ 提示词**只填这里**：`[STYLE]` 一段 + `[PANEL 1]`…`[PANEL n]` 每格一段。\n3. 跑。产物 = 整张宫格 + 逐格。\n\n## 采样配方（先看这条）\n仓库示例默认：**MOSS-Image-SFT 模型卡口径 50 步 / cfg 3 / euler / sgm_uniform**，LoRA 节点已旁路。\n- 装了 4-step 蒸馏 LoRA：选中它按 `Ctrl+B` 取消旁路，并把 ③ 改成 **4 步 / cfg 1.0**。\n- 没装：保持旁路与模型卡档（50 / 3 / euler）。\n- 模型卡还写了 shift 5 与 SLG 负分支层 22；shift 5 是原生模型内置，SLG 需宿主节点（本示例未接）。\n\n## 三条不要动\n- ① `type` 必须是 `moss_image`。\n- ③ `denoise=1.0`。\n- ② 提示词留空 —— 它只算尺寸。\n\n## 格数 → 画布（单格 16:9，长边 496）\n3=512×848　4=1024×576　6=1520×576　8=2032×576　9=1520×848\n\n宫格线由节点按坐标复绘（不依赖模型画直线）。"
+    "## 三步\n1. ② 改 panels（3/4/6/8/9），画布自动算。\n2. ③ 提示词**只填这里**：[STYLE] 一段 + [PANEL 1]…[PANEL n] 每格一段。\n3. 跑。产物 = 整张宫格 + 逐格。\n\n## 采样配方（先看这条）\n仓库示例默认：**MOSS-Image-SFT 模型卡口径 50 步 / cfg 3 / euler / sgm_uniform**，LoRA 节点已旁路。\n- 装了 4-step 蒸馏 LoRA：选中它按 Ctrl+B 取消旁路，并把 ③ 改成 **4 步 / cfg 1.0**。\n- 没装：保持旁路与模型卡档（50 / 3 / euler）。\n- 模型卡还写了 shift 5 与 SLG 负分支层 22；shift 5 是原生模型内置，SLG 需宿主节点（本示例未接）。\n\n## 加速\n\n① 的 **LazyCache 默认已开**：相邻相似步复用缓存，画面几乎不变、少跑几成步数。\n\n- 想更省：reuse_threshold 调到 0.3（会开始掉细节）。\n- 想关掉：选中它按 Ctrl+B 旁路。\n\n## 三条不要动\n- ① type 必须是 moss_image。\n- ③ denoise=1.0。\n- ② 提示词留空 —— 它只算尺寸。\n\n## 格数 → 画布（单格 16:9，长边 496）\n3=512×848　4=1024×576　6=1520×576　8=2032×576　9=1520×848\n\n宫格线由节点按坐标复绘（不依赖模型画直线）。"
    ],
    "title": "使用说明"
+  },
+  {
+   "id": 11,
+   "type": "LazyCache",
+   "pos": [
+    -1150,
+    424
+   ],
+   "size": [
+    340,
+    130
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 2
+    },
+    {
+     "name": "reuse_threshold",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "reuse_threshold"
+     }
+    },
+    {
+     "name": "start_percent",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "start_percent"
+     }
+    },
+    {
+     "name": "end_percent",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "end_percent"
+     }
+    },
+    {
+     "name": "verbose",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "verbose"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      9
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LazyCache"
+   },
+   "widgets_values": [
+    0.2,
+    0.15,
+    0.95,
+    false
+   ],
+   "title": "① LazyCache · 加速（默认开）"
   }
  ],
  "links": [
@@ -813,7 +886,7 @@
    2,
    10,
    0,
-   5,
+   11,
    0,
    "MODEL"
   ],
@@ -864,6 +937,14 @@
    8,
    0,
    "IMAGE"
+  ],
+  [
+   9,
+   11,
+   0,
+   5,
+   0,
+   "MODEL"
   ]
  ],
  "groups": [
@@ -873,7 +954,7 @@
     -1176,
     -156,
     392,
-    478
+    800
    ],
    "color": "#3f789e",
    "font_size": 26,
@@ -919,10 +1000,10 @@
  "config": {},
  "extra": {
   "ds": {
-   "scale": 0.62,
+   "scale": 0.564,
    "offset": [
-    1500,
-    500
+    728.4,
+    210.0
    ]
   }
  },

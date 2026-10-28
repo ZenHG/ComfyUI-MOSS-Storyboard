@@ -1,8 +1,8 @@
 {
  "id": "9743efab-4115-4158-aae5-3bcc97e65757",
  "revision": 0,
- "last_node_id": 13,
- "last_link_id": 15,
+ "last_node_id": 14,
+ "last_link_id": 16,
  "nodes": [
   {
    "id": 1,
@@ -64,7 +64,7 @@
    "type": "SaveImage",
    "pos": [
     1880,
-    532
+    502
    ],
    "size": [
     500,
@@ -138,7 +138,7 @@
      "localized_name": "模型",
      "name": "model",
      "type": "MODEL",
-     "link": 4
+     "link": 16
     },
     {
      "label": "正面条件",
@@ -274,7 +274,7 @@
    "type": "EmptyFlux2LatentImage",
    "pos": [
     940,
-    946
+    1240
    ],
    "size": [
     340,
@@ -353,7 +353,7 @@
    "type": "CLIPLoader",
    "pos": [
     940,
-    568
+    862
    ],
    "size": [
     420,
@@ -433,7 +433,7 @@
    "type": "VAELoader",
    "pos": [
     940,
-    782
+    1076
    ],
    "size": [
     420,
@@ -488,7 +488,7 @@
    "type": "UNETLoader",
    "pos": [
     940,
-    384
+    454
    ],
    "size": [
     420,
@@ -770,7 +770,7 @@
    ],
    "size": [
     460,
-    330
+    400
    ],
    "flags": {},
    "order": 0,
@@ -782,8 +782,81 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "## 单张海报\n1. 在「Layout Editor」里选预设、拖框、改字。\n2. `prompt` 接 CLIPTextEncode.text；`width/height` 接 EmptyFlux2LatentImage。\n3. 队列即可。`editor_state` 会自动存进工作流。\n\nMOSS-Image-SFT 模型卡：50 步 / cfg 3 / euler（shift 5、SLG 层 22）；ComfyUI 原生模板另用 25 步 / cfg 2.5 / er_sde；叠 4-step 蒸馏 LoRA 时改 4 步 / cfg 1.0。\ncaption 写「长什么样」，text 写「实际渲染的字」，两者不能混。"
+    "## 单张海报\n1. 在「Layout Editor」里选预设、拖框、改字。\n2. prompt 接 CLIPTextEncode.text；width/height 接 EmptyFlux2LatentImage。\n3. 队列即可。editor_state 会自动存进工作流。\n\nMOSS-Image-SFT 模型卡：50 步 / cfg 3 / euler（shift 5、SLG 层 22）；ComfyUI 原生模板另用 25 步 / cfg 2.5 / er_sde；叠 4-step 蒸馏 LoRA 时改 4 步 / cfg 1.0。\n### 加速\n\n① 的 **LazyCache 默认已开**（reuse_threshold 0.2 / 0.15→0.95）：相邻相似步直接复用缓存，画面几乎不变、步数少跑几成；日志里看 LazyCache - skipped x/y steps。\n想关掉：选中它按 Ctrl+B 旁路，其它不用动。\n\ncaption 写「长什么样」，text 写「实际渲染的字」，两者不能混。"
    ]
+  },
+  {
+   "id": 14,
+   "type": "LazyCache",
+   "pos": [
+    940,
+    638
+   ],
+   "size": [
+    420,
+    130
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 4
+    },
+    {
+     "name": "reuse_threshold",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "reuse_threshold"
+     }
+    },
+    {
+     "name": "start_percent",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "start_percent"
+     }
+    },
+    {
+     "name": "end_percent",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "end_percent"
+     }
+    },
+    {
+     "name": "verbose",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "verbose"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      16
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LazyCache"
+   },
+   "widgets_values": [
+    0.2,
+    0.15,
+    0.95,
+    false
+   ],
+   "title": "① LazyCache · 加速（默认开）"
   }
  ],
  "links": [
@@ -815,7 +888,7 @@
    4,
    8,
    0,
-   3,
+   14,
    0,
    "MODEL"
   ],
@@ -890,6 +963,14 @@
    11,
    1,
    "STRING"
+  ],
+  [
+   16,
+   14,
+   0,
+   3,
+   0,
+   "MODEL"
   ]
  ],
  "groups": [],
@@ -900,7 +981,7 @@
    "scale": 0.479,
    "offset": [
     80.0,
-    230.2
+    199.1
    ]
   }
  },

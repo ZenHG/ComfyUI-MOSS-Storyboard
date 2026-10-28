@@ -1,8 +1,8 @@
 {
  "id": "moss-storyboard-grid",
  "revision": 0,
- "last_node_id": 10,
- "last_link_id": 11,
+ "last_node_id": 11,
+ "last_link_id": 12,
  "nodes": [
   {
    "id": 1,
@@ -20,24 +20,27 @@
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "UNet名称",
      "name": "unet_name",
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "unet_name"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "数据类型",
      "name": "weight_dtype",
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "weight_dtype"
-     }
+     },
+     "link": null
     }
    ],
    "outputs": [
     {
+     "localized_name": "模型",
      "name": "MODEL",
      "type": "MODEL",
      "links": [
@@ -45,21 +48,35 @@
      ]
     }
    ],
+   "title": "① MOSS-Image",
    "properties": {
-    "Node name for S&R": "UNETLoader"
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "UNETLoader",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "unet_name": true,
+      "weight_dtype": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "moss_image_sft_bf16.safetensors",
     "default"
    ],
-   "title": "① MOSS-Image"
+   "widgets_values_named": {
+    "unet_name": "moss_image_sft_bf16.safetensors",
+    "weight_dtype": "default"
+   }
   },
   {
    "id": 2,
    "type": "CLIPLoader",
    "pos": [
     -1150,
-    74
+    70
    ],
    "size": [
     340,
@@ -70,32 +87,37 @@
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "CLIP名称",
      "name": "clip_name",
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "clip_name"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "类型",
      "name": "type",
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "type"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "设备",
      "name": "device",
+     "shape": 7,
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "device"
-     }
+     },
+     "link": null
     }
    ],
    "outputs": [
     {
+     "localized_name": "CLIP",
      "name": "CLIP",
      "type": "CLIP",
      "links": [
@@ -103,22 +125,38 @@
      ]
     }
    ],
+   "title": "① 文本编码器",
    "properties": {
-    "Node name for S&R": "CLIPLoader"
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "CLIPLoader",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "clip_name": true,
+      "type": true,
+      "device": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "qwen3.5_9b_int8_convrot.safetensors",
     "moss_image",
     "default"
    ],
-   "title": "① 文本编码器"
+   "widgets_values_named": {
+    "clip_name": "qwen3.5_9b_int8_convrot.safetensors",
+    "type": "moss_image",
+    "device": "default"
+   }
   },
   {
    "id": 3,
    "type": "VAELoader",
    "pos": [
     -1150,
-    278
+    280
    ],
    "size": [
     340,
@@ -129,16 +167,18 @@
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "vae名称",
      "name": "vae_name",
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "vae_name"
-     }
+     },
+     "link": null
     }
    ],
    "outputs": [
     {
+     "localized_name": "VAE",
      "name": "VAE",
      "type": "VAE",
      "links": [
@@ -146,53 +186,69 @@
      ]
     }
    ],
+   "title": "① VAE",
    "properties": {
-    "Node name for S&R": "VAELoader"
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "VAELoader",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "vae_name": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "flux2-vae.safetensors"
    ],
-   "title": "① VAE"
+   "widgets_values_named": {
+    "vae_name": "flux2-vae.safetensors"
+   }
   },
   {
    "id": 10,
    "type": "LoraLoaderModelOnly",
    "pos": [
     -1150,
-    432
+    430
    ],
    "size": [
     340,
     120
    ],
    "flags": {},
-   "order": 3,
+   "order": 5,
    "mode": 4,
    "inputs": [
     {
+     "localized_name": "模型",
      "name": "model",
      "type": "MODEL",
      "link": 1
     },
     {
+     "localized_name": "LoRA名称",
      "name": "lora_name",
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "lora_name"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "模型强度",
      "name": "strength_model",
      "type": "FLOAT",
-     "link": null,
      "widget": {
       "name": "strength_model"
-     }
+     },
+     "link": null
     }
    ],
    "outputs": [
     {
+     "localized_name": "模型",
      "name": "MODEL",
      "type": "MODEL",
      "links": [
@@ -200,14 +256,28 @@
      ]
     }
    ],
+   "title": "① LoRA（4-step，装了再取消旁路）",
    "properties": {
-    "Node name for S&R": "LoraLoaderModelOnly"
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "LoraLoaderModelOnly",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "lora_name": true,
+      "strength_model": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "loras_moss_image_sft_4_steps_lora_v2_600_avg_rank_72_bf16.safetensors",
-    1.0
+    1
    ],
-   "title": "① LoRA（4-step，装了再取消旁路）"
+   "widgets_values_named": {
+    "lora_name": "loras_moss_image_sft_4_steps_lora_v2_600_avg_rank_72_bf16.safetensors",
+    "strength_model": 1
+   }
   },
   {
    "id": 5,
@@ -221,200 +291,240 @@
     870
    ],
    "flags": {},
-   "order": 6,
+   "order": 8,
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "model",
      "name": "model",
      "type": "MODEL",
-     "link": 2
+     "link": 12
     },
     {
+     "localized_name": "clip",
      "name": "clip",
      "type": "CLIP",
      "link": 3
     },
     {
+     "localized_name": "vae",
      "name": "vae",
      "type": "VAE",
      "link": 4
     },
     {
-     "name": "positive",
-     "type": "STRING",
-     "link": 11,
-     "widget": {
-      "name": "positive"
-     }
-    },
-    {
-     "name": "negative",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "negative"
-     }
-    },
-    {
-     "name": "steps",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "steps"
-     }
-    },
-    {
-     "name": "cfg",
-     "type": "FLOAT",
-     "link": null,
-     "widget": {
-      "name": "cfg"
-     }
-    },
-    {
-     "name": "sampler_name",
-     "type": "COMBO",
-     "link": null,
-     "widget": {
-      "name": "sampler_name"
-     }
-    },
-    {
-     "name": "scheduler",
-     "type": "COMBO",
-     "link": null,
-     "widget": {
-      "name": "scheduler"
-     }
-    },
-    {
-     "name": "seed",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "seed"
-     }
-    },
-    {
-     "name": "denoise",
-     "type": "FLOAT",
-     "link": null,
-     "widget": {
-      "name": "denoise"
-     }
-    },
-    {
+     "localized_name": "spec",
      "name": "spec",
+     "shape": 7,
      "type": "STRING",
      "link": 9
     },
     {
-     "name": "panels",
+     "localized_name": "positive",
+     "name": "positive",
+     "type": "STRING",
+     "widget": {
+      "name": "positive"
+     },
+     "link": 11
+    },
+    {
+     "localized_name": "negative",
+     "name": "negative",
+     "type": "STRING",
+     "widget": {
+      "name": "negative"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "steps",
+     "name": "steps",
      "type": "INT",
-     "link": null,
+     "widget": {
+      "name": "steps"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "cfg",
+     "name": "cfg",
+     "type": "FLOAT",
+     "widget": {
+      "name": "cfg"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "sampler_name",
+     "name": "sampler_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "sampler_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "scheduler",
+     "name": "scheduler",
+     "type": "COMBO",
+     "widget": {
+      "name": "scheduler"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "seed",
+     "name": "seed",
+     "type": "INT",
+     "widget": {
+      "name": "seed"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "denoise",
+     "name": "denoise",
+     "type": "FLOAT",
+     "widget": {
+      "name": "denoise"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "panels",
+     "name": "panels",
+     "shape": 7,
+     "type": "INT",
      "widget": {
       "name": "panels"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "panel_aspect",
      "name": "panel_aspect",
+     "shape": 7,
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "panel_aspect"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "panel_edge",
      "name": "panel_edge",
+     "shape": 7,
      "type": "INT",
-     "link": null,
      "widget": {
       "name": "panel_edge"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "canvas_aspect",
      "name": "canvas_aspect",
+     "shape": 7,
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "canvas_aspect"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "gutter",
      "name": "gutter",
+     "shape": 7,
      "type": "INT",
-     "link": null,
      "widget": {
       "name": "gutter"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "margin",
      "name": "margin",
+     "shape": 7,
      "type": "INT",
-     "link": null,
      "widget": {
       "name": "margin"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "init",
      "name": "init",
+     "shape": 7,
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "init"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "label",
      "name": "label",
+     "shape": 7,
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "label"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "reborder",
      "name": "reborder",
+     "shape": 7,
      "type": "BOOLEAN",
-     "link": null,
      "widget": {
       "name": "reborder"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "border_px",
      "name": "border_px",
+     "shape": 7,
      "type": "INT",
-     "link": null,
      "widget": {
       "name": "border_px"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "shave",
      "name": "shave",
+     "shape": 7,
      "type": "INT",
-     "link": null,
      "widget": {
       "name": "shave"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "mode",
      "name": "mode",
+     "shape": 7,
      "type": "COMBO",
-     "link": null,
      "widget": {
       "name": "mode"
-     }
+     },
+     "link": null
     },
     {
+     "localized_name": "sample_edge",
      "name": "sample_edge",
+     "shape": 7,
      "type": "INT",
-     "link": null,
      "widget": {
       "name": "sample_edge"
-     }
+     },
+     "link": null
     }
    ],
    "outputs": [
     {
+     "localized_name": "grid",
      "name": "grid",
      "type": "IMAGE",
      "links": [
@@ -422,6 +532,7 @@
      ]
     },
     {
+     "localized_name": "panels",
      "name": "panels",
      "type": "IMAGE",
      "links": [
@@ -429,39 +540,79 @@
      ]
     },
     {
+     "localized_name": "latent",
      "name": "latent",
      "type": "LATENT",
      "links": []
     },
     {
+     "localized_name": "spec",
      "name": "spec",
      "type": "STRING",
      "links": []
     },
     {
+     "localized_name": "prompt_used",
      "name": "prompt_used",
      "type": "STRING",
      "links": []
     },
     {
+     "localized_name": "report",
      "name": "report",
      "type": "STRING",
      "links": []
+    },
+    {
+     "localized_name": "prompts_json",
+     "name": "prompts_json",
+     "type": "STRING",
+     "links": null
     }
    ],
+   "title": "🎬 故事板 · 生成",
    "properties": {
-    "Node name for S&R": "MossStoryboardSampler"
+    "cnr_id": "moss-storyboard",
+    "ver": "963cc024b98acf66c920b45745a915230693d581",
+    "Node name for S&R": "MossStoryboardSampler",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "positive": true,
+      "negative": true,
+      "steps": true,
+      "cfg": true,
+      "sampler_name": true,
+      "scheduler": true,
+      "seed": true,
+      "denoise": true,
+      "panels": true,
+      "panel_aspect": true,
+      "panel_edge": true,
+      "canvas_aspect": true,
+      "gutter": true,
+      "margin": true,
+      "init": true,
+      "label": true,
+      "reborder": true,
+      "border_px": true,
+      "shave": true,
+      "mode": true,
+      "sample_edge": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "",
     "",
     50,
-    3.0,
+    3,
     "euler",
     "sgm_uniform",
     555,
     "randomize",
-    1.0,
+    1,
     4,
     "16:9",
     496,
@@ -475,35 +626,74 @@
     0,
     "整张",
     1024
-   ]
+   ],
+   "widgets_values_named": {
+    "positive": "",
+    "negative": "",
+    "steps": 50,
+    "cfg": 3,
+    "sampler_name": "euler",
+    "scheduler": "sgm_uniform",
+    "seed": 555,
+    "control_after_generate": "randomize",
+    "denoise": 1,
+    "panels": 4,
+    "panel_aspect": "16:9",
+    "panel_edge": 496,
+    "canvas_aspect": "auto",
+    "gutter": 8,
+    "margin": 8,
+    "init": "layout",
+    "label": "object",
+    "reborder": true,
+    "border_px": 0,
+    "shave": 0,
+    "mode": "整张",
+    "sample_edge": 1024,
+    "mosssb_i18n_bar": ""
+   }
   },
   {
    "id": 6,
    "type": "PreviewImage",
    "pos": [
     -760,
-    1204
+    1200
    ],
    "size": [
     470,
     330
    ],
    "flags": {},
-   "order": 5,
+   "order": 6,
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "图像",
      "name": "images",
      "type": "IMAGE",
      "link": 10
     }
    ],
-   "outputs": [],
+   "outputs": [
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "IMAGE",
+     "links": null
+    }
+   ],
+   "title": "模板预览",
    "properties": {
-    "Node name for S&R": "PreviewImage"
-   },
-   "widgets_values": [],
-   "title": "模板预览"
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "PreviewImage",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
+   }
   },
   {
    "id": 7,
@@ -517,105 +707,145 @@
     650
    ],
    "flags": {},
-   "order": 7,
+   "order": 9,
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "图片",
      "name": "images",
      "type": "IMAGE",
      "link": 7
     },
     {
+     "localized_name": "文件名前缀",
      "name": "filename_prefix",
      "type": "STRING",
-     "link": null,
      "widget": {
       "name": "filename_prefix"
-     }
+     },
+     "link": null
     }
    ],
    "outputs": [
     {
+     "localized_name": "images",
      "name": "images",
      "type": "IMAGE",
      "links": []
     }
    ],
+   "title": "④ 存整张",
    "properties": {
-    "Node name for S&R": "SaveImage"
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "SaveImage",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "filename_prefix": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "moss/storyboard/grid"
    ],
-   "title": "④ 存整张"
+   "widgets_values_named": {
+    "filename_prefix": "moss/storyboard/grid"
+   }
   },
   {
    "id": 8,
    "type": "SaveImage",
    "pos": [
     800,
-    604
+    600
    ],
    "size": [
     500,
     650
    ],
    "flags": {},
-   "order": 8,
+   "order": 10,
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "图片",
      "name": "images",
      "type": "IMAGE",
      "link": 8
     },
     {
+     "localized_name": "文件名前缀",
      "name": "filename_prefix",
      "type": "STRING",
-     "link": null,
      "widget": {
       "name": "filename_prefix"
-     }
+     },
+     "link": null
     }
    ],
    "outputs": [
     {
+     "localized_name": "images",
      "name": "images",
      "type": "IMAGE",
      "links": []
     }
    ],
+   "title": "④ 存逐格",
    "properties": {
-    "Node name for S&R": "SaveImage"
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "SaveImage",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "filename_prefix": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "moss/storyboard/panel"
    ],
-   "title": "④ 存逐格"
+   "widgets_values_named": {
+    "filename_prefix": "moss/storyboard/panel"
+   }
   },
   {
    "id": 9,
    "type": "MarkdownNote",
    "pos": [
     -1150,
-    606
+    840
    ],
    "size": [
     340,
-    590
+    570
    ],
    "flags": {},
-   "order": 9,
+   "order": 3,
    "mode": 0,
    "inputs": [],
    "outputs": [],
+   "title": "使用说明",
    "properties": {
-    "Node name for S&R": "MarkdownNote"
+    "Node name for S&R": "MarkdownNote",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
-    "## 4 格故事板\n1. 在「Layout Editor」里改每格的描述 / 景别，或拖框。\n2. `prompt` 接采样器 positive；`spec` 接 spec（几何唯一来源）。\n3. 队列。产物 = 整张宫格 + 逐格。\n\n默认配方：MOSS-Image-SFT 模型卡 **50 步 / cfg 3 / euler**，4-step LoRA 已旁路。\n装了 4-step 蒸馏 LoRA：取消旁路，并把采样器改成 **4 步 / cfg 1.0**。\n\n格位只读：改列/行后点「生成初始框」。"
+    "## 4 格故事板\n\n1. 在「Layout Editor」里改每格的**描述 / 景别**，或直接拖框。\n2. prompt 接采样器的 positive，spec 接 spec（几何唯一来源）。\n3. 点「队列」。产物 = **整张宫格** + **逐格**。\n\n### 加速\n\n- **LazyCache（默认已开）**：串在 UNET → LoRA → 采样器 的模型线上，\n  相邻相似步复用缓存。跑的时候看日志：LazyCache - skipped x/y steps。\n- **调参**：reuse_threshold 0.2、0.15→0.95。抖动就降到 0.1，\n  想更快升到 0.3（会开始掉细节）。\n- **关掉**：选中它按 Ctrl+B 旁路，其它不用动。\n\n### 采样配方\n\n| 档位 |步数 / cfg | 加速 | 4-step LoRA |\n| --- | --- | --- | --- |\n| 出厂默认   |50 / 3.0 |  开 | 旁路 |\n| 装了 LoRA  |4/8 / 1.0 |   关 | 启用 |\n\n- 蒸馏 LoRA 默认**旁路**：装了再选中 ① 按 Ctrl+B，并把采样器改成 **4 步 / cfg 1.0**。\n- 别把蒸馏 LoRA 配 50 步，也别把 cfg 抬到 1.0 以上 —— 会毁画面。\n\n> **格位只读**：改列 / 行后点「生成初始框」重算，别手改坐标。\n"
    ],
-   "title": "使用说明"
+   "widgets_values_named": {
+    "text": "## 4 格故事板\n\n1. 在「Layout Editor」里改每格的**描述 / 景别**，或直接拖框。\n2. prompt 接采样器的 positive，spec 接 spec（几何唯一来源）。\n3. 点「队列」。产物 = **整张宫格** + **逐格**。\n\n### 加速\n\n- **LazyCache（默认已开）**：串在 UNET → LoRA → 采样器 的模型线上，\n  相邻相似步复用缓存。跑的时候看日志：LazyCache - skipped x/y steps。\n- **调参**：reuse_threshold 0.2、0.15→0.95。抖动就降到 0.1，\n  想更快升到 0.3（会开始掉细节）。\n- **关掉**：选中它按 Ctrl+B 旁路，其它不用动。\n\n### 采样配方\n\n| 档位 |步数 / cfg | 加速 | 4-step LoRA |\n| --- | --- | --- | --- |\n| 出厂默认   |50 / 3.0 |  开 | 旁路 |\n| 装了 LoRA  |4/8 / 1.0 |   关 | 启用 |\n\n- 蒸馏 LoRA 默认**旁路**：装了再选中 ① 按 Ctrl+B，并把采样器改成 **4 步 / cfg 1.0**。\n- 别把蒸馏 LoRA 配 50 步，也别把 cfg 抬到 1.0 以上 —— 会毁画面。\n\n> **格位只读**：改列 / 行后点「生成初始框」重算，别手改坐标。\n"
+   },
+   "color": "#432",
+   "bgcolor": "#653"
   },
   {
    "id": 4,
@@ -629,10 +859,18 @@
     1250
    ],
    "flags": {},
-   "order": 0,
+   "order": 4,
    "mode": 0,
    "inputs": [
     {
+     "localized_name": "prompt",
+     "name": "prompt",
+     "shape": 7,
+     "type": "STRING",
+     "link": null
+    },
+    {
+     "localized_name": "editor_state",
      "name": "editor_state",
      "type": "STRING",
      "widget": {
@@ -643,6 +881,7 @@
    ],
    "outputs": [
     {
+     "localized_name": "prompt",
      "name": "prompt",
      "type": "STRING",
      "slot_index": 0,
@@ -651,18 +890,21 @@
      ]
     },
     {
+     "localized_name": "width",
      "name": "width",
      "type": "INT",
      "slot_index": 1,
      "links": []
     },
     {
+     "localized_name": "height",
      "name": "height",
      "type": "INT",
      "slot_index": 2,
      "links": []
     },
     {
+     "localized_name": "spec",
      "name": "spec",
      "type": "STRING",
      "slot_index": 3,
@@ -671,6 +913,7 @@
      ]
     },
     {
+     "localized_name": "template",
      "name": "template",
      "type": "IMAGE",
      "slot_index": 4,
@@ -679,19 +922,137 @@
      ]
     },
     {
+     "localized_name": "report",
      "name": "report",
      "type": "STRING",
      "slot_index": 5,
      "links": []
+    },
+    {
+     "localized_name": "negative",
+     "name": "negative",
+     "type": "STRING",
+     "links": null
     }
    ],
-   "title": "🎬 Layout Editor · storyboard",
+   "title": "🎬 布局编辑器 · storyboard",
    "properties": {
-    "Node name for S&R": "MossLayoutEditor"
+    "cnr_id": "moss-storyboard",
+    "ver": "963cc024b98acf66c920b45745a915230693d581",
+    "Node name for S&R": "MossLayoutEditor",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "editor_state": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
    },
    "widgets_values": [
     "{\"version\":3,\"preset\":\"grid\",\"style\":\"单一画布，严格对称 2×2 网格，恰好 4 个面板，细白线分隔；女主：黑发低马尾、米白高领针织衫；环境：雨夜咖啡店靠窗双人桌；35mm 胶片，浅景深。\",\"items\":[{\"id\":\"s1\",\"label\":\"object\",\"no\":1,\"size\":\"中景\",\"caption\":\"两人对坐，她把杯子推向中间\",\"bbox\":[0.0,0.0,0.5,0.5]},{\"id\":\"s2\",\"label\":\"object\",\"no\":2,\"size\":\"特写\",\"caption\":\"她的眼睛与玻璃雨痕\",\"bbox\":[0.5,0.0,1.0,0.5]},{\"id\":\"s3\",\"label\":\"object\",\"no\":3,\"size\":\"中近景\",\"caption\":\"他抬眼看向窗外\",\"bbox\":[0.0,0.5,0.5,1.0]},{\"id\":\"s4\",\"label\":\"object\",\"no\":4,\"size\":\"特写\",\"caption\":\"两只手停在杯沿\",\"bbox\":[0.5,0.5,1.0,1.0]}],\"grid\":{\"cols\":2,\"rows\":2,\"panel_aspect\":\"16:9\",\"panel_edge\":496,\"gutter\":8,\"margin\":8}}"
-   ]
+   ],
+   "widgets_values_named": {
+    "editor_state": "{\"version\":3,\"preset\":\"grid\",\"style\":\"单一画布，严格对称 2×2 网格，恰好 4 个面板，细白线分隔；女主：黑发低马尾、米白高领针织衫；环境：雨夜咖啡店靠窗双人桌；35mm 胶片，浅景深。\",\"items\":[{\"id\":\"s1\",\"label\":\"object\",\"no\":1,\"size\":\"中景\",\"caption\":\"两人对坐，她把杯子推向中间\",\"bbox\":[0.0,0.0,0.5,0.5]},{\"id\":\"s2\",\"label\":\"object\",\"no\":2,\"size\":\"特写\",\"caption\":\"她的眼睛与玻璃雨痕\",\"bbox\":[0.5,0.0,1.0,0.5]},{\"id\":\"s3\",\"label\":\"object\",\"no\":3,\"size\":\"中近景\",\"caption\":\"他抬眼看向窗外\",\"bbox\":[0.0,0.5,0.5,1.0]},{\"id\":\"s4\",\"label\":\"object\",\"no\":4,\"size\":\"特写\",\"caption\":\"两只手停在杯沿\",\"bbox\":[0.5,0.5,1.0,1.0]}],\"grid\":{\"cols\":2,\"rows\":2,\"panel_aspect\":\"16:9\",\"panel_edge\":496,\"gutter\":8,\"margin\":8}}",
+    "mosssb_editor_ui": "",
+    "mosssb_i18n_bar": ""
+   }
+  },
+  {
+   "id": 11,
+   "type": "LazyCache",
+   "pos": [
+    -1150,
+    610
+   ],
+   "size": [
+    340,
+    130
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "模型",
+     "name": "model",
+     "type": "MODEL",
+     "link": 2
+    },
+    {
+     "localized_name": "重用阈值",
+     "name": "reuse_threshold",
+     "type": "FLOAT",
+     "widget": {
+      "name": "reuse_threshold"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "起始百分比",
+     "name": "start_percent",
+     "type": "FLOAT",
+     "widget": {
+      "name": "start_percent"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "结束百分比",
+     "name": "end_percent",
+     "type": "FLOAT",
+     "widget": {
+      "name": "end_percent"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "详细模式",
+     "name": "verbose",
+     "type": "BOOLEAN",
+     "widget": {
+      "name": "verbose"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "模型",
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      12
+     ]
+    }
+   ],
+   "title": "① LazyCache · 加速（默认开）",
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.43.0",
+    "Node name for S&R": "LazyCache",
+    "ue_properties": {
+     "widget_ue_connectable": {
+      "reuse_threshold": true,
+      "start_percent": true,
+      "end_percent": true,
+      "verbose": true
+     },
+     "version": "8.0",
+     "input_ue_unconnectable": {}
+    }
+   },
+   "widgets_values": [
+    0.2,
+    0.15,
+    0.95,
+    false
+   ],
+   "widgets_values_named": {
+    "reuse_threshold": 0.2,
+    "start_percent": 0.15,
+    "end_percent": 0.95,
+    "verbose": false
+   }
   }
  ],
  "links": [
@@ -707,7 +1068,7 @@
    2,
    10,
    0,
-   5,
+   11,
    0,
    "MODEL"
   ],
@@ -744,14 +1105,6 @@
    "IMAGE"
   ],
   [
-   9,
-   4,
-   3,
-   5,
-   11,
-   "STRING"
-  ],
-  [
    10,
    4,
    4,
@@ -760,9 +1113,25 @@
    "IMAGE"
   ],
   [
+   12,
+   11,
+   0,
+   5,
+   0,
+   "MODEL"
+  ],
+  [
    11,
    4,
    0,
+   5,
+   4,
+   "STRING"
+  ],
+  [
+   9,
+   4,
+   3,
    5,
    3,
    "STRING"
@@ -770,63 +1139,64 @@
  ],
  "groups": [
   {
+   "id": 1,
    "title": "① 模型加载（LoRA 可选）",
    "bounding": [
-    -1176,
-    -156,
-    392,
-    764
+    -1180,
+    -160,
+    380,
+    960
    ],
    "color": "#3f789e",
-   "font_size": 26,
    "flags": {}
   },
   {
+   "id": 2,
    "title": "② 宫格几何 + 模板预览",
    "bounding": [
-    -786,
-    -156,
+    -790,
+    -160,
     952,
     1746
    ],
    "color": "#3f789e",
-   "font_size": 26,
    "flags": {}
   },
   {
+   "id": 3,
    "title": "③ 故事板生成",
    "bounding": [
-    194,
-    -156,
+    190,
+    -160,
     572,
     982
    ],
    "color": "#3f789e",
-   "font_size": 26,
    "flags": {}
   },
   {
+   "id": 4,
    "title": "④ 出片",
    "bounding": [
-    774,
-    -156,
+    770,
+    -160,
     552,
     1466
    ],
    "color": "#3f789e",
-   "font_size": 26,
    "flags": {}
   }
  ],
  "config": {},
  "extra": {
   "ds": {
-   "scale": 0.465,
+   "scale": 1.1000000000000005,
    "offset": [
-    614.6,
-    196.2
+    1376.905787725632,
+    -400.39296595176137
    ]
-  }
+  },
+  "ue_links": []
  },
  "version": 0.4
 }
