@@ -64,13 +64,36 @@ CASES = [
 RNG = random.SystemRandom()
 
 
-def pad_prompt(text, n):
-    """把提示词补到 n 段（样例只有 4 段），让 6/8/9 格也能逐格拿到描述。"""
-    head, caps = T.split_panels(text)
-    if len(caps) >= n:
-        return text
-    caps_txt = [c for _, c in caps] or [head]
-    out = [text]
+def recount(text, n):
+    """把稿子里「恰好 4 个面板」这类显式格数改成 n，保留原措辞（恰好/正好/共）。
+
+    为什么必须改：`core.prompt.board_mismatch` 在采样前对账「全局段写的格数」与
+    「布局格数」，不等就直接报错（2026-10-27 起的守卫）。
+    """
+    def sub(m):
+        if m.group(1) is not None:
+            return m.group(0).replace(m.group(1), str(n), 1)
+        return "%d panels" % n
+    return T.COUNT_RE.sub(sub, text)
+
+
+def fit_prompt(text, n):
+    """把稿子对齐到 n 格：补/截 `[PANEL]` 段，并同步全局段的显式格数。
+
+    🔴 只补段不改格数是不行的 —— 那条守卫两处都查。旧版 `pad_prompt` 只补段，
+    于是 3/6/8/9/1 格全部被拦下（报「全局段写「恰好 4 个面板」，但布局是 N 格」），
+    而端到端报告早从公开树删了，没人发现矩阵其实只剩 4 格能过。
+    样例稿只有 4 段，其余格数就循环复用这 4 条描述。
+    """
+    text = recount(text, n)
+    _, caps = T.split_panels(text)
+    if not caps or len(caps) == n:
+        return text                      # 已对齐：原文一字不动（保住 [STYLE] 等标签）
+    caps_txt = [c for _, c in caps]
+    if len(caps) > n:
+        marks = list(T.PANEL_RE.finditer(text))
+        return text[: marks[n].start()].rstrip()
+    out = [text.rstrip()]
     for i in range(len(caps) + 1, n + 1):
         out.append("[PANEL %d]: %s" % (i, caps_txt[(i - 1) % len(caps_txt)]))
     return "\n\n".join(out)
@@ -135,7 +158,7 @@ def run_case(name, over, wf, infos, seed=None):
         canvas_aspect="auto",
     )
     # 提示词补段（跟格数对齐）
-    api["5"]["inputs"]["positive"] = pad_prompt(api["5"]["inputs"]["positive"], lay.panels)
+    api["5"]["inputs"]["positive"] = fit_prompt(api["5"]["inputs"]["positive"], lay.panels)
 
     # 🔴 覆盖项必须写到**节点 4（Layout）**：几何唯一权威是它产出的 spec，
     #   采样器上的同名参数会被 spec 覆盖 ⇒ 写到 5 上等于没改（本脚本第一版就犯了这个错，
