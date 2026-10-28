@@ -15,6 +15,14 @@ Thumbs.db
 # 本机宿主路径（开发机专用，不进库）
 .comfyui_path
 .cm*.txt
+
+# 临时产物 / dump：`git add -A` 的第一道拦网。S12 会在暂存区再查一次
+# （2026-10-28：7 MB 的 object_info dump 就是被 `add -A` 扫进提交的）。
+*_tmp.*
+*.tmp
+*.dump
+core.[0-9]*
+
 # ui_smoke.mjs / ui_wheel_check.mjs 每次跑都重画的取证截图（公开树已按 e3f2c73 清掉）
 docs/ui-smoke.png
 docs/ui-wheel-*.png
