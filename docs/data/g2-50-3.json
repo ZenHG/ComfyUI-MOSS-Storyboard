@@ -1,0 +1,413 @@
+{
+ "date": "2026-10-27",
+ "seeds": [
+  20261026,
+  777,
+  31337
+ ],
+ "config": {
+  "steps": 50,
+  "cfg": 3.0,
+  "scheduler": "sgm_uniform",
+  "panels": 4,
+  "panel_edge": 512,
+  "sample_edge": 512,
+  "sampler": "euler",
+  "denoise": 1.0,
+  "lora": "bypassed (node removed)",
+  "workflow": "moss-storyboard-4panels-ui.json"
+ },
+ "note": "docs/07 §二之三 的 8 步/cfg1/蒸馏 LoRA 口径不同源；此处为 SFT 默认 50/3。",
+ "rows": [
+  {
+   "场景": "A-人",
+   "mode": "整张",
+   "seed": 20261026,
+   "status": "success",
+   "wall_s": 72.2,
+   "tone": 0.0485,
+   "id_consistency": null,
+   "faces": [
+    0,
+    1,
+    1,
+    1
+   ],
+   "shot_gradient": null,
+   "content": 0.2287,
+   "prop_var": 0.009876,
+   "prop_mean": 0.1247,
+   "files": [
+    "A-人-整张-20261026-panel_00001_.png",
+    "A-人-整张-20261026-panel_00002_.png",
+    "A-人-整张-20261026-panel_00003_.png",
+    "A-人-整张-20261026-panel_00004_.png"
+   ]
+  },
+  {
+   "场景": "A-人",
+   "mode": "整张",
+   "seed": 777,
+   "status": "success",
+   "wall_s": 70.6,
+   "tone": 0.0679,
+   "id_consistency": null,
+   "faces": [
+    0,
+    1,
+    1,
+    1
+   ],
+   "shot_gradient": null,
+   "content": 0.2366,
+   "prop_var": 0.012905,
+   "prop_mean": 0.152,
+   "files": [
+    "A-人-整张-777-panel_00005_.png",
+    "A-人-整张-777-panel_00006_.png",
+    "A-人-整张-777-panel_00007_.png",
+    "A-人-整张-777-panel_00008_.png"
+   ]
+  },
+  {
+   "场景": "A-人",
+   "mode": "整张",
+   "seed": 31337,
+   "status": "success",
+   "wall_s": 72.1,
+   "tone": 0.0809,
+   "id_consistency": null,
+   "faces": [
+    0,
+    1,
+    1,
+    1
+   ],
+   "shot_gradient": null,
+   "content": 0.2218,
+   "prop_var": 0.000625,
+   "prop_mean": 0.085,
+   "files": [
+    "A-人-整张-31337-panel_00009_.png",
+    "A-人-整张-31337-panel_00010_.png",
+    "A-人-整张-31337-panel_00011_.png",
+    "A-人-整张-31337-panel_00012_.png"
+   ]
+  },
+  {
+   "场景": "A-人",
+   "mode": "逐格",
+   "seed": 20261026,
+   "status": "success",
+   "wall_s": 109.7,
+   "tone": 0.0409,
+   "id_consistency": null,
+   "faces": [
+    1,
+    1,
+    2,
+    2
+   ],
+   "shot_gradient": null,
+   "content": 0.2496,
+   "prop_var": 0.001025,
+   "prop_mean": 0.1316,
+   "files": [
+    "A-人-逐格-20261026-panel_00013_.png",
+    "A-人-逐格-20261026-panel_00014_.png",
+    "A-人-逐格-20261026-panel_00015_.png",
+    "A-人-逐格-20261026-panel_00016_.png"
+   ]
+  },
+  {
+   "场景": "A-人",
+   "mode": "逐格",
+   "seed": 777,
+   "status": "success",
+   "wall_s": 102.2,
+   "tone": 0.1126,
+   "id_consistency": null,
+   "faces": [
+    0,
+    1,
+    2,
+    2
+   ],
+   "shot_gradient": null,
+   "content": 0.2619,
+   "prop_var": 0.00068,
+   "prop_mean": 0.0619,
+   "files": [
+    "A-人-逐格-777-panel_00017_.png",
+    "A-人-逐格-777-panel_00018_.png",
+    "A-人-逐格-777-panel_00019_.png",
+    "A-人-逐格-777-panel_00020_.png"
+   ]
+  },
+  {
+   "场景": "A-人",
+   "mode": "逐格",
+   "seed": 31337,
+   "status": "success",
+   "wall_s": 102.2,
+   "tone": 0.1101,
+   "id_consistency": null,
+   "faces": [
+    1,
+    1,
+    1,
+    2
+   ],
+   "shot_gradient": null,
+   "content": 0.2496,
+   "prop_var": 0.003387,
+   "prop_mean": 0.1223,
+   "files": [
+    "A-人-逐格-31337-panel_00021_.png",
+    "A-人-逐格-31337-panel_00022_.png",
+    "A-人-逐格-31337-panel_00023_.png",
+    "A-人-逐格-31337-panel_00024_.png"
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "整张",
+   "seed": 20261026,
+   "status": "success",
+   "wall_s": 67.7,
+   "tone": 0.1372,
+   "id_consistency": null,
+   "faces": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "shot_gradient": null,
+   "content": 0.2375,
+   "prop_var": 0.00501,
+   "prop_mean": 0.152,
+   "files": [
+    "B-猫-整张-20261026-panel_00025_.png",
+    "B-猫-整张-20261026-panel_00026_.png",
+    "B-猫-整张-20261026-panel_00027_.png",
+    "B-猫-整张-20261026-panel_00028_.png"
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "整张",
+   "seed": 777,
+   "status": "success",
+   "wall_s": 66.1,
+   "tone": 0.0975,
+   "id_consistency": null,
+   "faces": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "shot_gradient": null,
+   "content": 0.2764,
+   "prop_var": 0.008642,
+   "prop_mean": 0.2628,
+   "files": [
+    "B-猫-整张-777-panel_00029_.png",
+    "B-猫-整张-777-panel_00030_.png",
+    "B-猫-整张-777-panel_00031_.png",
+    "B-猫-整张-777-panel_00032_.png"
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "整张",
+   "seed": 31337,
+   "status": "success",
+   "wall_s": 67.6,
+   "tone": 0.1011,
+   "id_consistency": null,
+   "faces": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "shot_gradient": null,
+   "content": 0.1949,
+   "prop_var": 0.003303,
+   "prop_mean": 0.1294,
+   "files": [
+    "B-猫-整张-31337-panel_00033_.png",
+    "B-猫-整张-31337-panel_00034_.png",
+    "B-猫-整张-31337-panel_00035_.png",
+    "B-猫-整张-31337-panel_00036_.png"
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "逐格",
+   "seed": 20261026,
+   "status": "success",
+   "wall_s": 99.2,
+   "tone": 0.0445,
+   "id_consistency": null,
+   "faces": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "shot_gradient": null,
+   "content": 0.1789,
+   "prop_var": 0.004055,
+   "prop_mean": 0.2001,
+   "files": [
+    "B-猫-逐格-20261026-panel_00037_.png",
+    "B-猫-逐格-20261026-panel_00038_.png",
+    "B-猫-逐格-20261026-panel_00039_.png",
+    "B-猫-逐格-20261026-panel_00040_.png"
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "逐格",
+   "seed": 777,
+   "status": "success",
+   "wall_s": 103.7,
+   "tone": 0.0788,
+   "id_consistency": null,
+   "faces": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "shot_gradient": null,
+   "content": 0.2213,
+   "prop_var": 0.002376,
+   "prop_mean": 0.1745,
+   "files": [
+    "B-猫-逐格-777-panel_00041_.png",
+    "B-猫-逐格-777-panel_00042_.png",
+    "B-猫-逐格-777-panel_00043_.png",
+    "B-猫-逐格-777-panel_00044_.png"
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "逐格",
+   "seed": 31337,
+   "status": "success",
+   "wall_s": 96.2,
+   "tone": 0.1429,
+   "id_consistency": null,
+   "faces": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "shot_gradient": null,
+   "content": 0.277,
+   "prop_var": 0.004227,
+   "prop_mean": 0.1792,
+   "files": [
+    "B-猫-逐格-31337-panel_00045_.png",
+    "B-猫-逐格-31337-panel_00046_.png",
+    "B-猫-逐格-31337-panel_00047_.png",
+    "B-猫-逐格-31337-panel_00048_.png"
+   ]
+  }
+ ],
+ "summary": [
+  {
+   "场景": "A-人",
+   "mode": "整张",
+   "n": 3,
+   "tone": [
+    0.0658,
+    0.0485,
+    0.0809
+   ],
+   "id_consistency": null,
+   "shot_gradient": null,
+   "content": [
+    0.229,
+    0.2218,
+    0.2366
+   ],
+   "prop_var": [
+    0.0078,
+    0.0006,
+    0.0129
+   ]
+  },
+  {
+   "场景": "A-人",
+   "mode": "逐格",
+   "n": 3,
+   "tone": [
+    0.0879,
+    0.0409,
+    0.1126
+   ],
+   "id_consistency": null,
+   "shot_gradient": null,
+   "content": [
+    0.2537,
+    0.2496,
+    0.2619
+   ],
+   "prop_var": [
+    0.0017,
+    0.0007,
+    0.0034
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "整张",
+   "n": 3,
+   "tone": [
+    0.1119,
+    0.0975,
+    0.1372
+   ],
+   "id_consistency": null,
+   "shot_gradient": null,
+   "content": [
+    0.2363,
+    0.1949,
+    0.2764
+   ],
+   "prop_var": [
+    0.0057,
+    0.0033,
+    0.0086
+   ]
+  },
+  {
+   "场景": "B-猫",
+   "mode": "逐格",
+   "n": 3,
+   "tone": [
+    0.0887,
+    0.0445,
+    0.1429
+   ],
+   "id_consistency": null,
+   "shot_gradient": null,
+   "content": [
+    0.2257,
+    0.1789,
+    0.277
+   ],
+   "prop_var": [
+    0.0036,
+    0.0024,
+    0.0042
+   ]
+  }
+ ]
+}

@@ -262,7 +262,7 @@ The first three rows use the shipped workflow's 496 px panel edge; the last row 
 | 8 × 544 | 2224×640 | 1.42 | 11298 |
 
 > Numbers only — this pack publishes no speed numbers (timing depends on your machine and goes stale). Across 0.64–1.42 MP the peak sits at 11.2–11.4 GB: **≈0.9 GB of headroom for the whole canvas**. The worst point measured anywhere — per-panel, 8 × 544 — leaves **0.7–0.8 GB**. So a 12 GB card runs these tiers, **but it can still OOM when the desktop is already holding VRAM**. Do not read this as "12 GB is enough".
-> Data `审计报告/实验/g1-results.json`; per-run log and caveats `审计报告/实验/g1-report.md`.
+> Data [`docs/data/g1-results.json`](docs/data/g1-results.json); per-run log and caveats [`docs/data/g1-report.md`](docs/data/g1-report.md).
 
 **When memory runs short**, the host tries the full-image decode first, then falls back to **tiled decode**. A tile border may fall inside a panel, and a seam can appear there. Look for `retrying with tiled VAE decoding` in the log. Whether a seam actually cuts a panel is mechanism, not measured here.
 
@@ -434,7 +434,7 @@ Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** 
 | `整张` (whole canvas) | **Default.** One sampling pass for the whole board: faster, and the same face is more stable across panels | You want the board in one go, or many panels (8/9) |
 | `逐格` (per panel) | Every panel is **sampled on its own**, then assembled by coordinates — one sampling pass per panel, so it is slower | You need to **rework one panel** later, or want more pixels per panel |
 
-**The same face: measured.** ArcFace similarity of the same woman over three pairs — whole canvas `0.553` **>** per panel `0.479` (one scene, one seed). In absolute terms 0.553 only supports "looks like the same person"; "the same character" would need 0.75+. 35% of the positive pairs had no detectable face, so **we report the number, we do not use it as a pass/fail gate, and we set no threshold.**
+**The same face: measured.** ArcFace cosine over three pairs of the same woman — whole canvas `0.553` **>** per panel `0.479` (one scene, one seed; the same ruler, so only the relative order means anything here). 35% of the positive pairs had no detectable face, so **we report the number, we do not use it as a pass/fail gate, and we set no threshold.** Absolute cut-offs do not transfer between domains: images this model produces of *different* East Asian women already score around `0.52`, so the usual "above 0.5 means the same person" rule is wrong in both directions here. This page therefore gives relative only, never a pass mark.
 
 **Per-panel detail: structural.** In `逐格` each panel is sampled at `sample_edge`, which can be larger than the final cell, then downscaled into it. That is the mechanism behind the extra detail — mechanism, not measured, and this pack publishes no sharpness numbers.
 
@@ -581,6 +581,7 @@ Every row states its LoRA and step configuration.
 - ⚠ **Steps and cfg follow the official model card for the checkpoint you load.** SFT (the shipped checkpoint) and Base both use **50 steps / cfg 3 / euler** on the model card (SFT: [ModelScope card](https://www.modelscope.cn/models/openmoss/MOSS-Image-SFT); Base: official CFG range 3–6). The card also specifies shift 5 (built into the native ComfyUI model) and negative-branch skipping at layer 22 (wire the host's `SkipLayerGuidanceDiTSimple`, `single_layers` `22`; the shipped examples do not include it). The native ComfyUI template uses different values (25 steps / cfg 2.5 / er_sde, Comfy-Org's choice) — it is not the model-card recipe. With a 4-step distilled LoRA: **4–8 steps / cfg 1.0** — the LoRA was distilled at cfg 1, so raising it breaks the distillation. Mixing a distilled LoRA with the base recipe (e.g. LoRA loaded but 50 steps / cfg 3) will not error, it just wastes the run.
 - ⚠ **Keep `denoise` at 1.0.** There is no image to reference; lowering it only truncates sigma (fewer steps). `report` prints nominal vs. effective — trust the effective value.
 - **Per-panel composition is only approximate.** MOSS's layout capability is *experimental*; this pack does no quality scoring. Boxes are text, not a control channel.
+- **No character-identity consistency, and no face swap.** This pack handles geometry, prompts and assembly only. Whether the same face survives across panels is decided by sampling; this pack does not promise it. The "pin one character card, then derive panel by panel" workflow needs a separate node pack — it is not part of this one and is not installed with it.
 - **No cross-panel consistency promise.** Our whole-canvas vs per-panel metrics change direction between the human and the animal scene. The certain gain of per-panel is that one panel can be redone on its own.
 - **At 8/9 panels each panel is small** — about 496×272 with the shipped 496 px edge (512×288 at the factory default). Small text and fine texture degrade first — a resolution budget, not a node bug.
 
