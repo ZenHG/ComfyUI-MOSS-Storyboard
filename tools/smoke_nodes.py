@@ -53,7 +53,7 @@ def main():
     from moss_sb import nodes as V1
     from moss_sb.core import editor as E
     from moss_sb.core import layout as L
-    check("V1 注册 6 个节点", len(V1.NODE_CLASS_MAPPINGS) == 6, str(sorted(V1.NODE_CLASS_MAPPINGS)))
+    check("V1 注册 7 个节点", len(V1.NODE_CLASS_MAPPINGS) == 7, str(sorted(V1.NODE_CLASS_MAPPINGS)))
     for name, cls in V1.NODE_CLASS_MAPPINGS.items():
         it = cls.INPUT_TYPES()
         req = list(it.get("required") or {})
