@@ -22,6 +22,7 @@ import { app } from "../../scripts/app.js";
 import {
     LANG_EVENT, LANG_KEY, NODES, applyLang, defaultLang, normLang, ownNodes,
 } from "./moss_sb_i18n.js";
+import { installSaveCleanup } from "./moss_sb_widget_order.js";
 
 const TAG = "[MOSS SB] i18n";
 const BTN_CLASS = "mosssb-i18n-btn";
@@ -142,42 +143,51 @@ function makeBtn() {
 }
 
 /**
- * 把语言条那一格从存档里去掉。
+ * 存盘前剔掉**所有**虚拟 widget（DOM 组件）的值 —— 实现在 `moss_sb_widget_order.js`。
  *
  * 为什么必须自己剔：`addDOMWidget(..., { serialize: false })` 只是**告诉宿主**别存，
  * 实测（前端 1.57.4）这版 litegraph 的 `serialize()` 照样把它写进 `widgets_values`。
- * 而载入时它是 `configure` **之后**才挂上的 —— 于是「存档 n 项 / 载入时 n-1 个 widget」，
+ * 而它们都是载入后才挂上的 —— 于是「存档 n 项 / 载入那一刻 n-1 个 widget」，
  * 每保存一次就差一格，下次打开整条值右移一位、`panels/panel_aspect/init` 一起变红。
- * 在这里剔掉，存出去的长度与载入时天然一致，连"修"都不需要。
  *
- * 只在「存档长度 == widget 总数」时动（那时才是一一对应，splice 位置才可靠）。
+ * 编辑器挂载时也会装同一个钩子（它自己那个 DOM 组件同样会写一格），
+ * 所以这里只是"另一条入口"，重复调用无副作用。
  */
-function dropBarFromSave(node) {
-    if (!node || node.__mosssbSave) return;
-    node.__mosssbSave = true;
-    const orig = node.serialize;
-    if (typeof orig !== "function") return;
-    node.serialize = function (...args) {
-        const out = orig.apply(this, args);
-        try {
-            const ws = out && out.widgets_values;
-            const all = this.widgets || [];
-            if (Array.isArray(ws) && ws.length === all.length) {
-                const i = all.findIndex((w) => w && w.name === BAR_NAME);
-                if (i >= 0) ws.splice(i, 1);
-            }
-        } catch (e) { /* 存出去多一格也比崩了强 */ }
-        return out;
-    };
-}
 
+/**
+ * 挂按钮。**优先挂进编辑器顶栏的插槽**（`node.__mossedUI.langSlot`）：
+ * 单独开一个 DOM 组件行时，它和编辑器谁先挂上取决于挂载时机，实测同一份工作流
+ * 按钮有时在编辑器上方、有时在下方，还白占 30~50px 高度。编辑器自己那一行永远对齐。
+ * 编辑器没挂上（宿主不支持 DOM 组件 / 还没轮到挂）时才退回独立行。
+ */
 function mountBtn(node) {
     // 🔴 只给本包节点加按钮。官方节点、别人的节点一律不加（挂了就是往人家界面上塞东西）。
-    if (!node || node.__mosssbBar) return false;
-    if (!NODES[String(node.type || "")]) return false;
+    if (!node || !NODES[String(node.type || "")]) return false;
+    // 存盘钩子挂在这里而不是编辑器里：编辑器要保持"单文件、不 import 本地模块"（W9）。
+    // 幂等，且放在 `__mosssbBar` 早退**之前** —— 已经有按钮的节点也要补装。
+    installSaveCleanup(node);
+    if (node.__mosssbBar) return false;
+
+    const slot = node.__mossedUI && node.__mossedUI.langSlot;
+    if (slot) {
+        try {
+            const btn = makeBtn();
+            slot.appendChild(btn);
+            node.__mosssbBar = btn;
+            return true;
+        } catch (e) { /* 落到下面的独立行 */ }
+    }
+    // 布局编辑器一定会有 DOM 界面：先等它挂上（下一轮 guard 再来），别急着占一行。
+    // 连续几次都没等到就认命，退回独立行 —— 不能因为编辑器挂了按钮就消失。
+    if (String(node.type || "") === "MossLayoutEditor") {
+        const misses = (node.__mosssbWait = (node.__mosssbWait || 0) + 1);
+        if (misses <= 4) return false;
+    }
+
     try {
         const bar = document.createElement("div");
-        bar.style.cssText = "display:flex;align-items:center;gap:6px;padding:3px 4px;";
+        // 左右内边距与编辑器根一致（10px）：语言条与下面那一列控件对同一条竖线。
+        bar.style.cssText = "display:flex;align-items:center;gap:6px;padding:2px 10px;";
         bar.appendChild(makeBtn());
         for (const ev of ["pointerdown", "mousedown", "dblclick", "keydown", "click"]) {
             bar.addEventListener(ev, (e) => e.stopPropagation());   // 别让点按钮变成拖节点
@@ -189,7 +199,7 @@ function mountBtn(node) {
             getMinHeight: () => 28,
         });
         node.__mosssbBar = bar;
-        dropBarFromSave(node);
+        installSaveCleanup(node);
         return true;
     } catch (e) {
         // 跨前端版本可能没有 addDOMWidget ⇒ 不掀画布，降级为"没有按钮但翻译照常"

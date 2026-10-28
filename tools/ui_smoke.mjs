@@ -6,7 +6,7 @@
 // 为什么必须有它：`test_i18n.mjs` 测纯函数，`check_frontend.py` 读文件。两者都覆盖不到：
 //   ① 扩展有没有被前端执行（模块 import 失败时静默无提示）
 //   ② 「中/EN」按钮有没有挂到**本包节点**上（节点内 DOM 组件，不是页面浮层）
-//   ③ 官方/别人的节点**有没有被误加按钮或误改标签**（GG 点名要求：只动自己的节点）
+//   ③ 官方/别人的节点**有没有被误加按钮或误改标签**（本包只动自己的节点）
 //
 // 用法：
 //   node tools/ui_smoke.mjs [--url http://127.0.0.1:8188] [--out docs/ui-smoke.png]
@@ -64,7 +64,10 @@ try {
         return (g._nodes || []).map((n) => ({
             type: String(n.type),
             title: n.title,
-            btn: (n.__mosssbBar && n.__mosssbBar.querySelectorAll(".mosssb-i18n-btn").length) || 0,
+            // 语言按钮可能挂进编辑器顶栏（__mosssbBar 就是按钮本身），也可能在独立 DOM 行里
+            btn: !n.__mosssbBar ? 0
+                : (n.__mosssbBar.classList?.contains("mosssb-i18n-btn") ? 1
+                    : n.__mosssbBar.querySelectorAll(".mosssb-i18n-btn").length),
             widgets: (n.widgets || []).map((w) => [w.name, w.label, w.type]),
         }));
     });

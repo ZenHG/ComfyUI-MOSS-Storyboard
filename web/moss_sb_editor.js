@@ -121,7 +121,8 @@ export const STR = {
     textPh: { zh: "实际要渲染的字（label=text 必填）", en: "The exact text to render (required for text)" },
     palette: { zh: "主色", en: "Palette" },
     palettePh: { zh: "#rrggbb，逗号分隔，最多 5 个", en: "#rrggbb, comma separated, up to 5" },
-    bbox: { zh: "框（格内归一化）", en: "Box (normalized)" },
+    bbox: { zh: "框", en: "Box" },
+    bboxTip: { zh: "归一化坐标 0–1：x0 / y0 / x1 / y1（宽高由后端换算）", en: "Normalized 0–1 coordinates: x0 / y0 / x1 / y1 (pixels are computed by the node)" },
     size: { zh: "景别", en: "Shot size" },
     sizeCustom: { zh: "自定义…", en: "Custom…" },
     sizeNone: { zh: "不指定", en: "Unspecified" },
@@ -160,7 +161,8 @@ export const STR = {
     alignTop: { zh: "对齐上边缘", en: "Align top" },
     alignV: { zh: "垂直居中", en: "Center vertically" },
     alignBottom: { zh: "对齐下边缘", en: "Align bottom" },
-    order: { zh: "层级 / 对齐", en: "Order / align" },
+    order: { zh: "层级", en: "Order" },
+    orderTip: { zh: "上移 / 下移改绘制顺序；后面六个按钮是把选中的框对齐到画布边缘或中线", en: "Raise/lower changes draw order; the six buttons align the selected box to canvas edges or center" },
     importBtn: { zh: "导入", en: "Import" },
     exportBtn: { zh: "导出", en: "Export" },
     importTitle: { zh: "导入 elements-v1 或 state v3 JSON", en: "Import elements-v1 or state v3 JSON" },
@@ -1248,43 +1250,55 @@ function ensureStyle() {
         const st = document.createElement("style");
         st.id = STYLE_ID;
         st.textContent = `
-.mossed-root{position:relative;display:flex;flex-direction:column;gap:7px;width:100%;height:100%;box-sizing:border-box;padding:8px;color:var(--input-text,#ddd);background:var(--comfy-menu-bg,#1e1e1e);border-radius:8px;overflow:hidden;overscroll-behavior:contain;font:12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
-.mossed-bar{display:flex;align-items:center;gap:6px;flex:0 0 auto;flex-wrap:wrap}
+.mossed-root{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;height:100%;min-height:0;box-sizing:border-box;padding:10px;color:var(--input-text,#ddd);background:var(--comfy-menu-bg,#1e1e1e);border-radius:8px;overflow:hidden;overscroll-behavior:contain;font:12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
+.mossed-bar{display:flex;align-items:center;gap:6px;flex:0 0 auto;flex-wrap:nowrap;min-width:0}
+.mossed-subbar{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-width:0;height:15px}
 .mossed-row{display:flex;align-items:center;gap:10px;flex:0 0 auto;flex-wrap:wrap}
-.mossed-field{display:flex;align-items:center;gap:4px;white-space:nowrap;color:var(--input-text,#ddd)}
+.mossed-field{display:flex;align-items:center;gap:6px;white-space:nowrap;color:var(--input-text,#ddd);min-width:0}
 .mossed-field-col{flex-direction:column;align-items:stretch;gap:2px;width:100%;white-space:normal}
 .mossed-field-label{opacity:.7;font-size:11px}
-.mossed-root input[type=number],.mossed-root input[type=text],.mossed-root select,.mossed-root textarea{background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);border:1px solid var(--border-color,#4a4f59);border-radius:6px;padding:2px 5px;font:inherit;min-width:0;height:24px;box-sizing:border-box}
+/* 属性面板的标签列定宽：Type / Text / Palette / Box / Order 后面的控件落在同一条竖线上。 */
+.mossed-form .mossed-field-label{flex:0 0 64px;min-width:64px}
+/* 参数行同理：列 / 行 / 单格比例、单格长边 / 缝宽 / 外边距，标签宽度不一，
+   不定宽的话后面的输入框就一条线一条线地错开。 */
+.mossed-gridrow .mossed-field-label,.mossed-gridadv .mossed-field-label,.mossed-canvasrow .mossed-field-label{flex:0 0 auto;min-width:48px}
+.mossed-alignrow{display:inline-flex;align-items:center;gap:4px;margin-left:4px}
+.mossed-alignrow[hidden]{display:none}
+.mossed-root input[type=number],.mossed-root input[type=text],.mossed-root select,.mossed-root textarea{background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);border:1px solid var(--border-color,#4a4f59);border-radius:6px;padding:2px 6px;font:inherit;min-width:0;height:26px;box-sizing:border-box}
 .mossed-root textarea{height:auto;padding:5px 6px;line-height:1.4}
 .mossed-root input:disabled{opacity:.45}
 .mossed-root select{cursor:pointer}
 .mossed-root input:focus-visible,.mossed-root select:focus-visible,.mossed-root textarea:focus-visible,.mossed-root button:focus-visible{outline:2px solid #5aa9ff;outline-offset:1px}
-.mossed-num{width:64px}
-.mossed-bbox{width:62px;font-variant-numeric:tabular-nums}
+.mossed-num{width:58px}
+.mossed-bbox{width:64px;font-variant-numeric:tabular-nums}
+.mossed-preset{max-width:190px}
+.mossed-aspect{width:104px}
 .mossed-text,.mossed-palette{width:100%}
-.mossed-cap{width:100%;resize:vertical;min-height:58px;max-height:190px}
-.mossed-btn{height:24px;border:1px solid var(--border-color,#4a4f59);background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);border-radius:6px;padding:0 9px;cursor:pointer;font:inherit;white-space:nowrap}
+.mossed-cap{width:100%;resize:vertical;min-height:48px;max-height:190px}
+.mossed-btn{height:26px;border:1px solid var(--border-color,#4a4f59);background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);border-radius:6px;padding:0 10px;cursor:pointer;font:inherit;white-space:nowrap}
 .mossed-btn:hover{filter:brightness(1.22)}
 .mossed-btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
 .mossed-primary{background:#f0b35a;border-color:#f0b35a;color:#15181d;font-weight:600}
 .mossed-primary:hover{filter:brightness(1.08)}
 .mossed-danger{border-color:#a33;color:#f88}
-.mossed-iconbtn{width:24px;height:24px;border-radius:50%;border:1px solid var(--border-color,#4a4f59);background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);cursor:pointer;font:600 13px/1 system-ui,sans-serif;padding:0}
+.mossed-iconbtn{width:26px;height:26px;border-radius:50%;border:1px solid var(--border-color,#4a4f59);background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);cursor:pointer;font:600 13px/1 system-ui,sans-serif;padding:0}
 .mossed-iconbtn:hover{filter:brightness(1.2)}
 .mossed-iconbtn:disabled{opacity:.35;cursor:default;filter:none}
-.mossed-alignbtn{width:22px;height:22px;border-radius:6px;font-size:13px}
+.mossed-alignbtn{width:24px;height:24px;border-radius:6px;font-size:13px}
 .mossed-linkbtn{border:0;background:none;color:var(--input-text,#ddd);opacity:.65;cursor:pointer;font:inherit;text-decoration:underline;text-underline-offset:2px;padding:0}
 .mossed-linkbtn:hover{opacity:1}
-.mossed-spacer{flex:1 1 auto}
-.mossed-chip{opacity:.68;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.mossed-notice{font-size:11px;opacity:.78;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mossed-spacer{flex:1 1 auto;min-width:0}
+.mossed-langslot{display:inline-flex;align-items:center;flex:0 0 auto}
+.mossed-chip{flex:0 0 auto;margin-left:auto;opacity:.68;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mossed-notice{flex:0 1 auto;min-width:0;font-size:11px;opacity:.78;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mossed-notice.mossed-err{color:#f88;opacity:.95}
 .mossed-id{font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;opacity:.72}
 .mossed-typedot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:0 0 auto;box-shadow:0 0 0 1px #0007,0 0 8px currentColor}
-.mossed-hintline{flex:0 0 auto;font-size:11px;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;margin-top:-3px}
-.mossed-note{font-size:10px;opacity:.6}
-.mossed-stage{position:relative;flex:1 1 auto;min-height:180px;display:flex;align-items:center;justify-content:center;background-color:#0f1115;background-image:radial-gradient(circle at 1px 1px,#ffffff0d 1px,transparent 0);background-size:16px 16px;border:1px solid #2a2f38;border-radius:8px;overflow:hidden}
-.mossed-svg{width:100%;height:100%;display:block;touch-action:none;user-select:none;cursor:crosshair}
+.mossed-hintline{flex:0 1 auto;min-width:0;font-size:11px;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mossed-hintline[hidden]{display:none}
+.mossed-note{flex:1 1 auto;min-width:0;font-size:10px;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mossed-stage{position:relative;flex:1 1 auto;min-height:200px;display:flex;align-items:center;justify-content:center;background-color:#0f1115;background-image:radial-gradient(circle at 1px 1px,#ffffff0d 1px,transparent 0);background-size:16px 16px;border:1px solid #2a2f38;border-radius:8px;overflow:hidden}
+.mossed-svg{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;user-select:none;cursor:crosshair}
 .mossed-svg:focus{outline:none}
 .mossed-svg.mossed-gridmode{cursor:default}
 .mossed-canvas-bg{fill:#161a20;stroke:#4a5566;stroke-width:1;filter:drop-shadow(0 10px 24px #0009)}
@@ -1330,7 +1344,7 @@ function ensureStyle() {
 .mossed-prop{flex:1 1 auto;height:auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
 .mossed-empty{opacity:.6;font-size:11px;padding:6px 2px}
 .mossed-empty[hidden]{display:none}
-.mossed-form{display:flex;flex-direction:column;gap:6px}
+.mossed-form{display:flex;flex-direction:column;gap:5px}
 .mossed-form[hidden],.mossed-row[hidden]{display:none}
 .mossed-warn{color:#f0b35a;font-size:11px;min-height:13px}
 .mossed-swatches{display:inline-flex;gap:3px}
@@ -1340,17 +1354,22 @@ function ensureStyle() {
 .mossed-gridnote[hidden]{display:none}
 .mossed-prompt{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;border-top:1px solid #2a2f38;padding-top:6px}
 .mossed-prompt[hidden]{display:none}
+/* 选中元素时提示词预览收成一行（标题 + 按钮还在，随时能看/复制） */
+.mossed-prompt.mossed-collapsed .mossed-prompt-text,.mossed-prompt.mossed-collapsed .mossed-prompt-note{display:none}
 .mossed-prompt-head{display:flex;align-items:center;gap:6px;font-size:10px;opacity:.75}
 .mossed-prompt-head span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mossed-root textarea.mossed-prompt-text{margin:0;width:100%;box-sizing:border-box;height:160px;min-height:110px;max-height:38vh;resize:vertical;overflow:auto;overscroll-behavior:contain;padding:6px 8px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.mossed-root textarea.mossed-prompt-text{margin:0;width:100%;box-sizing:border-box;height:92px;min-height:68px;max-height:38vh;resize:vertical;overflow:auto;overscroll-behavior:contain;padding:6px 8px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .mossed-root textarea.mossed-prompt-text[readonly]{opacity:.85}
 .mossed-split{flex:0 0 7px;position:relative;cursor:row-resize;touch-action:none;border-radius:4px}
 .mossed-split::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:3px;margin:-1.5px 0 0 -22px;border-radius:2px;background:#4a5566;opacity:.55}
 .mossed-split:hover::after,.mossed-split.mossed-dragging::after{background:#f0b35a;opacity:1}
-.mossed-bottom{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;min-width:0;min-height:170px;height:var(--mossed-bottom,440px);max-height:calc(100% - 240px);overflow:hidden}
+.mossed-bottom{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;min-width:0;min-height:150px;height:var(--mossed-bottom,320px);max-height:calc(100% - 260px);overflow:hidden}
 .mossed-root input.mossed-sizein{flex:1 1 140px;min-width:120px}
 .mossed-extnote{color:#8fd0ff;opacity:1}
 .mossed-prompt-note{font-size:10px;opacity:.6;line-height:1.4;white-space:pre-line}
+/* editor_state 是给 API/存档用的原始 JSON，一整行截断的字符串只是噪声 —— 编辑器本身
+   就是它的界面（导入/导出走顶栏）。后端仍照常收这个 widget，只是不画。 */
+.lg-node-widgets [data-widget-name="editor_state"]{display:none!important}
 `;
         (document.head || document.documentElement).appendChild(st);
     } catch (e) { /* 样式注入失败不影响功能 */ }
@@ -1517,12 +1536,14 @@ function buildUI() {
     queueBtn.type = "button";
     queueBtn.title = t("queueTitle");
     bar.appendChild(queueBtn);
-    const chip = h("span", "mossed-chip", "");
-    bar.appendChild(chip);
-    const notice = h("span", "mossed-notice", "");
-    bar.appendChild(notice);
+    // 右侧图标组固定在同一行：以前 chip 一长就把 ↶↷? 挤到下一行，压着提示语写。
     const spacer = h("span", "mossed-spacer", "");
     bar.appendChild(spacer);
+    // 语言切换按钮的落点：由 moss_sb_i18n_ui.js 往这里塞按钮（见 langSlot）。
+    // 塞进这一行而不是单开一个 DOM 组件行 —— 单开一行时它和编辑器的先后顺序由挂载时机决定，
+    // 实测同一份工作流有时按钮在上、有时在下，还白占 30~50px 高度。
+    const langSlot = h("span", "mossed-langslot", "");
+    bar.appendChild(langSlot);
     const undoBtn = h("button", "mossed-iconbtn", "↶");
     undoBtn.type = "button";
     undoBtn.disabled = true;
@@ -1538,14 +1559,19 @@ function buildUI() {
     bar.appendChild(helpBtn);
     root.appendChild(bar);
 
+    // 第二行：预设说明（左）+ 临时提示 + 状态胶囊（右）。说明与胶囊各占一端，永远对齐。
+    const subbar = h("div", "mossed-subbar");
+    const presetHint = h("span", "mossed-hintline", "");
+    const notice = h("span", "mossed-notice", "");
+    const chip = h("span", "mossed-chip", "");
+    subbar.append(presetHint, notice, chip);
+    root.appendChild(subbar);
+
     const fileIn = document.createElement("input");
     fileIn.type = "file";
     fileIn.accept = ".json,application/json";
     fileIn.hidden = true;
     root.appendChild(fileIn);
-
-    const presetHint = h("div", "mossed-hintline", "");
-    root.appendChild(presetHint);
 
     // ---- 宫格参数 -----------------------------------------------------
     const gridRow = h("div", "mossed-row mossed-gridrow");
@@ -1573,7 +1599,9 @@ function buildUI() {
     gridAdvRow.appendChild(field(t("edge"), edgeIn));
     gridAdvRow.appendChild(field(t("gutter"), gutterIn));
     gridAdvRow.appendChild(field(t("margin"), marginIn));
-    gridAdvRow.appendChild(h("span", "mossed-note", t("advancedNote")));
+    const advNote = h("span", "mossed-note", t("advancedNote"));
+    advNote.title = t("advancedNote");     // 窄节点上会被省略号截断，悬停看全文
+    gridAdvRow.appendChild(advNote);
     root.appendChild(gridAdvRow);
 
     // ---- 画布参数（single） -------------------------------------------
@@ -1718,19 +1746,24 @@ function buildUI() {
     });
     const centerBtn = h("button", "mossed-btn", t("center"));
     centerBtn.type = "button";
-    boxRow.appendChild(h("span", "mossed-field-label", t("bbox")));
+    const bboxLabel = h("span", "mossed-field-label", t("bbox"));
+    bboxLabel.title = t("bboxTip");
+    boxRow.appendChild(bboxLabel);
     for (const inp of bx) boxRow.appendChild(inp);
     boxRow.appendChild(centerBtn);
     form.appendChild(boxRow);
 
     const orderRow = h("div", "mossed-row mossed-orderrow");
-    orderRow.appendChild(h("span", "mossed-field-label", t("order")));
+    const orderLabel = h("span", "mossed-field-label", t("order"));
+    orderLabel.title = t("orderTip");
+    orderRow.appendChild(orderLabel);
     const upBtn = h("button", "mossed-btn", t("moveUp"));
     upBtn.type = "button";
     const downBtn = h("button", "mossed-btn", t("moveDown"));
     downBtn.type = "button";
     orderRow.appendChild(upBtn);
     orderRow.appendChild(downBtn);
+    // 对齐按钮与上移/下移同一行：两行并一行，标签列才对得齐，也省 26px 高度。
     const alignRow = h("div", "mossed-row mossed-alignrow");
     const alignBtns = {};
     for (const [mode, glyph] of [["left", "⇤"], ["hcenter", "↔"], ["right", "⇥"],
@@ -1741,8 +1774,8 @@ function buildUI() {
         alignBtns[mode] = b;
         alignRow.appendChild(b);
     }
+    orderRow.appendChild(alignRow);
     form.appendChild(orderRow);
-    form.appendChild(alignRow);
 
     const gridOnly = h("div", "mossed-row");
     const sizeSel = h("select", "mossed-size");
@@ -1803,7 +1836,7 @@ function buildUI() {
     bottom.appendChild(panel);
 
     return {
-        root, bar, split, bottom, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
+        root, bar, subbar, langSlot, split, bottom, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
         importBtn, exportBtn, queueBtn, fileIn, notice,
         gridNote, promptBox, promptTitle, promptNote, promptTa, extNote, copyBtn,
         applyPromptBtn, revertPromptBtn, promptDirty: false,
@@ -2223,6 +2256,9 @@ function syncPanel(ui, force) {
     ui.empty.hidden = !!it;
     ui.gridRow.hidden = !isGrid;
     ui.canvasRow.hidden = !!isGrid;
+    // 选中元素时把提示词预览收成一行：属性面板才放得下（单张模式的提示词本来也只读）。
+    // 取消选择后自动展开，不占额外状态。
+    if (ui.promptBox) ui.promptBox.classList.toggle("mossed-collapsed", !!it);
     if (!it) return;
 
     // 接线时描述框显示"真正会用到的"那句（外接稿覆盖后），并标成只读来源
@@ -2473,10 +2509,13 @@ function flash(ui, msg, isErr = false) {
     ui.notice.textContent = msg;
     ui.notice.title = msg;
     ui.notice.classList.toggle("mossed-err", !!isErr);
+    // 提示语和预设说明抢同一行的位置：有话说的时候先把说明让开，别两句话挤成一坨。
+    if (ui.presetHint) ui.presetHint.hidden = !!msg;
     clearTimeout(ui.noticeTimer);
     ui.noticeTimer = setTimeout(() => {
         ui.notice.textContent = "";
         ui.notice.classList.remove("mossed-err");
+        if (ui.presetHint) ui.presetHint.hidden = false;
     }, 6000);
 }
 
@@ -2952,9 +2991,10 @@ function onKeyDown(ui, ev) {
 // ---------------------------------------------------------------------------
 // 事件接线
 // ---------------------------------------------------------------------------
-const BOTTOM_DEFAULT = 440;
-const BOTTOM_STORE = "mosssb.bottom";
-const BOTTOM_MIN = 170;
+const BOTTOM_DEFAULT = 320;
+// v2：默认高度从 440 收到 300（把地方还给画布），旧键里存的是 440，沿用会把画布又压回去。
+const BOTTOM_STORE = "mosssb.bottom.v2";
+const BOTTOM_MIN = 150;
 
 /** 下半区高度：拖动分隔条 / 双击复位 / 记住上次（localStorage，仅本机 UI 偏好）。 */
 function wireSplit(ui) {
@@ -2964,7 +3004,7 @@ function wireSplit(ui) {
     let startY = 0;
     let startH = 0;
     let dragging = false;
-    const limit = () => Math.max(BOTTOM_MIN, (ui.root.getBoundingClientRect().height || 780) - 240);
+    const limit = () => Math.max(BOTTOM_MIN, (ui.root.getBoundingClientRect().height || 840) - 260);
 
     sp.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
@@ -3365,6 +3405,26 @@ function hideWidget(widget) {
     } catch (e) { /* 冻结对象 */ }
 }
 
+/**
+ * 让编辑器铺满节点内容区。
+ * 为什么不能交给 CSS：这一版前端把 DOM 组件当普通 widget 行排版，行高由**内容**倒推，
+ * `height:100%` / `flex:1` 都会绕回内容高度 —— 实测节点内容区 1040 时编辑器只有 884，
+ * 底部空出 150 多像素（否则布局框太矮，用户得先拉高节点才看得见内容）。给根元素写死一个由节点高度算出的 px，
+ * 行高才会跟着上去，多出来的空间由 stage 的 flex:1 吃掉。
+ */
+function fitHeight(ui) {
+    const node = ui && ui.node;
+    if (!node || !ui.root) return;
+    // 186 是宿主自己占掉的（节点体 padding + widget 行包装 + 标题栏下一行），
+    // 留足才不会在首帧排版时被反向撑高（实测超出时节点会自己长 210，底部留空带）。
+    const h = Math.max(420, Math.round((Number(node.size?.[1]) || 1250) - 186));
+    const v = h + "px";
+    // flex 也得一起改：宿主的行 `.mossed-root{flex:1 1 0%}` 会把 basis 压成 0，
+    // 只写 height 的话照样被父容器倒推回内容高度。
+    if (ui.root.style.flex !== "0 0 auto") ui.root.style.flex = "0 0 auto";
+    if (ui.root.style.height !== v) ui.root.style.height = v;
+}
+
 function mount(node) {
     if (!node || node.type !== NODE_TYPE || node.__mossedUI) return false;
     const widget = (node.widgets || []).find((w) => w && w.name === STATE_WIDGET);
@@ -3377,8 +3437,10 @@ function mount(node) {
             hideOnZoom: false,
             // ⚠ 不要同时给 getMinHeight：宿主 computeLayoutSize 会优先用 min，
             // 忽略 getHeight，编辑器只能分到剩余空间（实测会被压到 ~450px）。
-            getHeight: () => 780,
-            getMaxHeight: () => 2000,
+            // 这一版前端只把 getHeight 当"最小高度"看，真实高度仍由内容决定 →
+            // 真正铺满节点靠 fitHeight()（见下），这里保留一个下限即可。
+            getHeight: () => 400,
+            getMaxHeight: () => 4000,
         });
     } catch (e) {
         // 失败时**不藏** widget：至少还能直接编辑 JSON，不至于整个 state 消失
@@ -3400,17 +3462,27 @@ function mount(node) {
     node.__mossedUI = ui;
 
     try {
-        node.setSize?.([Math.max(node.size?.[0] || 0, 680), Math.max(node.size?.[1] || 0, 880)]);
+        // 布局画布是这个节点的主体：默认 900×1250，其中 ~1060 全给编辑器（画布 ~570）。
+        // 只抬下限，用户保存过的更大尺寸原样保留。
+        node.setSize?.([Math.max(node.size?.[0] || 0, 900), Math.max(node.size?.[1] || 0, 1250)]);
     } catch (e) { /* 尺寸设不了不影响功能 */ }
 
     wire(ui);
     loadFromWidget(ui, true);
     syncStatic(ui);
+    fitHeight(ui);
 
     const origConfigure = node.onConfigure;
     node.onConfigure = function onConfigure() {
         const r = origConfigure?.apply(this, arguments);
-        try { loadFromWidget(ui, true); syncStatic(ui); } catch (e) { /* 单节点失败 */ }
+        try { loadFromWidget(ui, true); syncStatic(ui); fitHeight(ui); } catch (e) { /* 单节点失败 */ }
+        return r;
+    };
+    // 拖节点右下角改高度时同步，否则底部会留一条空带
+    const origResize = node.onResize;
+    node.onResize = function onResize() {
+        const r = origResize?.apply(this, arguments);
+        try { fitHeight(ui); } catch (e) { /* 老前端没有该事件 */ }
         return r;
     };
     // 接/拔外接提示词时要立刻改提示语、只读态与描述框里的取值，不能等下一次 commit

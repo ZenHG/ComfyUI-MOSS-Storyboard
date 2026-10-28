@@ -35,6 +35,66 @@ export function valueOk(spec, v) {
 }
 
 /**
+ * 本包自己加的 DOM 组件（虚拟 widget）的名字。
+ * 🔴 不能只看 `options.serialize === false`：宿主的 `control_after_generate` 也带这个标记，
+ * 但它的值**要进存档**（实测前端 1.57.4：漏了它，重新打开就少一格、随后整条右移）。
+ * 判据 = 名字是我们自己的，或者「标了 serialize:false **且** 有 DOM element」。
+ */
+const VIRTUAL_NAMES = new Set(["mosssb_i18n_bar", "mosssb_editor_ui"]);
+
+/** 这个 widget 是不是"不该进存档"的虚拟组件。 */
+export function isVirtualWidget(w) {
+    if (!w) return false;
+    if (VIRTUAL_NAMES.has(String(w.name || ""))) return true;
+    return !!(w.options && w.options.serialize === false && w.element);
+}
+
+/**
+ * 存盘前把**虚拟 widget**（`options.serialize === false` 的 DOM 组件）的值剔掉。
+ *
+ * 为什么必须自己剔：实测（前端 1.57.4）这版 litegraph 的 `serialize()` **不认** `serialize:false`，
+ * 每个 DOM 组件照样往 `widgets_values` 里写一格 `""`。而这些组件是**载入时**才挂上的，
+ * 存档却把它们算进去 ⇒ 存 n 项 / 载入那一刻 n-1 个 widget ⇒ 每保存一次整条值差一格。
+ *
+ * 只在「存档长度 == widget 总数」时动：那时下标才一一对应，删的位置才可靠。
+ * 全部虚拟组件一起剔（不只语言条 —— 编辑器自己那个 DOM 组件同样会写一格）。
+ *
+ * @returns {any[]} 原始数组（不动手时原样返回）或剔好的新数组
+ */
+export function dropVirtual(values, widgets) {
+    const list = widgets || [];
+    if (!Array.isArray(values) || values.length !== list.length || !list.length) return values;
+    const keep = [];
+    let changed = false;
+    for (let i = 0; i < list.length; i += 1) {
+        if (isVirtualWidget(list[i])) { changed = true; continue; }
+        keep.push(values[i]);
+    }
+    return changed ? keep : values;
+}
+
+/**
+ * 把「存盘剔虚拟 widget」挂到这个节点实例上（幂等）。
+ *
+ * 挂实例而不是原型：只作用于本包节点，别的包、官方节点一个字节都不动。
+ * 编辑器和语言条两条挂载路径都会调它 —— 谁先挂上谁生效，不会重复包装。
+ */
+export function installSaveCleanup(node) {
+    if (!node || node.__mosssbSave) return false;
+    const orig = node.serialize;
+    if (typeof orig !== "function") return false;
+    node.__mosssbSave = true;
+    node.serialize = function (...args) {
+        const out = orig.apply(this, args);
+        try {
+            if (out) out.widgets_values = dropVirtual(out.widgets_values, this.widgets);
+        } catch (e) { /* 存出去多几格也比崩了强 */ }
+        return out;
+    };
+    return true;
+}
+
+/**
  * 尝试把 `values` 校正到 `widgets` 的当前顺序。
  * @returns {{values:any[], at:number, delta:number, added:string[], removed:string[]}|null}
  *   null = 不需要修 / 不敢修（长度一致、或一个候选都对不上）

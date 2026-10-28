@@ -595,10 +595,12 @@ def check_wiring(contract, src):
     # 2026-10-28 真机实测：serialize() 不按 type / serialize:false / element 过滤
     # （基线 22 → 加 button 23 → 再加 DOM 组件 24）。任何"某类 widget 不占位"的过滤
     # 都会少算格子，反而造出错位 —— 这里钉住"一个都不过滤"。
-    check("W24 每个 widget 都占位（serialize 不按类型过滤）",
-          "const list = (widgets || []).filter(Boolean);" in order
-          and "options.serialize" not in order)
-    # i18n 语言条不进存档，所以存档格数天生比 widget 数少 1；
+    # 只看 repairValues 本体：同文件里的 dropVirtual 是**存盘**那边的事，那里正该看 serialize。
+    repair_src = order[order.index("export function repairValues"):]
+    check("W24 每个 widget 都占位（repair 不按类型过滤）",
+          "const list = (widgets || []).filter(Boolean);" in repair_src
+          and "options.serialize" not in repair_src)
+    # 存档格数天生可能比 widget 数少（DOM 组件不进存档）；
     # 若要求候选长度严格等于 widget 数，一份"中间缺一格"的稿子（差 2 格）就永远补不进去。
     check("W25 允许候选短于 widget 数（尾部缺格不算错位）",
           "cand.length <= list.length" in order)
@@ -615,13 +617,33 @@ def check_wiring(contract, src):
           and not any("function findPwCore" in t for t in ui_text.values()))
 
     # 实测（前端 1.57.4）：`addDOMWidget(..., {serialize:false})` 只是"告诉宿主"，这版
-    # litegraph 的 serialize() 照样把它写进 widgets_values；而语言条是 configure **之后**才挂的，
+    # litegraph 的 serialize() 照样把它写进 widgets_values；而它们都是 configure **之后**才挂的，
     # 于是"存档 n 项 / 载入时 n-1 个 widget"，每保存一次就差一格、下次打开整条右移变红。
-    # 所以必须在 serialize 上自己剔掉那一格。
+    # 所以必须在 serialize 上自己剔 —— 而且是**所有** serialize:false 的格子，
+    # 只剔语言条会留下编辑器自己那一格（2026-10-28 复查发现）。
     i18n_ui = open(os.path.join(ROOT, "web", "moss_sb_i18n_ui.js"), encoding="utf-8").read()
-    check("W28 语言条不进存档（自己剔，不指望 serialize:false）",
-          "function dropBarFromSave" in i18n_ui and "ws.splice(i, 1)" in i18n_ui
-          and "dropBarFromSave(node)" in i18n_ui)
+    check("W28 DOM 组件不进存档（剔掉所有 serialize:false 的格子）",
+          "function dropVirtual" in order and "options.serialize === false" in order
+          and "function installSaveCleanup" in order
+          and "installSaveCleanup(node)" in i18n_ui
+          and "dropBarFromSave" not in i18n_ui)
+
+    # 2026-10-28 亲踩：在 CSS 模板字符串里写反引号括住类名，字符串当场被截断，
+    # 整套编辑器 import 失败（宿主只报 "Unexpected identifier ..."），静态闸却全绿。
+    style_block = src[src.index("st.textContent = `") + len("st.textContent = `"):
+                       src.index("\n`;", src.index("st.textContent = `"))]
+    check("W29 样式模板里不许出现回引号（会截断模板字符串，整个编辑器加载失败）",
+          "`" not in style_block, "样式块 %d 字符" % len(style_block))
+
+    # 「布局框太小」的根因：SVG 有 viewBox ⇒ 自带固有比例，会按宽度把父容器顶高/顶矮，
+    # 于是画布高度由"宽度 ÷ 16:9"说了算，而不是由剩余空间说了算。绝对定位才让 stage 真正 flex。
+    check("W30 画布 SVG 绝对定位（不让固有比例决定 stage 高度）",
+          ".mossed-svg{position:absolute" in src and ".mossed-stage{position:relative" in src)
+
+    # `editor_state` 是给 API/存档用的原始 JSON：在 Vue 节点里会渲染成一行截断的字符串，
+    # 纯噪声。后端照收，界面不画。
+    check("W31 原始 state widget 不在界面上占一行",
+          '[data-widget-name="editor_state"]{display:none' in src)
 
 
 def main():

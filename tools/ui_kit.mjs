@@ -175,6 +175,10 @@ export async function snapNodes(page, { prefix = "" } = {}) {
                 type: String(w.type || ""),
                 value: w.value,
                 values: Array.isArray(w.options && w.options.values) ? w.options.values : null,
+                // 虚拟 widget（DOM 组件）：不该占存档格子。
+                // ⚠ 只标了 serialize:false **不算**（宿主的 control_after_generate 就是这样，
+                //   但它的值要进存档）；还要有 DOM element 才是真组件。
+                virtual: !!(w.options && w.options.serialize === false && (w.element || w.inputEl)),
             })),
             values: Array.isArray(n.widgets_values) ? n.widgets_values.slice() : null,
             serialized: (n.serialize?.()?.widgets_values || []).length,
