@@ -49,7 +49,7 @@ _FALLBACK_SCHEDULERS = ("simple", "normal", "beta", "sgm_uniform", "karras",
 def _scheduler_names():
     """调度器下拉**从宿主取**，不自己维护一份。
 
-    🔴 为什么（2026-10-26 GG 反馈「调度器比 comfyui 支持的少」）：宿主会加新调度器
+    🔴 为什么（2026-10-26 实测「调度器比 comfyui 支持的少」）：宿主会加新调度器
     （`linear_quadratic` / `kl_optimal` 就是后加的），本包硬编码一份就等于
     「宿主能跑的这里选不到」。判据与被测对象同源，才不会再次漏。
     宿主不可导入（单测 / 纯离线）时回落到冻结清单。

@@ -16,10 +16,12 @@
 - **不动手的情形**：只坏一个值（更像用户手改）、差超过 3 格、怎么对齐都合法不了。
   修完写 `console.warn` 与 `node.properties.msb_widgets_repaired`，并提示重新保存。
 - 钩子只挂在 `beforeRegisterNodeDef` 里本包节点上，外来节点不碰。**不必重建旧稿**。
-- **根子上的那一格也补掉了**：i18n 语言条是 `addDOMWidget(..., {serialize:false})`，
-  但这版 litegraph（前端 1.57.4）**不认**这个标记，`serialize()` 照样把它写进 `widgets_values`；
-  而它是 `configure` **之后**才挂上的 ⇒「存档 n 项 / 载入时 n-1 个 widget」，
-  **每保存一次就差一格，下次打开整条值右移**。现在在 `serialize` 上自己剔掉那一格，
+- **根子上的那一格也补掉了**：i18n 语言条与编辑器面板都是 `addDOMWidget(..., {serialize:false})`，
+  但这版 litegraph（前端 1.57.4）**不认**这个标记，`serialize()` 照样把它们写进 `widgets_values`；
+  而它们是 `configure` **之后**才挂上的 ⇒「存档 n 项 / 载入时 n-1 个 widget」，
+  **每保存一次就差一格，下次打开整条值右移**。现在存盘前自己把**所有虚拟组件**剔掉
+  （`dropVirtual`：判据 = 名字是本包的，或「`serialize:false` **且** 有 DOM element」——
+  🔴 不能只看 `serialize:false`，宿主的 `control_after_generate` 也带这个标记，但它的值**要进存档**），
   存出去的长度与载入时天然一致 —— 打开→保存→再打开→刷新，四步都不再需要"修"。
 - 纯函数层 `web/moss_sb_widget_order.js` 由 `tests/test_compat.mjs` 直接跑（43 项）；
   `check_editor_ui.py` 新增 W22–W31，141 → 151 项。
@@ -240,6 +242,49 @@
   state > 1MB 在状态栏警告、排队直接拒绝；排队按钮在请求完成前禁用，防连点重复入队。
 - **导入不再静默修正**：`readState` 的自动修正与警告会在提示条 / 状态栏显示。
 - 新增 `tests/test_adversarial.py`（57 项恶意 / 极端输入）；`check_editor_ui` 96 → 109 项。
+
+### 端到端矩阵：修掉「只剩 4 格能跑」的假绿
+- 起因（2026-10-28 实测）：`tools/e2e_matrix.py` 首跑 **10/16**，且失败分布极整齐 ——
+  **4 格全过、3/6/8/9/1 格全挂**。这个分布本身就排除了显存/权重/GPU 那类原因。
+- 根因不在节点：10-27 加的 `board_mismatch` 守卫会拿「全局段写的格数」与布局对账，
+  而脚本的 `pad_prompt` **只补 `[PANEL n]` 段、不改全局段那句「恰好 4 个面板」**。
+  守卫上线那天起矩阵就只剩 4 格能跑，而端到端报告同期被移出公开树，
+  `CONTRIBUTING.md` 那句"发布前全矩阵至少跑一次"成了没人验的空话。
+- 修法（只改脚本，不动节点）：`pad_prompt` → `fit_prompt`，补/截 `[PANEL]` 段的同时
+  用 `core.prompt.COUNT_RE` 同步全局段计数（保留原措辞）；n 相等时原文逐字节不动。
+- 重跑 **16/16，退出码 0**（5m47s）。矩阵现在真覆盖 1/3/4/6/8/9 格 × 横竖屏 × 无缝/粗缝 ×
+  小画布 × 整张/逐格 × layout/plain。
+- 教训写进 `RELEASING.md`：**加了契约守卫，必须当天重跑端到端**；端到端别接 `| tail`
+  （管道吃掉退出码），也别让它写 `docs/02-e2e-matrix.md`（该文件已移出公开树，写出来就是未跟踪文件）。
+
+### 开源卫生：两个公开面、三份黑名单、一条铁律
+- 审计口径原来只覆盖 **registry 包范围**（`core/ v3/ web/ examples/` + `docs/*.md`），
+  而 `tests/` `tools/` `CHANGES.md` `.github/` `pyproject.toml` **在 GitHub 上人人可读**、
+  从来没被扫过。S2 现在两个面都查，并加「本机用户名 / 主机名」这一维。
+- **文件内容里的内部措辞**一直是空白：实测 5 处（协作者代号 4 处、直接引述对话 1 处），
+  而当时 14 道闸全绿。新增 S15，与提交信息检查（S9）**共用同一份词表** `INTERNAL_VOICE`
+  （词表用 `\u` 转义写 —— 门禁源码本身也在公开面上）。
+- **黑名单只写在 `.git/info/exclude`** 是结构性漏洞：那文件不随克隆走。
+  `docs/_local/`（26 MB 私有对照图 + 一次性脚本）就只被它挡着，换个克隆 `git add -A` 全带走，
+  而任何门禁都看不出来（"本来就没被跟踪"）。新增 S16：工作树不许有「未跟踪且未被忽略」的文件，
+  且 `info/exclude` 的每条规则必须在 `.gitignore` 里也有。规则已全部搬进 `.gitignore`，
+  `tools/probe_*.py` 两个一次性探针移进协作面目录。
+- **二进制也要查**：ComfyUI 存图会把整条 workflow JSON 塞进 PNG 的 `tEXt` 块（含本机路径、
+  模型名、提示词原文）。新增 S17，只允许结构性块。
+- **S9 分已推送/未推送**：未推送的判红（`rebase` 即可），已推送的只报数不判红 ——
+  改它要 force push + 重建 tag，那是维护者的决定；永久红的闸等于没有闸。
+- `check_release_ready` 42 → 48 项。
+
+### 第 6 个节点的示例补齐（`MossPromptCompiler`）
+- 起因（2026-10-28 实测）：6 个节点里 5 个有示例工作流，**只有草稿编译没有** ——
+  而它恰恰是最需要说明「往哪填、输出拿去干嘛」的那个（零模型，用户不知道 state 有什么用）。
+- 新增 `examples/moss-prompt-compiler.json`：一份 layout 草稿 → 编译 → 三个 `PreviewAny`
+  分别显示 `prompt`（原生布局 JSON）/ `report`（编译时做了什么）/ `state`（粘进编辑器导入框）。
+  只用宿主核心节点（`MarkdownNote` / `PreviewAny`）+ 本包，**不加载任何模型**，真跑 `success`。
+- 生成器 `tools/make_compiler_example.py`：`widgets_values` 按位存，手写错一位就静默串位，
+  所以槽位与连线在同一次定义里产生，再由 `check_ui_workflow.py` 拿 `INPUT_TYPES()` 反查。
+- `check_ui_workflow` 88 → 98 项（7 份），`ci.yml` 与 `CONTRIBUTING` 同步；
+  README 中英各补一行入口。
 
 ## 0.2.2 — 2026-10-24
 

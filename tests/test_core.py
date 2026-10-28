@@ -3,7 +3,7 @@
 """零 GPU 回归测试：几何 / 提示词 / 像素。
 
 不加载任何模型，不需要 CUDA。只依赖 torch + 本包 core。
-跑法：`python tests/test_core.py`（在包目录下），或 `python H:/.../tests/test_core.py` 任意目录。
+跑法：`python tests/test_core.py`（在包目录下），或 `python /path/to/tests/test_core.py` 任意目录。
 """
 
 import json
