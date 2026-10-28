@@ -73,18 +73,19 @@
 - ⚠ 旧工作流重跑画面会变（景别从中文标签变英文子句）；state 存档格式未变。
 
 ### 滚轮不再缩放画布
-- 最终提示词 / 描述框 / 属性面板内的滚轮先由编辑器处理：可滚动区域自己滚，滚到头也不外泄给画布缩放。
+- 最终提示词 / 描述框 / 属性面板内的滚轮归编辑器：有可滚容器就让它滚，滚到头也不外泄给画布缩放。
 - 拦截点只有一个：`window` 的 **capture** 阶段（DOM 标准顺序 window → document → … → target，
   跟操作系统、浏览器引擎都无关）。原先写在节点里的 `stopPropagation()` 永远轮不到——宿主
   `GraphView` 把 wheel 转发给画布用的是外层 transform pane 的 capture。
-- 三种系统级输入形态分别兜住：鼠标滚轮的**行模式**（`deltaMode=1`，Windows/Linux 的 Firefox）、
-  macOS 触控板的**小数 delta**（0.4px 级，靠残差累加，不再被 `scrollTop` 取整吃掉）、
-  Safari 的**捏合**（走 `gesture*` 事件、根本不发 wheel；不拦就是整页缩放、DOM 组件与画布错位）。
-- `overscroll-behavior:contain` 盖住根 / 属性面板 / 提示词框：JS 万一失效也不会传给画布。
-- 真机验收 `tools/ui_wheel_check.mjs`：Chromium / Firefox / WebKit **每引擎 18 项**断言，含
-  「把 root 标记去掉，同一位置就该缩放」的负对照；同一套用例跑修复前代码是红的（文本不动 + 画布缩放）。
-  取证边界：三个引擎都在 **Windows** 上跑，验的是**引擎**行为（事件顺序 / 默认 passive / deltaMode）；
-  macOS 触控板的亚像素 delta 用 0.4px 合成事件验，**真触控板与真 Safari 捏合没在本机验过**。
+- **只抢归属，不接管滚动**：命中可滚容器就 `stopPropagation` 后放手，滚动交给浏览器
+  （惯性、行模式、小数 delta、Shift 轴映射都是它的事）；一个可滚容器都没有才 `preventDefault` 吃掉。
+  自己算 `scrollTop +=` 的那版会把 macOS 触控板的惯性丢光，也会在两端把滚轮漏给画布。
+- Safari 的**捏合**走 `gesture*` 事件、根本不发 wheel：编辑器内拦掉，否则整页缩放、DOM 与画布错位。
+- `overscroll-behavior:contain` 盖住根 / 属性面板 / 提示词框：JS 万一失效，滚动链也不会传到画布。
+- 真机验收 `tools/ui_wheel_check.mjs`：Chromium / Firefox / WebKit **每引擎 20 项**、合计 60 项。含
+  「把 root 标记去掉，同一位置就该缩放」的负对照，以及读 `defaultPrevented` 的探针
+  （证明我们确实没接管滚动）。同一套用例跑修复前代码是红的（文本不动 + 画布缩放）。
+  取证边界：三个引擎都在 **Windows** 上跑，验的是**引擎**行为；**真 macOS 触控板与真 Safari 捏合没在本机验过**。
 
 
 ### 新增

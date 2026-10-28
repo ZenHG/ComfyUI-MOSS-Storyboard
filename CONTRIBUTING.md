@@ -25,7 +25,7 @@ python tools/check_frontend.py            # 9 项：前端词表/语法/接线/�
 python tools/check_editor_ui.py           # 141 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 35 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息）
 node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
-node   tools/ui_wheel_check.mjs           # 每引擎 18 项：滚轮归属（节点内只滚编辑器、画布纹丝不动），Chromium/Firefox/WebKit 各跑一遍
+node   tools/ui_wheel_check.mjs           # 每引擎 20 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 ```
 
 `ui_smoke.mjs` 需要**跑着的 ComfyUI**（默认 `http://127.0.0.1:8188`，`--url` 可改）+ 本机 playwright-core 与 chromium；
