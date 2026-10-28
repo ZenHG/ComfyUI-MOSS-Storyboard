@@ -14,91 +14,33 @@
 //
 // 退出码：0 全过；1 有失败；2 环境缺依赖（playwright-core / chromium）
 
-import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { arg, boot, checks, launch, ROOT } from "./ui_kit.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const require_ = createRequire(import.meta.url);
-
-const arg = (n, d) => {
-    const i = process.argv.indexOf("--" + n);
-    return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d;
-};
 const URL_ = arg("url", process.env.COMFY_API || "http://127.0.0.1:8188");
 const OUT = arg("out", join(ROOT, "docs", "ui-smoke.png"));
 
-function findPwCore() {
-    if (process.env.PWCORE) return process.env.PWCORE;
-    const bases = [join(process.env.LOCALAPPDATA || "", "npm-cache", "_npx"),
-                   join(process.env.APPDATA || "", "npm", "node_modules")];
-    for (const b of bases) {
-        if (!b || !existsSync(b)) continue;
-        if (b.endsWith("node_modules")) {
-            const p = join(b, "playwright-core");
-            if (existsSync(p)) return p;
-            continue;
-        }
-        for (const d of readdirSync(b)) {
-            const p = join(b, d, "node_modules", "playwright-core");
-            if (existsSync(p)) return p;
-        }
-    }
-    return null;
+let browser;
+try {
+    browser = await launch("chromium", { headless: true });
+} catch (e) {
+    console.log("起不了浏览器：" + String(e.message || e).slice(0, 160) + "\n用 PWCORE=<path> 指定 playwright-core");
+    process.exit(2);
 }
-
-function findChrome() {
-    if (process.env.CHROME) return process.env.CHROME;
-    const base = join(process.env.LOCALAPPDATA || "", "ms-playwright");
-    if (!existsSync(base)) return null;
-    for (const d of readdirSync(base)) {
-        if (!d.startsWith("chromium-")) continue;
-        for (const f of ["chrome-win64/chrome.exe", "chrome-win/chrome.exe", "chrome-linux/chrome"]) {
-            const p = join(base, d, ...f.split("/"));
-            if (existsSync(p)) return p;
-        }
-    }
-    return null;
-}
-
-const pass = [], fails = [];
-const check = (name, cond, detail = "") => {
-    if (cond) { pass.push(name); console.log("  [OK]   " + name + (detail ? "  " + detail : "")); }
-    else { fails.push(name); console.log("  [FAIL] " + name + (detail ? "  " + detail : "")); }
-};
-
-const pwPath = findPwCore();
-const chrome = findChrome();
-if (!pwPath) { console.log("找不到 playwright-core；用 PWCORE=<path> 指定"); process.exit(2); }
-if (!chrome) { console.log("找不到 chromium；用 CHROME=<path> 指定"); process.exit(2); }
-
-const { chromium } = require_(pwPath);
-const browser = await chromium.launch({ executablePath: chrome, headless: true });
 const page = await browser.newPage({ viewport: { width: 1680, height: 1000 } });
+const c = checks("MOSS Storyboard · 前端真机冒烟");
+const check = (n, cond, d) => c.check(n, cond, d);
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)));
 
 try {
-    await page.goto(URL_, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await boot(page, URL_);
 
-    let booted = false;
-    for (let i = 0; i < 45; i++) {
-        booted = await page.evaluate(() => !!globalThis.MOSS_SB_LANG).catch(() => false);
-        if (booted) break;
-        await page.waitForTimeout(1000);
-    }
-    check("前端扩展已执行（window.MOSS_SB_LANG 存在）", booted);
-    if (!booted) throw new Error("扩展未执行");
-    // ⚠ 扩展模块跑得很早，`app.canvas` 却可能还没建好：那时 loadGraphData 会被随后的
-    // 自动恢复覆盖成空图（实测：节点数 0 + "getCanvas: canvas is null"）。等画布再载工作流。
-    let canvasReady = false;
-    for (let i = 0; i < 40; i++) {
-        canvasReady = await page.evaluate(() => !!globalThis.app?.canvas).catch(() => false);
-        if (canvasReady) break;
-        await page.waitForTimeout(1000);
-    }
-    check("宿主画布已就绪（app.canvas）", canvasReady);
+    check("宿主画布已就绪（app.canvas）", await page.evaluate(() => !!globalThis.app?.canvas).catch(() => false));
+    const lang = await page.evaluate(() => !!globalThis.MOSS_SB_LANG).catch(() => false);
+    check("前端扩展已执行（window.MOSS_SB_LANG 存在）", lang);
+    if (!lang) throw new Error("扩展未执行");
 
     const where = await page.evaluate(() => globalThis.MOSS_SB_LANG.where()).catch(() => null);
     console.log("  where =", JSON.stringify(where));
@@ -329,5 +271,4 @@ try {
     await browser.close();
 }
 
-console.log("\n结果：通过 " + pass.length + " / 失败 " + fails.length);
-if (fails.length) { for (const f of fails) console.log("  - " + f); process.exit(1); }
+process.exit(c.done());

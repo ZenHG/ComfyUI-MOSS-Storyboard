@@ -134,5 +134,35 @@ check("补在 panels（下标 9）且后续归位",
 const liveOk = correct.slice(0, 22);
 check("当前版本稿子（22 项 / 23 格，只少尾部语言条）⇒ 不猜", repairValues(liveOk, withBar) === null);
 
+// ---------- 长度一样、内容左移（2026-10-28 真机稿 moss-layout-editor-storyboard.json） ----------
+// 那份稿子的采样节点是 23 项，与参数表等长，但 panels/panel_aspect/panel_edge 三个值整段丢了，
+// 尾部补了 3 个空串 ⇒ 按长度判"对齐"就永远不会修，界面一路红。
+const c23 = withBar.map((x) => x.value);                              // 23 格（含 i18n 条）
+const shiftedReal = c23.slice(0, 9).concat(c23.slice(12), ["", "", ""]);
+check("真机稿确实是等长 23 项", shiftedReal.length === 23);
+const r8 = repairValues(shiftedReal, withBar);
+check("等长但内容左移 3 格 ⇒ 能修", !!r8 && r8.shifted === true,
+    r8 ? `at=${r8.at} delta=${r8.delta}` : "");
+check("补在 panels（下标 9），补 3 格", !!r8 && r8.at === 9 && r8.delta === 3);
+check("补回 panels/panel_aspect/panel_edge 的默认值",
+    !!r8 && r8.values[9] === 8 && r8.values[10] === "16:9" && r8.values[11] === 512);
+check("后段整体右移归位", !!r8 && r8.values[12] === "auto" && r8.values[15] === "auto"
+    && r8.values[16] === "object" && r8.values[20] === "整张" && r8.values[21] === 1024);
+check("前段一个字节都没动", !!r8 && r8.values.slice(0, 9).every((v, i) => v === c23[i]));
+
+// configure 那一刻的真实形态：i18n 语言条还没挂上 ⇒ widget 22 个、存档 23 项。
+// 长度差变成 -1，若只按长度判"多了就删"，永远删不出正确结果（真机就是这么红的）。
+const r9 = repairValues(shiftedReal, withBar.slice(0, 22));
+check("值 23 / widget 22（configure 时序）⇒ 同样能修",
+    !!r9 && r9.shifted === true && r9.values[9] === 8
+    && r9.values[10] === "16:9" && r9.values[11] === 512);
+check("修完长度 = widget 数（多出的尾部值丢掉）", !!r9 && r9.values.length === 22);
+
+// 同样等长、也坏两个值，但怎么对齐都合法不了 ⇒ 不猜
+const messup = correct.slice();
+messup[10] = "nope";
+messup[21] = "zzz";
+check("等长且坏两个值但无一致错位 ⇒ 不猜", repairValues(messup, w) === null);
+
 console.log(`\n结果：通过 ${pass} / 失败 ${fails.length}`);if (fails.length) { for (const f of fails) console.log("  - " + f); process.exit(1); }
 process.exit(0);

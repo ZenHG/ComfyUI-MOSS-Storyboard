@@ -2,20 +2,32 @@
 
 ## 0.2.3 — 2026-10-27 · 审计收口
 
-### 旧工作流：`widgets_values` 错位自动归位（只修长度对不上的）
-- 起因（2026-10-28 实测）：参数表加过一格之后，旧存档的 `widgets_values` 少一格，而 ComfyUI
-  按位置赋值 —— 从缺失处起整条右移：`panels` 拿到 `"16:9"`、`panel_aspect` 拿到 `496`、
-  `init` 拿到 `object`、`mode` 拿到 `1024`，界面上五个下拉变红底。**ComfyUI 自己不报错**，
-  看着像「默认值没设好」，其实是旧稿的值全错了一格，点运行还会带着错值跑。
-- `web/moss_sb_compat.js` 在 `configure` 之前动手（那时 widget 上还是默认值，正好补缺失格）：
-  **长度对不上、且补/删后每一项都合法**才归位；长度一致时一个字节都不改（单个非法值更可能
-  是用户手改，不替人做主），相差超过 2 格也不猜。
-- 钩子只挂在 `beforeRegisterNodeDef` 里本包的节点上，外来节点不碰；补了什么/删了什么写进
-  `console.warn` 与 `node.properties.msb_widgets_repaired`，并提示重新保存。
-- **不必重建旧稿**；新建的节点与 `examples/` 里的工作流本来就没有这个问题。
-- 纯函数层 `web/moss_sb_widget_order.js` 由 `tests/test_compat.mjs` 直接跑（24 项），其中一条钉住
-  「`serialize:false` 但**不是** DOM 组件（`control_after_generate`）仍然占位」——这条判错就会
-  让长度对上了、于是永不修。`check_editor_ui.py` 新增 W22–W26，141 → 146 项。
+### 旧工作流：`widgets_values` 错位自动归位
+- 起因（2026-10-28 实测）：参数表变过之后，旧存档的值数组与当前参数表**对不上位**，
+  而 ComfyUI 按位置赋值 —— 从错位处起整条偏一格：`panels` 拿到 `"auto"`、`panel_aspect`
+  拿到 `8`、`init` 拿到 `0`，界面上五个下拉变红底。**ComfyUI 自己不报错**，看着像
+  「默认值没设好」，其实点运行会带着错值跑。
+- 认两种错位，判据都是「修完**每一个**值都合法」：
+  1. **长度对不上**：补默认值 / 删多余值；
+  2. **长度对得上但内容左移**（中间丢 k 个值、尾部补 k 个填充值 —— 真机稿就是这种，
+     只按长度判"对齐"会永远不修）。
+  值比 widget 多时先按 widget 数截断再判：i18n 语言条是 `configure` **之后**才挂上的，
+  加载那一刻「值 23 项 / widget 22 个」是正常形态。
+- **不动手的情形**：只坏一个值（更像用户手改）、差超过 3 格、怎么对齐都合法不了。
+  修完写 `console.warn` 与 `node.properties.msb_widgets_repaired`，并提示重新保存。
+- 钩子只挂在 `beforeRegisterNodeDef` 里本包节点上，外来节点不碰。**不必重建旧稿**。
+- 纯函数层 `web/moss_sb_widget_order.js` 由 `tests/test_compat.mjs` 直接跑（33 项）；
+  `check_editor_ui.py` 新增 W22–W27，141 → 147 项。
+
+### 前端真机测试：公共底座 `tools/ui_kit.mjs`
+- 原先 `ui_smoke.mjs` / `ui_wheel_check.mjs` 各抄一份「找 playwright-core / 找 chromium /
+  起浏览器 / 等就绪」，改一处漏两处。现在统一进 `ui_kit.mjs`，用例只写「验什么」。
+- 三条纪律写进底座：缺依赖 **exit 2**（跳过 ≠ 通过）；等 `app.graph` **和** `app.canvas`
+  都就绪再载工作流（早载会被随后的自动恢复覆盖成空图）；断言读 **`widget.value`**（界面值），
+  不是 `widgets_values`（存档数组）——只读存档会得到假绿。
+- 新增 `tools/ui_widget_compat.mjs`（11 项）：对齐稿不许被改 / 人为错位稿加载后归位 /
+  **刷新后**仍不红 / `widget 数 == serialize 长度`。刷新那条是用户报的路径，只测
+  `loadGraphData` 会漏。
 
 ### 稿子与布局对账：不一致就停在采样前（只拦不改写）
 - 布局模式下（`init=layout`/`auto` + 整张），`[PANEL n]` 段数与全局段的显式格数
