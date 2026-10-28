@@ -122,6 +122,7 @@ The official ComfyUI template already supports **layout boxes on one canvas**. T
 | **Per-panel crops** | Row-major, cut at the same integers that define the cells; `spec` carries all geometry in one wire |
 | **Official prompt-enhancer bridge** | Paste a draft from OpenMOSS's MOSS-Image Prompt Enhancer skill: get a validated MOSS prompt, and for layout drafts a state v3 for the Layout Editor |
 | **Bilingual UI (zh / en)** | A 中 / EN button on each of our nodes; display-only, never touches saved values |
+| **Zero-GPU self-checks** | All offline assertions; the list and how to run them are in [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 
 **Six nodes, one entry point.** The shipped example wires the full storyboard path. A minimal graph needs only the Sampler, which carries every geometry parameter. The Layout Editor is the other entry point: in its **single mode** there are no `[PANEL n]` blocks — you place boxes instead, which suits posters, covers and product shots. (Its grid mode does compile `[STYLE]` + `[PANEL n]`; the table in the Layout Editor section lists both modes.) Storyboard · Grid Layout is an optional front end: preview the grid shape, or freeze the geometry into one `spec` that several downstream nodes can share. Prompt · Draft Compiler is the bridge to the official prompt skill: paste the official draft, get a MOSS prompt, and for layout drafts a second state you can import into the Layout Editor.
 
@@ -228,7 +229,9 @@ Rainy-night cafe, one canvas divided into a strict grid of 4 panels, thin white 
 
 A ready-made plain graph is in `examples/moss-storyboard-4panels-ui.json`.
 Editor examples: `examples/moss-layout-editor-poster.json` (poster) and `examples/moss-layout-editor-storyboard.json` (4-panel storyboard).
-Draft compiler (no model, no GPU): `examples/moss-prompt-compiler.json` — paste an official prompt-enhancer draft, get a prompt plus an editor state.
+Draft compiler (no model, no GPU): `examples/moss-prompt-compiler.json` — paste an official prompt-enhancer draft, get a prompt plus an editor state. The three outputs go to three of the host's `PreviewAny` nodes (displayed as *Preview as Text*); nothing else is in the graph.
+
+> **The four model examples carry the host's `LazyCache` node** (defaults: `reuse_threshold 0.2` / `start 0.15` / `end 0.95`), sitting between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core (`comfy_extras/nodes_easycache.py`), marked experimental, filed under `advanced/debug`, and it lets the sampler reuse steps. **Bypass it (`Ctrl+B`) or delete it before comparing anything against the numbers in this page**: with it on, the sampler is not doing the work those numbers were measured on. If your host build predates the node, ComfyUI reports a missing node type — delete it and the graph runs. The compiler example loads no model, so it has no `LazyCache`.
 
 > To check the grid shape before spending a run, wire `spec` out of 🎬 Storyboard · Grid Layout: its `template` output is a picture of where each panel sits and how wide the gutters are.
 
@@ -460,6 +463,8 @@ Swap them and the model will try to draw the words "bold pale gold". Only `text`
 
 Bridges OpenMOSS's [MOSS-Image Prompt Enhancer skill](https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer) to this pack. Paste the skill's **draft** (not its compiled output) and get:
 
+**Input** — a single multiline box, `draft`. Two shapes: a **caption** draft (`{"caption": "…"}`) compiles to plain text; a **layout** draft (the fields listed below) compiles to one-line native layout JSON. An empty draft raises an error instead of emitting an empty prompt.
+
 - **`prompt`** (output 1) — a ready-to-paste MOSS prompt (plain caption, or one-line native layout JSON). Wire it into `CLIPTextEncode.text` or the Sampler's `positive`.
 - **`report`** (output 2) — type, canvas, item counts, and any field that could not be represented in state.
 - **`state`** (output 3) — for layout drafts, a state v3 JSON you can paste into the Layout Editor import box. The canvas must be 64–4096 px; larger or smaller drafts still compile to `prompt`, and `report` explains why `state` was skipped.
@@ -553,6 +558,8 @@ Factory defaults below. The shipped workflow uses **4 panels / panel edge 496** 
 | `逐格` (per panel) | Every panel is **sampled on its own**, then assembled by coordinates — one sampling pass per panel, so it is slower | You need to **rework one panel** later, or want more pixels per panel |
 
 **The same face: measured.** ArcFace cosine over three pairs of the same woman — whole canvas `0.553` **>** per panel `0.479` (one scene, one seed; the same ruler, so only the relative order means anything here). 35% of the positive pairs had no detectable face, so **we report the number, we do not use it as a pass/fail gate, and we set no threshold.** Absolute cut-offs do not transfer between domains: images this model produces of *different* East Asian women already score around `0.52`, so the usual "above 0.5 means the same person" rule is wrong in both directions here. This page therefore gives relative only, never a pass mark.
+
+**Caliber.** Those numbers come from the current default **50 steps / cfg 3.0** run ([`docs/data/g2-50-3.json`](docs/data/g2-50-3.json), 2026-10-27). The older 8-step / cfg 1.0 / distil-LoRA set is **not this caliber and cannot be compared across** — it is kept as history in `docs/07` §2.3 only.
 
 **Per-panel detail: structural.** In `逐格` each panel is sampled at `sample_edge`, which can be larger than the final cell, then downscaled into it. That is the mechanism behind the extra detail — mechanism, not measured, and this pack publishes no sharpness numbers.
 
