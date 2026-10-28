@@ -710,7 +710,31 @@ Two channels, each owning half of the job:
 
 `report` prints the **value that really took effect**, not the nominal one — do not trust the widget alone.
 
-**Identity: what is measured, and what is not.** The recipe this node wraps was measured at ArcFace cosine `0.4633` (medium shot) and `0.4976` (tight close-up) against a same-person ceiling of `0.605` in this domain — i.e. **68–76 % of the ceiling**, on a full-image img2img path. **This node's per-panel path has no published number yet**; the mechanism is the same, the sampling canvas is not. As everywhere else in this page: same ruler, relative order only, no threshold.
+**Identity: the ruler itself does not work here — that is the newest finding (2026-10-28).** This page publishes **no absolute "does it look like the person" score**, and sets no threshold. Two measured reasons:
+
+1. **Comparing a cosine to a threshold measured under other conditions is invalid.** A same-person ceiling taken from studio-lit frontal close-ups does not transfer to a multi-pose, multi-shot, behind-glass frame. The only usable method is a **same-condition floor**: if two identities appear in the same batch, their cross-pair cosine is the floor, and the split is found from the largest gap between clusters — not from a magic number.
+2. **In this domain the cosine has no discriminative power at all.** Measured on MOSS-generated East Asian women: *different* people scored `0.521` while the *same* person scored `0.468` — the diagonal loses. Any cosine on such a batch (0.35 or 0.62) is unreadable. **Eyeballing is the only valid evidence there.** In the male domain the same ruler keeps a `+0.775` margin and is usable.
+
+Consequence: earlier write-ups that reported "`0.4633` = 68 % of the way to the same-person ceiling" are **withdrawn** — that percentage was a cross-condition comparison. The numbers below are kept only as **within-condition relative ordering**, which is all they can support.
+
+| Tried | Result (relative, same conditions) |
+|---|---|
+| 30 steps / cfg 3 | worse — and an extra face appears in frame |
+| Two reference views | worse — the vision tokens get diluted |
+| `reference_latents` on with a late window | worse — it drags the reference's *composition* in |
+| `image_strength` 1 / 2 / 4 / 8 | non-monotonic; the default `1.0` is best |
+| `vision_megapixels` 1.05 / 1.5 / 2.0 | **identical** — scaling only ever goes down |
+
+**Where it does not work** (pixel or behaviour evidence, no cosine involved)
+
+- **Two people in one panel: no.** Both faces get swapped and the pair drifts apart; at ~68 px per face the measurement is unreliable too. Not solved.
+- **Pose: no.** "Turn her head" produces no head turn at `denoise` 0.75 or 0.90, long or short phrasing. Changing clothes colour and environment **does** work — this model is good at attributes and scenes, bad at body pose.
+- **Big close-ups: the model refuses.** Feed a face at 0.483 of the frame width and it comes back at 0.324.
+- **Swapping twice is a no-op.** Feeding a swapped result back in at `denoise 0.90` returns a pixel-identical image. Cause unknown — do not chain two swaps.
+- **No mask-based local retouch.** That path was measured separately and leaves a visible skin seam at the mask border (ΔE 9–11 inside vs outside). This node repaints the whole panel instead, on purpose.
+- **These numbers are the full-image path.** This node samples each **panel** after upscaling it to `sample_edge`; that path has no separate measurement yet. Same mechanism, different sampling canvas.
+
+Measured production shape: **swap once, then derive every scene from that result in a star** (`denoise 0.88`), never chain scene-to-scene — face width held at 0.191–0.206 across four scenes and identity did not decay. About 22 s per panel at 8 steps.
 
 **Licensing.** The vision-budget behaviour follows the host's public `TextEncodeMOSSImageEdit` contract, but the implementation here is written independently against ComfyUI's public API — no GPL source was copied. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
