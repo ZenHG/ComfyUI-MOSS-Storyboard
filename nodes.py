@@ -19,6 +19,7 @@ import json
 import os
 
 from .core import editor as E
+from .core import facemask as FM
 from .core import faceswap as FS
 from .core import intake as IN
 from .core import layout as L
@@ -1061,6 +1062,18 @@ class MossStoryboardFaceSwap:
                     "multiline": True, "default": "", "advanced": True,
                     "tooltip": "【可选】负面提示词。默认 cfg=1.0 时宿主跳过负面分支，填了也不生效。",
                 }),
+                "auto_mask": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "【默认开】用 insightface 自动找脸并生成蒙版，不需要手画。\n"
+                               "⚠ 需要 `pip install insightface onnxruntime`；没装会明确报错。\n"
+                               "接了 `mask` 就以手接的为准（自动让位）。",
+                }),
+                "face_pick": (FM.PICK_MODES, {
+                    "default": "largest",
+                    "tooltip": "【换哪一张脸】一格里有好几个人时用这个点名：\n"
+                               "largest = 面积最大那张；left / right = 最左 / 最右那张。\n"
+                               "report 会写「检测到 N 张脸，用了哪张」，换错人先看这行。",
+                }),
                 "mask": ("MASK", {
                     "tooltip": "【接线，强烈建议】只重画蒙版内的区域，蒙版外**逐像素保留**。\n"
                                "⚠ 不接 = 整格重画：整张图的影调会被重算，**画风与色调一定变**"
@@ -1082,8 +1095,14 @@ class MossStoryboardFaceSwap:
     @_node_errors("index", "denoise", "vision_megapixels", "sample_edge")
     def run(self, model, clip, vae, image, ref, prompt, steps, cfg,
             sampler_name, scheduler, seed, denoise, vision_megapixels,
-            spec="", index=0, sample_edge=FS.DEFAULT_SAMPLE_EDGE, negative="", mask=None):
+            spec="", index=0, sample_edge=FS.DEFAULT_SAMPLE_EDGE, negative="", mask=None,
+            auto_mask=True, face_pick="largest"):
         from .core import sampling as S      # 惰性导入：本文件顶层不拉 torch
+
+        # V3 外壳会把没接的可选入参**显式传 None**，不会落到 Python 默认值上。
+        if auto_mask is None:
+            auto_mask = True
+        face_pick = face_pick or "largest"
 
         if not str(prompt or "").strip():
             raise ValueError(
@@ -1099,14 +1118,25 @@ class MossStoryboardFaceSwap:
         positive, ref_rep = RI.encode(clip, prompt, ref, vision_megapixels)
         negative_cond = S.encode_text(clip, str(negative or ""))
 
-        # 蒙版：与图像走同一套几何（先按 spec 裁格，再跟着抬分辨率）
+        # 蒙版：手接优先；没接就自动检脸（都在**裁格之后**算，尺寸才对得上）
         noise_mask = None
+        mask_src = "手接 mask"
+        m = None
         if mask is not None:
             m = FS.crop_mask(mask, lay, index) if lay is not None else mask
+        elif auto_mask:
+            import numpy as _np
+            import torch
+            rgb = (_np.clip(panel[0].cpu().numpy(), 0, 1) * 255).astype(_np.uint8)
+            pil, why = FM.auto_mask(rgb, (int(panel.shape[1]), int(panel.shape[2])),
+                                    mode=face_pick)
+            mask_src = "自动蒙版（%s）" % why
+            m = torch.from_numpy(_np.asarray(pil, dtype=_np.float32) / 255.0).unsqueeze(0)
+        if m is not None:
             m = FS.fit_mask(m, (int(panel_up.shape[1]), int(panel_up.shape[2])))
 
         latent = vae.encode(panel_up)
-        if mask is not None:
+        if m is not None:                      # 手接的 mask 与自动蒙版都走这里
             noise_mask = FS.mask_for_latent(m, latent)
         sampled = S.sample(model, positive, negative_cond, latent, steps, cfg,
                            sampler_name, scheduler, denoise=denoise, seed=seed,
@@ -1122,8 +1152,8 @@ class MossStoryboardFaceSwap:
         real_denoise = S.effective_denoise(steps, denoise)
         lines = [
             "换哪一张：%s" % where,
-            ("局部重画：蒙版内重画，蒙版外逐像素保留（画风不变）" if noise_mask is not None
-             else "⚠ 整格重画：没有接 mask，整张图影调会被重算 —— 画风与色调会变"),
+            ("局部重画：%s；蒙版外逐像素保留（画风不变）" % mask_src if noise_mask is not None
+             else "⚠ 整格重画：既没接 mask 也没开 auto_mask —— 整张图影调会被重算，画风与色调会变"),
             "格子 %d×%d（%.3f MP）→ 采样 %d×%d（%.3f MP）"
             % (cell_w, cell_h, FS.megapixels(panel), up["sampled"][0], up["sampled"][1],
                FS.megapixels(panel_up)),

@@ -857,9 +857,11 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | `ref` → vision 通道 | 决定**是谁**。`vision_megapixels` 默认 `1.05`（宿主默认 `0.147` 时参考图只值约 `0.008`，等于没给） |
 | `image` + `prompt` → 图生图 | 决定**画什么**。提示词里要提到参考图（`in Picture 1`），前缀由节点拼 |
 | `spec` + `index` | 只换那一格——缝、外边距、其他格**逐像素不变**（实测 `max|Δ| = 0`） |
-| `mask` | **白 = 重画。** 接了只重画蒙版内，蒙版外逐像素保留（实测 `0.40/255`）；**不接就是整格重画，色调一定会变** |
+| `auto_mask` | **默认开。** insightface 自动找脸并生成蒙版，不用手画。需要 `pip install insightface onnxruntime`；没装会明说，不瞎猜 |
+| `face_pick` | 一格里有好几个人时点名：`largest` / `left` / `right`。`report` 会写「检测到几张脸、用了哪张」 |
+| `mask` | 可选，手接蒙版覆盖自动结果（**白 = 重画**）。接了就以手接的为准 |
 
-**一定要接蒙版。** 这是「修图」和「重画」的分界：接了蒙版色调不可能漂，不接一定漂。**别拿 `LoadImage` 的 MASK 口当蒙版**——那是 alpha，灰度图没有 alpha 时它返回 64×64 全零，蒙版等于没接。用 `ImageToMask(channel="red")`。完整配方：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
+**蒙版是「修图」和「重画」的分界。** 有蒙版色调不可能漂（蒙版外实测 `0.40/255`），没有就是整格重画、色调必漂（`R +24 … +53`）。默认 `auto_mask` 开着就行；要手接蒙版的话，**别拿 `LoadImage` 的 MASK 口**——那是 alpha，灰度图没 alpha 时返回 64×64 全零，蒙版等于没接，用 `ImageToMask(channel="red")`。完整配方：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
 
 配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · 8 步 / cfg 1.0 / euler + simple · 参考图**只给一张**（双视角实测更差）。
 

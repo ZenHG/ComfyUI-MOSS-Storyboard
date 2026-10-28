@@ -687,9 +687,11 @@ Reference face → **one panel** (or a single image). MIT, like the rest of the 
 | `ref` → vision channel | decides **who**. `vision_megapixels` default `1.05` (at the host default `0.147` the reference scores about `0.008`, i.e. nothing) |
 | `image` + `prompt` → img2img | decides **what is drawn**. The prompt must mention the reference (`in Picture 1`); the node adds the prefix |
 | `spec` + `index` | only that panel changes — gutters, margins and the other panels stay pixel-identical (measured `max|Δ| = 0`) |
-| `mask` | **White = repaint.** With a mask only that region is redrawn and everything outside stays pixel-identical (measured `0.40/255`). **Without it the whole panel is repainted and the colour grade will change** |
+| `auto_mask` | **On by default.** insightface finds the face and builds the mask for you — no drawing. Needs `pip install insightface onnxruntime`; missing → it says so instead of guessing |
+| `face_pick` | When a panel has several people: `largest` / `left` / `right`. `report` prints how many faces were found and which one was used |
+| `mask` | Optional manual override (**white = repaint**). A wired mask wins over `auto_mask` |
 
-**Wire a mask.** It is the difference between a retouch and a re-render: with a mask the palette cannot drift, without one it always does. Do **not** take the mask from `LoadImage`'s MASK output — that is the alpha channel and a grey PNG without alpha comes back as 64×64 zeros (the mask silently does nothing). Use `ImageToMask(channel="red")`. Full recipe: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md).
+**The mask is the difference between a retouch and a re-render.** With it the palette cannot drift (measured `0.40/255` outside); without it the whole panel is repainted and the grade always shifts (`R +24 … +53`). Keep `auto_mask` on unless you are wiring your own — and if you do wire one, do **not** take it from `LoadImage`'s MASK output (that is the alpha channel; a grey PNG without alpha comes back as 64×64 zeros and the mask silently does nothing) — use `ImageToMask(channel="red")`. Full recipe: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md).
 
 Recipe: 8-step DMD2 LoRA **then** the Moss-Image-Edit LoRA · 8 steps / cfg 1.0 / euler + simple · **one** reference image (two views measured worse).
 

@@ -152,7 +152,7 @@ def build():
     # ---- 换脸本体 ----
     # widgets 顺序 = INPUT_TYPES 声明顺序里**有 widget 的那些**（spec 是 forceInput，不在其中）
     nodes.append(node(10, "MossStoryboardFaceSwap", (260, 350), (420, 620),
-                      [PROMPT, 8, 1.0, "euler", "simple", 0, "randomize", 0.95, 1.05, 0, 1024, ""],
+                      [PROMPT, 8, 1.0, "euler", "simple", 0, "randomize", 0.95, 1.05, 0, 1024, "", True, "right"],
                       inputs=[inp("model", "MODEL", 3),
                               inp("clip", "CLIP", 4),
                               inp("vae", "VAE", 5),
@@ -170,20 +170,11 @@ def build():
                               inp("index", "INT", None, "index"),
                               inp("sample_edge", "INT", None, "sample_edge"),
                               inp("negative", "STRING", None, "negative"),
-                              inp("mask", "MASK", 12)],
+                              inp("auto_mask", "BOOLEAN", None, "auto_mask"),
+                              inp("face_pick", "COMBO", None, "face_pick"),
+                              inp("mask", "MASK")],
                       outputs=[out("image", "IMAGE"), out("report", "STRING")],
                       title="🎬 故事板 · 换脸（只换第 0 格）", order=8))
-
-    # ---- 蒙版：白=重画。⚠ 不能直接用 LoadImage 的 MASK 口（那是 alpha），
-    #      灰度图没有 alpha 时它返回 64×64 全零，蒙版恒等于「全不重画」。
-    nodes.append(node(13, "LoadImage", (-560, 1050), (340, 320), ["moss_faceswap_mask.png", "image"],
-                      inputs=[inp("image", "COMBO", None, "image"), inp("upload", "IMAGEUPLOAD", None, "upload")],
-                      outputs=[out("IMAGE", "IMAGE"), out("MASK", "MASK")],
-                      title="mask · 灰度图，白=重画（脸框）", order=11, ours=False))
-    nodes.append(node(14, "ImageToMask", (-160, 1050), (300, 82), ["red"],
-                      inputs=[inp("image", "IMAGE", 11)],
-                      outputs=[out("MASK", "MASK")],
-                      title="取红通道当蒙版", order=12, ours=False))
 
     nodes.append(node(11, "SaveImage", (760, 350), (400, 560), ["moss/faceswap/board"],
                       inputs=[inp("images", "IMAGE", 9)],
@@ -215,13 +206,11 @@ def build():
     wire(9, 4, 10, 13, "STRING")  # spec → 换脸（第 13 个输入）
     wire(10, 0, 11, 0, "IMAGE")
     wire(10, 1, 12, 0, "STRING")
-    wire(13, 0, 14, 0, "IMAGE")   # 灰度蒙版 → ImageToMask
-    wire(14, 0, 10, 17, "MASK")   # MASK → 换脸（第 17 个输入）
 
     return {
         "id": "moss-faceswap",
         "revision": 0,
-        "last_node_id": 14,
+        "last_node_id": 12,
         "last_link_id": len(links),
         "nodes": nodes,
         "links": links,
