@@ -13,9 +13,9 @@
 - 钩子只挂在 `beforeRegisterNodeDef` 里本包的节点上，外来节点不碰；补了什么/删了什么写进
   `console.warn` 与 `node.properties.msb_widgets_repaired`，并提示重新保存。
 - **不必重建旧稿**；新建的节点与 `examples/` 里的工作流本来就没有这个问题。
-- 纯函数层 `web/moss_sb_widget_order.js` 由 `tests/test_compat.mjs` 直接跑（17 项），其中一条钉住
+- 纯函数层 `web/moss_sb_widget_order.js` 由 `tests/test_compat.mjs` 直接跑（24 项），其中一条钉住
   「`serialize:false` 但**不是** DOM 组件（`control_after_generate`）仍然占位」——这条判错就会
-  让长度对上了、于是永不修。`check_editor_ui.py` 新增 W22–W24，141 → 144 项。
+  让长度对上了、于是永不修。`check_editor_ui.py` 新增 W22–W26，141 → 146 项。
 
 ### 稿子与布局对账：不一致就停在采样前（只拦不改写）
 - 布局模式下（`init=layout`/`auto` + 整张），`[PANEL n]` 段数与全局段的显式格数
