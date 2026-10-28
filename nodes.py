@@ -1061,6 +1061,13 @@ class MossStoryboardFaceSwap:
                     "multiline": True, "default": "", "advanced": True,
                     "tooltip": "【可选】负面提示词。默认 cfg=1.0 时宿主跳过负面分支，填了也不生效。",
                 }),
+                "mask": ("MASK", {
+                    "tooltip": "【接线，强烈建议】只重画蒙版内的区域，蒙版外**逐像素保留**。\n"
+                               "⚠ 不接 = 整格重画：整张图的影调会被重算，**画风与色调一定变**"
+                               "（实测同一张图，仅换提示词，R 通道偏移 +24~+43）。\n"
+                               "蒙版可以直接给整张宫格的，节点会按 spec 裁到目标格；"
+                               "带羽化更好，硬边会看到接缝。",
+                }),
             },
         }
 
@@ -1075,7 +1082,7 @@ class MossStoryboardFaceSwap:
     @_node_errors("index", "denoise", "vision_megapixels", "sample_edge")
     def run(self, model, clip, vae, image, ref, prompt, steps, cfg,
             sampler_name, scheduler, seed, denoise, vision_megapixels,
-            spec="", index=0, sample_edge=FS.DEFAULT_SAMPLE_EDGE, negative=""):
+            spec="", index=0, sample_edge=FS.DEFAULT_SAMPLE_EDGE, negative="", mask=None):
         from .core import sampling as S      # 惰性导入：本文件顶层不拉 torch
 
         if not str(prompt or "").strip():
@@ -1092,9 +1099,18 @@ class MossStoryboardFaceSwap:
         positive, ref_rep = RI.encode(clip, prompt, ref, vision_megapixels)
         negative_cond = S.encode_text(clip, str(negative or ""))
 
+        # 蒙版：与图像走同一套几何（先按 spec 裁格，再跟着抬分辨率）
+        noise_mask = None
+        if mask is not None:
+            m = FS.crop_mask(mask, lay, index) if lay is not None else mask
+            m = FS.fit_mask(m, (int(panel_up.shape[1]), int(panel_up.shape[2])))
+
         latent = vae.encode(panel_up)
+        if mask is not None:
+            noise_mask = FS.mask_for_latent(m, latent)
         sampled = S.sample(model, positive, negative_cond, latent, steps, cfg,
-                           sampler_name, scheduler, denoise=denoise, seed=seed)
+                           sampler_name, scheduler, denoise=denoise, seed=seed,
+                           noise_mask=noise_mask)
         out = S.decode(vae, sampled)
         out = FS.to_cell(out, (cell_w, cell_h))
 
@@ -1106,6 +1122,8 @@ class MossStoryboardFaceSwap:
         real_denoise = S.effective_denoise(steps, denoise)
         lines = [
             "换哪一张：%s" % where,
+            ("局部重画：蒙版内重画，蒙版外逐像素保留（画风不变）" if noise_mask is not None
+             else "⚠ 整格重画：没有接 mask，整张图影调会被重算 —— 画风与色调会变"),
             "格子 %d×%d（%.3f MP）→ 采样 %d×%d（%.3f MP）"
             % (cell_w, cell_h, FS.megapixels(panel), up["sampled"][0], up["sampled"][1],
                FS.megapixels(panel_up)),

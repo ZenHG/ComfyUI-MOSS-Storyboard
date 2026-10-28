@@ -123,8 +123,13 @@ def effective_denoise(steps, denoise):
 
 
 def sample(model, positive, negative, latent, steps, cfg, sampler_name, scheduler,
-           denoise=1.0, seed=0, preview=True):
-    """单次采样。返回 `{"samples": tensor}`。"""
+           denoise=1.0, seed=0, preview=True, noise_mask=None):
+    """单次采样。返回 `{"samples": tensor}`。
+
+    `noise_mask`（可选，`[B,1,h,w]`，与 latent 同空间尺寸）：只重画蒙版内的区域，
+    蒙版外逐步保留原 latent —— 与画布上 `SetLatentNoiseMask` 同一语义，
+    走宿主 `sample_custom(noise_mask=...)` 的官方参数。
+    """
     import comfy.samplers
     import comfy.sample
     import comfy.utils
@@ -161,6 +166,7 @@ def sample(model, positive, negative, latent, steps, cfg, sampler_name, schedule
 
     samples = comfy.sample.sample_custom(
         model, noise, cfg, sampler, sigmas, positive, negative, latent_t,
+        noise_mask=noise_mask,
         callback=cb, disable_pbar=not comfy.utils.PROGRESS_BAR_ENABLED, seed=int(seed),
     )
     return {"samples": samples}

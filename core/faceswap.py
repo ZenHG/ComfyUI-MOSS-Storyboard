@@ -93,3 +93,67 @@ def to_cell(panel, cell_size):
 def megapixels(image):
     """一张图的 MP，报告用。"""
     return round(int(image.shape[1]) * int(image.shape[2]) / 1_000_000, 4)
+
+def crop_mask(mask, layout, index):
+    """把整张宫格的蒙版裁成第 `index` 格。`mask` 是 `[B,H,W]` 或 `[H,W]`。
+
+    与 `crop_panels` 用**同一套整数坐标**：蒙版和图像如果各裁各的，脸框就会偏，
+    而这种偏不会报错，只会让「蒙版外不动」这句话变成假的。
+    """
+    import torch
+
+    if mask is None:
+        return None
+    if mask.ndim == 2:
+        mask = mask.unsqueeze(0)
+    if mask.ndim != 3:
+        raise ValueError("mask 必须是 [B, H, W] 或 [H, W]（收到 %d 维）" % mask.ndim)
+    if layout is None:
+        return mask
+    cell = layout.cell(int(index))
+    if (int(mask.shape[1]), int(mask.shape[2])) != (layout.height, layout.width):
+        raise ValueError(
+            "蒙版 %d×%d 与 spec 画布 %d×%d 不一致；接了 spec 就必须给同一张宫格的蒙版。"
+            % (mask.shape[2], mask.shape[1], layout.width, layout.height))
+    return mask[:, cell.y:cell.y + cell.h, cell.x:cell.x + cell.w]
+
+
+def fit_mask(mask, size_hw):
+    """把蒙版缩放到 `(h, w)`。双线性，保留羽化。"""
+    import torch
+
+    if mask is None:
+        return None
+    if mask.ndim == 2:
+        mask = mask.unsqueeze(0)
+    h, w = int(size_hw[0]), int(size_hw[1])
+    if (int(mask.shape[1]), int(mask.shape[2])) == (h, w):
+        return mask
+    out = torch.nn.functional.interpolate(
+        mask.unsqueeze(1).float(), size=(h, w), mode="bilinear", align_corners=False)
+    return out.squeeze(1)
+
+
+def mask_for_latent(mask, latent):
+    """把图像分辨率的蒙版压到 latent 空间：`[B,1,h,w]`。
+
+    宿主 `SetLatentNoiseMask` 只做 reshape，缩放发生在采样器内部；这里自己压，
+    因为我们要在**进采样器之前**就知道尺寸对不对（否则错了只会表现为「没效果」）。
+    """
+    import torch
+
+    if mask is None:
+        return None
+    samples = latent.get("samples") if isinstance(latent, dict) else latent
+    if samples is None:
+        raise ValueError("latent 里没有 samples，无法对齐蒙版")
+    h, w = int(samples.shape[-2]), int(samples.shape[-1])
+    m = mask
+    if m.ndim == 2:
+        m = m.unsqueeze(0)
+    m = torch.nn.functional.interpolate(
+        m.unsqueeze(1).float(), size=(h, w), mode="bilinear", align_corners=False)
+    # 尺寸必须与 latent 的 batch 对齐（蒙版是 1 张，latent 也是 1 张）
+    if m.shape[0] != samples.shape[0]:
+        m = m.expand(samples.shape[0], -1, -1, -1)
+    return m

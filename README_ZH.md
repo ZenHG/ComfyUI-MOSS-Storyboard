@@ -857,8 +857,9 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | `ref` → vision 通道 | 决定**是谁**。`vision_megapixels` 默认 `1.05`（宿主默认 `0.147` 时参考图只值约 `0.008`，等于没给） |
 | `image` + `prompt` → 图生图 | 决定**画什么**。提示词里要提到参考图（`in Picture 1`），前缀由节点拼 |
 | `spec` + `index` | 只换那一格——缝、外边距、其他格**逐像素不变**（实测 `max|Δ| = 0`） |
+| `mask` | **白 = 重画。** 接了只重画蒙版内，蒙版外逐像素保留（实测 `0.40/255`）；**不接就是整格重画，色调一定会变** |
 
-**`denoise` 是唯一要弄对的旋钮。** 8 步下 `0.95` **等于 `1.0`**：源图被丢弃，构图来自提示词。想保住源图构图用 `≤0.875`。`report` 打印实际生效值。
+**一定要接蒙版。** 这是「修图」和「重画」的分界：接了蒙版色调不可能漂，不接一定漂。**别拿 `LoadImage` 的 MASK 口当蒙版**——那是 alpha，灰度图没有 alpha 时它返回 64×64 全零，蒙版等于没接。用 `ImageToMask(channel="red")`。完整配方：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
 
 配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · 8 步 / cfg 1.0 / euler + simple · 参考图**只给一张**（双视角实测更差）。
 
@@ -1037,6 +1038,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) | 顶层设计：七个节点各管什么、面板/元素/角色三种语义、提示词透明与占位守卫的判据 |
 | [`docs/15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) | 配方契约：验证过的配方里哪些项是必需的（网格声明 / 段数=格数 / 自检命令） |
 | [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) | 换脸节点重构前后：变了什么、什么故意不变、为什么这次能进 MIT 包 |
+| [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) | 换脸配方：哪条路真的成过、蒙版怎么算、判据是什么 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
 

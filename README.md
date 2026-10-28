@@ -687,8 +687,9 @@ Reference face → **one panel** (or a single image). MIT, like the rest of the 
 | `ref` → vision channel | decides **who**. `vision_megapixels` default `1.05` (at the host default `0.147` the reference scores about `0.008`, i.e. nothing) |
 | `image` + `prompt` → img2img | decides **what is drawn**. The prompt must mention the reference (`in Picture 1`); the node adds the prefix |
 | `spec` + `index` | only that panel changes — gutters, margins and the other panels stay pixel-identical (measured `max|Δ| = 0`) |
+| `mask` | **White = repaint.** With a mask only that region is redrawn and everything outside stays pixel-identical (measured `0.40/255`). **Without it the whole panel is repainted and the colour grade will change** |
 
-**`denoise` is the one knob to get right.** At 8 steps `0.95` **equals `1.0`**: the source is discarded and composition comes from the prompt. Use `≤0.875` to keep the source composition. `report` prints the value that actually took effect.
+**Wire a mask.** It is the difference between a retouch and a re-render: with a mask the palette cannot drift, without one it always does. Do **not** take the mask from `LoadImage`'s MASK output — that is the alpha channel and a grey PNG without alpha comes back as 64×64 zeros (the mask silently does nothing). Use `ImageToMask(channel="red")`. Full recipe: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md).
 
 Recipe: 8-step DMD2 LoRA **then** the Moss-Image-Edit LoRA · 8 steps / cfg 1.0 / euler + simple · **one** reference image (two views measured worse).
 
@@ -800,7 +801,8 @@ Selected deep dives live in the GitHub repo's [`docs/`](https://github.com/ZenHG
 [`13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) official prompt-enhancer bridge ·
 [`14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) top-level design: what each of the seven nodes owns ·
 [`15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) recipe contract: what a verified recipe must contain ·
-[`16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) face swap, before and after: what changed and what deliberately did not.
+[`16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) face swap, before and after: what changed and what deliberately did not ·
+[`17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) face-swap recipe: which path actually worked, how the mask is computed, what the pass criteria are.
 Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) · release history: [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md).
 
 `docs/`, `CHANGES.md` and `RELEASE-NOTES.md` are not shipped in the install package (see `.comfyignore`); the links above point to the GitHub repo.

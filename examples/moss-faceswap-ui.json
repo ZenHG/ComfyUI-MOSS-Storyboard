@@ -1,8 +1,8 @@
 {
  "id": "moss-faceswap",
  "revision": 0,
- "last_node_id": 12,
- "last_link_id": 10,
+ "last_node_id": 14,
+ "last_link_id": 12,
  "nodes": [
   {
    "id": 1,
@@ -497,7 +497,7 @@
     "object",
     ""
    ],
-   "title": "几何：4 格 / 16:9 / 496（只为了拿 spec）"
+   "title": "🎬 故事板 · 宫格几何（只为拿 spec）"
   },
   {
    "id": 10,
@@ -631,6 +631,11 @@
      "widget": {
       "name": "negative"
      }
+    },
+    {
+     "name": "mask",
+     "type": "MASK",
+     "link": 12
     }
    ],
    "outputs": [
@@ -668,7 +673,100 @@
     1024,
     ""
    ],
-   "title": "换脸：只换第 0 格"
+   "title": "🎬 故事板 · 换脸（只换第 0 格）"
+  },
+  {
+   "id": 13,
+   "type": "LoadImage",
+   "pos": [
+    -560,
+    1050
+   ],
+   "size": [
+    340,
+    320
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "image"
+     }
+    },
+    {
+     "name": "upload",
+     "type": "IMAGEUPLOAD",
+     "link": null,
+     "widget": {
+      "name": "upload"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      11
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "moss_faceswap_mask.png",
+    "image"
+   ],
+   "title": "mask · 灰度图，白=重画（脸框）"
+  },
+  {
+   "id": 14,
+   "type": "ImageToMask",
+   "pos": [
+    -160,
+    1050
+   ],
+   "size": [
+    300,
+    82
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 11
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": [
+      12
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "ImageToMask"
+   },
+   "widgets_values": [
+    "red"
+   ],
+   "title": "取红通道当蒙版"
   },
   {
    "id": 11,
@@ -821,6 +919,22 @@
    12,
    0,
    "STRING"
+  ],
+  [
+   11,
+   13,
+   0,
+   14,
+   0,
+   "IMAGE"
+  ],
+  [
+   12,
+   14,
+   0,
+   10,
+   17,
+   "MASK"
   ]
  ],
  "groups": [],

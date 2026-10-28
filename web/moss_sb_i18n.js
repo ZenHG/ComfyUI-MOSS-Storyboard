@@ -462,6 +462,12 @@ export const TIPS = {
             + "On a 4-panel 496-edge board one cell is only 0.135 MP and the face is about 50x27 px — too small to identify.\n"
             + "0 = no upscale (sample at the cell size, lowest VRAM).",
     },
+    "MossStoryboardFaceSwap.mask": {
+        en: "[Wire, strongly recommended] Only the masked region is repainted; everything outside stays pixel-identical.\n"
+            + "Without it the whole panel is repainted and the colour grade always drifts (measured R +24 to +53).\n"
+            + "Do NOT use LoadImage's MASK output: that is the alpha channel, and a grey PNG without alpha returns 64x64 zeros,\n"
+            + "so the mask silently does nothing. Use ImageToMask(channel=\"red\"). Feathering avoids a visible seam.",
+    },
     "MossStoryboardFaceSwap.negative": {
         en: "[Optional] Negative prompt. At cfg = 1.0 the host skips the negative branch, so this does nothing.",
     },
