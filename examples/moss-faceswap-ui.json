@@ -1,0 +1,838 @@
+{
+ "id": "moss-faceswap",
+ "revision": 0,
+ "last_node_id": 12,
+ "last_link_id": 10,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "MarkdownNote",
+   "pos": [
+    -1180,
+    -260
+   ],
+   "size": [
+    560,
+    760
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "MarkdownNote"
+   },
+   "widgets_values": [
+    "## 换脸（`MossStoryboardFaceSwap`）\n\n把**参考图的脸**换到**某一格**。两条通道各管一半：\n\n| 通道 | 管什么 |\n|---|---|\n| 参考图 → vision tower | **是谁**（身份）。默认 `vision_megapixels=1.05`，宿主默认 0.147 那个值身份余弦只有 0.008 |\n| 源图 → VAEEncode（图生图） | **画什么**（构图/场景），由 `denoise` 与提示词决定 |\n\n### 这个工作流在做什么\n源图是**整张宫格**（1024×576，4 格），`spec` 由「宫格几何」给，`index=0` ⇒\n**只换第一格**，其余三格与宫格线不动。\n\n### 三处必须改\n1. **两个 `LoadImage`** 换成你自己的图：\n   - `src` = 要换脸的那张（这里是宫格）\n   - `ref` = 身份参考图，**紧特写**最好，只给一张（双视角实测更差：0.384 vs 0.463）\n2. **提示词**里保留 `in Picture 1` 这个说法 —— 换成别的措辞参考图就不进场景了。\n3. **`index`** 改成你要换的格（0 起、行主序）。\n\n### `denoise` 是最容易看错的一个旋钮\n- `0.95`（默认，实测配方）在 **8 步下等价于 1.0**：源图被**完全丢弃**，构图由提示词决定。\n- 想保住源图构图，要 **≤0.875**（8 步时 `int(8/0.875)=9>8` 才真的触发 img2img）。\n- `0.875~0.99` 这一段在 8 步下**全部等于 1.0** —— 宿主按 `int(步数/降噪)` 截断 sigma。\n  `report` 会打印**实际生效值**，别只看名义值。\n\n### 单格太小怎么办\n4 格 496 长边时一格只有 0.135MP，脸约 50×27 像素 —— 那个尺度模型认不出是谁。\n所以节点默认把单格**抬到 1024 长边再采样**（`sample_edge`），采样完缩回格子。\n这一机制与「逐格」模式同一个，不是新旋钮。\n\n### 接不接 `spec` 的差别\n- **接了**：给整张宫格 + `index`，只换那一格，输出仍是整张宫格。\n- **不接**：整张 `image` 当成一张图，换完直接输出（单图换脸）。\n"
+   ],
+   "title": "这是什么 · 怎么用"
+  },
+  {
+   "id": 2,
+   "type": "UNETLoader",
+   "pos": [
+    -560,
+    -260
+   ],
+   "size": [
+    340,
+    82
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      1
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "moss_image_sft_bf16.safetensors",
+    "default"
+   ]
+  },
+  {
+   "id": 3,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    -560,
+    -140
+   ],
+   "size": [
+    340,
+    82
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 1,
+     "widget": {
+      "name": "model"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      2
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "8-steps-dmd2-lora.safetensors",
+    1.0
+   ]
+  },
+  {
+   "id": 4,
+   "type": "LoraLoaderModelOnly",
+   "pos": [
+    -560,
+    -20
+   ],
+   "size": [
+    340,
+    82
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 2,
+     "widget": {
+      "name": "model"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      3
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoraLoaderModelOnly"
+   },
+   "widgets_values": [
+    "Moss-Image-Edit\\adapter_model.safetensors",
+    1.0
+   ]
+  },
+  {
+   "id": 5,
+   "type": "CLIPLoader",
+   "pos": [
+    -560,
+    100
+   ],
+   "size": [
+    340,
+    106
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      4
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "qwen3.5_9b_int8_convrot.safetensors",
+    "moss_image",
+    "default"
+   ]
+  },
+  {
+   "id": 6,
+   "type": "VAELoader",
+   "pos": [
+    -560,
+    250
+   ],
+   "size": [
+    340,
+    58
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      5
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "flux2-vae.safetensors"
+   ]
+  },
+  {
+   "id": 7,
+   "type": "LoadImage",
+   "pos": [
+    -560,
+    350
+   ],
+   "size": [
+    340,
+    320
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "image"
+     }
+    },
+    {
+     "name": "upload",
+     "type": "IMAGEUPLOAD",
+     "link": null,
+     "widget": {
+      "name": "upload"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      6
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "moss_faceswap_src.png",
+    "image"
+   ],
+   "title": "src · 要换脸的图（这里是整张宫格）"
+  },
+  {
+   "id": 8,
+   "type": "LoadImage",
+   "pos": [
+    -560,
+    710
+   ],
+   "size": [
+    340,
+    320
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "image"
+     }
+    },
+    {
+     "name": "upload",
+     "type": "IMAGEUPLOAD",
+     "link": null,
+     "widget": {
+      "name": "upload"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      7
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "moss_faceswap_ref.png",
+    "image"
+   ],
+   "title": "ref · 身份参考图（紧特写，只给一张）"
+  },
+  {
+   "id": 9,
+   "type": "MossStoryboardLayout",
+   "pos": [
+    -160,
+    350
+   ],
+   "size": [
+    340,
+    300
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "prompt"
+     }
+    },
+    {
+     "name": "panels",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panels"
+     }
+    },
+    {
+     "name": "panel_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "panel_aspect"
+     }
+    },
+    {
+     "name": "panel_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panel_edge"
+     }
+    },
+    {
+     "name": "canvas_aspect",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "canvas_aspect"
+     }
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "columns"
+     }
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "rows"
+     }
+    },
+    {
+     "name": "gutter",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "gutter"
+     }
+    },
+    {
+     "name": "margin",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "margin"
+     }
+    },
+    {
+     "name": "cell_gray",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "cell_gray"
+     }
+    },
+    {
+     "name": "invert",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "invert"
+     }
+    },
+    {
+     "name": "label",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "label"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "width",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "columns",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "rows",
+     "type": "INT",
+     "links": []
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "links": [
+      8
+     ]
+    },
+    {
+     "name": "layout_json",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "template",
+     "type": "IMAGE",
+     "links": []
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": []
+    },
+    {
+     "name": "elements",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardLayout",
+    "cnr_id": "moss-storyboard",
+    "ver": "0.3.0"
+   },
+   "widgets_values": [
+    "",
+    4,
+    "16:9",
+    496,
+    "auto",
+    0,
+    0,
+    8,
+    8,
+    25,
+    false,
+    "object",
+    ""
+   ],
+   "title": "几何：4 格 / 16:9 / 496（只为了拿 spec）"
+  },
+  {
+   "id": 10,
+   "type": "MossStoryboardFaceSwap",
+   "pos": [
+    260,
+    350
+   ],
+   "size": [
+    420,
+    620
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "model",
+     "type": "MODEL",
+     "link": 3
+    },
+    {
+     "name": "clip",
+     "type": "CLIP",
+     "link": 4
+    },
+    {
+     "name": "vae",
+     "type": "VAE",
+     "link": 5
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 6
+    },
+    {
+     "name": "ref",
+     "type": "IMAGE",
+     "link": 7
+    },
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "prompt"
+     }
+    },
+    {
+     "name": "steps",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "steps"
+     }
+    },
+    {
+     "name": "cfg",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "cfg"
+     }
+    },
+    {
+     "name": "sampler_name",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "sampler_name"
+     }
+    },
+    {
+     "name": "scheduler",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "scheduler"
+     }
+    },
+    {
+     "name": "seed",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "seed"
+     }
+    },
+    {
+     "name": "denoise",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "denoise"
+     }
+    },
+    {
+     "name": "vision_megapixels",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "vision_megapixels"
+     }
+    },
+    {
+     "name": "spec",
+     "type": "STRING",
+     "link": 8
+    },
+    {
+     "name": "index",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "index"
+     }
+    },
+    {
+     "name": "sample_edge",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "sample_edge"
+     }
+    },
+    {
+     "name": "negative",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "negative"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "links": [
+      9
+     ]
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": [
+      10
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossStoryboardFaceSwap",
+    "cnr_id": "moss-storyboard",
+    "ver": "0.3.0"
+   },
+   "widgets_values": [
+    "A medium shot photograph of the woman in Picture 1, sitting at a wooden table in a warm cafe at night, rain on the window, soft warm light on her face, 35mm film, shallow depth of field",
+    8,
+    1.0,
+    "euler",
+    "simple",
+    0,
+    "randomize",
+    0.95,
+    1.05,
+    0,
+    1024,
+    ""
+   ],
+   "title": "换脸：只换第 0 格"
+  },
+  {
+   "id": 11,
+   "type": "SaveImage",
+   "pos": [
+    760,
+    350
+   ],
+   "size": [
+    400,
+    560
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 9
+    }
+   ],
+   "outputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "moss/faceswap/board"
+   ],
+   "title": "换完的整张宫格"
+  },
+  {
+   "id": 12,
+   "type": "PreviewAny",
+   "pos": [
+    760,
+    940
+   ],
+   "size": [
+    400,
+    220
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 10
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "report（看实际生效的降噪）"
+  }
+ ],
+ "links": [
+  [
+   1,
+   2,
+   0,
+   3,
+   0,
+   "MODEL"
+  ],
+  [
+   2,
+   3,
+   0,
+   4,
+   0,
+   "MODEL"
+  ],
+  [
+   3,
+   4,
+   0,
+   10,
+   0,
+   "MODEL"
+  ],
+  [
+   4,
+   5,
+   0,
+   10,
+   1,
+   "CLIP"
+  ],
+  [
+   5,
+   6,
+   0,
+   10,
+   2,
+   "VAE"
+  ],
+  [
+   6,
+   7,
+   0,
+   10,
+   3,
+   "IMAGE"
+  ],
+  [
+   7,
+   8,
+   0,
+   10,
+   4,
+   "IMAGE"
+  ],
+  [
+   8,
+   9,
+   4,
+   10,
+   13,
+   "STRING"
+  ],
+  [
+   9,
+   10,
+   0,
+   11,
+   0,
+   "IMAGE"
+  ],
+  [
+   10,
+   10,
+   1,
+   12,
+   0,
+   "STRING"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.75,
+   "offset": [
+    1180,
+    560
+   ]
+  }
+ },
+ "version": 0.4
+}

@@ -54,6 +54,12 @@ class MossPromptCompiler(_Shell):
     _V1_NAME = "MossPromptCompiler"
 
 
+class MossStoryboardFaceSwap(_Shell):
+    """MOSS Storyboard Face Swap：参考图身份 → 某一格（或整图）。"""
+    _V1_NAME = "MossStoryboardFaceSwap"
+
+
 #: 注册清单（唯一真相源；`__init__.py` 的加载摘要也从这里数）。
 NODES = [MossLayoutEditor, MossStoryboardLayout, MossStoryboardSampler,
-         MossStoryboardCrop, MossStoryboardPaste, MossPromptCompiler]
+         MossStoryboardCrop, MossStoryboardPaste, MossPromptCompiler,
+         MossStoryboardFaceSwap]

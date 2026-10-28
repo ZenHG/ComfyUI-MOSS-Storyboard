@@ -11,7 +11,7 @@
 - 只有真正要画像素 / 采样时才拉 torch 与宿主 API。
 """
 
-__all__ = ["layout", "prompt", "pixels", "sampling"]
+__all__ = ["layout", "prompt", "pixels", "sampling", "refimage", "faceswap"]
 
 
 def __getattr__(name):

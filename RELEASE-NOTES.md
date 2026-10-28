@@ -19,6 +19,32 @@
 
 ---
 
+## 0.3.0 — 2026-10-28
+
+**第 7 个节点：换脸。**
+
+- 🆕 「🎬 故事板 · 换脸」把参考图的脸换到**一格**（或一张单图）。参考图决定「是谁」，源图加提示词决定「画什么」。
+- 🆕 接了 `spec` 就只换那一格：其余格、缝、外边距**一个像素都不动**（实测目标格之外 `max|Δ| = 0`）。
+- 🔴 参考图分辨率预算默认 `1.05`（约 1024²）。宿主默认的 `0.147` 那个值下参考图几乎不起作用（实测身份余弦 `0.008`）。
+- 🔴 `denoise` 在 8 步下 `0.875~0.99` **全部等于 `1.0`**：源图被丢弃、构图来自提示词。想保住原构图要 `≤0.875`。`report` 打印实际生效值。
+- ⚠ 「已知边界」那条改了：以前写「也不做换脸」，现在写「不承诺身份一致性；给的是工具，不是保证」。
+
+**升级动作**：老工作流不用动。要换脸就把两个 LoRA（8 步 DMD2 → Moss-Image-Edit）串在模型前面，照 `examples/moss-faceswap-ui.json` 接。
+
+<!-- EN -->
+
+**Seventh node: face swap.**
+
+- 🆕 "🎬 Storyboard · Face Swap" puts the face from a reference image into **one panel** (or a single image). The reference decides **who**; the source image plus the prompt decide **what is drawn**.
+- 🆕 With `spec` connected only that panel changes: every other panel, the gutters and the margins stay **pixel-identical** (measured `max|Δ| = 0` outside the target cell).
+- 🔴 The reference-image budget defaults to `1.05` (about 1024 squared). At the host default of `0.147` the reference barely registers (measured identity cosine `0.008`).
+- 🔴 `denoise` between `0.875` and `0.99` **all behaves as `1.0` at 8 steps**: the source image is discarded and composition comes from the prompt. Use `≤0.875` to keep the source composition. `report` prints the value that really took effect.
+- ⚠ One "known limits" line changed: it used to say "no face swap"; it now says "no identity guarantee — a tool, not a promise".
+
+**Action required**: existing workflows need no change. To swap faces, chain the two LoRAs (8-step DMD2, then Moss-Image-Edit) in front of the model and follow `examples/moss-faceswap-ui.json`.
+
+---
+
 ## 0.2.3 — 2026-10-28
 
 **逐格不再交出空 latent；稿子与宫格对不上时，采样前就报错。**
