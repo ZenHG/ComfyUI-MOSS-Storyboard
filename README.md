@@ -736,7 +736,7 @@ Consequence: earlier write-ups that reported "`0.4633` = 68 % of the way to the 
 
 Measured production shape: **swap once, then derive every scene from that result in a star** (`denoise 0.88`), never chain scene-to-scene — face width held at 0.191–0.206 across four scenes and identity did not decay. About 22 s per panel at 8 steps.
 
-**Licensing.** The vision-budget behaviour follows the host's public `TextEncodeMOSSImageEdit` contract, but the implementation here is written independently against ComfyUI's public API — no GPL source was copied. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+**Licensing.** The vision-budget behaviour follows the host's public `TextEncodeMOSSImageEdit` contract, but the implementation here is written independently against ComfyUI's public API — no GPL source was copied. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md), and [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) for why this node could join an MIT pack while the community `HiRes` encoder could not.
 
 Example: `examples/moss-faceswap-ui.json` — 4-panel board in, panel 0 swapped, board out.
 
@@ -843,7 +843,8 @@ Selected deep dives live in the GitHub repo's [`docs/`](https://github.com/ZenHG
 [`12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) elements-v1 interchange ·
 [`13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) official prompt-enhancer bridge ·
 [`14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) top-level design: what each of the seven nodes owns ·
-[`15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) recipe contract: what a verified recipe must contain.
+[`15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) recipe contract: what a verified recipe must contain ·
+[`16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) face swap, before and after: what changed and what deliberately did not.
 Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) · release history: [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md).
 
 `docs/`, `CHANGES.md` and `RELEASE-NOTES.md` are not shipped in the install package (see `.comfyignore`); the links above point to the GitHub repo.

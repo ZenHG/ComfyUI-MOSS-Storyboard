@@ -916,7 +916,9 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 
 **许可边界。** 参考图的像素预算行为按宿主 `TextEncodeMOSSImageEdit` 的**公开契约**实现，
 代码是对 ComfyUI 公开 API 的独立编写，**没有复制任何 GPL 源码**。
-出处与声明见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)。
+出处与声明见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)；
+「为什么这个节点能进 MIT 包、而社区那个 HiRes 编码节点不能」见
+[`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md)。
 
 示例：`examples/moss-faceswap-ui.json`——4 格宫格进，换第 0 格，出整张宫格。
 
@@ -1090,6 +1092,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) | 官方提示词 skill 的草稿格式、编译规则、置信度与未测项 |
 | [`docs/14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) | 顶层设计：七个节点各管什么、面板/元素/角色三种语义、提示词透明与占位守卫的判据 |
 | [`docs/15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) | 配方契约：验证过的配方里哪些项是必需的（网格声明 / 段数=格数 / 自检命令） |
+| [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) | 换脸节点重构前后：变了什么、什么故意不变、为什么这次能进 MIT 包 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
 
