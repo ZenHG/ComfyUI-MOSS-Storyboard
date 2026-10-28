@@ -28,6 +28,9 @@
 - 🔴 布局编辑器多一个输出 `negative`：只在单张模式且开了「融合成一张」时非空，宫格模式恒为空串；老接线按位置接，不受影响。
 - 🆕 编辑器加「融合成一张」（单张模式）：相邻框自动并缝、小边距贴边，summary 追加「整张连续画面」。
 - 🆕 布局节点可选 `char_boxes`（如 `1, 3`）：把指定格标成人物框。
+- 🆕 编辑器：描述框随内容长高；画布与下半区可拖拽分栏（双击复位）。
+- 🆕 外接提示词接线时，「最终提示词」显示合并后的真实结果。
+- 修：在编辑器内滚轮不再缩放画布。
 - 接 `spec` 后本节点的格数/单格长边/缝宽/外边距不生效，report 第一行写明几何来源。
 
 **升级动作**：从 Manager 更新到 0.2.3，重启并刷新浏览器（F5）。已有工作流无需改动；只依赖「逐格 latent 为空」的自定义接线要改。
@@ -41,6 +44,9 @@
 - 🔴 The layout editor has a 7th output, `negative`. It is non-empty only in single-canvas mode with blending on; in grid mode it is always empty. Existing links are positional and unaffected.
 - NEW "blend into one image" switch (single-canvas mode): adjacent boxes close their gaps, small margins snap to the edges, and the summary gains a "one continuous image" clause.
 - NEW optional `char_boxes` on the layout node (e.g. `1, 3`) marks the named panels as character boxes.
+- NEW Editor: caption box grows with text; drag the divider to resize (double-click resets).
+- NEW With a wired prompt, Final prompt shows the merged text.
+- Fixed: the wheel inside the editor no longer zooms the canvas.
 - With `spec` wired in, this node's panel count, panel edge, gutter and margin do not apply; the report's first line says where the geometry came from.
 
 **Action required**: Update to 0.2.3 from the Manager, restart ComfyUI and hard-refresh the browser (F5). Existing workflows need no changes; only custom wiring that relied on the empty per-panel latent must be updated.

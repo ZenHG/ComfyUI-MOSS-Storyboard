@@ -397,6 +397,17 @@ Outputs (7): `prompt` `width` `height` `spec` `template` `report` `negative`
 | Input | Notes |
 |---|---|
 | `editor_state` | **Do not type here.** This is the canvas save file and it updates itself. Hand-editing works, but it must be valid v3 JSON; a bad field is rejected and the error names the field |
+| `prompt` | Optional, wired. Takes over the **text** only: the global description plus each panel's caption and shot size. See below |
+
+**What happens when you wire an external prompt**
+
+- Panels covered by the wired script lose the editor caption (including preset copy), and the caption field becomes read-only. Unplug to edit by hand again.
+- Fewer segments than panels: the remaining panels keep the editor caption. More segments than panels: the extras are dropped. No `[PANEL n]` at all: only the global description changes.
+- A segment with no shot size does not inject one for that panel.
+- **Canvas, panel count and panel coordinates always come from the editor.** The wired script cannot change geometry.
+- Single mode has no panels, so the wired script only takes the global description.
+
+The **Final prompt** box shows the **merged** result — exactly what gets sent. If the upstream node computes its text at runtime, the box says so instead of pretending the editor content is final.
 
 Two modes, switched by preset:
 

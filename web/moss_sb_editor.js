@@ -114,6 +114,7 @@ export const STR = {
     height: { zh: "高", en: "H" },
     label: { zh: "类型", en: "Type" },
     caption: { zh: "描述", en: "Caption" },
+    captionExt: { zh: "描述（外接稿，只读）", en: "Caption (from the wired script, read-only)" },
     captionPh: { zh: "这个元素长什么样（不是要渲染的字）", en: "What it looks like (not the rendered text)" },
     captionPhGrid: { zh: "这一格拍什么：主体 + 动作 + 空间（宫格只用这一段）", en: "What this panel shows: subject + action + space (the only text grid mode compiles)" },
     text: { zh: "文字", en: "Text" },
@@ -148,6 +149,7 @@ export const STR = {
     duplicate: { zh: "复制元素", en: "Duplicate" },
     center: { zh: "居中", en: "Center" },
     help: { zh: "帮助", en: "Help" },
+    splitTip: { zh: "拖动调整下半区高度（双击复位）", en: "Drag to resize the lower pane (double-click to reset)" },
     undo: { zh: "撤销", en: "Undo" },
     redo: { zh: "重做", en: "Redo" },
     moveUp: { zh: "上移", en: "Raise" },
@@ -220,6 +222,8 @@ export const STR = {
     warnPhText: { zh: "文字仍是预设文案：会被逐字画进图里", en: "text is still the preset copy: it will be drawn letter by letter" },
     warnPhCaption: { zh: "描述仍是预设占位：写具体一点画面才不会雷同", en: "caption is still a placeholder: make it specific or the panels look alike" },
     promptTitle: { zh: "最终提示词（原样发给模型）", en: "Final prompt (sent to the model as-is)" },
+    promptTitleExt: { zh: "最终提示词（外接稿已合并）", en: "Final prompt (wired script merged in)" },
+    promptTitleStale: { zh: "编辑器内容（外接稿接线后会被替换）", en: "Editor content (the wired script will replace it)" },
     copyPrompt: { zh: "复制", en: "Copy" },
     promptApply: { zh: "应用", en: "Apply" },
     promptRevert: { zh: "还原", en: "Revert" },
@@ -230,6 +234,34 @@ export const STR = {
     extWired: {
         zh: "描述来自外接提示词（prompt 已接线）：断开连线即可手编",
         en: "Descriptions come from the wired prompt input; unplug it to edit by hand",
+    },
+    extTake: {
+        zh: "外接稿接管 {used}/{total} 格描述（共 {seg} 段）。",
+        en: "The wired script takes over {used}/{total} panel captions ({seg} segments).",
+    },
+    extRest: {
+        zh: "其余 {n} 格沿用编辑器描述。",
+        en: "The other {n} panel(s) keep the editor caption.",
+    },
+    extNoMark: {
+        zh: "外接稿里没有 [PANEL n] 分段：只接管全局描述，逐格描述仍用编辑器。",
+        en: "The wired script has no [PANEL n] blocks: only the global description is taken; panel captions stay.",
+    },
+    extSingle: {
+        zh: "单张模式没有分格：外接稿只接管全局描述，元素描述仍用编辑器。",
+        en: "Single mode has no panels: the wired script only takes the global description; element captions stay.",
+    },
+    extUnknown: {
+        zh: "上游内容要到运行时才确定，这里先显示编辑器内容；接线生效后会被它覆盖。",
+        en: "The upstream text is only known at runtime, so the editor content is shown here; the wired script replaces it.",
+    },
+    extEmpty: {
+        zh: "外接稿是空的：沿用编辑器内容。",
+        en: "The wired script is empty; the editor content is used.",
+    },
+    extRuleGeometry: {
+        zh: "画布、格数与每格坐标仍来自编辑器——外接稿只改文字。",
+        en: "Canvas, panel count and coordinates still come from the editor: the wired script changes text only.",
     },
     copyOk: { zh: "已复制", en: "Copied" },
     copyFail: { zh: "复制失败，请手动选中", en: "Copy failed — select the text manually" },
@@ -1220,6 +1252,7 @@ function ensureStyle() {
 .mossed-bar{display:flex;align-items:center;gap:6px;flex:0 0 auto;flex-wrap:wrap}
 .mossed-row{display:flex;align-items:center;gap:10px;flex:0 0 auto;flex-wrap:wrap}
 .mossed-field{display:flex;align-items:center;gap:4px;white-space:nowrap;color:var(--input-text,#ddd)}
+.mossed-field-col{flex-direction:column;align-items:stretch;gap:2px;width:100%;white-space:normal}
 .mossed-field-label{opacity:.7;font-size:11px}
 .mossed-root input[type=number],.mossed-root input[type=text],.mossed-root select,.mossed-root textarea{background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);border:1px solid var(--border-color,#4a4f59);border-radius:6px;padding:2px 5px;font:inherit;min-width:0;height:24px;box-sizing:border-box}
 .mossed-root textarea{height:auto;padding:5px 6px;line-height:1.4}
@@ -1229,7 +1262,7 @@ function ensureStyle() {
 .mossed-num{width:64px}
 .mossed-bbox{width:62px;font-variant-numeric:tabular-nums}
 .mossed-text,.mossed-palette{width:100%}
-.mossed-cap{width:100%;resize:vertical;min-height:38px}
+.mossed-cap{width:100%;resize:vertical;min-height:58px;max-height:190px}
 .mossed-btn{height:24px;border:1px solid var(--border-color,#4a4f59);background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);border-radius:6px;padding:0 9px;cursor:pointer;font:inherit;white-space:nowrap}
 .mossed-btn:hover{filter:brightness(1.22)}
 .mossed-btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
@@ -1250,7 +1283,7 @@ function ensureStyle() {
 .mossed-typedot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:0 0 auto;box-shadow:0 0 0 1px #0007,0 0 8px currentColor}
 .mossed-hintline{flex:0 0 auto;font-size:11px;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;margin-top:-3px}
 .mossed-note{font-size:10px;opacity:.6}
-.mossed-stage{position:relative;flex:1 1 auto;min-height:170px;display:flex;align-items:center;justify-content:center;background-color:#0f1115;background-image:radial-gradient(circle at 1px 1px,#ffffff0d 1px,transparent 0);background-size:16px 16px;border:1px solid #2a2f38;border-radius:8px;overflow:hidden}
+.mossed-stage{position:relative;flex:1 1 auto;min-height:180px;display:flex;align-items:center;justify-content:center;background-color:#0f1115;background-image:radial-gradient(circle at 1px 1px,#ffffff0d 1px,transparent 0);background-size:16px 16px;border:1px solid #2a2f38;border-radius:8px;overflow:hidden}
 .mossed-svg{width:100%;height:100%;display:block;touch-action:none;user-select:none;cursor:crosshair}
 .mossed-svg:focus{outline:none}
 .mossed-svg.mossed-gridmode{cursor:default}
@@ -1294,7 +1327,7 @@ function ensureStyle() {
 .mossed-help-note{font-size:11px;opacity:.65;border-top:1px solid #2a2f38;padding-top:6px}
 .mossed-status{flex:0 0 auto;font-size:11px;opacity:.68;min-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .mossed-status-warn{color:#f0b35a;opacity:1}
-.mossed-prop{flex:0 1 auto;height:218px;max-height:218px;overflow:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
+.mossed-prop{flex:1 1 auto;height:auto;min-height:0;max-height:none;overflow:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f38;padding-top:7px}
 .mossed-empty{opacity:.6;font-size:11px;padding:6px 2px}
 .mossed-empty[hidden]{display:none}
 .mossed-form{display:flex;flex-direction:column;gap:6px}
@@ -1309,11 +1342,15 @@ function ensureStyle() {
 .mossed-prompt[hidden]{display:none}
 .mossed-prompt-head{display:flex;align-items:center;gap:6px;font-size:10px;opacity:.75}
 .mossed-prompt-head span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mossed-root textarea.mossed-prompt-text{margin:0;width:100%;box-sizing:border-box;height:150px;min-height:110px;max-height:46vh;resize:vertical;overflow:auto;overscroll-behavior:contain;padding:6px 8px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.mossed-root textarea.mossed-prompt-text{margin:0;width:100%;box-sizing:border-box;height:160px;min-height:110px;max-height:38vh;resize:vertical;overflow:auto;overscroll-behavior:contain;padding:6px 8px;border-radius:6px;border:1px solid #2a2f38;background:#10141a;color:#c9d4e2;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .mossed-root textarea.mossed-prompt-text[readonly]{opacity:.85}
+.mossed-split{flex:0 0 7px;position:relative;cursor:row-resize;touch-action:none;border-radius:4px}
+.mossed-split::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:3px;margin:-1.5px 0 0 -22px;border-radius:2px;background:#4a5566;opacity:.55}
+.mossed-split:hover::after,.mossed-split.mossed-dragging::after{background:#f0b35a;opacity:1}
+.mossed-bottom{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;min-width:0;min-height:170px;height:var(--mossed-bottom,440px);max-height:calc(100% - 240px);overflow:hidden}
 .mossed-root input.mossed-sizein{flex:1 1 140px;min-width:120px}
 .mossed-extnote{color:#8fd0ff;opacity:1}
-.mossed-prompt-note{font-size:10px;opacity:.6;line-height:1.4}
+.mossed-prompt-note{font-size:10px;opacity:.6;line-height:1.4;white-space:pre-line}
 `;
         (document.head || document.documentElement).appendChild(st);
     } catch (e) { /* 样式注入失败不影响功能 */ }
@@ -1332,6 +1369,19 @@ function s(tag, attrs) {
     return el;
 }
 
+/** 描述框按内容长高（约 2–7 行），超出才在框内滚动。 */
+function growCaption(ta) {
+    if (!ta || !ta.isConnected || ta.offsetParent === null) return;
+    const cs = getComputedStyle(ta);
+    const lh = parseFloat(cs.lineHeight) || 18;
+    const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const max = lh * 7 + pad;
+    ta.style.height = "auto";
+    const need = ta.scrollHeight;
+    ta.style.height = `${Math.min(need, max)}px`;
+    ta.style.overflowY = need > max + 1 ? "auto" : "hidden";
+}
+
 /** 从事件目标往上找第一个可纵向滚动的祖先（最终提示词 / 属性面板）。 */
 function scrollableFrom(node) {
     let n = node instanceof Element ? node : null;
@@ -1345,23 +1395,59 @@ function scrollableFrom(node) {
     return null;
 }
 
+/** 把滚轮折成像素（行 / 页模式按 16px 与可视高度换算）。 */
+function wheelScroll(node, e) {
+    const sc = scrollableFrom(node);
+    if (!sc) return false;
+    const unit = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? sc.clientHeight : 1);
+    sc.scrollTop += e.deltaY * unit;
+    sc.scrollLeft += e.deltaX * unit;
+    return true;
+}
+
+let wheelGuardOn = false;
+
+/**
+ * 宿主在画布外层的 transform pane 上挂了 **capture** 阶段的 `onWheelCapture`
+ * （`GraphView` → `forwardEventToCanvas`），它比节点里任何监听都早 ⇒ 在节点内
+ * `stopPropagation()` 拦不住，滚文本框会缩放整个画布。
+ *
+ * 唯一能抢在它前面的位置是 window 的 capture。这里按目标过滤，只处理编辑器内部；
+ * 滚轮一律就地消化：能滚的区域自己滚，不能滚的也不外泄（否则又是缩放）。
+ * Ctrl/Cmd + 滚轮是宿主的画布缩放手势，放行。
+ */
+function installWheelGuard() {
+    if (wheelGuardOn) return;
+    wheelGuardOn = true;
+    const onWheel = (e) => {
+        const tgt = e.target;
+        if (!(tgt instanceof Element) || !tgt.closest(".mossed-root")) return;
+        if (e.ctrlKey || e.metaKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        wheelScroll(tgt, e);
+    };
+    try {
+        globalThis.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    } catch (e) { /* 无 window：节点内还有一层兜底 */ }
+}
+
 function mountRoot() {
     const root = h("div", "mossed-root");
-    // 编辑器吃掉指针/滚轮事件：否则拖框会拖动整个节点、滚文本会缩放画布
+    // 宿主自己的判定：目标在 [data-capture-wheel="true"] 内且焦点也在其中时不转发滚轮。
+    // 与下面的 window capture 双保险（有的前端版本 capture 顺序不同）。
+    root.setAttribute("data-capture-wheel", "true");
+    // 编辑器吃掉指针事件：否则拖框会拖动整个节点
     for (const ev of ["pointerdown", "mousedown", "dblclick", "click", "keydown"]) {
         root.addEventListener(ev, (e) => e.stopPropagation());
     }
-    // 滚轮单独处理：宿主把 wheel 当画布缩放，节点内必须先截住；
-    // 可滚动区域（最终提示词 / 属性面板）自己滚，滚到头也不外泄。
+    // 节点内兜底（window capture 失效时仍不至于缩放画布）
     root.addEventListener("wheel", (e) => {
         e.stopPropagation();
-        const sc = scrollableFrom(e.target);
-        if (!sc) return;
-        const step = e.deltaMode === 1 ? 16 : 1;
-        sc.scrollTop += e.deltaY * step;
-        sc.scrollLeft += e.deltaX * step;
-        e.preventDefault();
+        if (!wheelScroll(e.target, e)) e.preventDefault();
     }, { passive: false });
+    installWheelGuard();
     return root;
 }
 
@@ -1530,6 +1616,16 @@ function buildUI() {
     status.setAttribute("aria-live", "polite");
     root.appendChild(status);
 
+    // 画布 ↔ 下半区（最终提示词 + 属性面板）之间的拖拽分隔条：
+    // 默认 440px，双击复位。写描述时把下半区拉大，摆框时拉小。
+    const split = h("div", "mossed-split");
+    split.title = t("splitTip");
+    split.setAttribute("role", "separator");
+    split.setAttribute("aria-orientation", "horizontal");
+    root.appendChild(split);
+    const bottom = h("div", "mossed-bottom");
+    root.appendChild(bottom);
+
     // ---- 帮助浮层 -----------------------------------------------------
     const helpBox = h("div", "mossed-help");
     helpBox.hidden = true;
@@ -1569,9 +1665,12 @@ function buildUI() {
     form.appendChild(row1);
 
     const capTa = h("textarea", "mossed-cap");
-    capTa.rows = 2;
+    capTa.rows = 3;
     capTa.placeholder = t("captionPh");
-    form.appendChild(field(t("caption"), capTa));
+    const capField = field(t("caption"), capTa);
+    // 标签放上面，描述框吃满整行宽（横排时标签会吃掉几十像素）
+    capField.classList.add("mossed-field-col");
+    form.appendChild(capField);
 
     const textRow = h("div", "mossed-row");
     const textIn = h("input", "mossed-text");
@@ -1677,15 +1776,13 @@ function buildUI() {
     const promptTa = h("textarea", "mossed-prompt-text");
     promptTa.spellcheck = false;
     promptTa.rows = 6;
-    // 宿主若按属性判断是否接管滚轮，这个标记让它别抢
-    promptBox.setAttribute("data-capture-wheel", "false");
     promptBox.append(promptHead, extNote, promptNote, promptTa);
-    // 挂 root 而非属性面板：面板只有 218px 且自带滚动，塞进去就看不见（实测被挤到框外）
-    root.appendChild(promptBox);
-    root.appendChild(panel);
+    // 独立成一块：塞进属性面板会和「描述」抢那点高度（实测被挤到框外）
+    bottom.appendChild(promptBox);
+    bottom.appendChild(panel);
 
     return {
-        root, bar, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
+        root, bar, split, bottom, presetSel, applyBtn, chip, spacer, undoBtn, redoBtn, helpBtn, helpBox, presetHint,
         importBtn, exportBtn, queueBtn, fileIn, notice,
         gridNote, promptBox, promptTitle, promptNote, promptTa, extNote, copyBtn,
         applyPromptBtn, revertPromptBtn, promptDirty: false,
@@ -1695,7 +1792,7 @@ function buildUI() {
         canvasRow, canvasPresetSel, wIn, hIn, aspectChip, blendWrap, blendIn,
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
         fatalBox: fatal, status, panel,
-        empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, capTa, textRow, textIn,
+        empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, capTa, capField, textRow, textIn,
         palIn, swatches, boxRow, bx, centerBtn, upBtn, downBtn, alignBtns,
         gridOnly, sizeSel, sizeIn, sizeCustomOp, sizeNoneOp, noChip, warn,
     };
@@ -1979,7 +2076,7 @@ function syncStatic(ui) {
     ui.applyPromptBtn.title = t("promptApply");
     ui.revertPromptBtn.textContent = t("promptRevert");
     ui.revertPromptBtn.title = t("promptRevert");
-    ui.promptTitle.textContent = t("promptTitle");
+    // 标题归 syncPrompt：接线与否标题不同，这里不能覆盖
 
     const helpTitle = ui.helpBox.querySelector(".mossed-help-title");
     const helpKeys = ui.helpBox.querySelector(".mossed-help-keys");
@@ -2107,6 +2204,12 @@ function syncPanel(ui, force) {
     ui.canvasRow.hidden = !!isGrid;
     if (!it) return;
 
+    // 接线时描述框显示"真正会用到的"那句（外接稿覆盖后），并标成只读来源
+    const wired = externalWired(ui);
+    const capLabel = ui.capField?.querySelector(".mossed-field-label");
+    if (capLabel) capLabel.textContent = t(wired ? "captionExt" : "caption");
+    const wiredCap = wired ? wiredCaptionFor(ui, it) : null;
+
     ui.idChip.textContent = it.id;
     ui.typeDot.style.background = TYPE_COLORS[it.label] || "#9aa4b2";
     ui.typeDot.style.color = TYPE_COLORS[it.label] || "#9aa4b2";
@@ -2116,7 +2219,8 @@ function syncPanel(ui, force) {
     ui.downBtn.disabled = !!isGrid;
     for (const btn of Object.values(ui.alignBtns)) btn.disabled = !!isGrid;
     if (force || document.activeElement !== ui.labelSel) ui.labelSel.value = ITEM_LABELS.includes(it.label) ? it.label : "object";
-    if (force || document.activeElement !== ui.capTa) ui.capTa.value = it.caption || "";
+    if (wired || force || document.activeElement !== ui.capTa) ui.capTa.value = wiredCap ?? it.caption ?? "";
+    growCaption(ui.capTa);
     if (force || document.activeElement !== ui.textIn) ui.textIn.value = it.text || "";
     if (force || document.activeElement !== ui.palIn) {
         ui.palIn.value = Array.isArray(it.palette) ? it.palette.join(", ") : "";
@@ -2147,14 +2251,16 @@ function syncPanel(ui, force) {
     });
 
     renderSwatches(ui, it);
+    // 接线时校验"实际会用到的"描述，否则会对着被覆盖的旧值报「描述为空」
+    const effCap = wiredCap ?? it.caption;
     const warns = [];
-    if (typeof it.caption !== "string" || isBlank(it.caption)) warns.push(t("warnCaption"));
+    if (typeof effCap !== "string" || isBlank(effCap)) warns.push(t("warnCaption"));
     if (it.label === "text" && (typeof it.text !== "string" || isBlank(it.text))) warns.push(t("warnText"));
     if (!ITEM_LABELS.includes(it.label)) warns.push(t("warnUnknownLabel"));
     if (Array.isArray(it.palette) && (it.palette.length > 5 || it.palette.some((c) => !isHex(c)))) {
         warns.push(t("warnPalette"));
     }
-    for (const f of findPlaceholders({ preset: ui.state.preset, items: [it] })) {
+    for (const f of findPlaceholders({ preset: ui.state.preset, items: [{ ...it, caption: effCap }] })) {
         warns.push(f.kind === "render" ? t("warnPhText") : t("warnPhCaption"));
     }
     ui.warn.textContent = warns.join("；");
@@ -2164,6 +2270,82 @@ function syncPanel(ui, force) {
 function externalWired(ui) {
     const inp = (ui.node?.inputs || []).find((i) => i && i.name === "prompt");
     return !!(inp && inp.link != null);
+}
+
+function linkOriginId(graph, linkId) {
+    const links = graph?.links;
+    if (!links) return null;
+    let l = null;
+    if (Array.isArray(links)) l = links.find((x) => x && x.id === linkId) || links[linkId] || null;
+    else if (typeof links.get === "function") l = links.get(linkId);
+    else l = links[linkId];
+    if (!l) return null;
+    return Array.isArray(l) ? (l[1] ?? null) : (l.origin_id ?? null);
+}
+
+const LITERAL_WIDGETS = ["text", "string", "value", "prompt", "caption"];
+
+/** 字面量节点的值；取不到就是取不到，不猜。 */
+function literalString(node) {
+    const ws = (node.widgets || []).filter((w) => w && typeof w.value === "string");
+    if (ws.length === 1) return ws[0].value.trim() ? ws[0].value : null;
+    for (const name of LITERAL_WIDGETS) {
+        const w = ws.find((x) => x.name === name);
+        if (w && w.value.trim()) return w.value;
+    }
+    return null;
+}
+
+/**
+ * `prompt` 上游那段文本 —— 只在它是「字面量源节点」（没有输入连线）时取得到。
+ * 有输入连线的节点，输出是运行时算出来的（例如草稿编译），前端看不到 ⇒ 返回 null，
+ * 由界面明说"运行时才确定"，而不是拿节点上的草稿冒充最终值。
+ */
+function upstreamPromptText(ui) {
+    const inp = (ui.node?.inputs || []).find((i) => i && i.name === "prompt");
+    if (!inp || inp.link == null) return null;
+    const graph = ui.node.graph;
+    if (!graph?.getNodeById) return null;
+    let id = linkOriginId(graph, inp.link);
+    for (let hop = 0; hop < 6 && id != null; hop += 1) {
+        const src = graph.getNodeById(id);
+        if (!src) return null;
+        const tname = String(src.type || "");
+        if (tname === "Reroute" || tname === "RerouteNode") {
+            const first = (src.inputs || [])[0];
+            id = first && first.link != null ? linkOriginId(graph, first.link) : null;
+            continue;
+        }
+        if ((src.inputs || []).some((i) => i && i.link != null)) return null;
+        const out = (src.outputs || [])[0];
+        if (out && out.type && out.type !== "STRING") return null;
+        return literalString(src);
+    }
+    return null;
+}
+
+/** 外接稿接管了哪些格：与后端 `core/intake.py` 同一口径，逐条说清。 */
+function mergeNote(res, st) {
+    const total = (st.items || []).length;
+    if (st.preset !== "grid") return t("extSingle");
+    if (!res.segments) return t("extNoMark");
+    const lines = [t("extTake").replace("{used}", String(res.used))
+        .replace("{total}", String(total)).replace("{seg}", String(res.segments))];
+    if (res.used < total) lines.push(t("extRest").replace("{n}", String(total - res.used)));
+    if (res.dropped) lines.push(t("promptDropped").replace("{n}", String(res.dropped)));
+    lines.push(t("extRuleGeometry"));
+    return lines.join("\n");
+}
+
+/** 接线时这一格"真正会用到的"描述（外接稿覆盖后）；取不到返回 null。 */
+function wiredCaptionFor(ui, it) {
+    if (!ui.state || !externalWired(ui)) return null;
+    const ext = upstreamPromptText(ui);
+    if (!ext || !ext.trim()) return null;
+    const res = applyStoryboardText(ui.state, ext);
+    if (res.empty) return null;
+    const hit = (res.state.items || []).find((x) => x && x.id === it.id);
+    return hit && typeof hit.caption === "string" ? hit.caption : null;
 }
 
 function syncPrompt(ui, force) {
@@ -2176,18 +2358,41 @@ function syncPrompt(ui, force) {
     }
     const isGrid = st.preset === "grid";
     ui.promptBox.hidden = false;
-    ui.promptTitle.textContent = t("promptTitle");
-    ui.promptNote.hidden = !isGrid;
-    ui.promptNote.textContent = t("gridPromptHint");
+
+    // 外接稿接线时，这里必须显示"真正会发出去的那段"，否则这个标题就是在说谎：
+    // 后端 build() 先 apply_to_state 再 compile，编辑器只编译 state ⇒ 两者会不一致。
+    const wired = externalWired(ui);
+    const ext = wired ? upstreamPromptText(ui) : null;
+    ui.extText = ext;
+
+    let text = compileFinalPrompt(st);
+    let title = t("promptTitle");
+    let note = isGrid ? t("gridPromptHint") : "";
+
+    if (wired) {
+        const res = ext && ext.trim() ? applyStoryboardText(st, ext) : null;
+        if (res && !res.empty) {
+            text = compileFinalPrompt(res.state);
+            title = t("promptTitleExt");
+            note = mergeNote(res, st);
+        } else {
+            title = t("promptTitleStale");
+            note = ext === null ? t("extUnknown") : t("extEmpty");
+        }
+    }
+
+    ui.promptTitle.textContent = title;
+    ui.promptNote.hidden = !note;
+    ui.promptNote.textContent = note;
     // 单张模式的最终提示词是布局 JSON：手改不如直接改框，这里只读
-    ui.promptTa.readOnly = !isGrid;
-    ui.applyPromptBtn.hidden = !isGrid;
-    ui.revertPromptBtn.hidden = !isGrid;
-    const text = compileFinalPrompt(st);
+    ui.promptTa.readOnly = wired || !isGrid;
+    // 接线时的文本是"预览"不是"可应用的外接稿"：应用/还原一律收起
+    ui.applyPromptBtn.hidden = wired || !isGrid;
+    ui.revertPromptBtn.hidden = wired || !isGrid;
+    if (wired) ui.promptDirty = false;
     if ((force || !ui.promptDirty) && ui.promptTa.value !== text) ui.promptTa.value = text;
     ui.applyPromptBtn.disabled = !ui.promptDirty;
     ui.revertPromptBtn.disabled = !ui.promptDirty;
-    const wired = externalWired(ui);
     ui.extNote.hidden = !wired;
     if (wired) ui.extNote.textContent = t("extWired");
     ui.capTa.readOnly = wired;
@@ -2726,8 +2931,58 @@ function onKeyDown(ui, ev) {
 // ---------------------------------------------------------------------------
 // 事件接线
 // ---------------------------------------------------------------------------
+const BOTTOM_DEFAULT = 440;
+const BOTTOM_STORE = "mosssb.bottom";
+const BOTTOM_MIN = 170;
+
+/** 下半区高度：拖动分隔条 / 双击复位 / 记住上次（localStorage，仅本机 UI 偏好）。 */
+function wireSplit(ui) {
+    const sp = ui.split;
+    const box = ui.bottom;
+    if (!sp || !box) return;
+    let startY = 0;
+    let startH = 0;
+    let dragging = false;
+    const limit = () => Math.max(BOTTOM_MIN, (ui.root.getBoundingClientRect().height || 780) - 240);
+
+    sp.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragging = true;
+        startY = e.clientY;
+        startH = box.getBoundingClientRect().height || BOTTOM_DEFAULT;
+        sp.classList.add("mossed-dragging");
+        try { sp.setPointerCapture(e.pointerId); } catch (err) { /* 老前端 */ }
+    });
+    sp.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        e.stopPropagation();
+        const h = clamp(startH - (e.clientY - startY), BOTTOM_MIN, limit());
+        ui.root.style.setProperty("--mossed-bottom", `${Math.round(h)}px`);
+    });
+    const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        sp.classList.remove("mossed-dragging");
+        try { sp.releasePointerCapture(e.pointerId); } catch (err) { /* 老前端 */ }
+        try { localStorage.setItem(BOTTOM_STORE, ui.root.style.getPropertyValue("--mossed-bottom")); } catch (err) { /* 隐私模式 */ }
+    };
+    sp.addEventListener("pointerup", endDrag);
+    sp.addEventListener("pointercancel", endDrag);
+    sp.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        ui.root.style.removeProperty("--mossed-bottom");
+        try { localStorage.removeItem(BOTTOM_STORE); } catch (err) { /* 隐私模式 */ }
+    });
+    try {
+        const saved = localStorage.getItem(BOTTOM_STORE);
+        if (saved && /^\d+(?:\.\d+)?px$/.test(saved)) ui.root.style.setProperty("--mossed-bottom", saved);
+    } catch (err) { /* 隐私模式 */ }
+}
+
 function wire(ui) {
-    ui.presetSel.addEventListener("change", () => {
+    wireSplit(ui);    ui.presetSel.addEventListener("change", () => {
         if (!ui.state) return;
         applyPreset(ui, ui.presetSel.value, false);
     });
@@ -2986,6 +3241,7 @@ function wire(ui) {
         const it = selectedItem(ui);
         if (!it) return;
         it.caption = ui.capTa.value;
+        growCaption(ui.capTa);
         commit(ui, "caption:" + it.id);
     });
     ui.textIn.addEventListener("input", () => {
@@ -3100,7 +3356,7 @@ function mount(node) {
             hideOnZoom: false,
             // ⚠ 不要同时给 getMinHeight：宿主 computeLayoutSize 会优先用 min，
             // 忽略 getHeight，编辑器只能分到剩余空间（实测会被压到 ~450px）。
-            getHeight: () => 700,
+            getHeight: () => 780,
             getMaxHeight: () => 2000,
         });
     } catch (e) {
@@ -3123,7 +3379,7 @@ function mount(node) {
     node.__mossedUI = ui;
 
     try {
-        node.setSize?.([Math.max(node.size?.[0] || 0, 620), Math.max(node.size?.[1] || 0, 800)]);
+        node.setSize?.([Math.max(node.size?.[0] || 0, 680), Math.max(node.size?.[1] || 0, 880)]);
     } catch (e) { /* 尺寸设不了不影响功能 */ }
 
     wire(ui);
@@ -3136,11 +3392,11 @@ function mount(node) {
         try { loadFromWidget(ui, true); syncStatic(ui); } catch (e) { /* 单节点失败 */ }
         return r;
     };
-    // 接/拔外接提示词时要立刻改提示语与只读态，不能等下一次 commit
+    // 接/拔外接提示词时要立刻改提示语、只读态与描述框里的取值，不能等下一次 commit
     const origConn = node.onConnectionsChange;
     node.onConnectionsChange = function onConnectionsChange() {
         const r = origConn?.apply(this, arguments);
-        try { syncPrompt(ui); } catch (e) { /* 老前端没有该事件 */ }
+        try { syncPrompt(ui); syncPanel(ui, true); } catch (e) { /* 老前端没有该事件 */ }
         return r;
     };
     return true;
@@ -3171,6 +3427,11 @@ function guard() {
                 raw = v == null ? "" : (typeof v === "string" ? v : JSON.stringify(v));
             } catch (e) { continue; }
             if (raw !== ui.raw) loadFromWidget(ui, true);
+            // 上游文本节点改了值不会触发本节点事件：轮询对比一次，提示词预览要跟手
+            if (externalWired(ui)) {
+                const ext = upstreamPromptText(ui);
+                if (ext !== ui.extText) { ui.extText = ext; syncPrompt(ui); syncPanel(ui, false); }
+            }
         }
     } catch (e) { /* 这一轮跳过 */ }
 }
