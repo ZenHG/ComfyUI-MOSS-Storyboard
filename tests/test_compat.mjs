@@ -10,8 +10,10 @@
 //   ③ 多一格 ⇒ 删掉多余的那个
 //   ④ 差得太多 ⇒ 不猜
 //   ⑤ 类型口径：下拉认选项、数字认 number、开关认 boolean、文本认 string
+//   ⑥ 存盘清理：serialize:false 的 DOM 组件不占存档格子（否则每存一次差一格）
 
-import { repairValues, widgetSpec, valueOk } from "../web/moss_sb_widget_order.js";
+import { dropVirtual, installSaveCleanup, isVirtualWidget, repairValues, widgetSpec, valueOk }
+    from "../web/moss_sb_widget_order.js";
 
 let pass = 0;
 const fails = [];
@@ -163,6 +165,43 @@ const messup = correct.slice();
 messup[10] = "nope";
 messup[21] = "zzz";
 check("等长且坏两个值但无一致错位 ⇒ 不猜", repairValues(messup, w) === null);
+
+// ---------- 存盘清理：DOM 组件（serialize:false）不该占存档格子 ----------
+// 实测（前端 1.57.4）：serialize() 不认 serialize:false，每个 DOM 组件都写一格 ""，
+// 而它们是 configure 之后才挂的 ⇒ 存 n 项 / 载入时 n-1 个 widget。
+const dom = (name) => ({ name, type: "custom", value: "", element: {}, options: { serialize: false } });
+const three = [W("editor_state", "text", "{}"), dom("mosssb_i18n_bar"), dom("mosssb_editor_ui")];
+const savedThree = ["{}", "", ""];
+const dropped = dropVirtual(savedThree, three);
+check("三个 widget（两个 DOM 组件）⇒ 只留真值", dropped.length === 1 && dropped[0] === "{}",
+    JSON.stringify(dropped));
+check("不修改入参数组（调用方可能还在用）", savedThree.length === 3 && savedThree[2] === "");
+const plain = ["a", 1];
+const same = dropVirtual(plain, [W("a", "text", ""), W("n", "number", 1)]);
+check("无虚拟 widget ⇒ 返回同一个数组实例", same === plain);
+check("长度对不上就不动（下标不可靠）",
+    dropVirtual(["{}", ""], three).length === 2);
+// 🔴 负对照：宿主的 control_after_generate 也标了 serialize:false，但它的值**要进存档**。
+// 按标记一刀切会把它删掉 ⇒ 重新打开少一格，接着整条右移（2026-10-28 真机用例抓到的）。
+const ctl = { name: "control_after_generate", type: "combo", value: "fixed", options: { serialize: false } };
+const withCtl = [W("seed", "number", 1), ctl, dom("mosssb_i18n_bar")];
+check("control_after_generate 不算虚拟（没 element）", !isVirtualWidget(ctl));
+check("只剔语言条，control_after_generate 留着", dropVirtual([1, "fixed", ""], withCtl).length === 2,
+    JSON.stringify(dropVirtual([1, "fixed", ""], withCtl)));
+
+// 装钩子：只影响这个节点实例，重复装不会套两层
+const fake = {
+    widgets: three,
+    serialize() { return { widgets_values: ["{}", "", ""] }; },
+};
+check("装钩子成功", installSaveCleanup(fake) === true);
+const out1 = fake.serialize();
+check("装钩子后 serialize 剔掉两个 DOM 组件", out1.widgets_values.length === 1
+    && out1.widgets_values[0] === "{}", JSON.stringify(out1.widgets_values));
+check("重复装是空操作", installSaveCleanup(fake) === false && fake.serialize().widgets_values.length === 1);
+const passThrough = { widgets: three, serialize() { return { widgets_values: [] }; } };
+installSaveCleanup(passThrough);
+check("宿主没给 widgets_values 也不炸", passThrough.serialize().widgets_values.length === 0);
 
 console.log(`\n结果：通过 ${pass} / 失败 ${fails.length}`);if (fails.length) { for (const f of fails) console.log("  - " + f); process.exit(1); }
 process.exit(0);

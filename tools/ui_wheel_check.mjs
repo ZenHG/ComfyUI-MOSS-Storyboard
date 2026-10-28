@@ -213,8 +213,22 @@ async function runEngine(engine) {
         await page.waitForTimeout(400);
 
         // ---------- ⑥ 画布空白处 / 节点标题栏：宿主照常工作 ----------
+        // "空白处"不能写死坐标：编辑器节点一改尺寸/位置，写死的点就可能落进节点里，
+        // 于是滚轮被编辑器正常吃掉、断言却报"宿主不缩放"（2026-10-28 节点长高后三引擎同红）。
+        // 判据改成"elementFromPoint 命中的就是画布本身"——这才是真的空白。
+        const blank = await page.evaluate(() => {
+            const cv = globalThis.app.canvas.canvas;
+            const r = cv.getBoundingClientRect();
+            for (let y = Math.round(r.top) + 80; y < r.bottom - 60; y += 24) {
+                for (let x = Math.round(r.left) + 80; x < r.right - 60; x += 24) {
+                    if (document.elementFromPoint(x, y) === cv) return { x, y };
+                }
+            }
+            return null;
+        });
+        check("⑥ 存在一块真正的空白画布（未被节点/面板压住）", !!blank, JSON.stringify(blank));
         const v10 = await view(page);
-        await wheel(page, 900, 1150, { dy: -240 });
+        if (blank) await wheel(page, blank.x, blank.y, { dy: -240 });
         const v11 = await view(page);
         check("⑥ 空白画布上滚轮：画布照常缩放/平移", !same(v10, v11), `${fmt(v10)} → ${fmt(v11)}`);
 
@@ -227,6 +241,15 @@ async function runEngine(engine) {
         // 判据：命中可滚容器时**不能** preventDefault——一旦 preventDefault 就是我们在
         // 手算 scrollTop，原生惯性 / 行模式 / 小数 delta 全丢。
         // 这个探针注册在扩展之后，靠 stopPropagation（而非 stopImmediate）才能跑到。
+        // 先把视野复位：⑥ 的 Ctrl+滚轮会缩放画布，不复位的话下面按 ds=1 量到的坐标全偏。
+        await page.evaluate(() => {
+            const n = (globalThis.app.graph._nodes || []).find((x) => x.type === "MossLayoutEditor");
+            const ds = globalThis.app.canvas.ds;
+            ds.scale = 1;
+            ds.offset = [40 - n.pos[0], 40 - n.pos[1]];
+            globalThis.app.canvas.setDirty(true, true);
+        });
+        await page.waitForTimeout(300);
         await page.evaluate((s) => { document.querySelector(s).scrollTop = 0; }, ".mossed-root textarea.mossed-prompt-text");
         const probe = await wheelWithProbe(page, ta.cx, ta.cy, { dy: 200 });
         const t7 = await stats(page, ".mossed-root textarea.mossed-prompt-text");
@@ -295,7 +318,9 @@ async function runEngine(engine) {
         if (prop) {
             const p0 = await stats(page, ".mossed-root .mossed-prop");
             const v16 = await view(page);
-            await wheel(page, prop.x + prop.w - 12, prop.cy, { dy: 200 });
+            // 取面板**右上角**的空白处：面板中部现在压着描述框（它自己也能滚），
+            // 落在它上面测的就不是"面板空隙"了（2026-10-28 布局调整后第一次翻车在此）。
+            await wheel(page, prop.x + prop.w - 14, prop.y + 12, { dy: 200 });
             const p1 = await stats(page, ".mossed-root .mossed-prop");
             const v17 = await view(page);
             check("⑨ 滚轮在属性面板空隙上：面板滚了、画布不动",

@@ -15,19 +15,19 @@ python tests/test_planner.py              # 27 项：brief → elements 模板 /
 python tests/test_skill_draft.py          # 79 项：官方 prompt-enhancer 草稿 / 编译 / state / CLI（零 GPU）
 python tests/test_contract.py             # 142 项（--no-host，CI 口径）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
 python tests/test_cross_language.py       # 95 项：JS ↔ Python 预设/默认值/校验/elements/canvas/最终提示词/外接稿差分
-python tests/test_panel_assembly.py       # 19 项：逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
+python tests/test_panel_assembly.py       # 22 项：逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
-node   tests/test_compat.mjs              # 33 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
+node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
 python tools/smoke_nodes.py               # 58 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 6 份共 88 项：连线 + 槽位（不带文件参数只查内建那一份 = 15 项）
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
-python tools/check_editor_ui.py           # 148 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
+python tools/check_editor_ui.py           # 151 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 42 项：**发布前**开源卫生（凭据/路径/打包/元数据/发布说明/提交信息/临时产物/提交格式/SPDX）
 node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）
-node   tools/ui_wheel_check.mjs           # 每引擎 20 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
+node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 ```
 
 三个 `ui_*.mjs` 都是**真机**（要跑着的 ComfyUI，默认 `http://127.0.0.1:8188`，`--url` 可改）+ 本机 playwright-core 与 chromium。
