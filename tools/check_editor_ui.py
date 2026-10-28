@@ -569,6 +569,19 @@ def check_wiring(contract, src):
     check("W16 根节点声明 data-capture-wheel（宿主自带判定）",
           'setAttribute("data-capture-wheel", "true")' in src
           and 'data-capture-wheel", "false"' not in src)
+    # 跨平台/跨引擎：同一份 JS 要在 Chromium / Firefox / WebKit 上表现一致。
+    # 系统级差异只有三种输入形态（鼠标滚轮、触控板、捏合），这里逐条钉住。
+    check("W17 目标判定走 composedPath（shadow DOM 里 e.target 会被重定向到宿主）",
+          "function inEditor(e)" in src and "e.composedPath()" in src)
+    check("W18 滚轮按 deltaMode 三态换算 + Shift 横向（Chrome 给 deltaX，Firefox 给 deltaY）",
+          "deltaMode === 1" in src and "deltaMode === 2" in src and "e.shiftKey" in src)
+    check("W19 小数残差补偿（macOS 触控板 0.4px 不被 scrollTop 取整吃掉）",
+          "WHEEL_REST" in src and "WeakMap" in src)
+    check("W20 编辑器内拦 Safari 捏合 gesture*（Safari 捏合不发 wheel，不拦就整页缩放）",
+          '"gesturechange"' in src and "root.addEventListener(ev, (e) => e.preventDefault()" in src)
+    check("W21 overscroll-behavior:contain 覆盖 根 / 属性面板 / 提示词框（JS 失效时的兜底）",
+          src.count("overscroll-behavior:contain") >= 3,
+          "count=%d" % src.count("overscroll-behavior:contain"))
 
 
 def main():
