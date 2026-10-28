@@ -584,6 +584,17 @@ def check_wiring(contract, src):
           src.count("overscroll-behavior:contain") >= 3,
           "count=%d" % src.count("overscroll-behavior:contain"))
 
+    # 旧工作流兼容：`widgets_values` 按位置存，参数个数变过一次就整体错位，
+    # 界面上那几个下拉会变红而且不报错（2026-10-28 用户报的就是这个）。
+    compat = open(os.path.join(ROOT, "web", "moss_sb_compat.js"), encoding="utf-8").read()
+    order = open(os.path.join(ROOT, "web", "moss_sb_widget_order.js"), encoding="utf-8").read()
+    check("W22 兼容层只给自己包的节点挂钩子（外来节点一个字节都不动）",
+          "OWN.has(nodeData?.name)" in compat and "repairValues" in compat)
+    check("W23 长度一致时绝不猜（单个非法值更可能是用户手改，不替人做主）",
+          "delta === 0" in order and "return null" in order)
+    check("W24 只有 serialize:false **且**是 DOM 组件才不占位（control_after_generate 要占位）",
+          "w.options.serialize === false && w.element" in order)
+
 
 def main():
     src = open(EDITOR, encoding="utf-8").read()
