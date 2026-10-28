@@ -62,7 +62,7 @@ state v3 用一个 `items` 数组同时承载前两种，所以**模式决定哪
   有**最终提示词**只读预览：网格模式显示
   `[STYLE] + [PANEL n]`，单张模式显示原生布局 JSON。它不是简化版说明文字，
   而是与后端逐字节同口径的编译结果（`tests/test_cross_language.py` 盯 100 组随机 state）。
-- 逐格模式不提供整张 latent：`latent` 输出为 `None`，`report` 会写明，不让人接到下游才发现。
+- 逐格模式的 `latent` 是 **N 个单格 latent 的 batch**（`{"samples": [N,C,h,w]}`，行主序 = 格号 1..N，**不是拼版**）；接 `VAEDecode` 会逐张解码成 N 张单格图。整张模式返回整张画布 latent。
 
 ## 五、占位文案守卫
 
@@ -105,14 +105,14 @@ state v3 用一个 `items` 数组同时承载前两种，所以**模式决定哪
 | 占位守卫（text 拦一次、caption 只警告） | `core/editor.py::find_placeholders` / JS 同名 | `test_editor.py` §10、`check_editor_ui.py`、`test_cross_language.py` |
 | 宫格忽略字段写进 `report` | `find_ignored_grid_fields` | `test_editor.py` §10 |
 | `prompts_json` 输出（整张 1 条 / 逐格 N 条） | `MossStoryboardSampler` | `test_contract.py` 输出 arity、`check_ui_workflow.py` 槽位、**真机 2 跑**（见下） |
-| 逐格模式 `latent=None` 在 `report` 写明 | `_run_per_panel` | 真机 2 跑（report 里那一行是产物文本，不是文档承诺） |
+| 逐格模式 `latent=None` 在 `report` 写明（0.2.3 起改为 batch，见 `docs/10-contract.md` §二） | `_run_per_panel` | 真机 2 跑（report 里那一行是产物文本，不是文档承诺） |
 | 分辨率告警按模式判：整张看画布/单格 MP，逐格只看**单格采样画布**（拼版后的整张从不进模型） | `_mp_note(layout, per_panel, sample_px)` | `smoke_nodes.py` §5（含"枚举不残缺"）+ 真机两档 `sample_edge` |
 | 纯调试项 `show_guides` 归入高级（V1/V3 同一口径） | Crop / Paste | `test_contract.py` tooltip 检查 |
 | 真机（无头浏览器 + 活宿主）验：控件随模式收起、预览在可见区内、预览 == JS 编译器、占位确认且取消不入队 | `tools/ui_smoke.mjs` 编辑器段（31 项） | 本机跑，CI 无宿主 |
 
 **`prompts_json` 的真机取证**（2026-10-26，宿主 `MOSS 故事板宫格.json`，3 格 / `panel_edge=256` / 4 步，
 `SaveText` 直接落盘第 6/7 号输出）：整张 **1 条**（23s）、逐格 **3 条**（41s），
-逐格 report 含「`latent` 为 None」与「`prompts_json`（3 条）」。
+逐格 report 含「`latent` 为 None」与「`prompts_json`（3 条）」（0.2.3 起 `latent` 改为 batch，此处保留当时的取证原文）。
 同一趟还实锤了告警的错：旧版在 `sample_edge=768`（单格采样 0.33MP）时仍按**最终格子** 0.04MP
 喊"这才是画质瓶颈"，且把解法 ① 删剩「解法：① ②」—— 修后 `sample_edge=256` 报采样画布 0.04MP 并指向
 `sample_edge`，`sample_edge=768` 不再报。（脚本 `docs/_local/proof_prompts_json.py`，本机专用不进包）

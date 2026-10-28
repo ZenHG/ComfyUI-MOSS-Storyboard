@@ -18,6 +18,11 @@
   content         所有格对的平均 MAE（0–1，太小 = 画面重复而不是一致）
   prop            可选：`--hex` 色相邻域像素占该格面积的比例，报均值与**格间方差**
                   ⚠ 景别不同时同一道具的占比天然不同 ⇒ 这项混了"构图差异"，别单独当身份判据
+  arcface         可选：`--arcface` 用 insightface `buffalo_l`（w600k_r50）出**身份**相似度：
+                  每个格对取「两格各挑一张脸的最大余弦」，再报均值与最低值。
+                  与 `id_consistency`（478 点**形状**代理）不同，这一项量的是"是不是同一个人"；
+                  双人格不必指定挑谁，代价是"任一格有脸即可"，所以**必须先看每格脸数**。
+                  没装 insightface / 没下权重 → 报 None，不猜。
 """
 
 import argparse
@@ -94,6 +99,67 @@ def faces(panels):
     return round(100 * float(np.mean(cos)), 1), round(float(max(areas) - min(areas)), 4), counts
 
 
+_AF_APP = None
+
+
+def load_bgr(path, long_edge=1024):
+    """按**原比例**读图（ArcFace 用）：`load()` 会把图强制拉成 512×512 方形，
+    16:9 的格被压扁后检测会全灭，所以这条另走一路。"""
+    im = Image.open(path).convert("RGB")
+    if max(im.size) > long_edge:
+        k = long_edge / float(max(im.size))
+        im = im.resize((int(im.width * k), int(im.height * k)), Image.LANCZOS)
+    return np.asarray(im)[:, :, ::-1].copy()          # RGB → BGR
+
+
+def arcface_app():
+    """懒加载 insightface（CPU，不占 GPU）。没装包/没权重 → None，调用方报 n/a。
+
+    权重 = `~/.insightface/models/buffalo_l/`（det_10g.onnx + w600k_r50.onnx）。
+    """
+    global _AF_APP
+    if _AF_APP is None:
+        try:
+            from insightface.app import FaceAnalysis
+        except ImportError:
+            return None
+        app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+        app.prepare(ctx_id=-1, det_size=(640, 640))
+        _AF_APP = app
+    return _AF_APP
+
+
+def face_embeds(bgr):
+    """一格里**所有**脸的单位化 embedding（按脸面积从大到小）。"""
+    app = arcface_app()
+    if app is None:
+        return []
+    out = []
+    for f in app.get(bgr) or []:
+        x0, y0, x1, y1 = f["bbox"]
+        v = np.asarray(f["embedding"], dtype="float32")
+        out.append(((x1 - x0) * (y1 - y0), v / (np.linalg.norm(v) + 1e-9)))
+    return [v for _, v in sorted(out, key=lambda t: t[0], reverse=True)]
+
+
+def best_match(va, vb):
+    """两组脸之间的**最大**余弦 —— 问的是「这两格里有没有同一个人」，不必指定挑谁。"""
+    if not va or not vb:
+        return None
+    return max(float(np.dot(x, y)) for x in va for y in vb)
+
+
+def grid_identity(bgrs):
+    """一张宫格的格间身份相似度：返回 `(均值, 最小值, 每格脸数)`；任一格检不到脸 → 前两项 None。"""
+    embs = [face_embeds(a) for a in bgrs]
+    counts = [len(e) for e in embs]
+    vals = [m for m in (best_match(embs[i], embs[j])
+                        for i in range(len(embs)) for j in range(i + 1, len(embs))) if m is not None]
+    if not vals or min(counts) == 0:
+        return None, None, counts
+    return round(float(np.mean(vals)), 4), round(float(min(vals)), 4), counts
+
+
 def prop_ratio(panels, hexs, tol=18.0):
     """道具色相邻域占比：只认**色相**距离，灰白黑不算"有这个颜色"。
 
@@ -124,6 +190,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+")
     ap.add_argument("--hex", default="", help="道具色，如 #d92b2b；给了才报 prop 一项")
+    ap.add_argument("--arcface", action="store_true",
+                    help="加报 ArcFace 格间身份相似度（insightface buffalo_l，CPU）")
     ap.add_argument("--report", default="")
     args = ap.parse_args(argv)
 
@@ -136,13 +204,19 @@ def main(argv=None):
            "per_panel_tone": [[round(v, 4) for v in s] for s in stats],
            "id_consistency": idc, "shot_gradient": grad, "faces_per_panel": nf,
            "content": None if cm is None else round(cm, 4)}
+    if args.arcface:
+        avg, low, af_counts = grid_identity([load_bgr(f) for f in args.files])
+        res["arcface"] = {"mean": avg, "min": low, "faces_per_panel": af_counts}
     print("格数      %d" % res["n_panels"])
     print("tone ↓    %.4f   （luma/R−B/sat 三项格间极差的均值）" % res["tone"])
     for f, s in zip(args.files, stats, strict=True):
         print("   %-44s luma %.3f  R−B %+.3f  sat %.3f" % (os.path.basename(f), *s))
     why = "" if not nf or all(c == 1 for c in nf) else "（每格脸数 %s ≠ 全 1：双人镜头/无脸/兽脸 ⇒ 不可用）" % nf
     print("id_cons ↑ %s   景别极差 %s%s" % (res["id_consistency"], res["shot_gradient"], why))
-    print("content   %s   （格间 MAE：太小 = 画面重复，不是一致）" % res["content"])
+    if args.arcface:
+        a = res["arcface"]
+        print("arcface   均值 %s  最低 %s  每格脸数 %s   （格对取「两格各挑一张脸的最大余弦」）"
+              % (a["mean"], a["min"], a["faces_per_panel"]))
     if args.hex:
         p = prop_ratio(panels, args.hex)
         res["prop"] = p

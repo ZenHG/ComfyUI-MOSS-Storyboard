@@ -283,6 +283,17 @@ for aspect in ("21:9", "2.39:1", "4:5", "3:2"):
           abs(math.log((lay_f.panel_w / lay_f.panel_h) / L.ASPECTS[aspect])) < 0.08,
           "%.3f vs %.3f" % (lay_f.panel_w / lay_f.panel_h, L.ASPECTS[aspect]))
 
+print("\n== 11. 宫格声明（全局段有没有说「分成 N 格」）==")
+# 模型是按**语义**画宫格的：examples/ 里验证过的配方全局段都带这句，删掉就不按格分配。
+_declared = "[STYLE]: 单一故事板画布分割为严格对称网格，恰好 4 个面板，每格一格\n[PANEL 1]: x"
+_bare = "[STYLE]: 雨夜咖啡店，暖黄吊灯\n[PANEL 1]: 大远景，两人对坐"
+check("声明了宫格 → True", T.grid_declared(_declared) is True)
+check("没声明 → False", T.grid_declared(_bare) is False)
+check("无 [PANEL] 分段 → None（纯文生图不判）",
+      T.grid_declared("[STYLE]: 雨夜咖啡店，暖黄吊灯") is None)
+check("英文计数也算声明", T.grid_declared("[STYLE]: a storyboard split into 4 panels\n[PANEL 1]: x")
+      is True)
+
 print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
 if FAIL:
     print("失败项：")
