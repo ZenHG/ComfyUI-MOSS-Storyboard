@@ -289,7 +289,7 @@ def test_repo_hygiene():
     #   · **发布范围内的文件**（用户会装到 custom_nodes 的那些）⇒ 一处都不许有；
     #   · **开发工具**（tools/ / tests/，已被 .comfyignore 排除，不进发布包）⇒
     #     允许出现机器路径作兜底，但必须能被环境变量覆盖。
-    # 一刀切会让"工具里的 Windows 兜底"变成假红，一刀放会让库里混进 H:/ 硬路径。
+    # 一刀切会让"工具里的 Windows 兜底"变成假红，一刀放会让库里混进盘符硬路径。
     SHIPPED_FILES = {"__init__.py", "nodes.py"}
     SHIPPED_DIRS = {"core", "v3", "web"}
     hard, dev = [], []

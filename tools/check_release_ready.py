@@ -18,9 +18,11 @@
 """
 from __future__ import annotations
 
+import getpass
 import io
 import os
 import re
+import struct
 import subprocess
 import sys
 
@@ -53,6 +55,35 @@ def tracked() -> list[str]:
 def read(rel):
     with io.open(os.path.join(ROOT, rel), encoding="utf-8", errors="replace") as fh:
         return fh.read()
+
+
+#: 所有**文本类**受控文件的扩展名。S2 / S15 用同一份，避免两处口径分叉。
+TEXT_EXT = (".py", ".js", ".mjs", ".json", ".md", ".txt", ".yml", ".yaml",
+            ".toml", ".cfg", ".ini", ".csv", ".html", ".css")
+
+
+def is_text(rel: str) -> bool:
+    return rel.lower().endswith(TEXT_EXT)
+
+
+def local_identities() -> list[str]:
+    """本机用户名 / 主机名。CI 与通用容器上的值不参与匹配（否则每台机器结论不同）。
+
+    只用来回答一个问题：**这句"本机指纹"是不是被写进公开文件了**。
+    """
+    cands = [os.environ.get("USERNAME") or "", os.environ.get("USER") or "",
+             os.environ.get("COMPUTERNAME") or ""]
+    try:
+        cands.append(getpass.getuser())
+    except Exception:
+        pass
+    generic = {"root", "user", "runner", "admin", "administrator", "ubuntu", "node"}
+    out = []
+    for c in cands:
+        c = (c or "").strip()
+        if len(c) >= 4 and c.lower() not in generic and c not in out:
+            out.append(c)
+    return out
 
 
 # --------------------------------------------------------------------------- S1 凭据
@@ -119,8 +150,15 @@ def s1_secrets(files: list[str]) -> None:
 SHIPPED_PREFIX = ("core/", "v3/", "web/", "examples/")
 #: 文档不随 registry 包发，但**随仓库发**（README 逐篇链接 `docs/`）⇒ 同样是公开面。
 #: 只认盘符路径（`I:/` · `C:\` · `D:\` …）；`<ComfyUI>` / `/path/to` 这类占位符不在此列。
-#: 前一位不能是字母数字（`https://` 的冒号前是 `s`，不能误判成 `s:` 盘符）。
-DOC_DRIVE_RE = re.compile(r"(?<![A-Za-z0-9+.\-])[A-Za-z]:[\\/]")
+#: 前一位不能是字母数字（`https://` 的冒号前是 `s`，不能误判成 `s:` 盘符），
+#: 也不能是 `:` `?` `(` —— 否则正则里的 `(?i:\b` 会被当成 `i:` 盘符（2026-10-28 踩过）。
+DOC_DRIVE_RE = re.compile(r"(?<![A-Za-z0-9+.\-:(?])[A-Za-z]:[\\/]")
+#: 允许出现在公开面的盘符路径：**通用安装位置 / 测试夹具**，不指向任何人的机器。
+#: 每加一条都要能回答「为什么它不是指纹」——别把它当擦屁股纸。
+DRIVE_ALLOW = (
+    "C:/Program Files/nodejs/node.exe",   # Node 默认安装位置，官方文档同款兜底
+    "c:\\\\tmp",                          # JSON 转义夹具里的示意值
+)
 
 
 def s2_abs_paths(files: list[str]) -> None:
@@ -145,6 +183,23 @@ def s2_abs_paths(files: list[str]) -> None:
             if DOC_DRIVE_RE.search(line):
                 doc_hits.append("%s:%d" % (rel, i))
     check("文档（docs/*.md）里无本机盘符路径", not doc_hits, "；".join(doc_hits[:6]))
+
+    # 🔴 第二个公开面：**GitHub 仓的全部受控文件**。上面两条只管 registry 包范围
+    #    （`core/ v3/ web/ examples/` + `docs/*.md`），而 `tests/` `tools/` `CHANGES.md`
+    #    `.github/` `pyproject.toml` 同样是公开的 —— 2026-10-28 才发现这些从未被扫过。
+    ids = local_identities()
+    github_hits = []
+    for rel in files:
+        if not is_text(rel) or rel == SELF:      # 规则表本身要写出允许的路径，见 S15
+            continue
+        for i, line in enumerate(read(rel).splitlines(), 1):
+            if DOC_DRIVE_RE.search(line) or any(n in line for n in ids):
+                if any(a in line for a in DRIVE_ALLOW):
+                    continue
+                github_hits.append("%s:%d" % (rel, i))
+                break
+    check("GitHub 公开面（全部 %d 个文本文件）无盘符路径/本机用户名" % len(files),
+          not github_hits, "；".join(github_hits[:6]))
 
 
 # --------------------------------------------------------------------------- S3 临时/备份
@@ -196,7 +251,8 @@ def s4_package(files: list[str]) -> None:
                  "THIRD-PARTY-NOTICES.md", "assets/hero-storyboard.png",
                  "examples/moss-storyboard-4panels-ui.json",
                  "examples/moss-layout-editor-poster.json",
-                 "examples/moss-layout-editor-storyboard.json"]
+                 "examples/moss-layout-editor-storyboard.json",
+                 "examples/moss-prompt-compiler.json"]
     bad_ex = [f for f in must_exclude if not ignored(f, rules)]
     bad_keep = [f for f in must_keep if ignored(f, rules)]
     check("开发件全部被排除", not bad_ex, "漏排：%s" % bad_ex[:5] if bad_ex else "")
@@ -302,41 +358,71 @@ def s8_notes(version: str) -> None:
 # --------------------------------------------------------------------------- S9 提交信息
 # 提交信息一旦推上去，改动就只能靠改写历史（force push + 重建 tag），代价远高于改文件，
 # 所以必须在这一步之前挡住。判据词用 \u 转义写：门禁源码本身也在公开面上，词不落明文。
-#: 内部意图 / 内部沟通：仓库是给读者的，不是过程记录。
-MSG_BANNED = (
-    "\u5ba3\u4f20",
-    "\u7528\u6237\u8bf4",
-    "\u7528\u6237\u8981\u6c42",
-    "\u7528\u6237\u6307\u51fa",
-    "\u6211\u8ba9",
-    "\u5e2e\u6211",
+#
+# 🔴 这份词表**文件内容（S15）与提交信息（S9）共用**。原来两处各写一份，
+#    结果是文件里漏了整整一年的"谁跟我说的"，而提交信息查得很细。
+#: (标签, 正则)。标签会出现在报错里，所以标签本身也不能是敏感词明文。
+INTERNAL_VOICE = (
+    # 协作者代号：公开面该写「为什么这么做」，不该写「谁跟我说的」。
+    ("协作者代号", re.compile(r"(?<![A-Za-z0-9])\u0047\u0047(?![A-Za-z0-9])")),
+    ("宣传口吻", re.compile("\u5ba3\u4f20")),
+    ("用户说", re.compile("\u7528\u6237\u8bf4")),
+    ("用户要求", re.compile("\u7528\u6237\u8981\u6c42")),
+    ("用户指出", re.compile("\u7528\u6237\u6307\u51fa")),
+    ("用户反馈", re.compile("\u7528\u6237\u53cd\u9988")),
+    ("用户点名", re.compile("\u7528\u6237\u70b9\u540d")),
+    ("我让", re.compile("\u6211\u8ba9")),
+    ("帮我", re.compile("\u5e2e\u6211")),
 )
 #: 本机痕迹：盘符路径与本机用户名（author 不算，这里只看提交信息正文）。
 MSG_MACHINE = re.compile(r"(?<![A-Za-z])[A-Za-z]:[\\/]|Administrator", re.I)
 
 
+def pushed_shas() -> set[str] | None:
+    """已推送提交的全集。没有远端时返回 `None`（此时一律按"未推送"从严判）。"""
+    r = git("rev-list", "origin/main")
+    if r.returncode != 0:
+        return None
+    return {ln.strip() for ln in (r.stdout or "").splitlines() if ln.strip()}
+
+
 def s9_commits() -> None:
+    """未推送的必须改（rebase 即可）；已推送的只报数，不判红。
+
+    为什么分开：已推送的要 force push 才能改，那是维护者的决定，不是门禁能替人做的。
+    如果一并判红，这道闸就永久红 —— 而永久红的闸等于没有闸（没人再看它）。
+    """
     say("\nS9 提交信息（推上去就只能改写历史）")
-    out = git("log", "-n", "50", "--format=%h%x1f%B%x1e").stdout or ""
-    leaks, machine = [], []
+    out = git("log", "-n", "80", "--format=%H%x1f%B%x1e").stdout or ""
+    pushed = pushed_shas()
+    hard_leak, hard_machine, legacy = [], [], []
     for rec in out.split("\x1e"):
         rec = rec.strip("\n")
         if not rec.strip():
             continue
         sha, _, body = rec.partition("\x1f")
         sha = sha.strip()
-        lines = body.splitlines()
-        for word in MSG_BANNED:
-            if word in body:
-                ln = next((i for i, s in enumerate(lines, 1) if word in s), 0)
-                leaks.append("%s:%d" % (sha, ln))
-        if MSG_MACHINE.search(body):
-            ln = next((i for i, s in enumerate(lines, 1) if MSG_MACHINE.search(s)), 0)
-            machine.append("%s:%d" % (sha, ln))
+        is_old = pushed is not None and sha in pushed
+        for label, rx in INTERNAL_VOICE:
+            m = rx.search(body)
+            if m:
+                ln = body[: m.start()].count("\n") + 1
+                (legacy if is_old else hard_leak).append("%s:%d（%s）" % (sha[:7], ln, label))
+                break
+        m = MSG_MACHINE.search(body)
+        if m:
+            ln = body[: m.start()].count("\n") + 1
+            (legacy if is_old else hard_machine).append("%s:%d" % (sha[:7], ln))
     # 只报位置（短 hash:行号），不打印命中的原文 —— 日志本身也是公开面。
-    check("最近 50 条提交信息无内部措辞", not leaks,
-          "；".join(leaks[:5]) + ("（改写要 force push，先改再推）" if leaks else ""))
-    check("最近 50 条提交信息无本机路径/用户名", not machine, "；".join(machine[:5]))
+    check("未推送提交信息无内部措辞", not hard_leak,
+          "；".join(hard_leak[:5]) + ("（rebase 改掉再推）" if hard_leak else ""))
+    check("未推送提交信息无本机路径/用户名", not hard_machine, "；".join(hard_machine[:5]))
+
+    if legacy:
+        say("  [!] 已推送历史里还有 %d 处（%s）—— 改写需 force push + 重建 tag，"
+            "门禁不拦，请人工决定" % (len(legacy), "；".join(legacy[:3])))
+    else:
+        say("  [OK] 已推送历史里也没有内部措辞")
 
 
 #: 两处口径本来就不同的闸（CI 按单文件报数，CONTRIBUTING 报 6 份合计）
@@ -408,6 +494,34 @@ def s11_public_refs(files: list[str]) -> None:
                 if not os.path.exists(os.path.join(ROOT, path)):
                     broken.append("%s:%d → %s" % (rel, i, tgt))
     check("相对链接都指向真实文件", not broken, "；".join(broken[:8]))
+
+    #: 反引号里的路径也要真的存在。`docs/_local/sheets/` 就是这么漏出去的：
+    #: 它不是 markdown 链接，上面那条 `](...)` 看不见它，读者点不到、也找不到。
+    #: 只认**已知顶层目录**开头的 token，否则 `core/layout.Layout` 这种「模块.属性」会误报。
+    TOPS = ("core", "v3", "web", "tools", "tests", "docs", "examples", "assets", ".github")
+    CODE_PATH_RE = re.compile(r"`((?:%s)/[^`\s]*)`" % "|".join(re.escape(t) for t in TOPS))
+    CODE_EXT_RE = re.compile(
+        r"\.(py|js|mjs|json|md|toml|ya?ml|txt|png|jpe?g|webp|gif|zip|cfg|ini|html|css)$", re.I)
+    #: 文档里**故意提到、但不在仓库里**的路径 —— 它们是「我们挡住了什么」的说明。
+    #: 不豁免的话，这类文档只在维护者机器上通过（因为目录还在），换个人 clone 就假红。
+    GHOST_ALLOW = ("docs/_local",)
+    ghost = []
+    for rel in targets:
+        if rel == "CHANGES.md":
+            continue        # 历史记录里提到的文件本来就可能是「当初删掉的那个」
+        for i, line in enumerate(read(rel).splitlines(), 1):
+            for m in CODE_PATH_RE.finditer(line):
+                token = m.group(1).rstrip(".,;:，。；：")
+                is_dir = token.endswith("/")
+                if not is_dir and not CODE_EXT_RE.search(token):
+                    continue                      # 「模块.属性」之类，不是路径
+                if any(c in token for c in "*<>{}"):
+                    continue                      # 占位符
+                if token.rstrip("/").startswith(GHOST_ALLOW):
+                    continue                      # 文档里说明用的私有路径，见上
+                if not os.path.exists(os.path.join(ROOT, token.rstrip("/"))):
+                    ghost.append("%s:%d → %s" % (rel, i, token))
+    check("反引号里的路径都真实存在（不是本机留档）", not ghost, "；".join(ghost[:8]))
 
 
 # --------------------------------------------------------------------------- S12 临时产物
@@ -503,6 +617,94 @@ def s14_spdx(files: list[str]) -> None:
     check("源码 %d 个都有 SPDX 标识" % len(srcs), not miss, "；".join(miss[:6]))
 
 
+# --------------------------------------------------------------------------- S15 内部措辞
+#: 规则表本身必须把那些词写出来才能检查它们 —— 唯一豁免项，明写在代码里。
+#: 别把豁免扩大到别处：一处豁免就是一处洞。
+SELF = "tools/check_release_ready.py"
+
+
+def s15_internal_voice(files: list[str]) -> None:
+    """公开文件里不许出现「谁跟我说的」，只许出现「为什么这么做」。
+
+    为什么单列：S9 只管提交信息，S2 只管盘符路径。**文件内容里的内部措辞一直是空白**——
+    2026-10-28 实测 5 处（协作者代号 4 处、直接引述对话 1 处），而当时 14 道闸全绿。
+    这些字会随 README / 源码 / 数据文件一起出现在 GitHub 和 registry 包上。
+    """
+    say("\nS15 公开文件里没有内部称呼 / 会话措辞")
+    hits = []
+    for rel in files:
+        if rel == SELF or not is_text(rel):
+            continue
+        for i, line in enumerate(read(rel).splitlines(), 1):
+            for label, rx in INTERNAL_VOICE:
+                if rx.search(line):
+                    hits.append("%s:%d（%s）" % (rel, i, label))
+                    break
+    check("受控文件里无内部称呼 / 会话措辞（%d 个文本文件）" % len(files), not hits,
+          "；".join(hits[:8]))
+
+
+# --------------------------------------------------------------------------- S16 黑名单
+def s16_blacklist_travels(files: list[str]) -> None:
+    """黑名单必须**随仓库走**：写进 `.gitignore`，不能只写在 `.git/info/exclude`。
+
+    为什么单列：`.git/info/exclude` 不在版本库里。2026-10-28 实测 `docs/_local/`
+    （26 MB 私有对照图 + 一次性脚本）只被它挡着 —— 换个人 clone 下来 `git add -A`
+    就原样带走，而任何门禁都看不出来（那些文件"本来就没被跟踪"）。
+    """
+    say("\nS16 黑名单随仓库走（`.git/info/exclude` 不算数）")
+    out = (git("ls-files", "--others", "--exclude-standard").stdout or "")
+    loose = [ln.strip().replace("\\", "/") for ln in out.splitlines() if ln.strip()]
+    check("工作树没有「未跟踪且未被忽略」的文件（`git add -A` 会原样带走）",
+          not loose, "；".join(loose[:6]))
+
+    local_file = os.path.join(ROOT, ".git", "info", "exclude")
+    local_rules = []
+    if os.path.isfile(local_file):
+        with io.open(local_file, encoding="utf-8", errors="replace") as fh:
+            for ln in fh:
+                s = ln.strip()
+                if s and not s.startswith("#"):
+                    local_rules.append(s)
+    gi = read(".gitignore") if os.path.isfile(os.path.join(ROOT, ".gitignore")) else ""
+    orphan = [r for r in local_rules if r.rstrip("/") not in gi]
+    check("`.git/info/exclude` 的 %d 条规则在 `.gitignore` 里都有" % len(local_rules),
+          not orphan, "只在本地生效：%s" % "；".join(orphan[:5]) if orphan else "")
+
+
+# --------------------------------------------------------------------------- S17 二进制
+#: PNG 里这些块是**内容**，其余（tEXt / zTXt / iTXt）是**文字**——ComfyUI 存图会把
+#: 整条 workflow JSON 塞进 tEXt，里面可能有本机路径、模型文件名、甚至提示词原文。
+PNG_TEXT_CHUNKS = {"tEXt", "zTXt", "iTXt"}
+
+
+def s17_binary_meta(files: list[str]) -> None:
+    say("\nS17 二进制文件里没有本机元数据")
+    bad = []
+    for rel in files:
+        if not rel.lower().endswith(".png"):
+            continue
+        p = os.path.join(ROOT, rel)
+        if not os.path.isfile(p):
+            continue
+        with open(p, "rb") as fh:
+            data = fh.read()
+        i = 8
+        while i + 8 <= len(data):
+            try:
+                (ln,) = struct.unpack(">I", data[i:i + 4])
+                typ = data[i + 4:i + 8].decode("latin-1")
+            except (struct.error, UnicodeDecodeError):
+                break
+            if typ in PNG_TEXT_CHUNKS:
+                bad.append("%s（%s 块）" % (rel, typ))
+                break
+            if typ == "IEND":
+                break
+            i += 12 + ln
+    check("PNG 里没有 tEXt/zTXt/iTXt 文本块", not bad, "；".join(bad[:5]))
+
+
 def main() -> int:
     say("MOSS Storyboard · 发布前开源卫生检查")
     say("=" * 64)
@@ -526,6 +728,9 @@ def main() -> int:
     s12_temp_artifacts(files)
     s13_commit_format()
     s14_spdx(files)
+    s15_internal_voice(files)
+    s16_blacklist_travels(files)
+    s17_binary_meta(files)
 
     say("\n" + "=" * 64)
     say("结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
