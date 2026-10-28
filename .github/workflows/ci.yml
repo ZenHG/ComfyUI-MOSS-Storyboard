@@ -182,4 +182,5 @@ jobs:
           python tools/check_ui_workflow.py examples/moss-storyboard-4panels-edit.json
           python tools/check_ui_workflow.py examples/moss-layout-editor-poster.json
           python tools/check_ui_workflow.py examples/moss-layout-editor-storyboard.json
+          python tools/check_ui_workflow.py examples/moss-prompt-compiler.json
           python tools/check_ui_workflow.py tests/fixtures/moss-storyboard-0.1-20slots.json

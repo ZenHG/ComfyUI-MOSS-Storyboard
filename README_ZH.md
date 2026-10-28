@@ -276,6 +276,9 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 >
 > 编辑器示例：`examples/moss-layout-editor-poster.json`（单张海报）与
 > `examples/moss-layout-editor-storyboard.json`（4 格故事板）——拖进去即可改框。
+>
+> 草稿编译示例：`examples/moss-prompt-compiler.json`（**零模型、不占显存**）——
+> 粘一份官方 prompt-enhancer 草稿，出提示词与可导入编辑器的 state。
 
 **另一条路：海报 / 封面 / 产品图**
 

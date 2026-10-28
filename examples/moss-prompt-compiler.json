@@ -1,0 +1,220 @@
+{
+ "id": "moss-prompt-compiler",
+ "revision": 0,
+ "last_node_id": 5,
+ "last_link_id": 3,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "MarkdownNote",
+   "pos": [
+    -620,
+    -240
+   ],
+   "size": [
+    560,
+    640
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "MarkdownNote"
+   },
+   "widgets_values": [
+    "## 草稿编译（`MossPromptCompiler`）\n\n**零模型、不占显存**，秒出。它只做一件事：把**官方 MOSS-Image Prompt Enhancer 的草稿**\n编译成能直接用的东西。\n\n### 填什么\n把草稿 JSON 粘进 `draft`。两种草稿：\n\n| 草稿类型 | 长什么样 | 输出 |\n|---|---|---|\n| **caption** | `{\"caption\": \"...\"}` | `prompt` = 提示词文本；`state` 为空 |\n| **layout** | `width/height/bbox_coord_space/bbox_format/summary/items` | `prompt` = 原生布局 JSON；`state` = 编辑器 state |\n\n本工作流填的是 **layout 草稿**（4 格）。\n\n### 两个输出拿去干嘛\n- **`prompt`** → 接宿主核心节点 `MOSS-Image Layout Prompt`，或 `CLIPTextEncode`。\n- **`state`** → 复制，粘进**布局编辑器**的「导入」框 —— 草稿里的框就变成可拖的画布。\n\n### 注意\n- 最多 256 个元素；未知字段、越界坐标、非 16 倍数的画布**直接报错**，不猜。\n- `report` 会说清编译时做了什么（改坐标系 / 量化 / 丢弃了什么）。\n\n> 本包不做图生图，这个节点也不加载任何模型。想直接出图请用另外三个示例。\n"
+   ],
+   "title": "这是什么 · 怎么用"
+  },
+  {
+   "id": 2,
+   "type": "MossPromptCompiler",
+   "pos": [
+    0,
+    -240
+   ],
+   "size": [
+    460,
+    620
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "prompt",
+     "type": "STRING",
+     "links": [
+      1
+     ]
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": [
+      2
+     ]
+    },
+    {
+     "name": "state",
+     "type": "STRING",
+     "links": [
+      3
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossPromptCompiler",
+    "cnr_id": "moss-storyboard",
+    "ver": "0.2.3"
+   },
+   "widgets_values": [
+    "{\n \"width\": 1024,\n \"height\": 576,\n \"bbox_coord_space\": \"abs\",\n \"bbox_format\": \"xyxy\",\n \"summary\": {\n  \"caption\": \"雨夜咖啡店靠窗双人桌，暖黄吊灯，玻璃雨痕。\"\n },\n \"items\": [\n  {\n   \"label\": \"object\",\n   \"caption\": \"中景，苏晚与陈屿同框对坐\",\n   \"bbox\": [\n    16,\n    16,\n    496,\n    272\n   ]\n  },\n  {\n   \"label\": \"object\",\n   \"caption\": \"特写，苏晚克制的神情\",\n   \"bbox\": [\n    512,\n    16,\n    1008,\n    272\n   ]\n  },\n  {\n   \"label\": \"object\",\n   \"caption\": \"中近景，陈屿手指在杯上收紧\",\n   \"bbox\": [\n    16,\n    288,\n    496,\n    560\n   ]\n  },\n  {\n   \"label\": \"object\",\n   \"caption\": \"特写，苏晚视线落在桌面\",\n   \"bbox\": [\n    512,\n    288,\n    1008,\n    560\n   ]\n  }\n ]\n}"
+   ],
+   "title": "草稿编译（零模型）"
+  },
+  {
+   "id": 3,
+   "type": "PreviewAny",
+   "pos": [
+    520,
+    -240
+   ],
+   "size": [
+    420,
+    300
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 1
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "prompt"
+  },
+  {
+   "id": 4,
+   "type": "PreviewAny",
+   "pos": [
+    520,
+    100
+   ],
+   "size": [
+    420,
+    260
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 2
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "report"
+  },
+  {
+   "id": 5,
+   "type": "PreviewAny",
+   "pos": [
+    520,
+    400
+   ],
+   "size": [
+    420,
+    300
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 3
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "state → 粘进布局编辑器的导入框"
+  }
+ ],
+ "links": [
+  [
+   1,
+   2,
+   0,
+   3,
+   0,
+   "STRING"
+  ],
+  [
+   2,
+   2,
+   1,
+   4,
+   0,
+   "STRING"
+  ],
+  [
+   3,
+   2,
+   2,
+   5,
+   0,
+   "STRING"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.9,
+   "offset": [
+    780,
+    420
+   ]
+  }
+ },
+ "version": 0.4
+}

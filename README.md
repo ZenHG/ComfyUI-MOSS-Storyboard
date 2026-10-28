@@ -228,6 +228,7 @@ Rainy-night cafe, one canvas divided into a strict grid of 4 panels, thin white 
 
 A ready-made plain graph is in `examples/moss-storyboard-4panels-ui.json`.
 Editor examples: `examples/moss-layout-editor-poster.json` (poster) and `examples/moss-layout-editor-storyboard.json` (4-panel storyboard).
+Draft compiler (no model, no GPU): `examples/moss-prompt-compiler.json` — paste an official prompt-enhancer draft, get a prompt plus an editor state.
 
 > To check the grid shape before spending a run, wire `spec` out of 🎬 Storyboard · Grid Layout: its `template` output is a picture of where each panel sits and how wide the gutters are.
 
