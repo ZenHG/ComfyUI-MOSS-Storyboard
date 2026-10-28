@@ -2,6 +2,21 @@
 
 ## 0.2.3 — 2026-10-27 · 审计收口
 
+### 旧工作流：`widgets_values` 错位自动归位（只修长度对不上的）
+- 起因（2026-10-28 实测）：参数表加过一格之后，旧存档的 `widgets_values` 少一格，而 ComfyUI
+  按位置赋值 —— 从缺失处起整条右移：`panels` 拿到 `"16:9"`、`panel_aspect` 拿到 `496`、
+  `init` 拿到 `object`、`mode` 拿到 `1024`，界面上五个下拉变红底。**ComfyUI 自己不报错**，
+  看着像「默认值没设好」，其实是旧稿的值全错了一格，点运行还会带着错值跑。
+- `web/moss_sb_compat.js` 在 `configure` 之前动手（那时 widget 上还是默认值，正好补缺失格）：
+  **长度对不上、且补/删后每一项都合法**才归位；长度一致时一个字节都不改（单个非法值更可能
+  是用户手改，不替人做主），相差超过 2 格也不猜。
+- 钩子只挂在 `beforeRegisterNodeDef` 里本包的节点上，外来节点不碰；补了什么/删了什么写进
+  `console.warn` 与 `node.properties.msb_widgets_repaired`，并提示重新保存。
+- **不必重建旧稿**；新建的节点与 `examples/` 里的工作流本来就没有这个问题。
+- 纯函数层 `web/moss_sb_widget_order.js` 由 `tests/test_compat.mjs` 直接跑（17 项），其中一条钉住
+  「`serialize:false` 但**不是** DOM 组件（`control_after_generate`）仍然占位」——这条判错就会
+  让长度对上了、于是永不修。`check_editor_ui.py` 新增 W22–W24，141 → 144 项。
+
 ### 稿子与布局对账：不一致就停在采样前（只拦不改写）
 - 布局模式下（`init=layout`/`auto` + 整张），`[PANEL n]` 段数与全局段的显式格数
   （「恰好 8 个面板」「8 panels」）都必须等于实际格数；不等直接 `ValueError`，
