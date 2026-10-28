@@ -138,6 +138,7 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。这不
 | **文字海报** | 中文、英文、中英混排、两行均有小样本实测（结论与样本量见「已知边界」） |
 | **宫格线确定** | 默认 `reborder=开`；解码后按坐标重绘，白缝位置与生成时一致 |
 | **逐格裁切** | 行优先输出，与整图画布逐像素对齐；`spec` 一根线传完几何，下游不会错位 |
+| **官方提示词 skill 桥** | 贴 OpenMOSS MOSS-Image Prompt Enhancer skill 的草稿：出校验过的 MOSS 提示词；布局草稿另出一份 state v3，可直接导入布局编辑器 |
 | **中英双语界面** | 每个本包节点上有「中 / EN」按钮，只改显示、不改存档 |
 | **零 GPU 机检** | 全部离线断言（清单见 [`CONTRIBUTING.md`](CONTRIBUTING.md)） |
 
@@ -279,6 +280,14 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 >
 > 草稿编译示例：`examples/moss-prompt-compiler.json`（**零模型、不占显存**）——
 > 粘一份官方 prompt-enhancer 草稿，出提示词与可导入编辑器的 state。
+> 三个输出各接一个宿主的 `PreviewAny`（界面显示为「Preview as Text」），图里没有别的东西。
+
+> ⚠ **四份带模型的示例里都有宿主的 `LazyCache` 节点**（默认 `reuse_threshold 0.2` / `start 0.15` /
+> `end 0.95`），夹在 LoRA 与采样器之间。它**不是本包的节点**，是 ComfyUI 自带的
+> （`comfy_extras/nodes_easycache.py`，标记为实验性，分类在 `advanced/debug`），作用是让采样器复用部分步。
+> **要跟本页的数字对得上，就先 `Ctrl+B` 旁路掉或直接删掉它**——开着它，采样器跑的不是本页那些数测的那份活。
+> 宿主版本太老没有这个节点时，ComfyUI 会报缺节点类型，删掉即可正常跑。
+> 草稿编译示例不加载模型，没有这个节点。
 
 **另一条路：海报 / 封面 / 产品图**
 
@@ -513,6 +522,9 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 把 OpenMOSS 的 [MOSS-Image Prompt Enhancer skill](https://github.com/OpenMOSS/MOSS-Image/tree/main/skills/moss-image-prompt-enhancer)
 接到本包。贴 skill 产出的**草稿**（不是它编译后的结果），得到：
 
+**入参** —— 只有一个多行框 `draft`。两种形态：**caption 草稿** `{"caption": "…"}` 编译成纯文本提示词；
+**layout 草稿**（下面那些字段）编译成单行原生布局 JSON。草稿为空会直接报错，不会吐一个空提示词。
+
 - **`prompt`** —— 可直接用的 MOSS 提示词（普通 caption，或单行原生布局 JSON）。
   接到 `CLIPTextEncode.text` 或「生成」节点的 `positive`。
 - **`report`** —— 类型、画布、元素数，以及哪些字段无法带进 state。
@@ -690,6 +702,9 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 
 > 实测（4 格 / 16:9）：`496` 偏糊；`992` 明显更清楚；`1984` **反而变松**（构图变散）。
 > 所以不是越大越好——**没有单一最优值**，`1024` 只是个稳妥起点。
+> ⚠ 这一轮**没测 `1024`**，样本数也没记，所以 `1024` 是**出厂起点、不是测出来的最优**；
+> [`docs/07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md)
+> 另有一句「`1024–1408` 清楚但色调会漂」，同样只当方向看。
 
 代价是显存与耗时按像素平方涨。`整张` 模式忽略这个参数。
 
@@ -966,7 +981,7 @@ ComfyUI-MOSS-Storyboard/
 ├── v3/                    V3 接口外壳
 ├── web/                   前端扩展（中英切换 + 布局编辑器）
 ├── tests/ tools/          自动机检与开发脚本
-├── examples/              4 份用户示例（机检夹具在 tests/fixtures/）
+├── examples/              5 份用户示例（机检夹具在 tests/fixtures/）
 ├── docs/                  机理与实测记录
 └── pyproject.toml         元数据 + 宿主版本要求
 ```
