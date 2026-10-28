@@ -371,6 +371,45 @@ def s10_doc_counts() -> None:
     check("同名闸的项数两处一致", not bad, "；".join(bad)[:200])
 
 
+def s11_public_refs(files: list[str]) -> None:
+    """公开文档不许引用**仓库里不存在**的内部目录。
+
+    为什么单列一条：`审计报告/` 是 `.gitignore` 掉的维护者工作区，公开读者根本看不到。
+    2026-10-28 实测有 10 处 `README`/`docs` 直接引了它（死链），而当时的门禁一条都没响 ——
+    S2 只查盘符路径，查不到"路径合法但仓库里没有"。
+    """
+    say("\nS11 公开文档只引仓库里真实存在的路径")
+    PUBLIC = ("README.md", "README_ZH.md", "README_EN.md", "CHANGES.md",
+              "RELEASE-NOTES.md", "CONTRIBUTING.md", "SECURITY.md",
+              "CODE_OF_CONDUCT.md", "THIRD-PARTY-NOTICES.md")
+    targets = [f for f in files if f in PUBLIC or (f.startswith("docs/") and f.endswith(".md"))]
+    #: 只在内部工作区存在的目录/文件名；出现即死链。
+    INTERNAL = ("审计报告", "同步书", "施工/", "审核-新代码")
+    hits = []
+    for rel in targets:
+        for i, line in enumerate(read(rel).splitlines(), 1):
+            for key in INTERNAL:
+                if key in line:
+                    hits.append("%s:%d（%s）" % (rel, i, key))
+    check("公开文档不引用内部工作区（%d 份文档）" % len(targets), not hits,
+          "；".join(hits[:8]))
+
+    #: 本地文件的相对链接必须真的存在（否则公开发出去就是 404）。
+    broken = []
+    link_re = re.compile(r"\]\((?!https?:|#)([^)\s]+)\)")
+    for rel in targets:
+        base = os.path.dirname(rel)
+        for i, line in enumerate(read(rel).splitlines(), 1):
+            for m in link_re.finditer(line):
+                tgt = m.group(1).split("#")[0].strip()
+                if not tgt or tgt.startswith("mailto:"):
+                    continue
+                path = os.path.normpath(os.path.join(base, tgt))
+                if not os.path.exists(os.path.join(ROOT, path)):
+                    broken.append("%s:%d → %s" % (rel, i, tgt))
+    check("相对链接都指向真实文件", not broken, "；".join(broken[:8]))
+
+
 def main() -> int:
     say("MOSS Storyboard · 发布前开源卫生检查")
     say("=" * 64)
@@ -390,6 +429,7 @@ def main() -> int:
         say("\nS8 跳过（版本号不一致，先修 S5）")
     s9_commits()
     s10_doc_counts()
+    s11_public_refs(files)
 
     say("\n" + "=" * 64)
     say("结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

@@ -135,9 +135,10 @@ vision-only 参考图（`TextEncodeMOSSImageEdit` 不接 vae）**不能保持其
 
 口径：4 格 / 16:9 / `panel_edge 512` / `sample_edge 512` / **50 步 / cfg 3.0 / euler + sgm_uniform** /
 denoise 1.0 / **蒸馏 LoRA 显式摘掉**（示例工作流那个 LoRA 节点是 UI 旁路，`tools/ui_to_api.py`
-不还原 `mode` ⇒ 不摘就等于带 4 步 LoRA 跑，见 `审计报告/施工/同步书.md` 14:05 行）。
+不还原 `mode` ⇒ 不摘就等于带 4 步 LoRA 跑）。
 素材与 seed 同 §二之三（`tests/fixtures/consistency-scenarios.json`，seed 20261026 / 777 / 31337）。
-数据 `审计报告/实验/g2-50-3.json`，拼图 `审计报告/实验/g2-50-3/sheet-*.png`。
+数据 [`docs/data/g2-50-3.json`](data/g2-50-3.json)。拼图没有随仓分发（单张几 MB，且判读要原尺寸目检），
+需要复核可按 JSON 里的 seed 与夹具自己重跑。
 
 | 场景 | 模式 | 色调极差↓ | 道具占比方差↓ | 格间 MAE | 墙钟 | 人脸余弦 / 景别极差 |
 |---|---|---|---|---|---|---|
@@ -264,7 +265,7 @@ denoise 1.0 / **蒸馏 LoRA 显式摘掉**（示例工作流那个 LoRA 节点�
 | `content` | 格间 MAE | 画面是否重复 |
 | `arcface` | 可选（`--arcface`）：insightface `buffalo_l` 身份向量，格对取「两格各挑一张脸的最大余弦」 | **未通过校准 ⇒ 只准报数，不许当判据**（见下） |
 
-**ArcFace 尺子的校准结论（2026-10-27，`审计报告/实验/arcface_calib.py`，CPU）**
+**ArcFace 尺子的校准结论（2026-10-27，CPU；校准脚本不随仓分发，方法见本节）**
 
 | 分布 | 样本 | 中位 | 区间 |
 |---|---|---|---|
