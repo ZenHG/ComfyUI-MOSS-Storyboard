@@ -6,8 +6,8 @@
 #   · 只跑"能确定判定"的东西：几何、契约、词表、装载。**成片质量不进 CI**（要 GPU + 权重）。
 #
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
-#   · 309/0  tests/test_core.py               几何 / 提示词 / 像素 / 控制区域图
-#   · 137/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限 / 外接稿
+#   · 313/0  tests/test_core.py               几何 / 提示词 / 像素 / 控制区域图
+#   · 149/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限 / 外接稿
 #   ·  88/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
 #   ·  22/0  tests/test_extract.py            从散文/代码块提取 JSON、上限/扫描预算
 #   ·  57/0  tests/test_adversarial.py        恶意/极端输入：JSON 常量 / 原型链 / 量化 / 扫描预算
@@ -23,7 +23,7 @@
 #                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
 #   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
 #   · 133/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐
-#   ·  90/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
+#   ·  95/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
 #   ·  19/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
 #   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
 #
