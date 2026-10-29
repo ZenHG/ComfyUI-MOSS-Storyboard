@@ -728,7 +728,7 @@ Other detectors on this machine, and why this node does not use them:
 | Torso turned, head still at camera | `+0.036` — no damage |
 | Back to camera, head over shoulder (`yaw 0.76`) | `−0.086` ⇒ what hurts the face is the **head turn**, not the body |
 
-⇒ **To change pose: feed a frontal reference and put the pose in the prompt** (on the generate path). A profile reference locks the output to profile and no wording pulls it back. When only the body should move, keep the head facing the camera. Prompts and pass criteria for both gradients: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §9.
+⇒ **To change pose: feed a frontal reference and put the pose in the prompt** (on the generate path). A profile reference locks the output to profile and no wording pulls it back. When only the body should move, keep the head facing the camera. Prompts and pass criteria for both gradients: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §9. Working example of the two stages chained (pose → swap): `examples/moss-pose-generate-ui.json` — it needs `TextEncodeMOSSImageEditHiRes` from **ComfyUI-MOSS-RefHiRes** (GPL, installed separately); the host's own `TextEncodeMOSSImageEdit` hard-caps the reference at 0.147 MP, where identity is about `0.008`.
 
 Recipe: 8-step DMD2 LoRA **then** the Moss-Image-Edit LoRA · 8 steps / cfg 1.0 / euler + simple · **one** reference image (two views measured worse). Full recipe and pass criteria: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md).
 
