@@ -412,7 +412,8 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 > 蒙版外判据用 **>32/255**，不用 >8：VAE 解码 + latent 混合的舍入就能产生 8–16 的差异，肉眼看不见。
 > 衣服那组 >8 占 5.79%，>32 只有 0.01%（p99 = 17）。`report` 会把两档都写出来。
 
-示例：`examples/moss-faceswap-ui.json`。
+示例：`examples/moss-faceswap-ui.json`（整张宫格，只换一格）与
+`examples/moss-faceswap-single-ui.json`（单张照片，**不接 spec**，整图当一格）。
 
 ## 7 · 中英切换
 

@@ -119,7 +119,7 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 > `output/moss/storyboard/`：`grid_*.png`（整张）与 `panel_*.png`（逐格）。
 > **没接任何保存节点 = 图只在内存里，跑完就没了。**
 
-**七个示例，各管一件事**
+**八个示例，各管一件事**
 
 > ⚠ **换脸与姿态示例引用了两张输入图**（`moss_faceswap_src.png` / `moss_faceswap_ref.png`），
 > **仓库不含这两张图**。自备一张正脸特写与一张宫格图放进 `<ComfyUI>/input/`，
@@ -132,10 +132,11 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 | `moss-layout-editor-poster.json` | 单图海报，编辑器摆框 | ✅ | — |
 | `moss-prompt-compiler.json` | 贴官方草稿 → 提示词 + 编辑器 state | ❌ 零显存 | — |
 | `moss-faceswap-ui.json` | 4 格宫格 → 换第 0 格 → 整张出 | ✅ | 需 DMD2 + 编辑 LoRA |
+| `moss-faceswap-single-ui.json` | **单张照片** → 换脸 → 整张出（不接 `spec`） | ✅ | 需 DMD2 + 编辑 LoRA |
 | `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图（`init=empty`） | ✅ | 无 |
 | `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 | ✅ | 需编辑 LoRA |
 
-> ⚠ **七份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
+> ⚠ **八份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
 > `poster`；换脸与姿态示例没有），夹在 LoRA 与采样器之间。它**不是本包的节点**，是 ComfyUI 自带
 > （`comfy_extras/nodes_easycache.py`，实验性，分类 `advanced/debug`），作用是让采样器复用部分步。
 > **要跟本页的数字对得上，先 `Ctrl+B` 旁路或删掉它** —— 开着它，采样器跑的不是本页数字测的那份活。
@@ -503,6 +504,9 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 | 自动蒙版要 insightface | `pip install insightface onnxruntime` + `det_10g.onnx`；缺了**直接报错**，不静默降级 |
 
 `report` 会给出「蒙版覆盖多少、蒙版外改了多少」—— 不用另跑脚本就知道改干净了没。
+
+**单张照片换脸**：不接 `spec` 就是单图模式（整张当一格），示例 `moss-faceswap-single-ui.json`。
+⚠ 接了 `spec` 就必须喂同一张宫格，否则直接报「源图 W×H 与 spec 画布不一致」。
 参数全表、蒙版几何、姿态/肢体动作的实测、适用范围（衣服成、背景不成）见
 [手册 §6](docs/19-node-manual.md#6--换脸--蒙版局部编辑)。
 
