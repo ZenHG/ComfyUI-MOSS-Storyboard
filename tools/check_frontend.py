@@ -6,15 +6,19 @@
 词表里混进了中文、示例图的标题把 i18n 锁死、前端文件根本没被宿主登记。
 这三类都只在"读文件 + 读工作流"时才现形，所以归到这里。
 
-判据（6 项，任何一项失败即非零退出）：
+判据（10 项，任何一项失败即非零退出）：
 - F1 英文面向的字段不许出现中日韩字符或全角标点（`NODES.*.en` / `TIPS.*.en`）
 - F2 `web/*.js` 语法可解析（`node --check`，ESM 模式）
 - F3 `WEB_DIRECTORY` 非 None、目录存在、`_ui.js` 里 import 的本地文件都存在
 - F4 工作流里本包节点的 `title` 必须**能被 i18n 换前缀**
       （空 / 等于中英默认名 / 以默认名开头；写死自定义标题 ⇒ 中英切换对它无效）
 - F5 `TIPS` 的键都能对上真实节点与真实参数名（防改名后残留孤儿键）
-- F6 每个入参都有中文标签、标签表没有孤儿键
+- F6 每个入参都有中文标签、标签表没有孤儿键、按节点覆盖的标签对得上真实参数
       （2026-10-30 实测：换脸节点 8 个入参不在 `LABELS` 里 ⇒ 中文界面显示英文参数名）
+- F7 每个**静态枚举**的每个取值都有中文显示（宿主给的采样器/调度器列表除外）
+- F8 编辑器文案表 `STR` 每条都有 zh 与 en，且没有死键
+- F9 `NODES` 覆盖全部 7 个节点，中英名都不为空
+- F10 每个入参都有**中文** tooltip（界面汉化最后一道：没有说明等于没汉化）
 
 用法：
     python tools/check_frontend.py                       # 默认查 examples/*.json
@@ -177,6 +181,144 @@ def f6_label_coverage(param_names, src):
     orphan = sorted(labels - params - ALLOW)
     check("F6b 标签表没有孤儿键", not orphan, ", ".join(orphan[:8]))
 
+    # 按节点覆盖表：键必须是真实的（节点, 参数）对，否则是改名后留下的死键。
+    m2 = re.search(r"const LABELS_NODE = \{(.*?)\n\};", src, re.S)
+    per = []
+    if m2:
+        cur = None
+        for ln in m2.group(1).splitlines():
+            t = re.match(r"\s{4}(\w+):\s*\{", ln)
+            if t:
+                cur = t.group(1)
+                continue
+            kv = re.match(r"\s{8}([a-z_0-9]+):", ln)
+            if kv and cur:
+                per.append((cur, kv.group(1)))
+    bad = [(t, p) for t, p in per if (t, p) not in param_names]
+    check("F6c 按节点覆盖的标签都对得上真实参数（%d 条）" % len(per), bool(per) and not bad, str(bad[:4]))
+
+
+def _class_body(src, cls):
+    m = re.search(r"^class %s\b.*?(?=^class |\Z)" % cls, src, re.M | re.S)
+    return m.group(0) if m else ""
+
+
+#: 宿主给的列表，值就是英文 ID（euler / dpmpp_2m …），翻译反而会让人对不上别的节点。
+HOST_COMBO = {"sampler_name", "scheduler"}
+
+
+def f7_combo_labels(mapping, src_js):
+    """每个**枚举入参**的每个取值都要有中文显示。
+
+    为什么单列一条：`COMBOS` 也是手写表。加一个档位忘了加中文，界面上就是一个英文下拉项 ——
+    和参数标签一样的静默失败。
+
+    取值来源用 `INPUT_TYPES()` 而不是正则：多数枚举是常量（`_GEN_MODES` / `_ASPECT_KEYS` / `PICK_MODES`），
+    正则只看得到写成字面量列表的那两个（2026-10-30 实测：正则口径只数出 2 组，实际有 10 组）。
+    值本身是中文的（`整张` / `逐格`）不用查表。
+    """
+    m = re.search(r"const COMBOS = \{(.*?)\n\};", src_js, re.S)
+    blk = m.group(1) if m else ""
+    groups, cur = {}, None
+    for ln in blk.splitlines():
+        g = re.match(r"\s{4}([a-z_0-9]+):\s*\{(.*)", ln)
+        if g:
+            cur = g.group(1)
+            groups[cur] = set(re.findall(r'([\w:.\-]+):\s*"', g.group(2)))
+            continue
+        if cur:
+            groups[cur] |= set(re.findall(r'([\w:.\-]+):\s*"', ln))
+
+    bad, seen = [], 0
+    for _cls, klass in mapping.items():
+        it = klass.INPUT_TYPES()
+        for sec in ("required", "optional"):
+            for name, spec in (it.get(sec) or {}).items():
+                opts = spec[0] if spec else None
+                if not isinstance(opts, list) or name in HOST_COMBO:
+                    continue
+                # 比例值（16:9 / 2.39:1）本身就能读，不要求翻译；其余值必须有中文。
+                vals = [str(v) for v in opts
+                        if not CJK.search(str(v)) and not re.match(r"^\d+(\.\d+)?:\d+(\.\d+)?$", str(v))]
+                if not vals:
+                    continue
+                seen += 1
+                miss = [v for v in vals if v not in groups.get(name, set())]
+                if miss:
+                    bad.append("%s 缺 %s" % (name, miss[:3]))
+    check("F7 枚举取值都有中文（%d 组）" % seen, seen >= 8 and not bad, "；".join(bad[:4]))
+
+
+def f8_editor_strings():
+    """编辑器文案表：每条都要 zh + en，且不能有死键。
+
+    条目有两种写法（单行 `preset: { zh: "…", en: "…" },` 与多行），所以按
+    「行首 4 空格 + 键名」切块累积，不能只靠单行正则。
+    死键判据看**实际引用**：`t("key")` 是编辑器里唯一的取词入口（`const t = (k) => STR[k]?.[lang]`）。
+    """
+    p = os.path.join(ROOT, "web", "moss_sb_editor.js")
+    src = open(p, encoding="utf-8").read()
+    m = re.search(r"export const STR = \{(.*?)\n\};", src, re.S)
+    blk = m.group(1) if m else ""
+    entries, cur = {}, None
+    for ln in blk.splitlines():
+        mm = re.match(r"\s{4}([A-Za-z_0-9]+):\s*\{(.*)$", ln)
+        if mm:
+            cur = mm.group(1)
+            entries[cur] = mm.group(2)
+            continue
+        if cur is not None:
+            entries[cur] += ln
+    no_zh = [k for k, b in entries.items() if "zh:" not in b]
+    no_en = [k for k, b in entries.items() if "en:" not in b]
+    dead = [k for k in entries
+            if ('"%s"' % k) not in src and ("STR." + k) not in src]
+    check("F8a 编辑器文案都有中文（%d 条）" % len(entries),
+          len(entries) >= 100 and not no_zh, str(no_zh[:5]))
+    check("F8b 编辑器文案都有英文", not no_en, str(no_en[:5]))
+    check("F8c 编辑器文案没有死键", not dead, str(dead[:5]))
+
+
+def f9_node_titles(src_js, classes):
+    """每个节点都要有中英显示名 —— 少一个，中文界面下那个节点就是英文标题。"""
+    m = re.search(r"export const NODES = \{(.*?)\n\};", src_js, re.S)
+    blk = m.group(1) if m else ""
+    missing, no_cjk = [], []
+    for cls in classes:
+        # ⚠ 这里用 [ \t]* 而不是空白类转义：参数名以 r 结尾时，冒号后紧跟反斜杠会被 S2 的
+        #    盘符正则误判成本机绝对路径（2026-10-30 踩过）。
+        mm = re.search(re.escape(cls) + r":[ \t]*\{(.*?)\}", blk, re.S)
+        if not mm:
+            missing.append(cls)
+            continue
+        body = mm.group(1)
+        zh = re.search(r'zh:\s*"([^"]*)"', body)
+        en = re.search(r'en:\s*"([^"]*)"', body)
+        if not zh or not en or not zh.group(1).strip() or not en.group(1).strip():
+            missing.append(cls)
+        elif not CJK.search(zh.group(1)):
+            no_cjk.append(cls)
+    check("F9 七个节点都有中英显示名", not missing, str(missing))
+    check("F9b 中文显示名确实是中文", not no_cjk, str(no_cjk))
+
+
+def f10_tooltips(src, classes):
+    """每个入参都要有**中文** tooltip：界面汉化不是只翻标签，说明也得是中文。"""
+    miss, seen = [], 0
+    for cls in classes:
+        body = _class_body(src, cls)
+        parts = re.split(r'^\s{12,16}"([a-z_0-9]+)": \(', body, flags=re.M)
+        for i in range(1, len(parts), 2):
+            name, blk = parts[i], parts[i + 1]
+            seen += 1
+            if '"tooltip"' not in blk:
+                miss.append("%s.%s" % (cls, name))
+                continue
+            tip = blk.split('"tooltip"', 1)[1][:600]
+            if not CJK.search(tip):
+                miss.append("%s.%s(英文)" % (cls, name))
+    check("F10 每个入参都有中文 tooltip（%d 个）" % seen, seen >= 40 and not miss, "；".join(miss[:5]))
+
 
 def main(argv):
     src, nodes_zh, nodes_en, tips = load_tables()
@@ -214,6 +356,16 @@ def main(argv):
     f5_tip_keys(tips, param_names)
     print("\n== F6 中文标签覆盖 ==")
     f6_label_coverage(param_names, src)
+
+    classes = list(V1)
+    print("\n== F7 枚举取值中文 ==")
+    f7_combo_labels(V1, src)
+    print("\n== F8 编辑器文案中英 ==")
+    f8_editor_strings()
+    print("\n== F9 节点显示名 ==")
+    f9_node_titles(src, classes)
+    print("\n== F10 中文 tooltip ==")
+    f10_tooltips(open(os.path.join(ROOT, "nodes.py"), encoding="utf-8").read(), classes)
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:
