@@ -35,8 +35,7 @@
   给脸部特写就出来了。
 - 中文界面下 `init`、`face_pick` 两个下拉以前显示英文，现在有中文。
 
-🔴 **升级动作：不需要。** 新参数（`init` / `width` / `height`）排在参数表末尾，有默认值，
-行为与 0.3.0 一致。只有想用新能力（生成、改衣服/头发）时才需要动。
+**升级动作**：不需要。新参数（`init` / `width` / `height`）排在参数表末尾、有默认值，行为与 0.3.0 一致；只有想用新能力（生成、改衣服/头发）时才需要动。
 
 <!-- EN -->
 
@@ -58,8 +57,7 @@
   while adding a chair: scene reference drew one red stripe, face close-up produced the chair.
 - The `init` and `face_pick` dropdowns now show Chinese labels in the Chinese UI.
 
-🔴 **Action required: none.** The new inputs (`init` / `width` / `height`) sit at the end of the
-parameter list with defaults; behaviour matches 0.3.0. You only touch them to use the new capability.
+**Action required**: none. The new inputs (`init` / `width` / `height`) sit at the end of the parameter list with defaults; behaviour matches 0.3.0. You only touch them to use the new capability.
 
 ## 0.3.0 — 2026-10-28
 
