@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
-"""生成 `examples/moss-faceswap-ui.json` —— 第 7 个节点（换脸）的示例。
+"""生成 examples/moss-faceswap-ui.json —— 第 7 个节点（换脸）的示例。
 
-为什么用脚本生成：`widgets_values` 按位存，手写错一位参数就静默串位；这里槽位与连线
-是同一次定义的，`tools/check_ui_workflow.py` 会拿 `INPUT_TYPES()` 反查。
+为什么用脚本生成：widgets_values 按位存，手写错一位参数就静默串位；这里槽位与连线
+是同一次定义的，tools/check_ui_workflow.py 会拿 INPUT_TYPES() 反查。
 
-示例走的是**故事板那条路**：源图是整张宫格，`spec` 来自宫格几何节点，`index=0`
+示例走的是**故事板那条路**：源图是整张宫格，spec 来自宫格几何节点，index=0
 只换第一格 —— 这正是本包与「拿一张图去换脸」的差别：几何由 spec 决定，
 贴回只动那一格，宫格线与其他格一个字节都不碰。
 
-跑法：`python tools/make_faceswap_example.py`
+跑法：python tools/make_faceswap_example.py
 """
 
 import json
@@ -18,50 +18,55 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "examples", "moss-faceswap-ui.json")
 
-#: 提示词模板。**必须提到 `Picture 1`** —— 参考图是靠这个词进场景的。
-#: 前缀 `Picture 1: <|vision_start|>...` 由节点自动拼，这里不要自己写。
+#: 提示词模板。**必须提到 Picture 1** —— 参考图是靠这个词进场景的。
+#: 前缀 Picture 1: <|vision_start|>... 由节点自动拼，这里不要自己写。
 PROMPT = ("A medium shot photograph of the person in Picture 1, sitting at a wooden table "
           "in a warm cafe at night, rain on the window, soft warm light on the face, "
           "35mm film, shallow depth of field")
 
-NOTE = """## 换脸（`MossStoryboardFaceSwap`）
+NOTE = """## 换脸（MossStoryboardFaceSwap）
 
 把**参考图的脸**换到**某一格**。两条通道各管一半：
 
 | 通道 | 管什么 |
 |---|---|
-| 参考图 → vision tower | **是谁**（身份）。默认 `vision_megapixels=1.05`，宿主默认 0.147 那个值身份余弦只有 0.008 |
-| 源图 → VAEEncode（图生图） | **画什么**（构图/场景），由 `denoise` 与提示词决定 |
+| 参考图 → vision tower | **是谁**（身份）。默认 vision_megapixels=1.05，宿主默认 0.147 那个值身份余弦只有 0.008 |
+| 源图 → VAEEncode（图生图） | **画什么**（构图/场景），由 denoise 与提示词决定 |
 
 ### 这个工作流在做什么
-源图是**整张宫格**（1024×576，4 格），`spec` 由「宫格几何」给，`index=0` ⇒
+源图是**整张宫格**（1024×576，4 格），spec 由「宫格几何」给，index=0 ⇒
 **只换第一格**，其余三格与宫格线不动。
 
+### init 还能做另一件事
+把 init 从 source 改成 empty，节点就不吃 image，从空 latent 生成 ——
+「参考图 + 提示词 → 一张带指定动作的图」。示例见 moss-pose-generate-ui.json。
+此时 denoise / sample_edge / auto_mask / face_pick / index 都不生效，report 会写明。
+
 ### 三处必须改
-1. **两个 `LoadImage`** 换成你自己的图：
-   - `src` = 要换脸的那张（这里是宫格）
-   - `ref` = 身份参考图，**紧特写**最好，只给一张（双视角实测更差：0.384 vs 0.463）
-2. **提示词**里保留 `in Picture 1` 这个说法 —— 换成别的措辞参考图就不进场景了。
-3. **`index`** 改成你要换的格（0 起、行主序）。
+1. **两个 LoadImage** 换成你自己的图：
+   - src = 要换脸的那张（这里是宫格）
+   - ref = 身份参考图，**紧特写**最好，只给一张（双视角实测更差：0.384 vs 0.463）
+2. **提示词**里保留 in Picture 1 这个说法 —— 换成别的措辞参考图就不进场景了。
+3. **index** 改成你要换的格（0 起、行主序）。
 
 ### ⚠ 先用单人源图
 示例源图是**双人**场景，而「一格两个人」是本节点**已知不成立**的情况：两张脸都会被换掉。
 拿它跑通流程没问题，但要看效果请换一张**单人**图（脸占画幅越大越好）。
 
-### `denoise` 是最容易看错的一个旋钮
-- `0.95`（默认，实测配方）在 **8 步下等价于 1.0**：源图被**完全丢弃**，构图由提示词决定。
-- 想保住源图构图，要 **≤0.875**（8 步时 `int(8/0.875)=9>8` 才真的触发 img2img）。
-- `0.875~0.99` 这一段在 8 步下**全部等于 1.0** —— 宿主按 `int(步数/降噪)` 截断 sigma。
-  `report` 会打印**实际生效值**，别只看名义值。
+### denoise 是最容易看错的一个旋钮
+- 0.95（默认，实测配方）在 **8 步下等价于 1.0**：源图被**完全丢弃**，构图由提示词决定。
+- 想保住源图构图，要 **≤0.875**（8 步时 int(8/0.875)=9>8 才真的触发 img2img）。
+- 0.875~0.99 这一段在 8 步下**全部等于 1.0** —— 宿主按 int(步数/降噪) 截断 sigma。
+  report 会打印**实际生效值**，别只看名义值。
 
 ### 单格太小怎么办
 4 格 496 长边时一格只有 0.135MP，脸约 50×27 像素 —— 那个尺度模型认不出是谁。
-所以节点默认把单格**抬到 1024 长边再采样**（`sample_edge`），采样完缩回格子。
+所以节点默认把单格**抬到 1024 长边再采样**（sample_edge），采样完缩回格子。
 这一机制与「逐格」模式同一个，不是新旋钮。
 
-### 接不接 `spec` 的差别
-- **接了**：给整张宫格 + `index`，只换那一格，输出仍是整张宫格。
-- **不接**：整张 `image` 当成一张图，换完直接输出（单图换脸）。
+### 接不接 spec 的差别
+- **接了**：给整张宫格 + index，只换那一格，输出仍是整张宫格。
+- **不接**：整张 image 当成一张图，换完直接输出（单图换脸）。
 """
 
 
@@ -195,9 +200,9 @@ def build():
     by_id = {n["id"]: n for n in nodes}
 
     def wire(src, sslot, dst, dslot, typ):
-        """`dslot` 可以给**名字**。给数字在改 inputs 顺序时会静默错位 ——
-        踩过：`image` 从 required 挪到 optional 后，源图那根线落到了 `ref` 上，
-        参考图落到了 `prompt` 上，宿主才报 `prompt received IMAGE`。
+        """dslot 可以给**名字**。给数字在改 inputs 顺序时会静默错位 ——
+        踩过：image 从 required 挪到 optional 后，源图那根线落到了 ref 上，
+        参考图落到了 prompt 上，宿主才报 prompt received IMAGE。
         """
         if isinstance(dslot, str):
             dslot = [i["name"] for i in by_id[dst]["inputs"]].index(dslot)
