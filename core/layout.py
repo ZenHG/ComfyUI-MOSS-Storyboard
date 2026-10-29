@@ -222,7 +222,7 @@ def parse_spec(text):
     """把 `spec()` 的字符串还原成 `Layout`；不合法就抛 ValueError（不静默兜底）。
 
     spec 是**外部输入**（可来自任意上游节点），所以字段必须逐项限界：
-    超长字符串、超大单格/缝/边距、以及 `w/h` 与字段不自洽的 spec 都在这里拒绝，
+    超长字符串、超大单格/缝/边距、单格与画布不是 16 的倍数、以及 `w/h` 与字段不自洽的 spec 都在这里拒绝，
     否则下游 `empty_latent` / `render_template` 会按伪造的尺寸申请 TB 级张量。
     """
     if not text or SPEC_PREFIX not in text:
@@ -239,6 +239,14 @@ def parse_spec(text):
         if not MIN_PANEL <= kv[key] <= MAX_PANEL_PX:
             raise ValueError("spec.%s=%d 越界：必须在 %d..%d 像素（本包生成的 spec 不会超出）。"
                              % (key, kv[key], MIN_PANEL, MAX_PANEL_PX))
+    # 16 的倍数：VAE 按 16 倍下采样，非整倍数会被静默截断（裁切框与内容错位）。
+    # 节点自己算的几何一律 snap16，所以这条只在**手写 spec** 时才会触发 —— 那正是它要挡的。
+    for key in ("pw", "ph", "w", "h"):
+        if kv[key] % SNAP:
+            raise ValueError(
+                "spec.%s=%d 不是 %d 的倍数：MOSS 的 VAE 按 %d 倍下采样，非整倍数会被静默截断，"
+                "裁切框与内容错位。请重新接一次上游节点的 spec，不要手写。"
+                % (key, kv[key], SNAP, SNAP))
     for key in ("gutter", "margin"):
         if not 0 <= kv[key] <= MAX_GAP:
             raise ValueError("spec.%s=%d 越界：必须在 0..%d。" % (key, kv[key], MAX_GAP))

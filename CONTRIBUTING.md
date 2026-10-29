@@ -10,7 +10,7 @@ python tests/test_core.py                 # 313 项：几何 / 提示词 / 像�
 python tests/test_editor.py               # 149 项：state v3 编译层 / 预设 / 错误路径 / 上限 / 占位守卫（零 GPU）
 python tests/test_interop.py              # 88 项：elements-v1 互操作 / 往返 / CLI（零 GPU）
 python tests/test_extract.py              # 22 项：从散文/代码块提取 JSON、上限/扫描预算（零 GPU）
-python tests/test_adversarial.py          # 57 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算）
+python tests/test_adversarial.py          # 63 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算 / spec 的 16 倍数与回读）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
 python tests/test_skill_draft.py          # 79 项：官方 prompt-enhancer 草稿 / 编译 / state / CLI（零 GPU）
 python tests/test_contract.py             # 149 项（--no-host，CI 口径）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
@@ -26,7 +26,7 @@ python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 7 份共 105 项：连线 + 槽位（不带文件参数只查内建那一份 = 15 项）
 python tools/check_frontend.py            # 9 项：前端词表/语法/接线/标题可换语言
 python tools/check_editor_ui.py           # 151 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
-python tools/check_release_ready.py       # 49 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX）
+python tools/check_release_ready.py       # 53 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查）
 node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）
 node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
@@ -60,7 +60,7 @@ python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 
 > ⚠️ **别用 `| tail -n` 跑这些脚本** —— 管道会把退出码吃掉，你会看到"通过"却拿到 0。
 
-## 五条硬规矩
+## 六条硬规矩
 
 1. **`nodes.py` 的 `INPUT_TYPES()` 是参数表唯一真相源**。V3 schema 由 `v3/_compat.py` 自动生成，
    不许在别处手写第二份。新 widget 只能**追加到末尾** —— `widgets_values` 按位置存，
@@ -74,6 +74,22 @@ python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 5. **i18n 只改显示，不改存档**：只碰 `label`/`title`/`tooltip`，
    绝不碰 `name`/`value`/`options.values`；中文提示只在 `nodes.py` 写一份，
    `web/moss_sb_i18n.js` 的 `TIPS` 只存 `en`。新增参数忘了补英文 → `test_contract.py` 红。
+6. **用户可见的同一句话有三份，改一处必须改三处**：`nodes.py` 的中文 tooltip、
+   `web/moss_sb_i18n.js` 的 `en` 覆盖、README 的对应段落。
+   0.3.2 里 `mode`（说「逐格更一致」）与 `sample_edge`（说「2.0 = 2 倍」）的英文
+   与实测和中文**相反**，就是只改了中文留下的 —— 闸查不到语义冲突，只能靠这条纪律。
+
+## 文档里的数字与清单不要手写
+
+能被脚本核对的东西，就别靠人读：
+
+- **参数表**必须覆盖 `INPUT_TYPES` 的每个键（README 里以 `名字` 出现）；
+- **示例清单**：`examples/*.json` 每一个都要在 README 里被点名；
+- **示例依赖图**：仓库里没有的图，README 必须写明「自备」；
+- **报错原文**：README 声称逐字抄，`S18` 就按源码逐字核（占位符归一，符号不归一 ——
+  `×` 和 ASCII `x` 是两回事）。
+
+这四条都在 `tools/check_release_ready.py` 的 S18 里。写文档前先跑一遍，比事后人眼找快得多。
 
 ## 改完要同步的项数
 

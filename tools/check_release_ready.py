@@ -19,7 +19,9 @@
 from __future__ import annotations
 
 import getpass
+import glob
 import io
+import json
 import os
 import re
 import struct
@@ -717,6 +719,87 @@ def s17_binary_meta(files: list[str]) -> None:
     check("PNG 里没有 tEXt/zTXt/iTXt 文本块", not bad, "；".join(bad[:5]))
 
 
+def s18_doc_facts() -> None:
+    """README 里的「清单型事实」必须与仓库实物对得上。
+
+    为什么单列一条：2026-10-30 五个视角审 README，抓到四处同类错 ——
+    示例数量写 5（实际 7）、参数表漏 3 个入参、示例引用了仓库没有的图却没说明、
+    「四份示例有 LazyCache」数对了但点错了是哪四份。共同点：
+    **每一条都能机械核对，却从来没有被机械核对过。** 人读三遍也读不出来，脚本一遍就出来。
+    """
+    say("\nS18 文档清单与仓库实物一致")
+    readme = read("README_ZH.md")
+    src = read("nodes.py")
+
+    # (1) 参数表覆盖：INPUT_TYPES 的每个键都要在 README 里以 `名字` 出现。
+    #     漏一个键 = 读者按表接线时不知道有这个旋钮（label / border_px / shave 就是这么漏的）。
+    def keys_of(cls: str):
+        m = re.search(r"^class %s\b.*?(?=^class |\Z)" % cls, src, re.M | re.S)
+        if not m:
+            return None
+        return set(re.findall(r'^\s+"([a-z_0-9]+)": \(', m.group(0), re.M))
+
+    missing = []
+    for cls in ("MossStoryboardSampler", "MossStoryboardLayout"):
+        keys = keys_of(cls)
+        if not keys:
+            missing.append("%s 未解析到入参（正则失配）" % cls)
+            continue
+        missing += ["%s.%s" % (cls, k) for k in sorted(keys) if "`%s`" % k not in readme]
+    check("参数表覆盖全部入参（sampler / layout）", not missing, "；".join(missing[:6]))
+
+    # (2) 示例清单：examples/ 下的每个 json 都要在 README 里被点名。
+    examples = sorted(f for f in tracked() if f.startswith("examples/") and f.endswith(".json"))
+    unlisted = [os.path.basename(e) for e in examples if os.path.basename(e) not in readme]
+    check("每个示例都在 README 里列出（%d 个）" % len(examples), not unlisted, "；".join(unlisted[:4]))
+
+    # (3) 示例的输入图：仓库里没有的，README 必须说明「要自备」。
+    #     换脸与姿态示例引用了 moss_faceswap_src.png / moss_faceswap_ref.png，仓库从来没带过它们。
+    ghosts = []
+    for rel in examples:
+        try:
+            wf = json.loads(read(rel))
+        except (OSError, ValueError):
+            continue
+        for node in wf.get("nodes") or []:
+            if node.get("type") != "LoadImage":
+                continue
+            vals = node.get("widgets_values") or [""]
+            name = vals[0] if vals else ""
+            if not name or os.path.exists(os.path.join(ROOT, "assets", name)) \
+                    or os.path.exists(os.path.join(ROOT, name)):
+                continue
+            if name not in readme:
+                ghosts.append("%s → %s" % (os.path.basename(rel), name))
+    check("示例引用的输入图在仓库里，或在 README 里说明自备", not ghosts, "；".join(ghosts[:4]))
+
+    # (4) 报错表：README 声称「逐字抄」，那就逐字核。
+    #     归一规则：源码里的 %d/%s/%r 与数字都当占位符；「…」里是运行时填进去的值；
+    #     空白与反引号不算字符。这样容得下占位符，**容不下 × 与 x 这类符号替换**
+    #     （0.3.2 的表里就有两行把 ASCII x 写成了 ×，靠人眼看了三遍没看出来）。
+    def norm_err(t: str) -> str:
+        t = re.sub(r"「[^」]*」", "「」", t)
+        t = re.sub(r"%[dsr]", "0", t)
+        t = re.sub(r"\d+", "0", t)
+        return re.sub(r"[\s`\"'“”]", "", t)
+
+    #: 源码是 `label 只能是 %s（收到 %r）`，README 把 %s 展开成三个取值 —— 属正当展开，放行。
+    EXPANDED = ("label 只能是",)
+    src_all = "".join(read(f) for f in ["nodes.py"] + sorted(glob.glob(os.path.join(ROOT, "core", "*.py"))))
+    n_src = norm_err(src_all)
+    try:
+        i = readme.index("### 2.5 报错对照表")
+        sec = readme[i:readme.index("\n### ", i + 10)]
+    except ValueError:
+        sec = ""
+    rows = [ln.split("|")[1].strip().strip("`").split("…")[0]
+            for ln in sec.splitlines() if ln.startswith("| `")]
+    rows = [c for c in rows if re.search(r"[\u4e00-\u9fff]", c) and not c.startswith(EXPANDED)]
+    broken = [c for c in rows if norm_err(c) not in n_src]
+    detail = "；".join(broken[:4]) if broken else ("" if len(rows) >= 8 else "报错表没解析到（正则失配）")
+    check("报错表原文能在源码里逐字找到（%d 行）" % len(rows), len(rows) >= 8 and not broken, detail)
+
+
 def main() -> int:
     say("MOSS Storyboard · 发布前开源卫生检查")
     say("=" * 64)
@@ -743,6 +826,7 @@ def main() -> int:
     s15_internal_voice(files)
     s16_blacklist_travels(files)
     s17_binary_meta(files)
+    s18_doc_facts()
 
     say("\n" + "=" * 64)
     say("结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

@@ -231,6 +231,23 @@ def main():
         "MOSS-SB1 panels=1 w=64 h=64 cols=1 rows=1 pw=64 ph=64 gutter=-1 margin=0"), "越界")
     expect("padx=16 拒绝", lambda: L.parse_spec(
         "MOSS-SB1 panels=1 w=64 h=64 cols=1 rows=1 pw=64 ph=64 gutter=0 margin=0 padx=16"), "越界")
+    # 16 的倍数：手写 spec 最容易漏的一条（VAE 按 16 倍下采样，非整倍数会被静默截断）
+    expect("pw=84（非 16 倍数）拒绝", lambda: L.parse_spec(
+        "MOSS-SB1 panels=1 w=84 h=84 cols=1 rows=1 pw=84 ph=84 gutter=0 margin=0"),
+        "16 的倍数")
+    expect("w=100（非 16 倍数）拒绝", lambda: L.parse_spec(
+        "MOSS-SB1 panels=1 w=100 h=80 cols=1 rows=1 pw=80 ph=80 gutter=10 margin=0"),
+        "16 的倍数")
+    # 反向：节点自己生成的 spec 必须一条都不能被新校验误伤
+    for kw in ({"panels": 4, "panel_edge": 496, "panel_aspect": "16:9"},
+               {"panels": 9, "panel_edge": 512, "panel_aspect": "1:1"},
+               {"panels": 6, "panel_edge": 544, "panel_aspect": "9:16", "canvas_aspect": "9:16"},
+               {"panels": 3, "panel_edge": 496, "panel_aspect": "16:9"}):
+        lay = L.build_layout(**kw)
+        back = L.parse_spec(lay.spec())
+        check("生成的 spec 可回读（%d 格 %s）" % (kw["panels"], kw["panel_aspect"]),
+              (back.width, back.height) == (lay.width, lay.height),
+              "%d×%d" % (back.width, back.height))
     expect("panels 超上限拒绝", lambda: L.parse_spec(
         "MOSS-SB1 panels=99999999999999999999 w=64 h=64 cols=1 rows=1 "
         "pw=64 ph=64 gutter=0 margin=0"), "上限")
