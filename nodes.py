@@ -1226,9 +1226,27 @@ class MossStoryboardFaceSwap:
             final, paste_notes = P.paste_panel(image, lay, index, out, shave=0)
 
         real_denoise = S.effective_denoise(steps, denoise)
+
+        # ---- 蒙版自检：覆盖多少、蒙版外脏了多少 ----
+        # 用户不用另跑脚本就能知道「这次改干净了没有」。判据是「改动率」不是 mean|Δ|
+        # —— VAE 解码的整体舍入会把 mean 拉到 3~4，肉眼却看不见。
+        stats = None
+        if m is not None:
+            try:
+                if lay is None:
+                    _s, _o = image, final
+                else:
+                    _c = lay.cell(int(index))
+                    _s = image[:, _c.y:_c.y + _c.h, _c.x:_c.x + _c.w]
+                    _o = final[:, _c.y:_c.y + _c.h, _c.x:_c.x + _c.w]
+                _m = FS.fit_mask(m, (int(_s.shape[1]), int(_s.shape[2])))
+                stats = FS.mask_stats(_s, _o, _m)
+            except Exception:      # 自检失败不影响出图，只是少两行报告
+                stats = None
+
         lines = [
             "换哪一张：%s" % where,
-            ("局部重画：%s；蒙版外逐像素保留（画风不变）" % mask_src if noise_mask is not None
+            ("局部重画：%s；蒙版外只有解码舍入（具体数字见下）" % mask_src if noise_mask is not None
              else "⚠ 整格重画：既没接 mask 也没开 auto_mask —— 整张图影调会被重算，画风与色调会变"),
             "格子 %d×%d（%.3f MP）→ 采样 %d×%d（%.3f MP）"
             % (cell_w, cell_h, FS.megapixels(panel), up["sampled"][0], up["sampled"][1],
@@ -1244,6 +1262,21 @@ class MossStoryboardFaceSwap:
                "（源图被完全丢弃，构图来自提示词）" if real_denoise >= 1.0
                else "（保留源图构图）"),
         ]
+        if stats is not None:
+            cover, visible, slight = stats
+            lines.append("蒙版覆盖 %.1f%%｜蒙版外：可见改动 %.2f%%（判据 <1%%）· 轻微 %.2f%%（8–32/255，肉眼不可见）"
+                         % (100.0 * cover, 100.0 * visible, 100.0 * slight))
+            if cover > 0.95:
+                lines.append("⚠ 蒙版覆盖 %.0f%%：接近全图。白=重画 —— 检查是不是接反了。"
+                             % (100.0 * cover))
+            elif cover > 0.5:
+                lines.append(
+                    "⚠ 蒙版覆盖 %.0f%%：大范围编辑会被**未遮区域**拉回原样（inpainting 的上下文传染），"
+                    "换背景这类整片替换基本不成立。要么缩小蒙版，要么改用 init=empty 整张重生成。"
+                    % (100.0 * cover))
+            elif cover < 0.005:
+                lines.append("⚠ 蒙版只覆盖 %.2f%%：可能太小，模型看不到要改的东西。"
+                             % (100.0 * cover))
         if ref_rep.get("batch_dropped", 1) > 1:
             lines.append("参考图批次 %d 张，只用了第一张。" % ref_rep["batch_dropped"])
         lines += ref_rep.get("notes", [])
