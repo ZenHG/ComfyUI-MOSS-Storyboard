@@ -358,7 +358,7 @@ characters into a search here to find your row.
 | `图像 1024x576 不能被 3x2 整除：会得到差 1px 的格子，下游拼接必崩。…` | Crop without `spec` on a size that does not divide | wire `spec`, or feed a canvas that divides |
 | `index=5 越界：共 4 格（0 起）` | Crop: panel number past the last panel | use 0…3, or wire Crop's `index` output |
 | `index=5 越界：本布局共 4 格（0 起）` | same, raised by **Paste** (different wording) | same fix; to repaint the whole image, do not wire `spec` |
-| `宫格尺寸 1024×1152 与布局 1024×576 不一致` | Paste got a board that is not the `spec` canvas | feed the board the Sampler produced with that `spec` |
+| `宫格尺寸 1024x1152 与布局 1024x576 不一致` | Paste got a board that is not the `spec` canvas | feed the board the Sampler produced with that `spec` |
 | `draft 为空：请粘贴官方 prompt-enhancer 的 caption/layout 草稿 JSON。` | Draft Compiler run with an empty draft | paste the **draft**, not the compiler's own output |
 | `元素 3 没有描述（caption 不能为空）` | a box on the canvas has no caption | give it a caption, or delete it |
 | `label 只能是 object/character/text（收到 'xxx'）` | a hand-edited state or draft used another type | only those three values are allowed |
@@ -432,9 +432,9 @@ characters into a search here to find your row.
 #### Hard constraints
 
 - Canvas and panel dimensions must be multiples of **16**. Geometry the nodes compute is always snapped to 16;
-  `spec` is validated as external input (missing fields, out-of-range values, and "the fields do not add up to
-  `w` / `h`" all raise) — but **it does not check whether `pw` / `ph` are multiples of 16**: a hand-written
-  `pw=84` parses. ⇒ **Do not hand-write `spec`**; use the wire the node produces.
+  `spec` is validated field by field as external input: missing fields, out-of-range values, `pw` / `ph` / `w` / `h`
+  that are not multiples of 16, and "the fields do not add up to `w` / `h`" all raise.
+  ⇒ **Do not hand-write `spec`**; use the wire the node produces.
 - >2 MP warns, >4 MP warns loudly: MOSS trains at 1–2 MP, official extrapolation ≈4 MP.
 - **VAE decode precision is decided by ComfyUI, not by the weight file.** The host casts the VAE to `fp16` at load
   (falling back to `bf16` / `fp32` only if your GPU cannot do fp16), so `flux2-vae.safetensors` (F32) and
@@ -475,9 +475,9 @@ or a masked redraw.
 `panels` `w` `h` `cols` `rows` `pw` `ph` `gutter` `margin` `padx` `pady`
 (`pw` / `ph` are the panel size; `padx` / `pady` are the few pixels that round the canvas up to a multiple of 16).
 
-It is a **forceInput**: wire only, **you cannot type it on the node panel**. Parsing validates it — missing fields,
-out-of-range values, and "the fields do not add up to `w` / `h`" all raise — so hand-copying a `spec` breaks easily.
-Do not hand-copy it. A real one looks like `MOSS-SB1 panels=4 w=1024 h=576 cols=2 rows=2 pw=496 ph=272
+It is a **forceInput**: wire only, **you cannot type it on the node panel**. Parsing validates it field by field —
+missing fields, out-of-range values, `pw` / `ph` / `w` / `h` that are not multiples of 16, and "the fields do not
+add up to `w` / `h`" all raise — so hand-copying a `spec` breaks easily. Do not hand-copy it. A real one looks like `MOSS-SB1 panels=4 w=1024 h=576 cols=2 rows=2 pw=496 ph=272
 gutter=8 margin=8 padx=8 pady=8` — and `padx` / `pady` are exactly what makes the arithmetic close.
 
 | Produced by | Consumed by |
@@ -519,7 +519,7 @@ Factory defaults below. The shipped examples use **4 panels / panel edge 496** a
 | Gutter / margin `gutter` / `margin` | 8 / 8 | used when `spec` is absent |
 | Steps `steps` | 50 | model card value. With the 4-step distilled LoRA set **4–8**, see [2.3](#23-recipes-two-bands-do-not-mix) |
 | CFG `cfg` | 3.0 | model card value (official Base range 3–6) |
-| Sampler / scheduler | `euler` / `sgm_uniform` | see [2.3](#23-recipes-two-bands-do-not-mix) |
+| Sampler / scheduler `sampler_name` / `scheduler` | `euler` / `sgm_uniform` | see [2.3](#23-recipes-two-bands-do-not-mix) |
 | Prompt handling `init` | `auto` | `auto` / `layout` = panel captions become layout boxes; `plain` = no layout boxes. ⚠ Face Swap also has an `init`, but with `source` / `empty` — **same name, different meaning** |
 | Box type `label` | `object` | advanced. `object` / `character` / `text`, same as Grid Layout |
 | Denoise `denoise` | 1.0 | **keep 1.0** — no image input; lowering it only truncates sigma |

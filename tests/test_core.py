@@ -104,7 +104,9 @@ expect_raise("spec 单格超大 → ValueError",
                                   "pw=999999999 ph=999999999 gutter=0 margin=0 padx=0 pady=0"),
              "越界")
 expect_raise("spec 超长 → ValueError", lambda: L.parse_spec("MOSS-SB1 " + "panels=1 " * 600), "字符")
-_pad = L.build_layout(panels=4, cols=2, rows=2, panel_w=250, panel_h=140, gutter=8, margin=8)
+# 单格尺寸取 16 的倍数：parse_spec 现在会拒绝非整倍数，用 250/140 会先撞那条，
+# 这条用例要测的是「w 与字段不自洽」，得让它走到那一步。
+_pad = L.build_layout(panels=4, cols=2, rows=2, panel_w=256, panel_h=144, gutter=8, margin=8)
 _bad_spec = _pad.spec().replace(" w=%d " % _pad.width, " w=%d " % (_pad.width + 16))
 expect_raise("spec 的 w/h 与字段不自洽 → ValueError", lambda: L.parse_spec(_bad_spec), "自相矛盾")
 
