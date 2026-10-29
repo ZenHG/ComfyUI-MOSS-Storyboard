@@ -536,9 +536,19 @@ A reference face → **one panel** (or a single image). Four things matter:
 
 `report` prints how much of the frame the mask covers and how much changed outside it — no extra script needed.
 
-**Single-photo face swap**: leave `spec` unwired and the whole image is treated as one panel —
-example `moss-faceswap-single-ui.json`. ⚠ With `spec` wired the source must be the same board,
-otherwise it raises "source W×H does not match the spec canvas".
+**What a single image (no `spec`) can and cannot do** — the table worth remembering:
+
+| Want | Works | How |
+|---|---|---|
+| **face swap** | ✅ | leave `spec` unwired (whole image = one panel), give `ref` a face close-up. Example `moss-faceswap-single-ui.json` |
+| **change one region** (clothes / expression / background) | ✅ | wire **the source image itself** into `ref` (`ref` is required), turn `auto_mask` off, wire `ImageToMask(red)`. Measured on clothes: 97% changed inside the mask, 0.01% visible outside; **background does not work** |
+| **change the whole body pose** | ❌ no reliable path | in `source` mode the body sits outside the mask and does not move; in `empty` mode the source is **ignored**, so it regenerates from the reference. Masking the whole body is a large-area replacement — the background case (76.8% coverage) failed exactly that way |
+
+> The pose and body-motion measurements (seven / nine tiers) are on the **generate** path:
+> reference + prompt → a new image, **not** an edit of an existing photo. To give "the person in this
+> photo a different pose" you regenerate, then swap the face onto the result.
+
+⚠ With `spec` wired the source must be the same board, otherwise it raises "source W×H does not match the spec canvas".
 Full parameter table, mask geometry, the pose/body measurements and the working scope (clothes work, background does
 not): [manual §6](docs/19-node-manual.md#6--换脸--蒙版局部编辑) (Chinese).
 
