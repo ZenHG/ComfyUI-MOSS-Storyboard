@@ -862,6 +862,8 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | `mask` | 可选，手接蒙版覆盖自动结果。接了就以手接的为准 |
 | `init` | **`source`**（默认）= 吃 `image` 做图生图，有蒙版就只重画蒙版内；**`empty`** = 不吃 `image`，从空 latent 开始——参考图 + 提示词 → 一张新图 |
 
+**为什么它不只是「图生图」。** 官方的 MOSS 编辑是 **in-context**：参考图作为干净 token 在 `t = 0` 陪跑，`x` 从纯噪声开始，所以构图只能靠提示词**求**。本节点让源图当**起点**（`vae.encode` + `denoise`），构图是**机制上**保住的。四条条件各管一件事：提示词 = 改什么，`ref` = 像谁，`image` = 保什么，`mask` = 改哪里。背景阅读：[`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md)。
+
 **蒙版是「修图」和「重画」的分界。** 接了蒙版只重画蒙版内，蒙版外逐像素保留（实测 `mean&#124;Δ&#124; 0.40/255`）；既没接线、又关掉 `auto_mask` 才是整格重画，色调必漂（`R +24 … +53`）。`report` 会写明实际走了哪条。
 
 **蒙版长什么样。** 是**羽化矩形**，不是贴脸轮廓：上沿 `eye_y + 0.30 × (nose_y − eye_y)`，下沿 `y2 + 0.06 × h`，左右各外扩 `0.05 × w`，羽化 `max(3, 0.02 × w)`。**白 = 重画。** 给整张宫格的蒙版也行——节点按 `index` 用与图像同一套整数坐标裁到目标格。
@@ -1077,6 +1079,7 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) | 配方契约：验证过的配方里哪些项是必需的（网格声明 / 段数=格数 / 自检命令） |
 | [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) | 换脸节点重构前后：变了什么、什么故意不变、为什么这次能进 MIT 包 |
 | [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) | 换脸配方：哪条路真的成过、蒙版怎么算、判据是什么 |
+| [`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md) | 蒙版潜空间编辑：官方范式缺了什么、四条条件正交、到哪一步不成立 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 怎么跑机检、提交前必须过哪几条 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
 

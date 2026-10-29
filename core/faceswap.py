@@ -155,3 +155,33 @@ def mask_for_latent(mask, latent):
     if m.shape[0] != samples.shape[0]:
         m = m.expand(samples.shape[0], -1, -1, -1)
     return m
+
+def mask_stats(src, out, mask):
+    """蒙版覆盖率 + 蒙版外的**可见改动率**与**轻微改动率**。
+
+    为什么要分两档（E45 实测）：蒙版外拿 >8/255 当阈值会严重误报 ——
+    VAE 解码 + latent 混合的舍入就能产生 8–16 的差异，肉眼完全看不见。
+    衣服那组：>8 占 5.79%，但 >32 只有 **0.01%**，p99 = 17。
+
+    ⇒ 判据用 `visible`（>32/255）。`slight` 只作参考，不代表「脏」。
+
+    `src` / `out` 是 IMAGE（`[B,H,W,C]`，0–1），`mask` 与它们同尺寸。
+    返回 `(覆盖率, 可见改动率, 轻微改动率)`；`mask` 为空时返回 `None`。
+    """
+    if mask is None:
+        return None
+    m = mask
+    if m.ndim == 2:
+        m = m.unsqueeze(0)
+    if m.shape[0] != src.shape[0]:
+        m = m.expand(src.shape[0], -1, -1)
+    inside = m > 0.5
+    outside = m < 0.02
+    diff = (out - src).abs().amax(dim=-1)
+    cover = float(inside.float().mean())
+    if not bool(outside.any()):
+        return cover, 0.0, 0.0
+    v = diff[outside]
+    visible = float((v > 32.0 / 255.0).float().mean())
+    slight = float(((v > 8.0 / 255.0) & (v <= 32.0 / 255.0)).float().mean())
+    return cover, visible, slight

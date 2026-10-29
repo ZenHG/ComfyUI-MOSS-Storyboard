@@ -692,6 +692,8 @@ Reference face → **one panel** (or a single image). MIT, like the rest of the 
 | `mask` | Optional manual override. A wired mask beats `auto_mask` |
 | `init` | **`source`** (default) = img2img from `image`; with a mask only the mask is redrawn. **`empty`** = ignore `image`, start from an empty latent — reference face + prompt → one new image |
 
+**Why this is not just "img2img".** The official MOSS edit format is **in-context**: the reference image rides along as clean tokens at `t = 0` and `x` starts from pure noise, so composition is only *asked for* in the prompt. This node lets the source image be the **starting point** instead (`vae.encode` + `denoise`), so composition is kept *mechanically*. Four conditions, each doing one job: prompt = what changes, `ref` = who, `image` = what is kept, `mask` = where. Background reading: [`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md).
+
 **The mask is the difference between a retouch and a re-render.** With a mask only the mask is redrawn and everything outside stays pixel-identical (`mean&#124;Δ&#124; 0.40/255`). Without one — no wired mask **and** `auto_mask` off — the whole panel is repainted and the grade always shifts (`R +24 … +53`). `report` says which path ran.
 
 **What the mask is.** A feathered **rectangle**, not a face outline: top edge at `eye_y + 0.30 × (nose_y − eye_y)`, bottom at `y2 + 0.06 × h`, sides at `±0.05 × w` around the detected box, blur `max(3, 0.02 × w)`. **White = repaint.** A mask the size of the whole board is fine — it is cropped to `index` with the same integer coordinates used for the image.
@@ -840,7 +842,8 @@ Selected deep dives live in the GitHub repo's [`docs/`](https://github.com/ZenHG
 [`14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) top-level design: what each of the seven nodes owns ·
 [`15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) recipe contract: what a verified recipe must contain ·
 [`16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) face swap, before and after: what changed and what deliberately did not ·
-[`17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) face-swap recipe: which path actually worked, how the mask is computed, what the pass criteria are.
+[`17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) face-swap recipe: which path actually worked, how the mask is computed, what the pass criteria are ·
+[`18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md) masked latent edit: what the official edit format does *not* do, the four orthogonal conditions, and where this stops working.
 Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md) · release history: [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md).
 
 `docs/`, `CHANGES.md` and `RELEASE-NOTES.md` are not shipped in the install package (see `.comfyignore`); the links above point to the GitHub repo.
