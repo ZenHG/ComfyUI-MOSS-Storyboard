@@ -25,7 +25,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.3.1** |
+| 版本 | **0.3.2** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（MOSS-Image 原生支持自 PR #17095 起） |
 | 依赖 | 核心**零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供）。换脸节点的自动蒙版可选装 `insightface` + `onnxruntime`，不装也能跑 |
