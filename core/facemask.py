@@ -20,11 +20,37 @@ insightface 的 `buffalo_l` 在本机已有权重（离线可用），且 E26 �
 
 from __future__ import annotations
 
+import os
+
 #: 挑脸的方式。`largest` 最稳；`left` / `right` 用来点名「换右边那个男的」。
 PICK_MODES = ["largest", "left", "right"]
 
 #: 检测模块只装 detection，不装 recognition —— 我们要的是框和关键点，不是身份向量。
+#: ⇒ 权重只需要 `det_10g.onnx`；`buffalo_l` 里的 `w600k_r50.onnx`（识别）本节点用不到。
 _MODULES = ["detection"]
+
+#: 权重文件名（insightface 的 `buffalo_l` 包）。
+_WEIGHT = "det_10g.onnx"
+
+#: 权重下载地址，只在报错信息里给出来，**不会**自动联网下载。
+WEIGHT_URL = "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip"
+
+#: 已初始化的检测器。`FaceAnalysis(...)` + `prepare()` 要几百毫秒，每格都重建会拖慢整张宫格。
+_APPS = {}
+
+
+def model_root():
+    """权重根目录。默认 `~/.insightface`，可用环境变量 `MOSS_INSIGHTFACE_ROOT` 改。
+
+    改这个是为了**离线部署**：把 `buffalo_l` 放到任意盘，设一个环境变量就行，
+    不用动用户主目录。
+    """
+    return os.environ.get("MOSS_INSIGHTFACE_ROOT") or os.path.expanduser("~/.insightface")
+
+
+def weight_path(root=None):
+    """`det_10g.onnx` 的完整路径。"""
+    return os.path.join(root or model_root(), "models", "buffalo_l", _WEIGHT)
 
 
 def available():
@@ -36,22 +62,46 @@ def available():
     return True, ""
 
 
-def detect(rgb, det_size=640):
-    """在 `rgb`（uint8，H×W×3）上检脸。返回按 **从左到右** 排好的列表。
-
-    每项：`{"bbox": (x1,y1,x2,y2), "kps": [(x,y)×5], "area": w*h}`。
-    """
+def _get_app(det_size=640):
+    """取（并缓存）检测器。权重缺失时**不联网下载**，直接报错说清放哪里。"""
     ok, why = available()
     if not ok:
         raise RuntimeError(
             "%s：自动蒙版需要 insightface（`pip install insightface onnxruntime`），"
             "或者手接一个 mask。" % why)
-    import numpy as np
-    from insightface.app import FaceAnalysis
 
-    app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"],
-                       allowed_modules=_MODULES)
-    app.prepare(ctx_id=-1, det_size=(int(det_size), int(det_size)))
+    root = model_root()
+    path = weight_path(root)
+    if not os.path.exists(path):
+        raise RuntimeError(
+            "自动蒙版缺少权重：%s\n"
+            "把 `%s` 放到 `%s` 即可（同目录放不放 `w600k_r50.onnx` 都行，本节点只用检测）。\n"
+            "下载：%s\n"
+            "想放到别的盘：设环境变量 `MOSS_INSIGHTFACE_ROOT=<你的根目录>`，"
+            "权重放在 `<根目录>/models/buffalo_l/`。\n"
+            "或者关掉 `auto_mask` 并手接一个 `mask`。"
+            % (path, _WEIGHT, os.path.dirname(path), WEIGHT_URL))
+
+    key = (root, int(det_size))
+    app = _APPS.get(key)
+    if app is None:
+        from insightface.app import FaceAnalysis
+
+        app = FaceAnalysis(name="buffalo_l", root=root,
+                           providers=["CPUExecutionProvider"], allowed_modules=_MODULES)
+        app.prepare(ctx_id=-1, det_size=(int(det_size), int(det_size)))
+        _APPS[key] = app
+    return app
+
+
+def detect(rgb, det_size=640):
+    """在 `rgb`（uint8，H×W×3）上检脸。返回按 **从左到右** 排好的列表。
+
+    每项：`{"bbox": (x1,y1,x2,y2), "kps": [(x,y)×5], "area": w*h}`。
+    """
+    import numpy as np
+
+    app = _get_app(det_size)
     faces = app.get(np.ascontiguousarray(rgb[:, :, ::-1]))   # insightface 吃 BGR
 
     out = []
