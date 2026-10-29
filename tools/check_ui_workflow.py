@@ -200,6 +200,18 @@ def check_file(path, mappings):
             check("%s(id=%d) panels 合理" % (n["type"], n["id"]), pv in (3, 4, 6, 8, 9), str(pv))
     check("文件里含本包节点（%d 个）" % ours, ours > 0)
 
+    # 注释（MarkdownNote）里**不许出现反引号**。
+    # ComfyUI 的 MarkdownNote 渲染器对「反引号套加粗 / 标题 / 表格」支持不全，
+    # 会原样显示成 ` 或者把加粗吃掉。注释是给人读的说明，不是代码 —— 裸写就够。
+    bt = []
+    for n in wf["nodes"]:
+        if n.get("type") not in ("MarkdownNote", "Note"):
+            continue
+        t = str((n.get("widgets_values") or [""])[0])
+        if "`" in t:
+            bt.append("节点 %s 的注释里有 %d 个反引号" % (n["id"], t.count("`")))
+    check("注释里没有反引号", not bt, "；".join(bt))
+
     # 节点类型是否存在（前端独有节点不在宿主的 NODE_CLASS_MAPPINGS 里）
     FRONTEND_ONLY = {"MarkdownNote", "Note", "Reroute", "PrimitiveNode", "GroupNode"}
     # 宿主 comfy_extras 注册的官方节点：顶层 `nodes.py` 单独 import 时不会加载它们

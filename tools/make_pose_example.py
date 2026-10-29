@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
-"""生成 `examples/moss-pose-generate-ui.json` —— 「参考图 + 提示词 → 一张带指定动作的图」。
+"""生成 examples/moss-pose-generate-ui.json —— 「参考图 + 提示词 → 一张带指定动作的图」。
 
-**没有第三方节点，也没有新增节点。** 靠换脸节点自己的 `init` 开关：
+**没有第三方节点，也没有新增节点。** 靠换脸节点自己的 init 开关：
 
     init = source（默认）→ 吃 image 做图生图，有蒙版就只重画蒙版内（换脸）
     init = empty        → 不吃 image，从空 latent 生成（参考图 + 提示词 → 一张新图）
@@ -10,7 +10,7 @@
 两者是同一件事的两个特例，差别只有「从哪开始」。所以姿态/动作这条路径
 不需要装 GPL 的 RefHiRes，也不需要第 8 个节点。
 
-跑法：`python tools/make_pose_example.py`
+跑法：python tools/make_pose_example.py
 """
 
 import json
@@ -29,13 +29,13 @@ ACTION = "standing with both arms crossed over the chest, looking at the camera.
 
 NOTE = """## 姿态 / 肢体动作（参考图 → 一张图）
 
-**一个节点搞定**：本包「🎬 故事板 · 换脸」的 `init` 设成 **`empty`**。
+**一个节点搞定**：本包「🎬 故事板 · 换脸」的 init 设成 **empty**。
 它和换脸是同一件事的两个特例，差别只有「从哪开始」：
 
-| `init` | 从哪开始 | 用途 |
+| init | 从哪开始 | 用途 |
 |---|---|---|
-| `source`（默认） | 吃 `image` 做图生图 | 换脸；有蒙版只重画蒙版内 |
-| **`empty`** | 空 latent | 参考图 + 提示词 → 一张新图（本示例） |
+| source（默认） | 吃 image 做图生图 | 换脸；有蒙版只重画蒙版内 |
+| **empty** | 空 latent | 参考图 + 提示词 → 一张新图（本示例） |
 
 所以这条路径**不需要**装 ComfyUI-MOSS-RefHiRes，也不需要别的节点。
 
@@ -43,52 +43,52 @@ NOTE = """## 姿态 / 肢体动作（参考图 → 一张图）
 1. **参考图**：换成**正脸**特写。⚠ 参考图的姿态会锁死输出 —— 侧脸参考图喂进去，
    提示词怎么写都拉不回正脸（实测参考图 yaw +5.20 时七档提示词全画成侧脸）。
 2. **提示词尾巴**：只改最后一句，前半段别动（那是「中景 + 灰棚 + 柔光」的基线）。
-3. **`width` / `height`**：默认 1024×576（16:9），必须是 16 的倍数。
-   接了 `spec` 就由 spec 定画布，这两个值被忽略。
+3. **width / height**：默认 1024×576（16:9），必须是 16 的倍数。
+   接了 spec 就由 spec 定画布，这两个值被忽略。
 
-### `init=empty` 下不生效的旋钮
-`denoise` / `sample_edge` / `auto_mask` / `face_pick` / `index` —— 没有源图，
-也就没有「保留原图」和「只改哪一块」。`report` 会写明这一点。
+### init=empty 下不生效的旋钮
+denoise / sample_edge / auto_mask / face_pick / index —— 没有源图，
+也就没有「保留原图」和「只改哪一块」。report 会写明这一点。
 
 ### 九档动作（把提示词尾巴换成其中一句）
 | 档 | 尾巴 |
 |---|---|
-| a00_still | `standing still with both arms relaxed at the sides, looking at the camera.` |
-| a01_pocket | `standing with both hands in the pockets, looking at the camera.` |
-| a02_cross | `standing with both arms crossed over the chest, looking at the camera.` |
-| a03_walk | `walking forward toward the camera, one leg in front of the other, arms swinging naturally.` |
-| a04_reach | `standing and reaching forward with the right hand as if picking something up, the head still facing the camera.` |
-| a05_sit | `sitting on a simple wooden stool, hands resting on the knees, looking at the camera.` |
-| a06_turn | `standing with the torso turned sideways, but the head still turned toward the camera.` |
-| a07_handface | `standing with the right hand raised to the chin, fingers touching the jaw, thinking.` |
-| a08_back | `standing with the back to the camera, head turned back over the shoulder.` |
+| a00_still | standing still with both arms relaxed at the sides, looking at the camera. |
+| a01_pocket | standing with both hands in the pockets, looking at the camera. |
+| a02_cross | standing with both arms crossed over the chest, looking at the camera. |
+| a03_walk | walking forward toward the camera, one leg in front of the other, arms swinging naturally. |
+| a04_reach | standing and reaching forward with the right hand as if picking something up, the head still facing the camera. |
+| a05_sit | sitting on a simple wooden stool, hands resting on the knees, looking at the camera. |
+| a06_turn | standing with the torso turned sideways, but the head still turned toward the camera. |
+| a07_handface | standing with the right hand raised to the chin, fingers touching the jaw, thinking. |
+| a08_back | standing with the back to the camera, head turned back over the shoulder. |
 
 ### 七档姿态（要测转头，把前半段换成「特写」基线）
-前半段：`An extreme close-up portrait photograph of a person, the face filling most of the
+前半段：An extreme close-up portrait photograph of a person, the face filling most of the
 frame, head and shoulders, plain grey studio wall behind, soft key light from the left,
-calm neutral expression, `
+calm neutral expression,
 
 | 档 | 尾巴 |
 |---|---|
-| p00_front | `looking straight at the camera, head perfectly frontal, both ears visible.` |
-| p15_soft | `head turned slightly, a little more of the right cheek visible than the left, eyes still toward the camera.` |
-| p30_three | `head turned in a three-quarter view, clearly more of the right cheek visible, the right ear half hidden.` |
-| p50_strong | `head turned far in a strong three-quarter view, the right ear is hidden behind the cheek, the left eye near the silhouette edge.` |
-| p75_profile | `head turned almost in profile, only a sliver of the far eye visible, the nose breaking the silhouette.` |
-| pd_down | `head tilted down, chin lowered toward the chest, eyes looking down.` |
-| pu_up | `head tilted up, chin raised, eyes looking up at the ceiling.` |
+| p00_front | looking straight at the camera, head perfectly frontal, both ears visible. |
+| p15_soft | head turned slightly, a little more of the right cheek visible than the left, eyes still toward the camera. |
+| p30_three | head turned in a three-quarter view, clearly more of the right cheek visible, the right ear half hidden. |
+| p50_strong | head turned far in a strong three-quarter view, the right ear is hidden behind the cheek, the left eye near the silhouette edge. |
+| p75_profile | head turned almost in profile, only a sliver of the far eye visible, the nose breaking the silhouette. |
+| pd_down | head tilted down, chin lowered toward the chest, eyes looking down. |
+| pu_up | head tilted up, chin raised, eyes looking up at the ceiling. |
 
-> 左右方向一律用「**哪边脸颊可见**」描述，别写 `left` / `right` —— 后者在模型里歧义。
+> 左右方向一律用「**哪边脸颊可见**」描述，别写 left / right —— 后者在模型里歧义。
 
 ### 实测结论（照抄不要凭感觉）
-- **动作九档全部生效**，身份净损失 `−0.086 … +0.112`，七档在 ±0.05 以内（采样地板量级）。
-- **伤脸的是连带转头**：背身回看（yaw 0.76）→ `−0.086`；躯干转侧但头朝镜头只有 `+0.036`。
-- **手抵下颌无害**（`+0.112`，高于地板）—— 只挡到下颌线，没挡眼鼻。
-- **`a01_pocket` 像素差只有 8.05**，「手插兜」画面几乎没变，不能当「动作生效」的样本。
+- **动作九档全部生效**，身份净损失 −0.086 … +0.112，七档在 ±0.05 以内（采样地板量级）。
+- **伤脸的是连带转头**：背身回看（yaw 0.76）→ −0.086；躯干转侧但头朝镜头只有 +0.036。
+- **手抵下颌无害**（+0.112，高于地板）—— 只挡到下颌线，没挡眼鼻。
+- **a01_pocket 像素差只有 8.05**，「手插兜」画面几乎没变，不能当「动作生效」的样本。
 
 ### 还想再收紧身份
-把这里的 `image` 输出接到 `examples/moss-faceswap-ui.json` 的换脸节点（`init=source`，
-`auto_mask` 开着）。顺序不能倒：**先定动作，再换脸** —— 换脸只重画蒙版内的脸，
+把这里的 image 输出接到 examples/moss-faceswap-ui.json 的换脸节点（init=source，
+auto_mask 开着）。顺序不能倒：**先定动作，再换脸** —— 换脸只重画蒙版内的脸，
 身体在蒙版外逐像素保留，提示词动不了动作。
 """
 
@@ -188,6 +188,12 @@ def build():
                       outputs=[out("images", "IMAGE")],
                       order=8, ours=False))
 
+    # report 一定要接出来：init=empty 下哪些旋钮不生效、画布来自哪里，全写在里面。
+    nodes.append(node(10, "PreviewAny", (520, 900), (420, 260), [],
+                      inputs=[inp("source", "*", 7)],
+                      outputs=[out("STRING", "STRING")],
+                      title="report（看画布来源与哪些旋钮不生效）", order=9, ours=False))
+
     #: 按 **id** 找节点（节点数组顺序与 id 不一定一致）。
     by_id = {n["id"]: n for n in nodes}
 
@@ -206,9 +212,10 @@ def build():
     wire(6, 0, 8, 2, "VAE")
     wire(7, 0, 8, 3, "IMAGE")     # 参考图 → ref
     wire(8, 0, 9, 0, "IMAGE")
+    wire(8, 1, 10, 0, "STRING")   # report → 预览
 
     return {
-        "last_node_id": 9,
+        "last_node_id": 10,
         "last_link_id": len(links),
         "nodes": nodes,
         "links": links,

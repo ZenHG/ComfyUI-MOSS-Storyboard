@@ -198,7 +198,14 @@ def main():
             for nid, out in (entry.get("outputs") or {}).items():
                 for kind, items in out.items():
                     for it in items:
-                        print("  输出 %s.%s -> %s" % (nid, kind, it.get("filename")))
+                        # 输出不全是文件字典：`PreviewAny` 那种给的是纯字符串列表，
+                        # 早先这里直接 it.get("filename")，一碰到就 AttributeError，
+                        # 于是「跑成功了但退出码 1」——自动化会当成失败。
+                        if isinstance(it, dict):
+                            desc = it.get("filename") or it.get("text") or it
+                        else:
+                            desc = it
+                        print("  输出 %s.%s -> %s" % (nid, kind, str(desc)[:120]))
             return 0 if status == "success" else 1
         q = get_json(args.api + "/queue")
         now = len(q.get("queue_running") or [])
