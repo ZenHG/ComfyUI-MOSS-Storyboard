@@ -157,7 +157,7 @@ def mask_for_latent(mask, latent):
     return m
 
 def mask_stats(src, out, mask):
-    """蒙版覆盖率 + 蒙版外的**可见改动率**与**轻微改动率**。
+    """蒙版覆盖率 + 蒙版外的**可见改动率** / **轻微改动率** + 蒙版内的**实际改动率**。
 
     为什么要分两档（E45 实测）：蒙版外拿 >8/255 当阈值会严重误报 ——
     VAE 解码 + latent 混合的舍入就能产生 8–16 的差异，肉眼完全看不见。
@@ -165,8 +165,12 @@ def mask_stats(src, out, mask):
 
     ⇒ 判据用 `visible`（>32/255）。`slight` 只作参考，不代表「脏」。
 
+    `inner`（蒙版内改动率）是为「跑完看起来没变」准备的：它只统计**蒙版内**被判为可见改动的像素。
+    接近 0 只有两种可能 —— 参考图与源图是同一人，或者蒙版内根本没被重画。
+    这两件事在画面上都表现为「没变化」，但原因完全不同，所以必须单独报一个数。
+
     `src` / `out` 是 IMAGE（`[B,H,W,C]`，0–1），`mask` 与它们同尺寸。
-    返回 `(覆盖率, 可见改动率, 轻微改动率)`；`mask` 为空时返回 `None`。
+    返回 `(覆盖率, 蒙版外可见改动率, 蒙版外轻微改动率, 蒙版内改动率)`；`mask` 为空时返回 `None`。
     """
     if mask is None:
         return None
@@ -179,9 +183,11 @@ def mask_stats(src, out, mask):
     outside = m < 0.02
     diff = (out - src).abs().amax(dim=-1)
     cover = float(inside.float().mean())
+    changed = diff > 32.0 / 255.0
+    inner = float(changed[inside].float().mean()) if bool(inside.any()) else 0.0
     if not bool(outside.any()):
-        return cover, 0.0, 0.0
+        return cover, 0.0, 0.0, inner
     v = diff[outside]
     visible = float((v > 32.0 / 255.0).float().mean())
     slight = float(((v > 8.0 / 255.0) & (v <= 32.0 / 255.0)).float().mean())
-    return cover, visible, slight
+    return cover, visible, slight, inner

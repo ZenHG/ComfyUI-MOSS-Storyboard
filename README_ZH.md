@@ -121,9 +121,10 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 **八个示例，各管一件事**
 
-> ⚠ **换脸与姿态示例引用了两张输入图**（`moss_faceswap_src.png` / `moss_faceswap_ref.png`），
-> **仓库不含这两张图**。自备一张正脸特写与一张宫格图放进 `<ComfyUI>/input/`，
+> ⚠ **换脸与姿态示例引用了输入图**（`moss_faceswap_src.png` 宫格 / `moss_faceswap_single_src.png` 单张 /
+> `moss_faceswap_ref.png` 脸部特写），**仓库不含这些图**。自备放进 `<ComfyUI>/input/`，
 > 或在 `LoadImage` 里改选自己的文件。
+> **src 与 ref 必须是不同的人** —— 同一个人换完还是这张脸，看起来就像「没变化」。
 
 | 文件 | 干什么 | 要模型 | 第三方节点 |
 |---|---|---|---|
@@ -503,7 +504,8 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 | **蒙版白 = 重画** | 接 `ImageToMask(red)`，**别用** `LoadImage` 的 `MASK` 口（那是 alpha，会静默全零） |
 | 自动蒙版要 insightface | `pip install insightface onnxruntime` + `det_10g.onnx`；缺了**直接报错**，不静默降级 |
 
-`report` 会给出「蒙版覆盖多少、蒙版外改了多少」—— 不用另跑脚本就知道改干净了没。
+`report` 会给出「蒙版覆盖多少、**蒙版内**改了多少、蒙版外改了多少」—— 不用另跑脚本就知道改干净了没。
+**蒙版内改动接近 0 就是「跑完看起来没变」**：要么 ref 与源图是同一人，要么蒙版太小 / 挑错了脸。
 
 **单图（不接 `spec`）能做什么** —— 这张表是本节最该记的：
 

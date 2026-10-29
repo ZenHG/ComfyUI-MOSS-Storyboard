@@ -330,6 +330,7 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | `auto_mask` | **默认开。** insightface 自动找脸并生成蒙版。依赖缺失**直接报错**，不静默降级 |
 | `face_pick` | `largest` / `left` / `right`。一格有几个人时点名；`report` 写「几张脸、用了哪张」 |
 | `mask` | 可选，手接蒙版覆盖自动结果。接了就以手接的为准 |
+| `face_pick` | `largest` / `left` / `right`，**单图建议 largest**。选 `right` 在多脸图上会挑到背景侧脸，蒙版只盖 0.7%、改完看不出来 |
 
 **为什么它不只是「图生图」。** 官方的 MOSS 编辑是 **in-context**：参考图作为干净 token 在 `t = 0`
 陪跑，`x` 从纯噪声开始，所以构图只能靠提示词**求**。本节点让源图当**起点**（`vae.encode` + `denoise`），
