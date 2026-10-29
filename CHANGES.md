@@ -1,5 +1,22 @@
 # CHANGES
 
+## 未发布 — 新增示例 `moss-pose-generate-ui.json`（姿态/动作 → 换脸）
+
+「参考图 + 提示词 → 一张带指定动作的图」这条路径本包节点做不了（生成节点入参里没有 IMAGE），
+所以没加第 8 个节点，而是把宿主原生链路搭成现成示例：
+
+- `tools/make_pose_example.py` → `examples/moss-pose-generate-ui.json`（14 节点 / 17 连线）。
+  第一段：`TextEncodeMOSSImageEditHiRes`（vision，ref 0.99/1.0）+ `EmptyFlux2LatentImage`
+  1024×576 + `KSampler` 8 步/cfg1.0/euler/simple → 带动作的图；
+  第二段：本包换脸节点把身份收紧一次。
+- 九档动作与七档姿态的提示词原文、判据、两条备选复现路径 → `docs/17 §九`。
+- 依赖：需要 ComfyUI-MOSS-RefHiRes 的 `TextEncodeMOSSImageEditHiRes`（GPL，独立安装）。
+  宿主自带的 `TextEncodeMOSSImageEdit` 把参考图硬压到 0.147 MP，那个值下身份约 0.008。
+- `tools/check_ui_workflow.py` 加 `THIRD_PARTY` 集合：第三方包节点不再被误报「未知」，
+  但校验文案会写明「用到第三方包节点 X（需自行安装对应包）」，不掩盖依赖。
+- 修示例生成器的真 bug：同一个输出被多处消费时（编码节点同时给 positive / negative），
+  `wire()` 覆盖 `links` 而不是追加，导致「连线表自洽」翻红。
+
 ## 未发布 — 文档修正：姿态/肢体动作结论撤回
 
 **撤回两条作废结论**（`docs/16` §八、README「做不到的」）：

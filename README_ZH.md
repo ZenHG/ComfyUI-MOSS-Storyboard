@@ -898,7 +898,7 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | 躯干转侧、头仍朝镜头 | `+0.036`，没受损 |
 | 背对镜头、回头看向肩后（yaw `0.76`） | `−0.086` ⇒ 伤脸的是**连带转头**，不是身体 |
 
-⇒ **要换姿态：参考图给正脸，姿态写在提示词里**（在生成路径上）。参考图本身是侧脸，输出就被锁在侧脸，提示词拉不回来。只动身体时，让头继续朝镜头。两套梯度提示词与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §九。
+⇒ **要换姿态：参考图给正脸，姿态写在提示词里**（在生成路径上）。参考图本身是侧脸，输出就被锁在侧脸，提示词拉不回来。只动身体时，让头继续朝镜头。两套梯度提示词与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §九。两段串起来的示例（pose → 换脸）：`examples/moss-pose-generate-ui.json`——需要 **ComfyUI-MOSS-RefHiRes**（GPL，独立安装）的 `TextEncodeMOSSImageEditHiRes`；宿主自带的 `TextEncodeMOSSImageEdit` 把参考图硬压到 0.147 MP，那个值下身份约 `0.008`。
 
 配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · 8 步 / cfg 1.0 / euler + simple · 参考图**只给一张**（双视角实测更差）。完整配方与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
 

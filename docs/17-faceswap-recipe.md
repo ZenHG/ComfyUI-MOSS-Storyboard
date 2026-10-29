@@ -214,11 +214,16 @@ calm neutral expression, <档位句>
 ### 9.3 两条复现路径
 
 ```text
-A. 实验脚本（内部实验目录，不随包分发）：e21_body_action.py
+A. 现成示例（推荐）：examples/moss-pose-generate-ui.json
+   pose 生成 → 预览 → 换脸 → 落盘，14 节点；参数已按 9.2 填好。
+   ⚠ 需要 ComfyUI-MOSS-RefHiRes（GPL，独立安装）的 TextEncodeMOSSImageEditHiRes。
+     宿主自带的 TextEncodeMOSSImageEdit 把参考图硬压到 0.147 MP，身份约 0.008 = 等于没给。
+
+B. 实验脚本（内部实验目录，不随包分发）：e21_body_action.py
    --ref <正脸参考图> --out <输出目录> --repeat 3
    自带采样地板对照（基线动作跑 3 个 seed）
 
-B. 宿主原生三节点搭图：TextEncodeMOSSImageEditHiRes + EmptyFlux2LatentImage + KSampler
+C. 自己搭三节点：TextEncodeMOSSImageEditHiRes + EmptyFlux2LatentImage + KSampler
    参数见 9.2；不需要本包任何节点
 ```
 

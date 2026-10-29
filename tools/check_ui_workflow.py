@@ -187,10 +187,21 @@ def check_file(path, mappings):
     # 宿主 comfy_extras 注册的官方节点：顶层 `nodes.py` 单独 import 时不会加载它们
     # （`init_extra_nodes()` 是 main.py 调的），所以这里补一份静态集 + 在线查询。
     HOST_EXTRAS = {"EmptyFlux2LatentImage", "TextEncodeMOSSImageEdit", "VAEDecode",
-                   "EmptySD3LatentImage", "VAEEncode"}
+                   "EmptySD3LatentImage", "VAEEncode",
+                   # comfy_extras/nodes_preview_any.py（显示名 "Preview as Text"）
+                   "PreviewAny",
+                   # comfy_extras/nodes_easycache.py（node_id="LazyCache"）
+                   "LazyCache", "EasyCache"}
+    # 第三方包节点：不在宿主里，但本包示例可能用到 —— **用户必须自己装那个包**。
+    # 单列出来是为了不把「未安装」悄悄算成「认识」：校验文案会写明来源。
+    #   ComfyUI-MOSS-RefHiRes（GPL-3.0，独立安装）：参考图以更高分辨率进 vision。
+    #   宿主原生 TextEncodeMOSSImageEdit 把参考图硬编码压到 384×384（0.147 MP），
+    #   该值下身份余弦约 0.008 —— 等于没给参考图。
+    THIRD_PARTY = {"TextEncodeMOSSImageEditHiRes"}
     try:
         import nodes as host_nodes
-        known = set(host_nodes.NODE_CLASS_MAPPINGS) | FRONTEND_ONLY | HOST_EXTRAS | set(mappings)
+        known = (set(host_nodes.NODE_CLASS_MAPPINGS) | FRONTEND_ONLY | HOST_EXTRAS
+                 | THIRD_PARTY | set(mappings))
         try:  # 在线查询最权威：跑着的宿主认识什么，就用什么
             import urllib.request
             with urllib.request.urlopen("http://127.0.0.1:8188/object_info", timeout=10) as r:
@@ -198,7 +209,11 @@ def check_file(path, mappings):
         except Exception:
             pass
         unknown = sorted({n["type"] for n in wf["nodes"]} - known)
-        check("全部节点类型宿主都认识", not unknown, "未知：%s" % unknown)
+        used_tp = sorted({n["type"] for n in wf["nodes"]} & THIRD_PARTY)
+        why = "未知：%s" % unknown if unknown else ""
+        if used_tp:
+            why = (why + "｜" if why else "") + "用到第三方包节点 %s（需自行安装对应包）" % used_tp
+        check("全部节点类型宿主都认识", not unknown, why)
     except Exception as e:
         check("全部节点类型宿主都认识", True, "跳过（宿主不可 import：%s）" % type(e).__name__)
 
