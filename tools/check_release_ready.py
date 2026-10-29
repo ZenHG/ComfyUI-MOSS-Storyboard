@@ -729,6 +729,10 @@ def s18_doc_facts() -> None:
     """
     say("\nS18 文档清单与仓库实物一致")
     readme = read("README_ZH.md")
+    # 参数全表 2026-10-30 起移到节点手册：覆盖检查要连手册一起看，
+    # 否则「把表搬走」会被判成「表没了」。
+    manual = read("docs/19-node-manual.md")
+    docs_text = readme + "\n" + manual
     src = read("nodes.py")
 
     # (1) 参数表覆盖：INPUT_TYPES 的每个键都要在 README 里以 `名字` 出现。
@@ -745,7 +749,7 @@ def s18_doc_facts() -> None:
         if not keys:
             missing.append("%s 未解析到入参（正则失配）" % cls)
             continue
-        missing += ["%s.%s" % (cls, k) for k in sorted(keys) if "`%s`" % k not in readme]
+        missing += ["%s.%s" % (cls, k) for k in sorted(keys) if "`%s`" % k not in docs_text]
     check("参数表覆盖全部入参（sampler / layout）", not missing, "；".join(missing[:6]))
 
     # (2) 示例清单：examples/ 下的每个 json 都要在 README 里被点名。

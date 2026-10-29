@@ -63,7 +63,8 @@ python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 ## 六条硬规矩
 
 1. **`nodes.py` 的 `INPUT_TYPES()` 是参数表唯一真相源**。V3 schema 由 `v3/_compat.py` 自动生成，
-   不许在别处手写第二份。新 widget 只能**追加到末尾** —— `widgets_values` 按位置存，
+   不许在别处手写第二份。**公开面有两处引用它**：`docs/19-node-manual.md`（全表）与 README 的摘要 ——
+   改参数要两处一起改，`S18` 会核「每个键都在文档里出现过」。新 widget 只能**追加到末尾** —— `widgets_values` 按位置存，
    插在中间会让用户已有工作流的参数静默错位。
 2. **`seed` 类 INT 必须带 `control_after_generate`**。V1 下前端自动加、V3 下不声明就没有
    ⇒ 同一工作流在两条出口上差一个槽，后面全部串位。`smoke_nodes.py` 盯着这条。
