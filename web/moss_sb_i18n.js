@@ -317,18 +317,22 @@ export const TIPS = {
     },
     "MossStoryboardSampler.mode": {
         en: "[What to enter] How the panels are produced.\n"
-            + "Whole grid (default) = one sampling pass for the entire board: fast, but the same\n"
-            + "character can look different across panels.\n"
+            + "Whole grid (default) = one sampling pass for the whole board: fast, and the same face\n"
+            + "is more stable across panels.\n"
             + "Per panel = every panel is sampled on its own and then assembled: N times slower,\n"
-            + "but the character stays consistent across panels and each panel can be given\n"
-            + "far more pixels (measured: the red beret and the face match noticeably better).",
+            + "but each panel gets its own pixels (clothes / props / text come out clearer) and can be\n"
+            + "redone alone - at the cost of each panel drawing its own face.\n"
+            + "⚠ Do not pick by \"which one is more consistent\": measured ArcFace, same woman,\n"
+            + "whole grid 0.553 > per panel 0.479 (relative only - no threshold, no pass mark).\n"
+            + "One-shot board -> whole grid. Per-panel rework -> per panel.",
     },
     "MossStoryboardSampler.sample_edge": {
-        en: "[What to enter] In per-panel mode, how many times larger the sampled resolution of\n"
-            + "each panel is compared to its final size. 2.0 = sample at 2x and downscale,\n"
-            + "which makes every panel noticeably sharper.\n"
-            + "⚠ Only used in per-panel mode; ignored in whole-grid mode.\n"
-            + "Cost: VRAM and time scale with it.",
+        en: "[What to enter] Per-panel mode only: the **absolute long-edge pixels** each panel is\n"
+            + "sampled at, then downscaled into its final cell. 1024 = sample at a 1024 px long edge.\n"
+            + "It is a pixel count, NOT a multiplier of the final cell size.\n"
+            + "⚠ 1024 is the factory starting point, not a measured optimum: the scan covered\n"
+            + "496 (soft) / 992 (sharp) / 1984 (looser composition), not 1024.\n"
+            + "Cost: VRAM and time scale with the pixel count. Ignored in whole-grid mode.",
     },
     "MossStoryboardSampler.label": { en: "[Advanced] Layout box type, same as the Layout node." },
     "MossStoryboardSampler.reborder": {

@@ -19,7 +19,7 @@
 | Version | **0.3.2** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
-| Dependencies | **None** beyond host-provided `torch` / `comfy*`. Face Swap's auto mask optionally uses `insightface` + `onnxruntime` — the pack runs without them |
+| Dependencies | **Zero** extra pip dependencies beyond the host-provided `torch` / `comfy*`. Face Swap's auto mask optionally uses `insightface` + `onnxruntime` — the pack runs without them |
 
 **What this pack guarantees:** canvas size, per-panel coordinates, crop rectangles, grid-line position — arithmetic, aligned to the pixel.
 **What it does not guarantee:** what ends up inside the panels, where elements land, or that the same face survives across panels. Sampling decides those.
@@ -54,10 +54,11 @@ No need to read top to bottom. Every section after tier 1 stands alone.
 Weights are **not** bundled. For download links and exact folder names, follow the official tutorial:
 <https://docs.comfy.org/tutorials/image/moss-image/moss-image>.
 
-**The 4-step distilled LoRA is optional and not part of this pack.** The shipped graphs contain a
-`LoraLoaderModelOnly` node **bypassed by default** — missing the file changes nothing.
-The shipped graphs use the **MOSS-Image-SFT model card settings: 50 steps / cfg 3 / euler / sgm_uniform**.
-With the LoRA, un-bypass it (`Ctrl+B`) and set `steps` to **4**, `cfg` to **1.0**.
+**The 4-step distilled LoRA is optional and not part of this pack.** The three storyboard examples ship with
+it **bypassed**; the poster example has no LoRA; **the face-swap and pose examples have both LoRAs active** —
+they are part of those two recipes ([3.8](#38-face-swap--masked-local-edit)).
+Without the LoRA use **50 steps / cfg 3 / euler / sgm_uniform** (MOSS-Image-SFT model card);
+with it set `steps` to **4** and `cfg` to **1.0** (un-bypass with `Ctrl+B` first if it ships bypassed).
 
 > ⚠ **Do not mix the two bands.** A distilled LoRA at 50 steps / cfg 3, or no LoRA at 4 steps / cfg 1.0,
 > raises no error — it just degrades (sometimes to a fully black image). See [2.3](#23-recipes-two-bands-do-not-mix).
@@ -86,16 +87,20 @@ After the restart, seven nodes appear under **`moss/storyboard`**, and the start
 [MOSS SB] v<version> 已加载｜节点 7 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
-That is Chinese for "v`<version>` loaded | 7 nodes (v3 exit) | 3/4/6/8/9 grids".
+That is Chinese for "v`<version>` loaded | 7 nodes (V3 node API) | 3/4/6/8/9 grids".
 
 **No such line = the pack did not load.** That check beats any settings inspection.
 To fall back to the legacy V1 node API, set `MOSSSB_NODE_API=v1`.
+
+**Restart ComfyUI once more after dropping the model files in** — otherwise the loaders' dropdowns do not list them.
+Host version: the startup log starts with `ComfyUI Version:`; `git log -1 --format=%h` gives the commit.
 
 ### 1.3 Run the first one
 
 1. Install the pack and the three model files above.
 2. **Drag** [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json)
    **into the ComfyUI window** (or `Workflow → Open`). Everything is already wired.
+   The file lives in `<ComfyUI>/custom_nodes/ComfyUI-MOSS-Storyboard/examples/`; you can also open it on GitHub.
 3. Queue.
 
 Outputs: a **1024×576** board and four **496×272** panels.
@@ -105,6 +110,10 @@ Outputs: a **1024×576** board and four **496×272** panels.
 > **With no save node attached, the image only exists in memory and is gone when the run ends.**
 
 **Seven examples, one job each**
+
+> ⚠ **The face-swap and pose examples reference two input images** (`moss_faceswap_src.png` /
+> `moss_faceswap_ref.png`) and **the repo does not ship them**. Put your own face close-up and board into
+> `<ComfyUI>/input/`, or point `LoadImage` at your files.
 
 | File | What it does | Model | Third-party nodes |
 |---|---|---|---|
@@ -116,12 +125,13 @@ Outputs: a **1024×576** board and four **496×272** panels.
 | `moss-pose-generate-ui.json` | reference face + prompt → one posed image (`init=empty`) | ✅ | none |
 | `moss-storyboard-4panels-edit.json` | crop one panel → instruction edit → paste back | ✅ | needs edit LoRA |
 
-> ⚠ **The four model examples carry the host's `LazyCache` node** (`reuse_threshold 0.2` / `start 0.15` /
-> `end 0.95`) between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core
+> ⚠ **Four of the seven examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
+> `4panels-edit` / `poster`; the face-swap and pose examples have none) between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core
 > (`comfy_extras/nodes_easycache.py`, experimental, filed under `advanced/debug`) and lets the sampler reuse steps.
 > **Bypass it (`Ctrl+B`) or delete it before comparing anything against the numbers on this page** — with it on,
 > the sampler is not doing the work those numbers were measured on. On a host build without the node, ComfyUI
-> reports a missing node type; delete it and the graph runs.
+> reports a missing node type; delete it and the graph runs. **Ignore it for your first run** — bypass it only
+> when you want your numbers to match this page.
 
 ### 1.4 Wire it yourself (one node is enough)
 
@@ -147,22 +157,27 @@ Rainy-night cafe, one canvas divided into a strict grid of 4 panels, thin white 
 > The factory default is **8** panels and the script above has **4** blocks — **set `panels` to 4 first**,
 > or the run stops before sampling (`提示词有 4 段 [PANEL]，但布局是 8 格`). The reverse — 8 blocks on a
 > 4-panel layout — fails the same way. Canvas size is derived automatically; never type width / height.
+> (`moss-layout-editor-storyboard.json` already has 4 panels — no change needed; this only matters when you wire
+> your own graph.)
 
 Both outputs are images and **neither is saved for you**:
 
 | Output | What it is | Wire to |
 |---|---|---|
 | `grid` | the whole board | `SaveImage` (write to disk) or `PreviewImage` (look only) |
-| `panels` | one image per panel | `SaveImage` — writes N files in one go |
+| `panels` | one image per panel | `SaveImage` — writes N files in one go (N = panel count) |
 
 > To check the grid shape before spending a run, wire `template` from 🎬 Storyboard · Grid Layout into a preview:
 > it is a picture of flat cells and gutters, showing where each panel sits and how wide the lines are.
 
 ### 1.5 Five traps
 
+(`spec` and `init` are explained in [3.2](#32-spec-is-the-single-source-of-geometry) / [3.3](#33-generate);
+here you only need to know the two knobs exist.)
+
 | Trap | Symptom | Fix |
 |---|---|---|
-| panel count ≠ block count | error before sampling | change the count, add blocks, or set `init` to `plain` |
+| panel count ≠ block count | error before sampling | change the panel count, add blocks, or set `init` to `plain` |
 | `spec` wired, panel widgets edited | canvas shape does not change | **`spec` wins**; the node's `panels` / `panel_edge` / `gutter` / `margin` are ignored (`report` says so in line 1) |
 | no save node | nothing on disk after the run | wire `SaveImage` |
 | mixed recipe bands | all black | see [2.3](#23-recipes-two-bands-do-not-mix) |
@@ -235,7 +250,7 @@ What this pack does: write the prompt correctly, compute the canvas, cut the pan
 
 Numbers below: panel 16:9, long edge 496, gutter 8, margin 8 — the shipped examples' settings
 (4 panels come out 1024 wide, hence "the 1024 tier").
-**The factory default is a 512 px panel edge**, two notches larger, with a correspondingly larger canvas.
+**The factory default is a 512 px panel edge** — one step larger (496 → 512), with a correspondingly larger canvas.
 Any table using one of the two says which.
 
 | Panels | Shape | Canvas | MP | Panel |
@@ -250,7 +265,7 @@ Any table using one of the two says which.
 1–2 MP training range; 3 / 4 / 6 are below it — usable, but outside the range the model was trained on.
 
 **Portrait panels (9:16)** rotate the whole layout by 90°: 3 panels become a horizontal strip (848 × 512),
-6 become 2 columns × 3 rows (576 × 1520), 8 become 2 × 4 (576 × 2032); 4 and 9 are unchanged.
+6 become 2 columns × 3 rows (576 × 1520), 8 become 2 columns × 4 rows (576 × 2032); 4 and 9 are unchanged.
 
 | Want | Knob | Notes |
 |---|---|---|
@@ -340,8 +355,9 @@ characters into a search here to find your row.
 | `逐格模式需要 [PANEL n] 分段描述（现在只有全局描述）。` | `mode=逐格` with only a global paragraph | add one block per panel |
 | `逐格模式要求每格都有一句描述：提示词只有 4 段，布局有 8 格。` | `mode=逐格` with fewer blocks than panels | match the counts; per-panel never invents captions |
 | `没接 spec 时必须填 columns 和 rows（都 >0），否则无法确定裁切框` | Crop / Paste with no `spec` and `columns`/`rows` at 0 | wire `spec`, or set columns × rows |
-| `图像 1024×576 不能被 3×2 整除：会得到差 1px 的格子，下游拼接必崩。…` | Crop without `spec` on a size that does not divide | wire `spec`, or feed a canvas that divides |
-| `index=5 越界：共 4 格（0 起）` | panel number past the last panel | use 0…3, or wire Crop's `index` output |
+| `图像 1024x576 不能被 3x2 整除：会得到差 1px 的格子，下游拼接必崩。…` | Crop without `spec` on a size that does not divide | wire `spec`, or feed a canvas that divides |
+| `index=5 越界：共 4 格（0 起）` | Crop: panel number past the last panel | use 0…3, or wire Crop's `index` output |
+| `index=5 越界：本布局共 4 格（0 起）` | same, raised by **Paste** (different wording) | same fix; to repaint the whole image, do not wire `spec` |
 | `宫格尺寸 1024×1152 与布局 1024×576 不一致` | Paste got a board that is not the `spec` canvas | feed the board the Sampler produced with that `spec` |
 | `draft 为空：请粘贴官方 prompt-enhancer 的 caption/layout 草稿 JSON。` | Draft Compiler run with an empty draft | paste the **draft**, not the compiler's own output |
 | `元素 3 没有描述（caption 不能为空）` | a box on the canvas has no caption | give it a caption, or delete it |
@@ -385,7 +401,7 @@ characters into a search here to find your row.
 |---|---|---|
 | Resolution | 1024×576 is enough; 2048 only sharpens strokes | 8-step LoRA / 8 steps |
 | Steps | 4 steps: correct but soft. 8 steps: visibly sharper. 16 steps: close to 8, diminishing returns | matching LoRA |
-| Size | still correct with the box at 1/20 of canvas height (≈43 px at 1536×864) | 1536×864 / 2048×1152 |
+| Glyph size | still correct with the box at 1/20 of canvas height (≈43 px at 1536×864) | 1536×864 / 2048×1152 |
 | Line breaks | `\n` inside `text` is honoured; two lines form separately | 2048×1152 / 8 steps |
 | Colour | `palette: ["#d92b2b"]` takes effect | 2048×1152 / 8 steps |
 | **Box height does not control size** | a 43 px box produced ≈130 px glyphs — **text overflows its box**. ⚠ We cannot give a "how wide must the box be" threshold: two text boxes with **identical** width, height and character count (169×60, 4 characters) came out one sharp, one faint — **width is not the predictor**. The only certain difference was **distance from the top edge** (47% vs 6%, the latter clipped) | — |
@@ -415,7 +431,10 @@ characters into a search here to find your row.
 
 #### Hard constraints
 
-- Canvas and panel dimensions must be multiples of **16** (enforced; a hand-edited `spec` is rejected).
+- Canvas and panel dimensions must be multiples of **16**. Geometry the nodes compute is always snapped to 16;
+  `spec` is validated as external input (missing fields, out-of-range values, and "the fields do not add up to
+  `w` / `h`" all raise) — but **it does not check whether `pw` / `ph` are multiples of 16**: a hand-written
+  `pw=84` parses. ⇒ **Do not hand-write `spec`**; use the wire the node produces.
 - >2 MP warns, >4 MP warns loudly: MOSS trains at 1–2 MP, official extrapolation ≈4 MP.
 - **VAE decode precision is decided by ComfyUI, not by the weight file.** The host casts the VAE to `fp16` at load
   (falling back to `bf16` / `fp32` only if your GPU cannot do fp16), so `flux2-vae.safetensors` (F32) and
@@ -446,10 +465,20 @@ Grid Layout freezes geometry into one `spec` for several downstream nodes; Crop 
 the Layout Editor makes posters; the Draft Compiler bridges the official prompt skill; Face Swap handles identity
 or a masked redraw.
 
+> **Every example is UI format** (drag it into the canvas). To drive `/prompt` you must convert to API format first
+> (ComfyUI's Export (API) / Save (API Format) — the menu name depends on the frontend version).
+> No converter ships with the pack: `tools/` exists only in the repo, not in the installed package.
+
 ### 3.2 `spec` is the single source of geometry
 
-`spec` is one string carrying the panel count, the canvas and every panel rectangle
-(`MOSS-SB1 panels=4 w=1024 h=576 cols=2 …`).
+`spec` is one string carrying the whole geometry — 11 fields:
+`panels` `w` `h` `cols` `rows` `pw` `ph` `gutter` `margin` `padx` `pady`
+(`pw` / `ph` are the panel size; `padx` / `pady` are the few pixels that round the canvas up to a multiple of 16).
+
+It is a **forceInput**: wire only, **you cannot type it on the node panel**. Parsing validates it — missing fields,
+out-of-range values, and "the fields do not add up to `w` / `h`" all raise — so hand-copying a `spec` breaks easily.
+Do not hand-copy it. A real one looks like `MOSS-SB1 panels=4 w=1024 h=576 cols=2 rows=2 pw=496 ph=272
+gutter=8 margin=8 padx=8 pady=8` — and `padx` / `pady` are exactly what makes the arithmetic close.
 
 | Produced by | Consumed by |
 |---|---|
@@ -458,7 +487,8 @@ or a masked redraw.
 | Layout Editor · `spec` (single mode = 1 panel) | Generate / Split Panels / Paste Panel |
 
 **One rule: when `spec` is wired, `spec` wins.** The Generate node's `panels` / `panel_edge` / `gutter` / `margin`
-widgets are still on the panel but take no effect, and `report` says "geometry source: spec wiring" in line 1.
+widgets are still on the panel but take no effect, and `report` says "geometry source: spec wiring" on its
+second line (the first line is the recipe hint).
 That is the most common trap.
 
 Without `spec`, Split Panels and Paste Panel need `columns` / `rows` filled in by hand (0 raises instead of guessing).
@@ -467,7 +497,9 @@ Without `spec`, Split Panels and Paste Panel need `columns` / `rows` filled in b
 
 `MossStoryboardSampler`, seven outputs: `grid` `panels` `latent` `spec` `prompt_used` `report` `prompts_json`.
 
-- **`prompt_used`** — the script you typed, passed straight through. **Not** what the model saw.
+- **`prompt_used`** — the script you typed. In **whole-canvas** mode it is the compiled prompt (same content as
+  `prompts_json`, one as plain text and one as a JSON array); in **per-panel** mode it stays your original script
+  while the model sees the N rewritten per-panel texts.
 - **`prompts_json`** — **the text actually handed to the model**, as a JSON array: one entry in `整张` mode,
   one per panel in `逐格` mode. Use it to audit "did the words produce the picture".
 - **`latent`** — `整张` = the full-canvas latent; `逐格` = a batch of N single-panel latents
@@ -488,15 +520,18 @@ Factory defaults below. The shipped examples use **4 panels / panel edge 496** a
 | Steps `steps` | 50 | model card value. With the 4-step distilled LoRA set **4–8**, see [2.3](#23-recipes-two-bands-do-not-mix) |
 | CFG `cfg` | 3.0 | model card value (official Base range 3–6) |
 | Sampler / scheduler | `euler` / `sgm_uniform` | see [2.3](#23-recipes-two-bands-do-not-mix) |
-| Prompt handling `init` | `auto` | `auto` / `layout` = panel captions become layout boxes; `plain` = no layout boxes |
+| Prompt handling `init` | `auto` | `auto` / `layout` = panel captions become layout boxes; `plain` = no layout boxes. ⚠ Face Swap also has an `init`, but with `source` / `empty` — **same name, different meaning** |
+| Box type `label` | `object` | advanced. `object` / `character` / `text`, same as Grid Layout |
 | Denoise `denoise` | 1.0 | **keep 1.0** — no image input; lowering it only truncates sigma |
 | Redraw grid lines `reborder` | on | redraws the lines from coordinates after decode; off means hoping the model draws them straight |
+| Border width `border_px` | 0 | advanced. 0 = same as the gutter (fills the whole line) |
+| Crop inset `shave` | 0 | advanced. pixels trimmed from each side when emitting `panels`. The lines are already redrawn inside the gutter, so 0 is normal |
 | Sample edge `sample_edge` | 1024 | per-panel mode only |
 | Negative prompt `negative` | empty | in the **Advanced** fold. Only **exactly** `cfg = 1.0` skips the negative branch; 1.01 already evaluates it |
 | Random seed `seed` | 0 | 0–4294967295. **Same seed plus same settings** is the only way to reproduce an image; a new seed changes composition and how closely the boxes are followed |
 
-> Why `negative` is folded away: it is an optional input that defaults to empty. Folding it under **Advanced**
-> only stops it from looking required. **Your own negative prompt works** — the default `cfg = 3.0` is above 1,
+> Why `negative` is folded away: it has a default (empty). Folding it under **Advanced** only stops it from looking
+> required — it does **not** mean it has no effect. **Your own negative prompt works** — the default `cfg = 3.0` is above 1,
 > so anything you type takes effect.
 
 **`mode`: whole canvas vs per panel**
@@ -516,9 +551,9 @@ Factory defaults below. The shipped examples use **4 panels / panel edge 496** a
   do not transfer between domains either (different people produced by this model already score around `0.52`).
 - **Per-panel detail / rework → per panel wins.** Each panel gets its own pass, more pixels each, and one panel
   can be redone alone.
-- **Other proxy metrics change direction with the scene** (e.g. "share of panels containing the red hat" favours
-  per-panel in the two-person scene and whole-canvas in the single-person scene), so they are not used to recommend
-  a route. Readings live in [`docs/07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md).
+- **Other proxy metrics change direction with the scene** (e.g. the **variance** of the red hat's per-panel
+  appearance ratio favours per-panel in the two-person scene and whole-canvas in the single-person scene), so they
+  are not used to recommend a route. Readings live in [`docs/07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md).
 - **Caliber**: the numbers above come from the current **50 steps / cfg 3.0** run
   ([`docs/data/g2-50-3.json`](docs/data/g2-50-3.json), 2026-10-27). The older 8-step / cfg 1.0 / distilled-LoRA
   set is **not this caliber and cannot be compared across** — kept as history in `docs/07` §2.3.
@@ -550,7 +585,11 @@ the pixel count. Ignored in whole-canvas mode.
 |---|---|
 | `panels` | 1–12 (3 / 4 / 6 / 8 / 9 are the usual ones; other values are factored automatically) |
 | `panel_aspect` / `panel_edge` | panel ratio (10 options) / long edge in pixels, default 512 |
+| `canvas_aspect` | target canvas ratio, default `auto` (16:9 or 9:16, following the panel orientation). With 6 panels, `9:16` gives 2 columns × 3 rows and `16:9` gives 3 × 2 |
+| `columns` / `rows` | leave 0 for automatic; filling them forces the layout, and both together must satisfy columns × rows = panel count |
 | `gutter` / `margin` | grid-line width / distance from the canvas edge to the first panel |
+| `cell_gray` / `invert` | advanced: template cell grey (default 25; near-black is safest) / inverted template. Affects `template` only, never the render |
+| `label` / `char_boxes` | advanced: box type (`object` / `character` / `text`); `char_boxes` names the character panels, comma-separated, **1-based** |
 | `prompt` | **leaving it empty is correct** — this node only computes geometry; filling it only affects `layout_json` and `elements` |
 
 | Output | Wire to |
@@ -652,8 +691,8 @@ Crop (index) ──→ Text Encode MOSS-Image Edit ──→ KSampler ──→ 
    not force the reference's spatial structure onto the result. Wiring it adds reference latents: stronger
    composition retention, more memory.
 4. Follow it with a plain `KSampler` → `VAEDecode` → Paste. This path is driven by a community LoRA, so the official
-   base defaults do not apply: **30 steps** was measured here (our own records disagree on cfg, so it is not pinned
-   down here); with the 4-step distilled LoRA stacked, **8 steps / cfg 1.0**.
+   base defaults do not apply: **30 steps / cfg 5** (the edit LoRA's own recipe, same regime as the edit band in
+   [3.8](#38-face-swap--masked-local-edit)); with the 4-step distilled LoRA stacked, **8 steps / cfg 1.0**.
 
 **What it can and cannot do** (measured): colour, outfit, lighting and style instructions are followed well.
 **Season changes were not tested — no promise.** With `vae` unwired, composition retention is weaker
@@ -940,6 +979,6 @@ above point to the GitHub repo.
 ### 4.4 License
 
 - Pack code: **MIT**.
-- Credits and provenance: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) — **no third-party code was copied**.
+- Credits, ideas and provenance: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) — **no third-party code was copied**.
 - Model weights (MOSS-Image / Qwen3.5 / FLUX.2 VAE) are not distributed; follow their own licences.
 - The host ComfyUI is GPL-3.0 and is only `import`ed at runtime, never copied.
