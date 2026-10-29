@@ -33,6 +33,10 @@ NOTE = """## 换脸 · 单图（MossStoryboardFaceSwap，不接 spec）
 
 一张图进，换完直接出。**没有宫格、没有 index、没有贴回。**
 
+### ⚠ 用两张「不同的人」的图
+默认文件名只是占位，仓库不带图。**如果 src 和 ref 是同一个人，换完还是这张脸 —— 看起来就像「没变化」。**
+要看效果：src 用一张单人照片，ref 用另一个人的脸部特写。
+
 ### 与 moss-faceswap-ui.json 的唯一差别
 那个示例接了 spec，所以源图必须是**整张宫格**，只换第 index 格；
 这个示例**不接 spec**，整张图被当成一格，换完整张出。
@@ -42,7 +46,9 @@ NOTE = """## 换脸 · 单图（MossStoryboardFaceSwap，不接 spec）
    - src = 要换脸的那张（**单人**、脸越大越好）
    - ref = 身份参考图，**紧特写**，只给一张（双视角实测更差：0.384 vs 0.463）
 2. **提示词**里保留 in Picture 1 这个说法 —— 换成别的措辞参考图就不进场景了。
-3. face_pick：一张图里有几个人时点名（largest / left / right），report 会写「几张脸、用了哪张」。
+3. face_pick：一张图里有几个人时点名（largest / left / right）。**默认 largest** ——
+   单图里用 right 很可能挑到背景里的一张侧脸，蒙版只盖 0.7%，改完肉眼看不出来。
+   report 会写「几张脸、用了哪张」，先看那一行。
 
 ### 自动蒙版（默认开）
 auto_mask=true 时节点用 insightface 找脸并生成**羽化矩形**蒙版，只重画蒙版内。
@@ -93,7 +99,7 @@ def build():
                       ["flux2-vae.safetensors"],
                       outputs=[out("VAE", "VAE")], order=4, ours=False))
 
-    nodes.append(node(7, "LoadImage", (-560, 350), (340, 320), ["moss_faceswap_src.png", "image"],
+    nodes.append(node(7, "LoadImage", (-560, 350), (340, 320), ["moss_faceswap_single_src.png", "image"],
                       inputs=[inp("image", "COMBO", None, "image"),
                               inp("upload", "IMAGEUPLOAD", None, "upload")],
                       outputs=[out("IMAGE", "IMAGE"), out("MASK", "MASK")],
@@ -107,7 +113,7 @@ def build():
     # widgets 顺序 = INPUT_TYPES 里**有 widget 的那些**（spec / image / mask 是接线，不在其中）
     nodes.append(node(9, "MossStoryboardFaceSwap", (260, 350), (420, 620),
                       [PROMPT, 8, 1.0, "euler", "simple", 0, "randomize", 0.95, 1.05, 0, 1024, "",
-                       True, "right", "source", 1024, 576],
+                       True, "largest", "source", 1024, 576],
                       inputs=[inp("model", "MODEL", 3),
                               inp("clip", "CLIP", 4),
                               inp("vae", "VAE", 5),

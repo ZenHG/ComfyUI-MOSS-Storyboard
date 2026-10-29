@@ -1263,9 +1263,17 @@ class MossStoryboardFaceSwap:
                else "（保留源图构图）"),
         ]
         if stats is not None:
-            cover, visible, slight = stats
-            lines.append("蒙版覆盖 %.1f%%｜蒙版外：可见改动 %.2f%%（判据 <1%%）· 轻微 %.2f%%（8–32/255，肉眼不可见）"
-                         % (100.0 * cover, 100.0 * visible, 100.0 * slight))
+            cover, visible, slight, inner = stats
+            lines.append("蒙版覆盖 %.1f%%｜蒙版内改动 %.0f%%｜蒙版外：可见改动 %.2f%%（判据 <1%%）· "
+                         "轻微 %.2f%%（8–32/255，肉眼不可见）"
+                         % (100.0 * cover, 100.0 * inner, 100.0 * visible, 100.0 * slight))
+            if inner < 0.02:
+                lines.append(
+                    "⚠ 蒙版内几乎没有改动（%.1f%%）：两种可能 ——\n"
+                    "  ① 参考图和源图是同一个人（换完还是这张脸）；\n"
+                    "  ② 提示词没要求改变，模型原样画回。\n"
+                    "  先换一张明显不同的人做参考图；还不变再看蒙版是否盖住了脸。"
+                    % (100.0 * inner))
             if cover > 0.95:
                 lines.append("⚠ 蒙版覆盖 %.0f%%：接近全图。白=重画 —— 检查是不是接反了。"
                              % (100.0 * cover))
@@ -1274,9 +1282,12 @@ class MossStoryboardFaceSwap:
                     "⚠ 蒙版覆盖 %.0f%%：大范围编辑会被**未遮区域**拉回原样（inpainting 的上下文传染），"
                     "换背景这类整片替换基本不成立。要么缩小蒙版，要么改用 init=empty 整张重生成。"
                     % (100.0 * cover))
-            elif cover < 0.005:
-                lines.append("⚠ 蒙版只覆盖 %.2f%%：可能太小，模型看不到要改的东西。"
-                             % (100.0 * cover))
+            elif cover < 0.02:
+                lines.append(
+                    "⚠ 蒙版只覆盖 %.2f%%：太小了，改完肉眼看不出来。两种常见原因 ——\n"
+                    "  ① face_pick 挑错了脸（上一行写了「用了哪张」，改成 largest 再试）；\n"
+                    "  ② 这张图里脸本来就很小（脸占画幅越大越准）。"
+                    % (100.0 * cover))
         if ref_rep.get("batch_dropped", 1) > 1:
             lines.append("参考图批次 %d 张，只用了第一张。" % ref_rep["batch_dropped"])
         lines += ref_rep.get("notes", [])

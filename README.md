@@ -127,9 +127,10 @@ Outputs: a **1024×576** board and four **496×272** panels.
 
 **Eight examples, one job each**
 
-> ⚠ **The face-swap and pose examples reference two input images** (`moss_faceswap_src.png` /
-> `moss_faceswap_ref.png`) and **the repo does not ship them**. Put your own face close-up and board into
-> `<ComfyUI>/input/`, or point `LoadImage` at your files.
+> ⚠ **The face-swap and pose examples reference input images** (`moss_faceswap_src.png` board /
+> `moss_faceswap_single_src.png` single photo / `moss_faceswap_ref.png` face close-up) and **the repo does not
+> ship them**. Put your own into `<ComfyUI>/input/`, or point `LoadImage` at your files.
+> **src and ref must be different people** — swapping one person onto themselves looks like "nothing happened".
 
 | File | What it does | Model | Third-party nodes |
 |---|---|---|---|
@@ -534,7 +535,9 @@ A reference face → **one panel** (or a single image). Four things matter:
 | **White in the mask = repaint** | wire `ImageToMask(red)`; do **not** use `LoadImage`'s `MASK` output (that is alpha, silently all zeros) |
 | Auto mask needs insightface | `pip install insightface onnxruntime` + `det_10g.onnx`; a missing dependency **raises**, never silently falls back |
 
-`report` prints how much of the frame the mask covers and how much changed outside it — no extra script needed.
+`report` prints the mask coverage, **how much changed inside the mask**, and how much changed outside it —
+no extra script needed. **An inside change near 0% is exactly "nothing visibly happened"**: either `ref` and
+the source are the same person, or the mask is too small / picked the wrong face.
 
 **What a single image (no `spec`) can and cannot do** — the table worth remembering:
 

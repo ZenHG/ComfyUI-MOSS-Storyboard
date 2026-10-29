@@ -17,7 +17,7 @@ python tests/test_contract.py             # 149 项（--no-host，CI 口径）�
 python tests/test_cross_language.py       # 95 项：JS ↔ Python 预设/默认值/校验/elements/canvas/最终提示词/外接稿差分
 python tests/test_panel_assembly.py       # 22 项：逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
-python tests/test_faceswap_wiring.py    # 34 项：换脸接线（桩 clip/vae/采样）—— 前缀 / 预算 / 抬格 / 裁贴 / denoise 语义
+python tests/test_faceswap_wiring.py    # 36 项：换脸接线（桩 clip/vae/采样）—— 前缀 / 预算 / 抬格 / 裁贴 / denoise 语义
 python tests/test_init_empty.py         # 18 项：init 两个分支 —— 空 latent 不碰源图 / 画布来源 / 忽略项写明 / 缺 image 报错
 node   tests/test_i18n.mjs                # 54 项：中英切换纯函数
 node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）

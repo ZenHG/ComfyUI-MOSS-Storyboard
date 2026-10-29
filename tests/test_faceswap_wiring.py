@@ -153,6 +153,21 @@ def main():
     check("缝与外边距逐像素不变",
           float((merged[:, :8, :, :] - board[:, :8, :, :]).abs().max()) == 0.0)
 
+    print("== 4c. mask_stats 四元组（蒙版内改动率）==")
+    # 「跑完看起来没变」有两种原因：参考图与源图同一人，或蒙版内没重画。
+    # 蒙版外改动率分不出这两者，所以必须单独报一个「蒙版内」的数。
+    base = torch.zeros((1, 64, 64, 3), dtype=torch.float32)
+    mk = torch.zeros((1, 64, 64), dtype=torch.float32)
+    mk[:, 16:48, 16:48] = 1.0
+    st = FS.mask_stats(base, base.clone(), mk)
+    check("同图：蒙版内改动 0%", st[3] == 0.0, st)
+    rep = base.clone()
+    rep[:, 16:48, 16:48] = 1.0
+    st = FS.mask_stats(base, rep, mk)
+    check("蒙版内全改：内 100%", abs(st[3] - 1.0) < 1e-6, st)
+    check("蒙版外不动：外可见 0", st[1] == 0.0, st)
+    check("覆盖率约 25%", abs(st[0] - 0.25) < 0.01, st[0])
+
     print("== 5. denoise 名义 → 实际 ==")
     check("8 步 0.95 = 1.0（源图被丢弃）", SMP.effective_denoise(8, 0.95) == 1.0)
     check("8 步 0.875 是真 img2img", SMP.effective_denoise(8, 0.875) == 0.875)
