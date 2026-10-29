@@ -992,8 +992,6 @@ class MossStoryboardFaceSwap:
                                              "参考图就是从这里进 Qwen3.5 vision tower 的。"}),
                 "vae": ("VAE", {"tooltip": "【接线】FLUX.2 VAE。源图要它编码成 latent（图生图），"
                                            "结果也要它解码。"}),
-                "image": ("IMAGE", {"tooltip": "【接线】要换脸的图。接了 spec 时给**整张宫格**，"
-                                               "节点自己裁第 index 格；不接 spec 就当单格处理。"}),
                 "ref": ("IMAGE", {"tooltip": "【接线】身份参考图，**紧特写**最好（脸占画幅越大越好）。\n"
                                              "⚠ 只给一张：实测双视角比单张更差（0.384 vs 0.463，视觉 token 被摊薄）。"}),
                 "prompt": ("STRING", {
@@ -1043,10 +1041,14 @@ class MossStoryboardFaceSwap:
                 }),
             },
             "optional": {
+                "image": ("IMAGE", {"tooltip": "【接线】要换脸的图。接了 spec 时给**整张宫格**，"
+                                               "节点自己裁第 index 格；不接 spec 就当单格处理。\n"
+                                               "⚠ `init=source` 时**必填**；`init=empty` 时不用接。"}),
                 "spec": ("STRING", {
                     "default": "", "forceInput": True,
                     "tooltip": "【接线】接 Layout/Sampler 的 spec：给整张宫格 + index，只换那一格。\n"
-                               "不接就按单格处理（整张 image 当成一张图）。",
+                               "不接就按单格处理（整张 image 当成一张图）。\n"
+                               "`init=empty` 时若接了它，画布用 spec 的整张宫格。",
                 }),
                 "index": ("INT", {
                     "default": 0, "min": 0, "max": L.MAX_PANELS - 1, "step": 1,
@@ -1081,6 +1083,25 @@ class MossStoryboardFaceSwap:
                                "蒙版可以直接给整张宫格的，节点会按 spec 裁到目标格；"
                                "带羽化更好，硬边会看到接缝。",
                 }),
+                # ---- 下面三个只在 init=empty 时生效；放最后是为了不动已有工作流的 widget 位 ----
+                "init": (["source", "empty"], {
+                    "default": "source",
+                    "tooltip": "【从哪开始】换脸 / 生成是同一件事的两个特例，差别只有这一个旋钮：\n"
+                               "· source（默认）= 吃 `image`，图生图。有蒙版就只重画蒙版内（换脸）。\n"
+                               "· empty = **不吃 `image`**，从空 latent 开始，全图由提示词 + 参考图生成。\n"
+                               "  这就是「参考图 → 一张带指定动作的图」那条路。\n"
+                               "⚠ empty 下 denoise / sample_edge / auto_mask / face_pick / index 都不生效，"
+                               "report 会写明。",
+                }),
+                "width": ("INT", {
+                    "default": 1024, "min": 64, "max": 2048, "step": 16,
+                    "tooltip": "【只在 init=empty 且没接 spec 时生效】画布宽，必须是 16 的倍数。\n"
+                               "接了 spec 时画布由 spec 决定，这两个值被忽略。",
+                }),
+                "height": ("INT", {
+                    "default": 576, "min": 64, "max": 2048, "step": 16,
+                    "tooltip": "【只在 init=empty 且没接 spec 时生效】画布高，必须是 16 的倍数。",
+                }),
             },
         }
 
@@ -1088,28 +1109,83 @@ class MossStoryboardFaceSwap:
     RETURN_NAMES = ("image", "report")
     FUNCTION = "run"
     CATEGORY = CATEGORY
-    DESCRIPTION = ("换脸：把参考图的脸换到某一格（或整图）。参考图走 vision 通道，"
-                   "源图走图生图重画。接了 spec 就只换那一格，其余格与宫格线不动。")
-    SEARCH_ALIASES = ["face swap", "faceswap", "换脸", "人脸替换", "换人脸", "identity", "参考图"]
+    DESCRIPTION = ("参考图编辑：参考图走 vision 通道决定「是谁」，`init` 决定「从哪开始」。\n"
+                   "· init=source（默认）：吃源图做图生图 —— 有蒙版就只重画蒙版内（换脸），"
+                   "没蒙版就整格重画。\n"
+                   "· init=empty：从空 latent 生成，全图由提示词 + 参考图决定"
+                   "（参考图 → 一张带指定动作/姿态的图）。\n"
+                   "接了 spec 时几何由 spec 管：只动第 index 格，其余格与宫格线逐像素不变。")
+    SEARCH_ALIASES = ["face swap", "faceswap", "换脸", "人脸替换", "换人脸", "identity",
+                      "参考图", "参考图生成", "生成", "姿态", "动作", "pose", "txt2img"]
 
     @_node_errors("index", "denoise", "vision_megapixels", "sample_edge")
-    def run(self, model, clip, vae, image, ref, prompt, steps, cfg,
+    def run(self, model, clip, vae, ref, prompt, steps, cfg,
             sampler_name, scheduler, seed, denoise, vision_megapixels,
-            spec="", index=0, sample_edge=FS.DEFAULT_SAMPLE_EDGE, negative="", mask=None,
-            auto_mask=True, face_pick="largest"):
+            image=None, spec="", index=0, sample_edge=FS.DEFAULT_SAMPLE_EDGE,
+            negative="", mask=None, auto_mask=True, face_pick="largest",
+            init="source", width=1024, height=576):
         from .core import sampling as S      # 惰性导入：本文件顶层不拉 torch
 
         # V3 外壳会把没接的可选入参**显式传 None**，不会落到 Python 默认值上。
         if auto_mask is None:
             auto_mask = True
         face_pick = face_pick or "largest"
+        init = str(init or "source").strip().lower()
+        if init not in ("source", "empty"):
+            raise ValueError("init 只能是 source 或 empty（收到 %r）" % init)
 
         if not str(prompt or "").strip():
             raise ValueError(
-                "prompt 为空：换脸要重画这张图，必须给场景描述，"
-                "并且里面要提到参考图（例如 the man in Picture 1）。")
+                "prompt 为空：%s"
+                % ("换脸要重画这张图，必须给场景描述，并且里面要提到参考图"
+                   "（例如 the man in Picture 1）。"
+                   if init == "source" else
+                   "init=empty 是全图生成，提示词就是画面本身，不能空。"))
 
         lay = L.parse_spec(spec) if str(spec or "").strip() else None
+
+        # ---- init=empty：不吃源图，从空 latent 开始（「参考图 → 一张新图」这条路）----
+        if init == "empty":
+            if lay is not None:
+                cw, ch = int(lay.width), int(lay.height)
+                canvas_src = "spec 画布"
+            else:
+                cw, ch = int(width), int(height)
+                canvas_src = "width × height"
+            positive, ref_rep = RI.encode(clip, prompt, ref, vision_megapixels)
+            negative_cond = S.encode_text(clip, str(negative or ""))
+            latent = S.empty_latent(model, cw, ch)
+            sampled = S.sample(model, positive, negative_cond, latent, steps, cfg,
+                               sampler_name, scheduler, denoise=denoise, seed=seed)
+            final = S.decode(vae, sampled)
+
+            lines = [
+                "模式：参考图生成（init=empty）—— 没有源图，整张图由提示词 + 参考图生成",
+                "画布 %d×%d（%.3f MP，来自 %s）" % (cw, ch, cw * ch / 1e6, canvas_src),
+                "参考图 %d×%d（%.3f MP）→ 进 vision %d×%d（%.3f MP，系数 %.2f）"
+                % (ref_rep["native"][0], ref_rep["native"][1], ref_rep["native_megapixels"],
+                   ref_rep["target"][0], ref_rep["target"][1], ref_rep["target_megapixels"],
+                   ref_rep["scale"]),
+                "采样：%d 步 / cfg %.2f / %s + %s / 种子 %d"
+                % (int(steps), float(cfg), sampler_name, scheduler, int(seed)),
+                "⚠ init=empty 下这些不生效：denoise / sample_edge / auto_mask / "
+                "face_pick / index（没有源图，也就没有「保留原图」和「只改哪一块」）",
+            ]
+            if ref_rep.get("batch_dropped", 1) > 1:
+                lines.append("参考图批次 %d 张，只用了第一张。" % ref_rep["batch_dropped"])
+            lines += ref_rep.get("notes", [])
+            if image is not None:
+                lines.append("接进来的 `image` 被忽略了（init=empty 不从源图开始）。")
+            if mask is not None:
+                lines.append("接进来的 `mask` 被忽略了（整张图都要生成，没有「外面」）。")
+            return (final, "\n".join(lines))
+
+        # ---- init=source：图生图（换脸 / 局部重画）----
+        if image is None:
+            raise ValueError(
+                "init=source 需要 `image`（要换脸的那张图）。"
+                "只想「参考图 + 提示词 → 一张新图」，把 init 改成 empty。")
+
         panel, where = FS.resolve_target(image, lay, index)
         cell_w, cell_h = int(panel.shape[2]), int(panel.shape[1])
 

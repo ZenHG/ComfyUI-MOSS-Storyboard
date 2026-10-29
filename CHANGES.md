@@ -1,21 +1,35 @@
 # CHANGES
 
-## 未发布 — 新增示例 `moss-pose-generate-ui.json`（姿态/动作 → 换脸）
+## 未发布 — 换脸节点加 `init`：换脸与生成合成一个节点（节点数仍是 7）
 
-「参考图 + 提示词 → 一张带指定动作的图」这条路径本包节点做不了（生成节点入参里没有 IMAGE），
-所以没加第 8 个节点，而是把宿主原生链路搭成现成示例：
+**没有新增节点。** 换脸和「参考图 → 一张带指定动作的图」本来就是同一件事的两个特例，
+差别只有「从哪开始」，所以用**一个旋钮**表达：
 
-- `tools/make_pose_example.py` → `examples/moss-pose-generate-ui.json`（14 节点 / 17 连线）。
-  第一段：`TextEncodeMOSSImageEditHiRes`（vision，ref 0.99/1.0）+ `EmptyFlux2LatentImage`
-  1024×576 + `KSampler` 8 步/cfg1.0/euler/simple → 带动作的图；
-  第二段：本包换脸节点把身份收紧一次。
-- 九档动作与七档姿态的提示词原文、判据、两条备选复现路径 → `docs/17 §九`。
-- 依赖：需要 ComfyUI-MOSS-RefHiRes 的 `TextEncodeMOSSImageEditHiRes`（GPL，独立安装）。
-  宿主自带的 `TextEncodeMOSSImageEdit` 把参考图硬压到 0.147 MP，那个值下身份约 0.008。
-- `tools/check_ui_workflow.py` 加 `THIRD_PARTY` 集合：第三方包节点不再被误报「未知」，
-  但校验文案会写明「用到第三方包节点 X（需自行安装对应包）」，不掩盖依赖。
+| `init` | 从哪开始 | 源图 | 蒙版 | 用途 |
+|---|---|---|---|---|
+| `source`（默认） | `vae.encode(image)` | 必填 | 有效 | 换脸 / 局部重画 |
+| `empty` | `empty_latent(width, height)` | 忽略 | 忽略 | 参考图 + 提示词 → 一张新图 |
+
+- `image` 从 required 移到 optional；`init` / `width` / `height` **追加在 optional 末尾**
+  （不动已有工作流的 widget 位）。
+- `init=empty` 下 `denoise` / `sample_edge` / `auto_mask` / `face_pick` / `index` 不生效，
+  `report` 逐条写出来；接进来的 `image` / `mask` 也明确写「被忽略」，不静默吞掉。
+- `init=source` 缺 `image` → **立刻报错**并指路 `init=empty`，不回退成生成。
+- 画布来源：接了 `spec` 用 spec 的整张宫格，没接用 `width × height`（默认 1024×576，16 的倍数）。
+- `tests/test_init_empty.py`：18 项接线断言（纯 CPU、秒级）—— `vae.encode` 一次都不调、
+  画布来源、忽略项写明、缺 image 报错、`init=source` 回归。
+- 示例 `examples/moss-pose-generate-ui.json` 重做成 **9 节点 / 7 连线**，
+  **不依赖任何第三方包**（原来那版要 ComfyUI-MOSS-RefHiRes）。
+- 九档动作 + 七档姿态的提示词原文与判据 → `docs/17 §九`。
+
+顺带（同批）：
+
+- `tools/check_ui_workflow.py` 补 `HOST_EXTRAS`（`PreviewAny` / `LazyCache` / `EasyCache`
+  都是宿主官方 comfy_extras，顶层 `nodes.py` import 不到）—— 此前 6 个示例这条校验一直红着，
+  只是因为用管理版 python 跑时被「宿主不可 import」静默跳过。
+- 另加 `THIRD_PARTY` 集合：第三方包节点不误报「未知」，但文案写明「需自行安装对应包」。
 - 修示例生成器的真 bug：同一个输出被多处消费时（编码节点同时给 positive / negative），
-  `wire()` 覆盖 `links` 而不是追加，导致「连线表自洽」翻红。
+  `wire()` 覆盖 `links` 而不是追加。
 
 ## 未发布 — 文档修正：姿态/肢体动作结论撤回
 
