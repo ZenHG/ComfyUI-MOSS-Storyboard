@@ -127,10 +127,6 @@ export const STR = {
     sizeCustom: { zh: "自定义…", en: "Custom…" },
     sizeNone: { zh: "不指定", en: "Unspecified" },
     sizePh: { zh: "写自己的镜头语言（如：从背后俯拍，人物在右下角）", en: "Your own framing (e.g. high angle from behind, figure at lower right)" },
-    sizeNote: {
-        zh: "八档只是预设；提示词里统一输出英文构图子句（MOSS 语料以英文为主）",
-        en: "The eight presets are shortcuts only; prompts always emit English framing clauses (MOSS is English-dominant)",
-    },
     panelNo: { zh: "镜号", en: "Panel no." },
     del: { zh: "删除元素", en: "Delete item" },
     newItem: { zh: "主体", en: "Main subject" },

@@ -160,6 +160,28 @@ export const LABELS = {
     height: "高",
 };
 
+//: **同名参数在不同节点上含义不同** —— 全局标签只能取一个，所以这里按节点覆盖。
+//: 例：`prompt` 在「宫格几何」上该留空，在「换脸」上必须提到参考图；`image` 在裁格上是整张宫格，
+//: 在换脸上是被改的那张（源图）。只写有差异的，其余回落 LABELS。
+const LABELS_NODE = {
+    MossStoryboardFaceSwap: {
+        prompt: "提示词（要提到 Picture 1）",
+        image: "源图",
+        index: "换第几格",
+    },
+    MossStoryboardCrop: {
+        image: "整张宫格",
+        index: "只输出第几格",
+    },
+    MossStoryboardPaste: {
+        index: "贴到第几格",
+        panel: "改好的单格",
+    },
+    MossStoryboardLayout: {
+        prompt: "提示词（留空即可）",
+    },
+};
+
 // ---------------------------------------------------------------------------
 // 词表 3 · 枚举显示（值 → 中文）。**只影响显示**，存档值不变。
 // ---------------------------------------------------------------------------
@@ -610,7 +632,7 @@ export function applyLang(node, lang) {
         if (!name) continue;
 
         // 标签：中文取 LABELS；英文优先 LABELS_EN，再回落 widget 原名
-        const zh = LABELS[name];
+        const zh = (LABELS_NODE[node.type] || {})[name] || LABELS[name];
         const want = L === "zh" ? (zh || name) : (LABELS_EN[name] || name);
         if (w.label !== want) { w.label = want; out.labels += 1; }
         // 归属标记：界面汉化插件会按自己的词典改回中文，这行让兜底轮询能识别并写回。
