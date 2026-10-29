@@ -125,7 +125,7 @@ Outputs: a **1024×576** board and four **496×272** panels.
 > `output/moss/storyboard/` under your ComfyUI root — `grid_*.png` and `panel_*.png`.
 > **With no save node attached, the image only exists in memory and is gone when the run ends.**
 
-**Seven examples, one job each**
+**Eight examples, one job each**
 
 > ⚠ **The face-swap and pose examples reference two input images** (`moss_faceswap_src.png` /
 > `moss_faceswap_ref.png`) and **the repo does not ship them**. Put your own face close-up and board into
@@ -138,10 +138,11 @@ Outputs: a **1024×576** board and four **496×272** panels.
 | `moss-layout-editor-poster.json` | single poster, boxes on the editor canvas | ✅ | — |
 | `moss-prompt-compiler.json` | official draft → prompt + editor state | ❌ no VRAM | — |
 | `moss-faceswap-ui.json` | 4-panel board → swap panel 0 → board out | ✅ | needs DMD2 + edit LoRA |
+| `moss-faceswap-single-ui.json` | **one photo** → face swap → image out (no `spec`) | ✅ | needs DMD2 + edit LoRA |
 | `moss-pose-generate-ui.json` | reference face + prompt → one posed image (`init=empty`) | ✅ | none |
 | `moss-storyboard-4panels-edit.json` | crop one panel → instruction edit → paste back | ✅ | needs edit LoRA |
 
-> ⚠ **Four of the seven examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
+> ⚠ **Four of the eight examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
 > `4panels-edit` / `poster`; the face-swap and pose examples have none) between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core
 > (`comfy_extras/nodes_easycache.py`, experimental, filed under `advanced/debug`) and lets the sampler reuse steps.
 > **Bypass it (`Ctrl+B`) or delete it before comparing anything against the numbers on this page** — with it on,
@@ -534,6 +535,10 @@ A reference face → **one panel** (or a single image). Four things matter:
 | Auto mask needs insightface | `pip install insightface onnxruntime` + `det_10g.onnx`; a missing dependency **raises**, never silently falls back |
 
 `report` prints how much of the frame the mask covers and how much changed outside it — no extra script needed.
+
+**Single-photo face swap**: leave `spec` unwired and the whole image is treated as one panel —
+example `moss-faceswap-single-ui.json`. ⚠ With `spec` wired the source must be the same board,
+otherwise it raises "source W×H does not match the spec canvas".
 Full parameter table, mask geometry, the pose/body measurements and the working scope (clothes work, background does
 not): [manual §6](docs/19-node-manual.md#6--换脸--蒙版局部编辑) (Chinese).
 

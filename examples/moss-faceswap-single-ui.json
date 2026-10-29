@@ -1,0 +1,697 @@
+{
+  "id": "moss-faceswap-single",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 9,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MarkdownNote",
+      "pos": [
+        -1180,
+        -260
+      ],
+      "size": [
+        560,
+        720
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "widgets_values": [
+        "## 换脸 · 单图（MossStoryboardFaceSwap，不接 spec）\n\n一张图进，换完直接出。**没有宫格、没有 index、没有贴回。**\n\n### 与 moss-faceswap-ui.json 的唯一差别\n那个示例接了 spec，所以源图必须是**整张宫格**，只换第 index 格；\n这个示例**不接 spec**，整张图被当成一格，换完整张出。\n\n### 三处必须改\n1. **两个 LoadImage** 换成你自己的图：\n   - src = 要换脸的那张（**单人**、脸越大越好）\n   - ref = 身份参考图，**紧特写**，只给一张（双视角实测更差：0.384 vs 0.463）\n2. **提示词**里保留 in Picture 1 这个说法 —— 换成别的措辞参考图就不进场景了。\n3. face_pick：一张图里有几个人时点名（largest / left / right），report 会写「几张脸、用了哪张」。\n\n### 自动蒙版（默认开）\nauto_mask=true 时节点用 insightface 找脸并生成**羽化矩形**蒙版，只重画蒙版内。\n需要 pip install insightface onnxruntime + ~/.insightface/models/buffalo_l/det_10g.onnx（19 MB）。\n**缺依赖会直接报错**，不会静默降级成整图重画 —— 报错里会打印它实际找的路径。\n\n关掉 auto_mask 又没手接 mask ⇒ **整张重画**，色调必漂（实测 R +24…+53）。report 会写明走了哪条。\n\n### 想只改一块（局部编辑）\n同一个节点、换一个蒙版就行：ImageToMask(channel=\"red\") → mask。\n**别用 LoadImage 的 MASK 口** —— 那是 alpha，灰度图没 alpha 时返回 64×64 全零，\n蒙版等于没接、整张被重画，而且不报错。\n\n### 想改动作 / 换姿态\n把 init 从 source 改成 empty：节点不吃 image，从空 latent 生成 ——\n「参考图 + 提示词 → 一张新图」。示例见 moss-pose-generate-ui.json。\n\n### 两档参数（同一张图同一蒙版实测）\n| 档 | 步数 / cfg | 用途 |\n|---|---|---|\n| 快档（默认） | 8 / 1.0 | 换脸 —— 脸那个尺度上材质看不出来 |\n| 编辑档 | 30 / 5 | 衣服、头发、较大区域 |\n"
+      ],
+      "title": "这是什么 · 怎么用"
+    },
+    {
+      "id": 2,
+      "type": "UNETLoader",
+      "pos": [
+        -560,
+        -260
+      ],
+      "size": [
+        340,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "moss_image_sft_bf16.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        -560,
+        -140
+      ],
+      "size": [
+        340,
+        82
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1,
+          "widget": {
+            "name": "model"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly"
+      },
+      "widgets_values": [
+        "8-steps-dmd2-lora.safetensors",
+        1.0
+      ]
+    },
+    {
+      "id": 4,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        -560,
+        -20
+      ],
+      "size": [
+        340,
+        82
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 2,
+          "widget": {
+            "name": "model"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoaderModelOnly"
+      },
+      "widgets_values": [
+        "Moss-Image-Edit\\adapter_model.safetensors",
+        1.0
+      ]
+    },
+    {
+      "id": 5,
+      "type": "CLIPLoader",
+      "pos": [
+        -560,
+        100
+      ],
+      "size": [
+        340,
+        106
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3.5_9b_int8_convrot.safetensors",
+        "moss_image",
+        "default"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "pos": [
+        -560,
+        250
+      ],
+      "size": [
+        340,
+        58
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "flux2-vae.safetensors"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "LoadImage",
+      "pos": [
+        -560,
+        350
+      ],
+      "size": [
+        340,
+        320
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "image"
+          }
+        },
+        {
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "link": null,
+          "widget": {
+            "name": "upload"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "moss_faceswap_src.png",
+        "image"
+      ],
+      "title": "src · 要换脸的图（单张照片，不是宫格）"
+    },
+    {
+      "id": 8,
+      "type": "LoadImage",
+      "pos": [
+        -560,
+        710
+      ],
+      "size": [
+        340,
+        320
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "image"
+          }
+        },
+        {
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "link": null,
+          "widget": {
+            "name": "upload"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "moss_faceswap_ref.png",
+        "image"
+      ],
+      "title": "ref · 身份参考图（紧特写，只给一张）"
+    },
+    {
+      "id": 9,
+      "type": "MossStoryboardFaceSwap",
+      "pos": [
+        260,
+        350
+      ],
+      "size": [
+        420,
+        620
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 4
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 5
+        },
+        {
+          "name": "ref",
+          "type": "IMAGE",
+          "link": 7
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "prompt"
+          }
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "steps"
+          }
+        },
+        {
+          "name": "cfg",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "cfg"
+          }
+        },
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "sampler_name"
+          }
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "scheduler"
+          }
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "seed"
+          }
+        },
+        {
+          "name": "denoise",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "denoise"
+          }
+        },
+        {
+          "name": "vision_megapixels",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "vision_megapixels"
+          }
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 6
+        },
+        {
+          "name": "spec",
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "index",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "index"
+          }
+        },
+        {
+          "name": "sample_edge",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "sample_edge"
+          }
+        },
+        {
+          "name": "negative",
+          "type": "STRING",
+          "link": null,
+          "widget": {
+            "name": "negative"
+          }
+        },
+        {
+          "name": "auto_mask",
+          "type": "BOOLEAN",
+          "link": null,
+          "widget": {
+            "name": "auto_mask"
+          }
+        },
+        {
+          "name": "face_pick",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "face_pick"
+          }
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "name": "init",
+          "type": "COMBO",
+          "link": null,
+          "widget": {
+            "name": "init"
+          }
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "width"
+          }
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "link": null,
+          "widget": {
+            "name": "height"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MossStoryboardFaceSwap",
+        "cnr_id": "moss-storyboard",
+        "ver": "0.3.2"
+      },
+      "widgets_values": [
+        "A close-up portrait photograph of the person in Picture 1, standing against a plain grey studio wall, soft key light from the left, calm neutral expression, 35mm film, real skin texture",
+        8,
+        1.0,
+        "euler",
+        "simple",
+        0,
+        "randomize",
+        0.95,
+        1.05,
+        0,
+        1024,
+        "",
+        true,
+        "right",
+        "source",
+        1024,
+        576
+      ],
+      "title": "🎬 故事板 · 换脸（不接 spec = 整图当一格）"
+    },
+    {
+      "id": 10,
+      "type": "SaveImage",
+      "pos": [
+        760,
+        350
+      ],
+      "size": [
+        400,
+        560
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "moss/faceswap/single"
+      ],
+      "title": "换完的图"
+    },
+    {
+      "id": 11,
+      "type": "PreviewAny",
+      "pos": [
+        760,
+        940
+      ],
+      "size": [
+        400,
+        220
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [],
+      "title": "report（蒙版覆盖 / 实际生效的降噪）"
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      3,
+      0,
+      4,
+      0,
+      "MODEL"
+    ],
+    [
+      3,
+      4,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      5,
+      0,
+      9,
+      1,
+      "CLIP"
+    ],
+    [
+      5,
+      6,
+      0,
+      9,
+      2,
+      "VAE"
+    ],
+    [
+      6,
+      7,
+      0,
+      9,
+      12,
+      "IMAGE"
+    ],
+    [
+      7,
+      8,
+      0,
+      9,
+      3,
+      "IMAGE"
+    ],
+    [
+      8,
+      9,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      9,
+      9,
+      1,
+      11,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8,
+      "offset": [
+        1240,
+        300
+      ]
+    }
+  },
+  "version": 0.4
+}
