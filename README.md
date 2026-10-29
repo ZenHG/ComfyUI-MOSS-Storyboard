@@ -127,9 +127,11 @@ Outputs: a **1024×576** board and four **496×272** panels.
 
 **Eight examples, one job each**
 
-> ⚠ **The face-swap and pose examples reference input images** (`moss_faceswap_src.png` board /
-> `moss_faceswap_single_src.png` single photo / `moss_faceswap_ref.png` face close-up) and **the repo does not
-> ship them**. Put your own into `<ComfyUI>/input/`, or point `LoadImage` at your files.
+> ⚠ **An example whose input image is not in `input/` reports "image not found".**
+> **The single-photo example ships two demo images**: `assets/faceswap-demo-src.png` (one person) and
+> `assets/faceswap-demo-ref.png` (a different person's face close-up) — **drag both into the ComfyUI canvas**
+> and they are copied into `input/` for you, or point `LoadImage` at your own files.
+> **The board and pose examples** need your own `moss_faceswap_src.png` / `moss_faceswap_ref.png`.
 > **src and ref must be different people** — swapping one person onto themselves looks like "nothing happened".
 
 | File | What it does | Model | Third-party nodes |

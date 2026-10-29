@@ -121,9 +121,11 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 
 **八个示例，各管一件事**
 
-> ⚠ **换脸与姿态示例引用了输入图**（`moss_faceswap_src.png` 宫格 / `moss_faceswap_single_src.png` 单张 /
-> `moss_faceswap_ref.png` 脸部特写），**仓库不含这些图**。自备放进 `<ComfyUI>/input/`，
-> 或在 `LoadImage` 里改选自己的文件。
+> ⚠ **示例引用的输入图不在 input 里就会报「图片不存在」**。
+> **单图换脸示例**自带两张演示图：`assets/faceswap-demo-src.png`（单人照片）与
+> `assets/faceswap-demo-ref.png`（另一个人的脸部特写）—— **把这两张拖进 ComfyUI 画布**
+> 就会自动复制到 `input/`，或者直接换成自己的图。
+> **宫格示例与姿态示例**要自备 `moss_faceswap_src.png` / `moss_faceswap_ref.png`。
 > **src 与 ref 必须是不同的人** —— 同一个人换完还是这张脸，看起来就像「没变化」。
 
 | 文件 | 干什么 | 要模型 | 第三方节点 |
