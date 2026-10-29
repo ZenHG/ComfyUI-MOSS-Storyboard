@@ -145,20 +145,27 @@ LoadImage(灰度蒙版，白=重画)  →  ImageToMask(red)  →  换脸.mask
   默认 `auto_mask` 开着，所以「没接线」不等于「没有蒙版」。
 - 示例：`examples/moss-faceswap-ui.json`；蒙版样张：`assets/faceswap-mask-example.png`。
 
-## 九、姿态与肢体动作：配方在这，但**不是本节点的能力**
+## 九、姿态与肢体动作：把 `init` 设成 `empty`
 
 > 这一节的数（README 里「姿态能动」「肢体动作几乎无损」）来自**生成**路径 ——
 > 空 latent + 参考图进 vision 通道 + 提示词。
-> **换脸节点复现不了这两条**：它是 i2i + 蒙版，动作来自源图，蒙版外逐像素不动。
-> 要在换脸之后改动作，得先走生成路径出带动作的图，再对它换脸。
+> 它就是换脸节点的 `init=empty` 分支：**同一个节点，只换「从哪开始」。**
 
-### 9.1 为什么本包节点复现不了
+### 9.1 一个节点，两个分支
 
-`MossStoryboardSampler` 的入参里**没有任何 IMAGE / MASK**（只有 `model / clip / vae /
-positive / negative / steps / ...`，输出才是 IMAGE）。本包唯一带 vision 通道的节点是换脸，
-而它必须吃源图、且默认蒙版只重画脸框 —— 身体在蒙版外，逐像素保留。
+换脸和生成是同一件事的两个特例，差别只有 `init`：
 
-⇒ **本包没有「参考图 → 一张带指定动作的图」这个入口。** 这是缺口，不是配置问题。
+| `init` | 从哪开始 | 源图 | 蒙版 | 用途 |
+|---|---|---|---|---|
+| `source`（默认） | `vae.encode(image)` | 必填 | 有效 | 换脸 / 局部重画 |
+| `empty` | `empty_latent(width, height)` | **忽略** | **忽略** | 参考图 + 提示词 → 一张新图 |
+
+`init=empty` 下 `denoise` / `sample_edge` / `auto_mask` / `face_pick` / `index` 都不生效
+（没有源图，也就没有「保留原图」和「只改哪一块」），`report` 会逐条写出来。
+接了 `spec` 时画布用 spec 的整张宫格，没接才用 `width × height`。
+
+接线断言在 `tests/test_init_empty.py`（纯 CPU，秒级）：`vae.encode` 一次都不调、
+画布来源明确、忽略项写明、`init=source` 缺 `image` 立刻报错。
 
 ### 9.2 配方（照抄）
 
@@ -215,17 +222,17 @@ calm neutral expression, <档位句>
 
 ```text
 A. 现成示例（推荐）：examples/moss-pose-generate-ui.json
-   pose 生成 → 预览 → 换脸 → 落盘，14 节点；参数已按 9.2 填好。
-   ⚠ 需要 ComfyUI-MOSS-RefHiRes（GPL，独立安装）的 TextEncodeMOSSImageEditHiRes。
-     宿主自带的 TextEncodeMOSSImageEdit 把参考图硬压到 0.147 MP，身份约 0.008 = 等于没给。
+   9 节点 / 7 连线：模型三件套 + 两层 LoRA + LoadImage + 本包换脸节点(init=empty) + SaveImage。
+   **不依赖任何第三方包。**
 
 B. 实验脚本（内部实验目录，不随包分发）：e21_body_action.py
    --ref <正脸参考图> --out <输出目录> --repeat 3
    自带采样地板对照（基线动作跑 3 个 seed）
-
-C. 自己搭三节点：TextEncodeMOSSImageEditHiRes + EmptyFlux2LatentImage + KSampler
-   参数见 9.2；不需要本包任何节点
 ```
+
+> 实验当时是用宿主原生 `TextEncodeMOSSImageEditHiRes`（RefHiRes 包，GPL）搭的图。
+> 本包换脸节点里是**独立实现**的同一件事（`core/refimage.py`，MIT），
+> 用 E26 配方复现到 `max|Δ| = 0`。所以现在不需要装那个包。
 
 ### 9.4 判据
 

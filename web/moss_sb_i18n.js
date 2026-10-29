@@ -472,6 +472,20 @@ export const TIPS = {
             + "largest = biggest face; left / right = leftmost / rightmost.\n"
             + "`report` prints how many faces were found and which one was used.",
     },
+    "MossStoryboardFaceSwap.init": {
+        en: "[Where to start] Face swap and generation are the same operation with one knob different:////n"
+            + "source (default) = take `image` and do img2img. With a mask only the mask is redrawn (face swap).\\n"
+            + "empty = do NOT take `image`; start from an empty latent and build the whole frame from\\n"
+            + "the prompt + the reference (this is the \"reference face -> one posed image\" path).\\n"
+            + "Under empty, denoise / sample_edge / auto_mask / face_pick / index do nothing; `report` says so.",
+    },
+    "MossStoryboardFaceSwap.width": {
+        en: "[Only when init=empty and no spec is wired] Canvas width; must be a multiple of 16.\\n"
+            + "With a spec wired the canvas comes from the spec and this value is ignored.",
+    },
+    "MossStoryboardFaceSwap.height": {
+        en: "[Only when init=empty and no spec is wired] Canvas height; must be a multiple of 16.",
+    },
     "MossStoryboardFaceSwap.mask": {
         en: "[Wire, strongly recommended] Only the masked region is repainted; everything outside stays pixel-identical.\n"
             + "Without it the whole panel is repainted and the colour grade always drifts (measured R +24 to +53).\n"

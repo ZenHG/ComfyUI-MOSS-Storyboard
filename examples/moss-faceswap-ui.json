@@ -530,19 +530,14 @@
      "link": 5
     },
     {
-     "name": "image",
+     "name": "ref",
      "type": "IMAGE",
      "link": 6
     },
     {
-     "name": "ref",
-     "type": "IMAGE",
-     "link": 7
-    },
-    {
      "name": "prompt",
      "type": "STRING",
-     "link": null,
+     "link": 7,
      "widget": {
       "name": "prompt"
      }
@@ -604,6 +599,11 @@
      }
     },
     {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 6
+    },
+    {
      "name": "spec",
      "type": "STRING",
      "link": 8
@@ -652,6 +652,30 @@
      "name": "mask",
      "type": "MASK",
      "link": null
+    },
+    {
+     "name": "init",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "init"
+     }
+    },
+    {
+     "name": "width",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "width"
+     }
+    },
+    {
+     "name": "height",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "height"
+     }
     }
    ],
    "outputs": [
@@ -689,7 +713,10 @@
     1024,
     "",
     true,
-    "right"
+    "right",
+    "source",
+    1024,
+    576
    ],
    "title": "🎬 故事板 · 换脸（只换第 0 格）"
   },

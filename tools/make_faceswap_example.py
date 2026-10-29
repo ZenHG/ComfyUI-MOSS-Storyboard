@@ -152,11 +152,11 @@ def build():
     # ---- 换脸本体 ----
     # widgets 顺序 = INPUT_TYPES 声明顺序里**有 widget 的那些**（spec 是 forceInput，不在其中）
     nodes.append(node(10, "MossStoryboardFaceSwap", (260, 350), (420, 620),
-                      [PROMPT, 8, 1.0, "euler", "simple", 0, "randomize", 0.95, 1.05, 0, 1024, "", True, "right"],
+                      [PROMPT, 8, 1.0, "euler", "simple", 0, "randomize", 0.95, 1.05, 0, 1024, "",
+                       True, "right", "source", 1024, 576],
                       inputs=[inp("model", "MODEL", 3),
                               inp("clip", "CLIP", 4),
                               inp("vae", "VAE", 5),
-                              inp("image", "IMAGE", 6),
                               inp("ref", "IMAGE", 7),
                               inp("prompt", "STRING", None, "prompt"),
                               inp("steps", "INT", None, "steps"),
@@ -166,13 +166,17 @@ def build():
                               inp("seed", "INT", None, "seed"),
                               inp("denoise", "FLOAT", None, "denoise"),
                               inp("vision_megapixels", "FLOAT", None, "vision_megapixels"),
+                              inp("image", "IMAGE", 6),
                               inp("spec", "STRING", 8),
                               inp("index", "INT", None, "index"),
                               inp("sample_edge", "INT", None, "sample_edge"),
                               inp("negative", "STRING", None, "negative"),
                               inp("auto_mask", "BOOLEAN", None, "auto_mask"),
                               inp("face_pick", "COMBO", None, "face_pick"),
-                              inp("mask", "MASK")],
+                              inp("mask", "MASK"),
+                              inp("init", "COMBO", None, "init"),
+                              inp("width", "INT", None, "width"),
+                              inp("height", "INT", None, "height")],
                       outputs=[out("image", "IMAGE"), out("report", "STRING")],
                       title="🎬 故事板 · 换脸（只换第 0 格）", order=8))
 

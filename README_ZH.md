@@ -860,6 +860,7 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | `auto_mask` | **默认开。** insightface 自动找脸并生成蒙版。依赖缺失**直接报错**，不静默降级 |
 | `face_pick` | `largest` / `left` / `right`。一格有几个人时点名；`report` 写「几张脸、用了哪张」 |
 | `mask` | 可选，手接蒙版覆盖自动结果。接了就以手接的为准 |
+| `init` | **`source`**（默认）= 吃 `image` 做图生图，有蒙版就只重画蒙版内；**`empty`** = 不吃 `image`，从空 latent 开始——参考图 + 提示词 → 一张新图 |
 
 **蒙版是「修图」和「重画」的分界。** 接了蒙版只重画蒙版内，蒙版外逐像素保留（实测 `mean&#124;Δ&#124; 0.40/255`）；既没接线、又关掉 `auto_mask` 才是整格重画，色调必漂（`R +24 … +53`）。`report` 会写明实际走了哪条。
 
@@ -888,7 +889,7 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | SAM | 精分割，要提示点/框 | 手动下 `sam_vit_*.pth` | 不用——要提示 + 权重大，增益未测 |
 | ultralytics YOLO | 只有框 | 手动下载 | 不用——没关键点，还得自己缩 |
 
-**姿态与肢体动作：都能动，但不是本节点。** 七档头部姿态 + 九档肢体动作，测的是**生成**路径（空 latent + 参考图进 vision）。本节点是蒙版后的图生图：身体在蒙版外，提示词动不了它——**先走生成路径定动作，再换脸**。每次只改一个变量：
+**姿态与肢体动作：都能动，把 `init` 设成 `empty`。** 七档头部姿态 + 九档肢体动作，测的是**生成**路径（空 latent + 参考图进 vision）。默认 `init=source` 时本节点是蒙版后的图生图，身体在蒙版外、提示词动不了它。每次只改一个变量：
 
 | 测了什么 | 结果 |
 |---|---|
@@ -898,7 +899,7 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | 躯干转侧、头仍朝镜头 | `+0.036`，没受损 |
 | 背对镜头、回头看向肩后（yaw `0.76`） | `−0.086` ⇒ 伤脸的是**连带转头**，不是身体 |
 
-⇒ **要换姿态：参考图给正脸，姿态写在提示词里**（在生成路径上）。参考图本身是侧脸，输出就被锁在侧脸，提示词拉不回来。只动身体时，让头继续朝镜头。两套梯度提示词与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §九。两段串起来的示例（pose → 换脸）：`examples/moss-pose-generate-ui.json`——需要 **ComfyUI-MOSS-RefHiRes**（GPL，独立安装）的 `TextEncodeMOSSImageEditHiRes`；宿主自带的 `TextEncodeMOSSImageEdit` 把参考图硬压到 0.147 MP，那个值下身份约 `0.008`。
+⇒ **要换姿态：参考图给正脸，`init` 设成 `empty`，姿态写在提示词里。** 参考图本身是侧脸，输出就被锁在侧脸，提示词拉不回来。只动身体时，让头继续朝镜头。两套梯度提示词与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §九。现成示例：`examples/moss-pose-generate-ui.json`（9 个节点，`init=empty`，**不依赖任何第三方节点**）。
 
 配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · 8 步 / cfg 1.0 / euler + simple · 参考图**只给一张**（双视角实测更差）。完整配方与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
 

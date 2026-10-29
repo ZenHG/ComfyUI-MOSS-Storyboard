@@ -690,6 +690,7 @@ Reference face → **one panel** (or a single image). MIT, like the rest of the 
 | `auto_mask` | **On by default.** insightface finds the face and builds the mask. A missing dependency is a hard error, never a silent fallback |
 | `face_pick` | `largest` / `left` / `right`. Use it when a panel has several people; `report` prints how many faces were found and which one won |
 | `mask` | Optional manual override. A wired mask beats `auto_mask` |
+| `init` | **`source`** (default) = img2img from `image`; with a mask only the mask is redrawn. **`empty`** = ignore `image`, start from an empty latent — reference face + prompt → one new image |
 
 **The mask is the difference between a retouch and a re-render.** With a mask only the mask is redrawn and everything outside stays pixel-identical (`mean&#124;Δ&#124; 0.40/255`). Without one — no wired mask **and** `auto_mask` off — the whole panel is repainted and the grade always shifts (`R +24 … +53`). `report` says which path ran.
 
@@ -718,7 +719,7 @@ Other detectors on this machine, and why this node does not use them:
 | SAM | precise region, needs a point or box prompt | manual `sam_vit_*.pth` download | no — prompt + weight cost, unmeasured gain |
 | ultralytics YOLO | box only | manual download | no — no keypoints, would have to re-derive them |
 
-**Pose and body motion both work — but not through this node.** Seven head poses and nine body actions, measured on the **generate** path (empty latent + reference in the vision channel). This node is img2img behind a mask, so the body sits outside the mask and the prompt cannot move it — generate the pose first, swap the face second. One variable at a time:
+**Pose and body motion both work — set `init` to `empty`.** Seven head poses and nine body actions, measured on the **generate** path (empty latent + reference in the vision channel). With the default `init=source` this node is img2img behind a mask, so the body sits outside the mask and the prompt cannot move it. One variable at a time:
 
 | Tested | Result |
 |---|---|
@@ -728,7 +729,7 @@ Other detectors on this machine, and why this node does not use them:
 | Torso turned, head still at camera | `+0.036` — no damage |
 | Back to camera, head over shoulder (`yaw 0.76`) | `−0.086` ⇒ what hurts the face is the **head turn**, not the body |
 
-⇒ **To change pose: feed a frontal reference and put the pose in the prompt** (on the generate path). A profile reference locks the output to profile and no wording pulls it back. When only the body should move, keep the head facing the camera. Prompts and pass criteria for both gradients: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §9. Working example of the two stages chained (pose → swap): `examples/moss-pose-generate-ui.json` — it needs `TextEncodeMOSSImageEditHiRes` from **ComfyUI-MOSS-RefHiRes** (GPL, installed separately); the host's own `TextEncodeMOSSImageEdit` hard-caps the reference at 0.147 MP, where identity is about `0.008`.
+⇒ **To change pose: feed a frontal reference, set `init=empty`, and put the pose in the prompt.** A profile reference locks the output to profile and no wording pulls it back. When only the body should move, keep the head facing the camera. Prompts and pass criteria for both gradients: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §9. Working example: `examples/moss-pose-generate-ui.json` (9 nodes, `init=empty`, **no third-party nodes**).
 
 Recipe: 8-step DMD2 LoRA **then** the Moss-Image-Edit LoRA · 8 steps / cfg 1.0 / euler + simple · **one** reference image (two views measured worse). Full recipe and pass criteria: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md).
 
