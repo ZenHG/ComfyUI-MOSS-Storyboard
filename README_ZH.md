@@ -28,7 +28,7 @@
 | 版本 | **0.3.0** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（MOSS-Image 原生支持自 PR #17095 起） |
-| 依赖 | **零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供） |
+| 依赖 | 核心**零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供）。换脸节点的自动蒙版可选装 `insightface` + `onnxruntime`，不装也能跑 |
 
 ---
 
@@ -118,7 +118,7 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。这不
 | 可复用布局状态 | 节点字段 | ✅ v3 state + 撤销/重做 |
 | 编辑器内排队 | — | ✅ 一键 |
 | 外部 planner JSON | — | ✅ elements-v1 + CLI |
-| 额外 pip 依赖 | — | 无 |
+| 额外 pip 依赖 | — | 无（换脸的自动蒙版可选加 `insightface`） |
 
 **不适合**只做单主体、一两个框的单图——官方模板更简单。**适合**需要可复现多面板、每格描述或逐格裁切的场景。
 
@@ -173,7 +173,7 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。这不
 | `moss_image_sft_bf16.safetensors` | ✅ | `models/unet/`（或 `models/diffusion_models/`） |
 | `qwen3.5_9b_int8_convrot.safetensors` | ✅ | `models/clip/` |
 | `flux2-vae.safetensors` | ✅ | `models/vae/` |
-| 额外 pip 包 | ❌ | 无 |
+| 额外 pip 包 | ❌ | 无（换脸自动蒙版可选 `insightface` + `onnxruntime`） |
 
 模型权重**不随包分发**。下载地址与目录名以官方 ComfyUI MOSS-Image 教程为准：
 <https://docs.comfy.org/tutorials/image/moss-image/moss-image>。
@@ -855,21 +855,56 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | | |
 |---|---|
 | `ref` → vision 通道 | 决定**是谁**。`vision_megapixels` 默认 `1.05`（宿主默认 `0.147` 时参考图只值约 `0.008`，等于没给） |
-| `image` + `prompt` → 图生图 | 决定**画什么**。提示词里要提到参考图（`in Picture 1`），前缀由节点拼 |
-| `spec` + `index` | 只换那一格——缝、外边距、其他格**逐像素不变**（实测 `max|Δ| = 0`） |
-| `auto_mask` | **默认开。** insightface 自动找脸并生成蒙版，不用手画。需要 `pip install insightface onnxruntime`；没装会明说，不瞎猜 |
-| `face_pick` | 一格里有好几个人时点名：`largest` / `left` / `right`。`report` 会写「检测到几张脸、用了哪张」 |
-| `mask` | 可选，手接蒙版覆盖自动结果（**白 = 重画**）。接了就以手接的为准 |
+| `image` + `prompt` → 图生图 | 决定**画什么**。提示词要提到参考图（`in Picture 1`），前缀由节点拼 |
+| `spec` + `index` | 只换那一格——缝、外边距、其他格逐像素不变（实测 `max&#124;Δ&#124; = 0`） |
+| `auto_mask` | **默认开。** insightface 自动找脸并生成蒙版。依赖缺失**直接报错**，不静默降级 |
+| `face_pick` | `largest` / `left` / `right`。一格有几个人时点名；`report` 写「几张脸、用了哪张」 |
+| `mask` | 可选，手接蒙版覆盖自动结果。接了就以手接的为准 |
 
-**蒙版是「修图」和「重画」的分界。** 有蒙版色调不可能漂（蒙版外实测 `0.40/255`），没有就是整格重画、色调必漂（`R +24 … +53`）。默认 `auto_mask` 开着就行；要手接蒙版的话，**别拿 `LoadImage` 的 MASK 口**——那是 alpha，灰度图没 alpha 时返回 64×64 全零，蒙版等于没接，用 `ImageToMask(channel="red")`。完整配方：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
+**蒙版是「修图」和「重画」的分界。** 接了蒙版只重画蒙版内，蒙版外逐像素保留（实测 `mean&#124;Δ&#124; 0.40/255`）；既没接线、又关掉 `auto_mask` 才是整格重画，色调必漂（`R +24 … +53`）。`report` 会写明实际走了哪条。
 
-配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · 8 步 / cfg 1.0 / euler + simple · 参考图**只给一张**（双视角实测更差）。
+**蒙版长什么样。** 是**羽化矩形**，不是贴脸轮廓：上沿 `eye_y + 0.30 × (nose_y − eye_y)`，下沿 `y2 + 0.06 × h`，左右各外扩 `0.05 × w`，羽化 `max(3, 0.02 × w)`。**白 = 重画。** 给整张宫格的蒙版也行——节点按 `index` 用与图像同一套整数坐标裁到目标格。
 
-**做不到的**：一格两个人、改姿态、连续换两次——都不成立。本页不发布「像不像」的分数，因为本域余弦没有分辨力。试过哪些旋钮、为什么都留在默认值：[`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md)。
+**手接蒙版怎么写。** `ImageToMask(channel="red")` → `mask`。**别用 `LoadImage` 的 `MASK` 口**：那是 alpha，灰度图没 alpha 时返回 64×64 全零，蒙版等于没接、整格被重画，而且不报错。样张：`assets/faceswap-mask-example.png`。
+
+**自动蒙版：装什么、权重放哪**
+
+| | |
+|---|---|
+| 安装 | `pip install insightface onnxruntime` —— 装进**跑 ComfyUI 的那个 Python** |
+| 权重 | `~/.insightface/models/buffalo_l/det_10g.onnx`（19 MB） |
+| 只要这一个 | 节点只加载 `detection`，`w600k_r50.onnx`（174 MB，识别用）**不需要** |
+| 想放别的盘 | 设 `MOSS_INSIGHTFACE_ROOT=<根目录>`，权重放 `<根目录>/models/buffalo_l/` |
+| 下载 | <https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip>（把 `buffalo_l/` 解到 `models/` 下） |
+| 自查 | 节点**不会自己联网下载**：权重缺失时报错里会打印它实际找的那个路径 |
+
+本机其他检测轮子，以及本节点为什么不用：
+
+| 轮子 | 给什么 | 权重位置 | 本包 |
+|---|---|---|---|
+| insightface `buffalo_l` | 框 + 5 关键点 | `~/.insightface/models/buffalo_l/` | **用**——与实测过的 E26 配方同源 |
+| mediapipe face mesh | 478 点轮廓 | 随包，在 `site-packages/mediapipe/modules/`（55 MB） | 不用——轮廓更贴不是瓶颈 |
+| facexlib BiSeNet | 分区解析（皮肤/眉/眼/鼻/嘴/发） | `site-packages/facexlib/weights/parsing_bisenet.pth` | 不用——语义最好，但多一个依赖且增益未测 |
+| SAM | 精分割，要提示点/框 | 手动下 `sam_vit_*.pth` | 不用——要提示 + 权重大，增益未测 |
+| ultralytics YOLO | 只有框 | 手动下载 | 不用——没关键点，还得自己缩 |
+
+**姿态与肢体动作：都能动，但不是本节点。** 七档头部姿态 + 九档肢体动作，测的是**生成**路径（空 latent + 参考图进 vision）。本节点是蒙版后的图生图：身体在蒙版外，提示词动不了它——**先走生成路径定动作，再换脸**。每次只改一个变量：
+
+| 测了什么 | 结果 |
+|---|---|
+| 头部 yaw，参考图**正脸** | 成立。一句提示词把 yaw 从 `+0.05` 推到 `+1.48`，近正侧、低头、仰头都出来了 |
+| 头部 yaw，参考图**侧脸** | 不成立。参考图 yaw `+5.20`，七档提示词全画成侧脸 ⇒ **姿态跟参考图走，不跟提示词走** |
+| 肢体动作（站立 / 插兜 / 抱胸 / 走 / 前伸 / 坐 / 转身 / 手抵下颌 / 背身回看） | 九档全部生效。净损失 `−0.086 … +0.112`，**九档里七档在 ±0.05 以内**（采样地板量级） |
+| 躯干转侧、头仍朝镜头 | `+0.036`，没受损 |
+| 背对镜头、回头看向肩后（yaw `0.76`） | `−0.086` ⇒ 伤脸的是**连带转头**，不是身体 |
+
+⇒ **要换姿态：参考图给正脸，姿态写在提示词里**（在生成路径上）。参考图本身是侧脸，输出就被锁在侧脸，提示词拉不回来。只动身体时，让头继续朝镜头。两套梯度提示词与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §九。
+
+配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · 8 步 / cfg 1.0 / euler + simple · 参考图**只给一张**（双视角实测更差）。完整配方与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
+
+**仍然做不到的**：一格两个人（各约 68px，两张都被换、彼此散开）、连续换两次（第二次像素级空转）、用提示词把侧脸参考图拉回正脸。本页不发布「像不像」的分数——本域余弦没有分辨力。试过哪些旋钮、为什么都留在默认值：[`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md)。
 
 示例：`examples/moss-faceswap-ui.json`。
-
----
 
 ## 节点中英切换
 
