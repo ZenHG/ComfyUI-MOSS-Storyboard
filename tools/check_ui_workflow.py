@@ -142,6 +142,24 @@ def check_file(path, mappings):
                 bad.append("link %s 未登记在目标节点 %s 的输入上" % (lid, dst))
     check("连线表自洽", not bad, "；".join(bad[:4]))
 
+    # 连线的类型必须与**目标 input 的声明类型**一致。
+    # 本地不查就要等宿主报 `prompt received IMAGE` —— 而宿主只在提交时才报，
+    # 那时已经跑了一轮队列。踩过：`image` 从 required 挪到 optional 后，
+    # 示例里那根线还按旧下标写，源图落到了 `ref` 上、参考图落到了 `prompt` 上。
+    typ_bad = []
+    for link in wf["links"]:
+        lid, _src, _sslot, dst, dslot, ltyp = link
+        dn = nodes.get(dst)
+        if not dn or dslot >= len(dn.get("inputs") or []):
+            continue
+        it = dn["inputs"][dslot]
+        want = it.get("type")
+        if want in (None, "*") or ltyp == "*" or want == ltyp:
+            continue
+        typ_bad.append("link %s → %s.%s 要 %s，接进来 %s"
+                       % (lid, dn.get("type"), it.get("name"), want, ltyp))
+    check("连线类型与目标输入一致", not typ_bad, "；".join(typ_bad[:4]))
+
     # 本包节点的槽位
     ours = 0
     for n in wf["nodes"]:

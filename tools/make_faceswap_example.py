@@ -195,19 +195,26 @@ def build():
     by_id = {n["id"]: n for n in nodes}
 
     def wire(src, sslot, dst, dslot, typ):
+        """`dslot` 可以给**名字**。给数字在改 inputs 顺序时会静默错位 ——
+        踩过：`image` 从 required 挪到 optional 后，源图那根线落到了 `ref` 上，
+        参考图落到了 `prompt` 上，宿主才报 `prompt received IMAGE`。
+        """
+        if isinstance(dslot, str):
+            dslot = [i["name"] for i in by_id[dst]["inputs"]].index(dslot)
         lid = len(links) + 1
         links.append([lid, src, sslot, dst, dslot, typ])
-        by_id[src]["outputs"][sslot]["links"] = [lid]
+        cur = by_id[src]["outputs"][sslot]["links"]
+        by_id[src]["outputs"][sslot]["links"] = list(cur) + [lid]
         by_id[dst]["inputs"][dslot]["link"] = lid
 
     wire(2, 0, 3, 0, "MODEL")    # UNET → dmd2 LoRA
     wire(3, 0, 4, 0, "MODEL")    # dmd2 → edit LoRA
-    wire(4, 0, 10, 0, "MODEL")   # edit LoRA → 换脸
-    wire(5, 0, 10, 1, "CLIP")
-    wire(6, 0, 10, 2, "VAE")
-    wire(7, 0, 10, 3, "IMAGE")   # 源图
-    wire(8, 0, 10, 4, "IMAGE")   # 参考图
-    wire(9, 4, 10, 13, "STRING")  # spec → 换脸（第 13 个输入）
+    wire(4, 0, 10, "model", "MODEL")   # edit LoRA → 换脸
+    wire(5, 0, 10, "clip", "CLIP")
+    wire(6, 0, 10, "vae", "VAE")
+    wire(7, 0, 10, "image", "IMAGE")   # 源图
+    wire(8, 0, 10, "ref", "IMAGE")   # 参考图
+    wire(9, 4, 10, "spec", "STRING")  # spec → 换脸（第 13 个输入）
     wire(10, 0, 11, 0, "IMAGE")
     wire(10, 1, 12, 0, "STRING")
 
