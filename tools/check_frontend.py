@@ -6,13 +6,15 @@
 词表里混进了中文、示例图的标题把 i18n 锁死、前端文件根本没被宿主登记。
 这三类都只在"读文件 + 读工作流"时才现形，所以归到这里。
 
-判据（5 项，任何一项失败即非零退出）：
+判据（6 项，任何一项失败即非零退出）：
 - F1 英文面向的字段不许出现中日韩字符或全角标点（`NODES.*.en` / `TIPS.*.en`）
 - F2 `web/*.js` 语法可解析（`node --check`，ESM 模式）
 - F3 `WEB_DIRECTORY` 非 None、目录存在、`_ui.js` 里 import 的本地文件都存在
 - F4 工作流里本包节点的 `title` 必须**能被 i18n 换前缀**
       （空 / 等于中英默认名 / 以默认名开头；写死自定义标题 ⇒ 中英切换对它无效）
 - F5 `TIPS` 的键都能对上真实节点与真实参数名（防改名后残留孤儿键）
+- F6 每个入参都有中文标签、标签表没有孤儿键
+      （2026-10-30 实测：换脸节点 8 个入参不在 `LABELS` 里 ⇒ 中文界面显示英文参数名）
 
 用法：
     python tools/check_frontend.py                       # 默认查 examples/*.json
@@ -159,6 +161,23 @@ def f5_tip_keys(tips, param_names):
     check("F5 提示键都能对上真实节点与参数（%d 条）" % len(keys), not orphan, str(orphan[:4]))
 
 
+def f6_label_coverage(param_names, src):
+    """每个入参都要有中文标签，标签表也不许有孤儿键。
+
+    为什么单独一条：`LABELS` 是**手写表**，加了参数忘了加标签，界面就静默显示英文参数名 ——
+    不报错、不影响出图，只有中文用户看得见。2026-10-30 一次查出 11 个（换脸节点占 8 个）。
+    """
+    m = re.search(r"const LABELS = \{(.*?)\n\};", src, re.S)
+    labels = set(re.findall(r"^\s+([a-z_0-9]+):", m.group(1), re.M)) if m else set()
+    params = {p for _, p in param_names}
+    #: 前端给 seed 自动加的控件，不是 INPUT_TYPES 里的参数。
+    ALLOW = {"control_after_generate"}
+    missing = sorted(params - labels)
+    check("F6a 每个入参都有中文标签（%d 个入参）" % len(params), not missing, ", ".join(missing[:8]))
+    orphan = sorted(labels - params - ALLOW)
+    check("F6b 标签表没有孤儿键", not orphan, ", ".join(orphan[:8]))
+
+
 def main(argv):
     src, nodes_zh, nodes_en, tips = load_tables()
 
@@ -193,6 +212,8 @@ def main(argv):
     f4_titles(wfs, nodes_zh, nodes_en)
     print("\n== F5 提示键对账 ==")
     f5_tip_keys(tips, param_names)
+    print("\n== F6 中文标签覆盖 ==")
+    f6_label_coverage(param_names, src)
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:

@@ -22,7 +22,7 @@
 #   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
 #                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑
 #                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
-#   ·   9/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 工作流标题可换语言
+#   ·  11/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 标题可换语言 / 中文标签覆盖
 #   · 151/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 滚轮与旧稿错位守卫
 #   ·  95/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
 #   ·  22/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
