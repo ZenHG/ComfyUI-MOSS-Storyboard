@@ -33,9 +33,16 @@ NOTE = """## 换脸 · 单图（MossStoryboardFaceSwap，不接 spec）
 
 一张图进，换完直接出。**没有宫格、没有 index、没有贴回。**
 
-### ⚠ 用两张「不同的人」的图
-默认文件名只是占位，仓库不带图。**如果 src 和 ref 是同一个人，换完还是这张脸 —— 看起来就像「没变化」。**
-要看效果：src 用一张单人照片，ref 用另一个人的脸部特写。
+### 第一步：把两张示例图放进 input
+本工作流读的是 input 目录下的两个文件：
+
+    faceswap-demo-src.png   单人照片（咖啡馆里的一位女性）
+    faceswap-demo-ref.png   另一个人的脸部特写（西方男性）
+
+它们在仓库的 assets/ 里。**把这两张拖进 ComfyUI 画布**（会自动复制到 input/），
+或者直接换成你自己的图。
+
+⚠ src 与 ref 必须是**不同的人** —— 同一个人换完还是这张脸，看起来就像「没变化」。
 
 ### 与 moss-faceswap-ui.json 的唯一差别
 那个示例接了 spec，所以源图必须是**整张宫格**，只换第 index 格；
@@ -99,12 +106,12 @@ def build():
                       ["flux2-vae.safetensors"],
                       outputs=[out("VAE", "VAE")], order=4, ours=False))
 
-    nodes.append(node(7, "LoadImage", (-560, 350), (340, 320), ["moss_faceswap_single_src.png", "image"],
+    nodes.append(node(7, "LoadImage", (-560, 350), (340, 320), ["faceswap-demo-src.png", "image"],
                       inputs=[inp("image", "COMBO", None, "image"),
                               inp("upload", "IMAGEUPLOAD", None, "upload")],
                       outputs=[out("IMAGE", "IMAGE"), out("MASK", "MASK")],
                       title="src · 要换脸的图（单张照片，不是宫格）", order=5, ours=False))
-    nodes.append(node(8, "LoadImage", (-560, 710), (340, 320), ["moss_faceswap_ref.png", "image"],
+    nodes.append(node(8, "LoadImage", (-560, 710), (340, 320), ["faceswap-demo-ref.png", "image"],
                       inputs=[inp("image", "COMBO", None, "image"),
                               inp("upload", "IMAGEUPLOAD", None, "upload")],
                       outputs=[out("IMAGE", "IMAGE"), out("MASK", "MASK")],

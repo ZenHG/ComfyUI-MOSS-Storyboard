@@ -24,7 +24,7 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## 换脸 · 单图（MossStoryboardFaceSwap，不接 spec）\n\n一张图进，换完直接出。**没有宫格、没有 index、没有贴回。**\n\n### ⚠ 用两张「不同的人」的图\n默认文件名只是占位，仓库不带图。**如果 src 和 ref 是同一个人，换完还是这张脸 —— 看起来就像「没变化」。**\n要看效果：src 用一张单人照片，ref 用另一个人的脸部特写。\n\n### 与 moss-faceswap-ui.json 的唯一差别\n那个示例接了 spec，所以源图必须是**整张宫格**，只换第 index 格；\n这个示例**不接 spec**，整张图被当成一格，换完整张出。\n\n### 三处必须改\n1. **两个 LoadImage** 换成你自己的图：\n   - src = 要换脸的那张（**单人**、脸越大越好）\n   - ref = 身份参考图，**紧特写**，只给一张（双视角实测更差：0.384 vs 0.463）\n2. **提示词**里保留 in Picture 1 这个说法 —— 换成别的措辞参考图就不进场景了。\n3. face_pick：一张图里有几个人时点名（largest / left / right）。**默认 largest** ——\n   单图里用 right 很可能挑到背景里的一张侧脸，蒙版只盖 0.7%，改完肉眼看不出来。\n   report 会写「几张脸、用了哪张」，先看那一行。\n\n### 自动蒙版（默认开）\nauto_mask=true 时节点用 insightface 找脸并生成**羽化矩形**蒙版，只重画蒙版内。\n需要 pip install insightface onnxruntime + ~/.insightface/models/buffalo_l/det_10g.onnx（19 MB）。\n**缺依赖会直接报错**，不会静默降级成整图重画 —— 报错里会打印它实际找的路径。\n\n关掉 auto_mask 又没手接 mask ⇒ **整张重画**，色调必漂（实测 R +24…+53）。report 会写明走了哪条。\n\n### 想只改一块（局部编辑）\n同一个节点、换一个蒙版就行：ImageToMask(channel=\"red\") → mask。\n**别用 LoadImage 的 MASK 口** —— 那是 alpha，灰度图没 alpha 时返回 64×64 全零，\n蒙版等于没接、整张被重画，而且不报错。\n\n### 想改动作 / 换姿态\n把 init 从 source 改成 empty：节点不吃 image，从空 latent 生成 ——\n「参考图 + 提示词 → 一张新图」。示例见 moss-pose-generate-ui.json。\n\n### 两档参数（同一张图同一蒙版实测）\n| 档 | 步数 / cfg | 用途 |\n|---|---|---|\n| 快档（默认） | 8 / 1.0 | 换脸 —— 脸那个尺度上材质看不出来 |\n| 编辑档 | 30 / 5 | 衣服、头发、较大区域 |\n"
+        "## 换脸 · 单图（MossStoryboardFaceSwap，不接 spec）\n\n一张图进，换完直接出。**没有宫格、没有 index、没有贴回。**\n\n### 第一步：把两张示例图放进 input\n本工作流读的是 input 目录下的两个文件：\n\n    faceswap-demo-src.png   单人照片（咖啡馆里的一位女性）\n    faceswap-demo-ref.png   另一个人的脸部特写（西方男性）\n\n它们在仓库的 assets/ 里。**把这两张拖进 ComfyUI 画布**（会自动复制到 input/），\n或者直接换成你自己的图。\n\n⚠ src 与 ref 必须是**不同的人** —— 同一个人换完还是这张脸，看起来就像「没变化」。\n\n### 与 moss-faceswap-ui.json 的唯一差别\n那个示例接了 spec，所以源图必须是**整张宫格**，只换第 index 格；\n这个示例**不接 spec**，整张图被当成一格，换完整张出。\n\n### 三处必须改\n1. **两个 LoadImage** 换成你自己的图：\n   - src = 要换脸的那张（**单人**、脸越大越好）\n   - ref = 身份参考图，**紧特写**，只给一张（双视角实测更差：0.384 vs 0.463）\n2. **提示词**里保留 in Picture 1 这个说法 —— 换成别的措辞参考图就不进场景了。\n3. face_pick：一张图里有几个人时点名（largest / left / right）。**默认 largest** ——\n   单图里用 right 很可能挑到背景里的一张侧脸，蒙版只盖 0.7%，改完肉眼看不出来。\n   report 会写「几张脸、用了哪张」，先看那一行。\n\n### 自动蒙版（默认开）\nauto_mask=true 时节点用 insightface 找脸并生成**羽化矩形**蒙版，只重画蒙版内。\n需要 pip install insightface onnxruntime + ~/.insightface/models/buffalo_l/det_10g.onnx（19 MB）。\n**缺依赖会直接报错**，不会静默降级成整图重画 —— 报错里会打印它实际找的路径。\n\n关掉 auto_mask 又没手接 mask ⇒ **整张重画**，色调必漂（实测 R +24…+53）。report 会写明走了哪条。\n\n### 想只改一块（局部编辑）\n同一个节点、换一个蒙版就行：ImageToMask(channel=\"red\") → mask。\n**别用 LoadImage 的 MASK 口** —— 那是 alpha，灰度图没 alpha 时返回 64×64 全零，\n蒙版等于没接、整张被重画，而且不报错。\n\n### 想改动作 / 换姿态\n把 init 从 source 改成 empty：节点不吃 image，从空 latent 生成 ——\n「参考图 + 提示词 → 一张新图」。示例见 moss-pose-generate-ui.json。\n\n### 两档参数（同一张图同一蒙版实测）\n| 档 | 步数 / cfg | 用途 |\n|---|---|---|\n| 快档（默认） | 8 / 1.0 | 换脸 —— 脸那个尺度上材质看不出来 |\n| 编辑档 | 30 / 5 | 衣服、头发、较大区域 |\n"
       ],
       "title": "这是什么 · 怎么用"
     },
@@ -256,7 +256,7 @@
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "moss_faceswap_single_src.png",
+        "faceswap-demo-src.png",
         "image"
       ],
       "title": "src · 要换脸的图（单张照片，不是宫格）"
@@ -311,7 +311,7 @@
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "moss_faceswap_ref.png",
+        "faceswap-demo-ref.png",
         "image"
       ],
       "title": "ref · 身份参考图（紧特写，只给一张）"
