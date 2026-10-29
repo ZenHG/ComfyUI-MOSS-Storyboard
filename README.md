@@ -16,7 +16,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.3.0** |
+| Version | **0.3.1** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **None** beyond host-provided `torch` / `comfy*`. Face Swap's auto mask optionally uses `insightface` + `onnxruntime` — the pack runs without them |
@@ -733,7 +733,15 @@ Other detectors on this machine, and why this node does not use them:
 
 ⇒ **To change pose: feed a frontal reference, set `init=empty`, and put the pose in the prompt.** A profile reference locks the output to profile and no wording pulls it back. When only the body should move, keep the head facing the camera. Prompts and pass criteria for both gradients: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §9. Working example: `examples/moss-pose-generate-ui.json` (9 nodes, `init=empty`, **no third-party nodes**).
 
-Recipe: 8-step DMD2 LoRA **then** the Moss-Image-Edit LoRA · 8 steps / cfg 1.0 / euler + simple · **one** reference image (two views measured worse). Full recipe and pass criteria: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md).
+Recipe: 8-step DMD2 LoRA **then** the Moss-Image-Edit LoRA · euler + simple · **one** reference image (two views measured worse). Two parameter regimes, measured on the same image and mask:
+
+| Regime | steps / cfg | Use for |
+|---|---|---|
+| Fast (default) | 8 / 1.0 | face swap — at face scale the material barely matters |
+| Edit | **30 / 5** | clothing, hair, larger areas — the LoRA's own recipe; visibly better texture |
+| Edit + HQ LoRA | 30 / **3** | `MOSS-Image-Edit-HQ/armV5` (rank 64/192, 495 MB). Best coverage and blending in our test |
+
+**`ref` decides "who" — give it a face close-up, not the whole scene.** Measured while adding a chair: with a full-scene reference the model drew one red stripe (14% of the mask changed); with a face close-up the chair appeared (51%). A scene reference also says "nothing else is here", which cancels the new object. Full recipe and pass criteria: [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md).
 
 **What still does not work**: two faces in one panel (each ≈ 68 px, both get swapped and drift apart), chaining two swaps (the second is a pixel-identical no-op), and pulling a profile reference back to frontal with wording. No identity score is published — the ruler has no discriminating power in this domain. Knobs tried and why they stay at their defaults: [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md).
 

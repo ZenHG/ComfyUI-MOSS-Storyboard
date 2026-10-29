@@ -1284,6 +1284,12 @@ class MossStoryboardFaceSwap:
             lines.append("单格被抬了 %.2f 倍再采样：脸在那个尺度上才认得出，缩回后细节更实。"
                          % up["scale"])
         lines += paste_notes
+        if noise_mask is not None and int(steps) < 20:
+            lines.append(
+                "提示：%d 步 / CFG %.1f 是 8 步蒸馏快档，换脸够用；"
+                "要改**材质或较大区域**（衣服、头发）建议 30 步 / CFG 5"
+                "（HQ LoRA 用 CFG 3）—— 同一张图实测质感差别明显。"
+                % (int(steps), float(cfg)))
         if real_denoise >= 1.0 and float(denoise) < 1.0:
             lines.append(
                 "⚠ 名义降噪 %.2f 在 %d 步下被宿主截断成 1.0（int(%d/%.2f)=%d 不大于步数）。"

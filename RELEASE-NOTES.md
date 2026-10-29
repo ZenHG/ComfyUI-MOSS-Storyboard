@@ -19,6 +19,48 @@
 
 ---
 
+## 0.3.1 — 2026-10-30
+
+**「故事板 · 换脸」变成了一个蒙版局部编辑器** —— 节点数还是 7 个，没有新增。
+
+- **`init` 多了一个取值 `empty`。** `source`（默认）吃源图做图生图；`empty` 不吃源图，
+  从空画布生成 —— 参考图 + 提示词 → 一张带指定动作/姿态的图。换脸和生成是同一件事的两个特例，
+  差别只有「从哪开始」。
+- **蒙版换个位置就是另一种编辑。** 实测：蒙版给衣服 → 换衣服成立（针织纹理自然）；
+  给头发 → 成立；**给背景 → 不成立**（未遮的人物会把背景拉回原样）。节点会在 `report` 里
+  直接告诉你「蒙版覆盖多少、蒙版外改了多少」。
+- **两档参数。** 换脸用默认的 8 步 / CFG 1.0 够快；改衣服、头发这类**材质**要 **30 步 / CFG 5**
+  （`MOSS-Image-Edit-HQ/armV5` 用 CFG 3），同一张图质感差别明显。`report` 在步数 < 20 时会提醒。
+- **`ref` 只给脸。** 给整张场景当参考会压掉新加的东西 —— 实测加一把椅子：给场景只画出一条红条，
+  给脸部特写就出来了。
+- 中文界面下 `init`、`face_pick` 两个下拉以前显示英文，现在有中文。
+
+🔴 **升级动作：不需要。** 新参数（`init` / `width` / `height`）排在参数表末尾，有默认值，
+行为与 0.3.0 一致。只有想用新能力（生成、改衣服/头发）时才需要动。
+
+<!-- EN -->
+
+### 0.3.1 — 2026-10-30
+
+**"Storyboard · Face Swap" is now a masked local editor** — still 7 nodes, nothing added.
+
+- **`init` gained a value: `empty`.** `source` (default) takes the source image and does img2img;
+  `empty` does not take it and starts from an empty canvas — reference face + prompt → one posed image.
+  Face swap and generation are the same operation with one knob different: where you start.
+- **Move the mask, get a different edit.** Measured: mask the clothes → swapping clothes works
+  (the knit texture comes out); mask the hair → works; **mask the background → does not work**
+  (the unmasked person pulls it back). `report` now prints how much of the frame the mask covers
+  and how much changed outside it.
+- **Two parameter regimes.** The default 8 steps / CFG 1.0 is fine for face swaps; changing
+  **material** (clothes, hair) needs **30 steps / CFG 5** (CFG 3 for `MOSS-Image-Edit-HQ/armV5`) —
+  visibly different on the same image. `report` reminds you when steps < 20.
+- **`ref` should be a face close-up.** A full-scene reference cancels anything you add — measured
+  while adding a chair: scene reference drew one red stripe, face close-up produced the chair.
+- The `init` and `face_pick` dropdowns now show Chinese labels in the Chinese UI.
+
+🔴 **Action required: none.** The new inputs (`init` / `width` / `height`) sit at the end of the
+parameter list with defaults; behaviour matches 0.3.0. You only touch them to use the new capability.
+
 ## 0.3.0 — 2026-10-28
 
 **第 7 个节点：换脸。**

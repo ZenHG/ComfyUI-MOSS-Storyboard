@@ -22,7 +22,9 @@
 | CLIP | `qwen3.5_9b_int8_convrot.safetensors`，`type = moss_image` |
 | VAE | `flux2-vae.safetensors` |
 | 编码 | `TextEncodeMOSSImageEditHiRes`：`edit_format = Moss-Image-Edit (vision)`、`vision_megapixels = 1.05`、`image_strength = 1.0`、`ref_start/end = 0.99 / 1.0`（= 关 ref_kv）、**不接 vae** |
-| 采样 | 源图 → `VAEEncode` → `SetLatentNoiseMask` → `KSampler`：8 步 / cfg 1.0 / `euler` + `simple` / `denoise 0.95`（有蒙版时给到 1.0 也行） |
+| 采样（快档） | 源图 → `VAEEncode` → `SetLatentNoiseMask` → `KSampler`：8 步 / cfg 1.0 / `euler` + `simple` / `denoise 0.95`（有蒙版时给到 1.0 也行） |
+| 采样（**编辑档**） | **30 步 / cfg 5** —— 编辑 LoRA 自己的配方。同一张图同一蒙版，衣服组的针织纹理明显更实（E46） |
+| 采样（编辑档 + HQ） | 30 步 / cfg **3**，LoRA 换 `MOSS-Image-Edit-HQ/armV5`（rank 64/192）。实测覆盖与过渡最好 |
 | 蒙版 | **白 = 重画**。按关键点定上下沿（见 §四），羽化 `radius = max(3, 0.02 × 脸宽)` |
 | 参考图 | 身份参考，**必须不含**你要修掉的东西（E23：戴口罩的图当参考，口罩会被画回来） |
 
@@ -245,3 +247,17 @@ B. 实验脚本（内部实验目录，不随包分发）：e21_body_action.py
 
 **已知产物**（可对照）：`output/moss-chain/_body/_full_male.png`（九档全景）、
 `_body/_sheet_male.png`（九档脸框）；姿态七档在 `_pose/`。
+
+## 十、`ref` 只给身份，别给场景
+
+`ref` 管的是「像谁」。给它一张**脸部特写**，不要给整张场景图。
+
+实测（在空地上加一把红椅子）：
+
+| `ref` 给什么 | 蒙版内改动率 | 结果 |
+|---|---|---|
+| 整张场景图 | 14% | 只画出一条红条，椅子没出来 |
+| **脸部特写** | **51%** | 椅子出来了 |
+
+原因：整张场景的参考图等于告诉模型「这里没有别的东西」，vision 通道把新物体压掉了。
+这条对「加原图没有的东西」尤其关键。

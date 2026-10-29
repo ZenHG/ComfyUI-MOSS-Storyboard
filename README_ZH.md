@@ -25,7 +25,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.3.0** |
+| 版本 | **0.3.1** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（MOSS-Image 原生支持自 PR #17095 起） |
 | 依赖 | 核心**零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供）。换脸节点的自动蒙版可选装 `insightface` + `onnxruntime`，不装也能跑 |
@@ -903,7 +903,15 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 
 ⇒ **要换姿态：参考图给正脸，`init` 设成 `empty`，姿态写在提示词里。** 参考图本身是侧脸，输出就被锁在侧脸，提示词拉不回来。只动身体时，让头继续朝镜头。两套梯度提示词与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §九。现成示例：`examples/moss-pose-generate-ui.json`（9 个节点，`init=empty`，**不依赖任何第三方节点**）。
 
-配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · 8 步 / cfg 1.0 / euler + simple · 参考图**只给一张**（双视角实测更差）。完整配方与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
+配方：先 8 步 DMD2 LoRA、再 Moss-Image-Edit LoRA · euler + simple · 参考图**只给一张**（双视角实测更差）。两档参数，同一张图同一蒙版实测：
+
+| 档 | 步数 / cfg | 用途 |
+|---|---|---|
+| 快档（默认） | 8 / 1.0 | 换脸 —— 脸那个尺度上材质看不出来 |
+| 编辑档 | **30 / 5** | 衣服、头发、较大区域 —— 这是编辑 LoRA 自己的配方，质感明显更好 |
+| 编辑档 + HQ LoRA | 30 / **3** | `MOSS-Image-Edit-HQ/armV5`（rank 64/192，495 MB）。实测覆盖与过渡最好 |
+
+**`ref` 管「像谁」——给它一张脸部特写，别给整张场景。** 实测加一把椅子：ref 给整张场景时只画出一条红条（蒙版内改动 14%）；给脸部特写时椅子出来了（51%）。整张场景的参考图等于告诉模型「这里没有别的东西」，把新物体压掉。完整配方与判据：[`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md)。
 
 **仍然做不到的**：一格两个人（各约 68px，两张都被换、彼此散开）、连续换两次（第二次像素级空转）、用提示词把侧脸参考图拉回正脸。本页不发布「像不像」的分数——本域余弦没有分辨力。试过哪些旋钮、为什么都留在默认值：[`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md)。
 

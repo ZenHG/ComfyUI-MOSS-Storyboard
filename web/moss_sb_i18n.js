@@ -160,7 +160,12 @@ export const COMBOS = {
         auto: "自动（纯布局）",
         layout: "纯布局",
         plain: "纯提示词",
+        // ⚠ 换脸节点也有一个叫 init 的下拉，值是 source / empty —— 同名不同值。
+        //    comboLabel 只按 widget 名查表，靠 value 不重叠来区分。加新值前先确认不撞。
+        source: "源图（图生图）",
+        empty: "空 latent（生成）",
     },
+    face_pick: { largest: "最大那张", left: "最左那张", right: "最右那张" },
     label: { object: "物体", character: "人物", text: "文字" },
     target_aspect: { keep: "保持原样" },
     padding_mode: { crop: "中心裁切", pad: "补黑边" },
