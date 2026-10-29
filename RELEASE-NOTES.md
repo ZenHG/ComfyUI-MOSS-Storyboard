@@ -19,6 +19,32 @@
 
 ---
 
+## 0.3.2 — 2026-10-30
+
+**整理版，功能没有任何变化。** 这一版只清掉文件列表里的残留、补上漏写的文档。
+
+- 删掉 `README_EN.md` —— 它只有 132 字节，内容是「英文 README 已移到 README.md」。
+  英文正文早就在主 README 里，这个页面点进去没有内容。
+- 「顶层设计」那一页补上第 7 个节点（换脸）。它原来只写了 6 个，读的人会以为包只有 6 个节点。
+- 贡献者清单补上两个测试、校正四处项数（测试项数变了但清单没跟着改）。
+
+**升级动作**：不需要。代码、节点、参数、示例一个都没动。
+
+<!-- EN -->
+
+### 0.3.2 — 2026-10-30
+
+**Housekeeping only — no functional change.** This release removes a leftover file and fills in
+documentation that had fallen behind.
+
+- Removed `README_EN.md` — a 132-byte stub saying "the English README moved to README.md".
+  The English text has lived in the main README for a while; the page had nothing in it.
+- The top-level design page now lists the 7th node (face swap). It only described 6, which made
+  the pack look smaller than it is.
+- The contributor checklist gained two tests and four corrected counts.
+
+**Action required**: none. Code, nodes, inputs, examples — all unchanged.
+
 ## 0.3.1 — 2026-10-30
 
 **「故事板 · 换脸」变成了一个蒙版局部编辑器** —— 节点数还是 7 个，没有新增。

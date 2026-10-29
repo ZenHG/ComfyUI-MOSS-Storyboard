@@ -1,5 +1,16 @@
 # CHANGES
 
+## 0.3.2 — 2026-10-30 · 仓库整理（功能无变化）
+
+- 删 `README_EN.md`（132 字节的跳转桩，英文早已并入 `README.md`）与
+  `tools/patch_workflow_4panels.py`（一次性补丁，引用数 0）。
+- `docs/14-top-level-design.md`：标题与表格仍是「六个节点」，第 7 个（换脸）从未写进去；
+  同时修正一处与现状冲突的表述 —— 原文把「单张模式也给 `spec`」和「Editor 吸收 Layout 输出」
+  一起判成角色混淆，实际两者不同：前者是同一职责内的补齐（几何只有一个 owner）。
+- `CONTRIBUTING.md`：补 `tests/test_faceswap_wiring.py`（34 项）与
+  `tests/test_init_empty.py`（18 项）；四处项数校正（142→149 / 58→63 / 98→105 / 48→49）。
+- `.github/workflows/ci.yml`：同步项数（发布闸有「同名闸两处一致」的检查）。
+
 ## 0.3.1 — 2026-10-30 · 蒙版潜空间编辑（换脸之外）
 
 这一版的主题是「**把换脸节点变成蒙版局部编辑器**」，节点数仍是 7。

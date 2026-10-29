@@ -480,7 +480,7 @@
    "properties": {
     "Node name for S&R": "MossStoryboardLayout",
     "cnr_id": "moss-storyboard",
-    "ver": "0.3.1"
+    "ver": "0.3.2"
    },
    "widgets_values": [
     "",
@@ -697,7 +697,7 @@
    "properties": {
     "Node name for S&R": "MossStoryboardFaceSwap",
     "cnr_id": "moss-storyboard",
-    "ver": "0.3.1"
+    "ver": "0.3.2"
    },
    "widgets_values": [
     "A medium shot photograph of the person in Picture 1, sitting at a wooden table in a warm cafe at night, rain on the window, soft warm light on the face, 35mm film, shallow depth of field",
