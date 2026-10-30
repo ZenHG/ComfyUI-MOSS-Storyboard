@@ -8,7 +8,7 @@
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
 #   · 313/0  tests/test_core.py               几何 / 提示词 / 像素 / 控制区域图
 #   · 149/0  tests/test_editor.py             state v3 编译层 / 预设 / 错误路径 / 上限 / 外接稿
-#   ·  88/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI
+#   ·  95/0  tests/test_interop.py            elements-v1 ⇄ state v3 映射 / 往返 / CLI / 宫格转单图
 #   ·  22/0  tests/test_extract.py            从散文/代码块提取 JSON、上限/扫描预算
 #   ·  63/0  tests/test_adversarial.py        恶意/极端输入：JSON 常量 / 原型链 / 量化 / 扫描预算 / spec 16 倍数
 #   ·  27/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI

@@ -172,6 +172,43 @@ def _extras(el):
     return out
 
 
+def grid_to_elements(state):
+    """**宫格 state → elements-v1**（单图模式）—— 给「导出再导入用不了」一条活路。
+
+    宫格的 item 是**格位**不是元素，直接导入会误导（见 `to_state` 的拒绝）。
+    但「转成 N 个框」是**明确的降级**，不是假装等价：画面排布一致、每格描述保留，
+    失去的是 `spec` 与逐格裁切。宁可给一条有说明的路，也不给死胡同。
+    """
+    if not E.is_grid(state):
+        _fail("这不是宫格 state，不需要转换。")
+    lay = E.geometry(state)
+    if lay is None:
+        _fail("宫格 state 没有几何：先检查 grid 的 cols / rows。")
+    items = state.get("items") or []
+    if not items:
+        _fail("宫格是空的：先填每格描述再导出。")
+
+    def q(v):
+        return round(float(v), 3)
+
+    els = []
+    for i, it in enumerate(items):
+        cell = lay.cell(i)
+        bbox = [q(cell.x / lay.width * UNITS), q(cell.y / lay.height * UNITS),
+                q((cell.x + cell.w) / lay.width * UNITS), q((cell.y + cell.h) / lay.height * UNITS)]
+        cap = (it.get("caption") or "").strip()
+        size = (it.get("size") or "").strip()
+        head = E.SIZE_EN.get(size, size)          # 自定义景别原样保留，不猜
+        desc = ", ".join(x for x in (head, cap) if x)
+        els.append({"role": "object", "caption": desc, "bbox": bbox})
+    return {
+        "version": ELEMENTS_VERSION,
+        "canvas": {"width": lay.width, "height": lay.height},
+        "style": (state.get("style") or ""),
+        "elements": els,
+    }
+
+
 def to_state(doc, preset="free", style=None):
     """elements-v1 文档 → state v3（单张模式）。不合法就抛 ValueError。
 

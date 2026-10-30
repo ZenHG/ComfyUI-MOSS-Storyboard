@@ -273,10 +273,12 @@ elements → Create Bounding Boxes · bboxes
 **导入 / 导出（实测过，含一个现成例子）**
 
 - **导入**接受两种文件：`elements-v1`（`{version, canvas:{width,height}, style, elements:[{role,caption,bbox}]}`，
-  bbox 是 **0–1000 的 `[x0,y0,x1,y1]`**）或 `state v3`。**宫格 state 不能导入** —— 宫格的 item 是格位不是元素，
-  要 4 格就用「单图模式 + 4 个框」。
+  bbox 是 **0–1000 的 `[x0,y0,x1,y1]`**）或 `state v3`。
+- **宫格 state 会被转成 N 个框**（单图模式），并弹出提示：排布一致，但**没有 `spec`、没有逐格裁切**。
+  宫格的 item 是格位不是元素，硬映射会误导 —— 所以这是一次**明确降级**，不是假装等价。
 - **编辑器里已有元素时会弹一次确认**（会替换当前内容），没有元素时直接导入。
-- **导出**只出 `elements-v1`；宫格模式不能导出。
+- **导出**：单图模式出 `elements-v1`；**宫格模式也能导出** —— 同样转成 N 个框
+  （文件名 `moss-elements-from-grid.json`），提示语同上。
 - 现成例子：[`assets/comic-4panel-lineart.json`](../assets/comic-4panel-lineart.json) ——
   4 格黑白线稿漫画（2×2，画布 1024×1024，每格一句描述，`style` 里锁死「黑白线稿」）。
   在**单图模式**的编辑器里点「导入」选它即可；成品参考
