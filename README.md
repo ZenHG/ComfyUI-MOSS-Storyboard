@@ -557,6 +557,10 @@ the source are the same person, or the mask is too small / picked the wrong face
 Full parameter table, mask geometry, the pose/body measurements and the working scope (clothes work, background does
 not): [manual §6](docs/19-node-manual.md#6--换脸--蒙版局部编辑) (Chinese).
 
+> **Want a closer likeness?** `insightface` also ships a face-swap model, `inswapper_128.onnx` — 0.30 s,
+> **no mask needed**, it pastes back through its own aligned square. It is more "same person" than this node, but its
+> licence is non-commercial research only, so this pack cannot bundle it — measurements and trade-offs:/n> [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §11.
+
 ### 3.6 Bilingual UI
 
 Every node of ours has a **中 / EN** button on its title bar. Display only — `name`s and values never change.
