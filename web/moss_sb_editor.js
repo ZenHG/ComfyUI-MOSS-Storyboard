@@ -158,6 +158,13 @@ export const STR = {
     alignV: { zh: "垂直居中", en: "Center vertically" },
     alignBottom: { zh: "对齐下边缘", en: "Align bottom" },
     order: { zh: "层级", en: "Order" },
+    distH: { zh: "水平等距", en: "Distribute horizontally" },
+    distV: { zh: "垂直等距", en: "Distribute vertically" },
+    sameW: { zh: "等宽", en: "Equal width" },
+    sameH: { zh: "等高", en: "Equal height" },
+    distNeedThree: { zh: "等距分布至少要 3 个元素（现在 {n} 个）", en: "Distribute needs at least 3 items (now {n})" },
+    distOverlap: { zh: "这些框在这个方向已经重叠，没法等距：先拉开，或换另一个方向", en: "These boxes already overlap on this axis; spread them out first or distribute on the other axis" },
+    sizeNeedTwo: { zh: "等宽/等高至少要 2 个元素（现在 {n} 个）", en: "Equal size needs at least 2 items (now {n})" },
     orderTip: { zh: "上移 / 下移改绘制顺序；后面六个按钮是把选中的框对齐到画布边缘或中线", en: "Raise/lower changes draw order; the six buttons align the selected box to canvas edges or center" },
     importBtn: { zh: "导入", en: "Import" },
     exportBtn: { zh: "导出", en: "Export" },
@@ -300,6 +307,11 @@ export const TYPE_COLORS = { object: "#5aa9ff", character: "#5fd39a", text: "#ff
 const ALIGN_LABELS = {
     left: "alignLeft", hcenter: "alignH", right: "alignRight",
     top: "alignTop", vcenter: "alignV", bottom: "alignBottom",
+};
+
+//: 分布 / 等大按钮的文案键。
+const DIST_LABELS = {
+    "dist-h": "distH", "dist-v": "distV", "same-w": "sameW", "same-h": "sameH",
 };
 
 /** 常用画布尺寸（16 的倍数；用户仍可手改宽高）。 */
@@ -681,6 +693,64 @@ export function alignBbox(bbox, mode) {
     else if (mode === "bottom") ny = 1 - h;
     else return null;
     return [round3(nx), round3(ny), round3(nx + w), round3(ny + h)];
+}
+
+/** **等间距分布**（`axis` = "h" / "v"）：首尾不动，中间按**相等的边到边间隙**重排。
+ *
+ *  为什么按「间隙」而不是「中心」：设计稿里说「等距」指的是元素之间留白一样宽，
+ *  宽窄不一的框用等中心排会看起来疏密不均。
+ *  少于 3 个元素没有「中间」可排 —— 返回 null，由调用方提示，不静默无反应。
+ */
+export function distributeItems(items, axis) {
+    const list = (items || []).filter((it) => it && Array.isArray(it.bbox) && it.bbox.length === 4);
+    if (list.length < 3) return null;
+    const h = axis === "h";
+    const lo = (b) => (h ? b[0] : b[1]);
+    const hi = (b) => (h ? b[2] : b[3]);
+    const sorted = list.slice().sort((a, b) => lo(a.bbox) - lo(b.bbox));
+    const first = lo(sorted[0].bbox);
+    const last = hi(sorted[sorted.length - 1].bbox);
+    let sum = 0;
+    for (const it of sorted) sum += hi(it.bbox) - lo(it.bbox);
+    const gap = (last - first - sum) / (sorted.length - 1);
+    if (gap < 0) return null;                 // 已经重叠：等间隙没有意义，别硬排
+    const out = new Map();
+    let cursor = first;
+    for (const it of sorted) {
+        const b = it.bbox.slice();
+        const w = hi(b) - lo(b);
+        if (h) { b[0] = round3(cursor); b[2] = round3(cursor + w); }
+        else { b[1] = round3(cursor); b[3] = round3(cursor + w); }
+        out.set(it.id, b);
+        cursor += w + gap;
+    }
+    return out;
+}
+
+/** **等宽 / 等高**（`dim` = "w" / "h"）：全部取当前最大值，保持左上角，贴到画布边时往回夹。 */
+export function matchSizeItems(items, dim, canvas) {
+    const list = (items || []).filter((it) => it && Array.isArray(it.bbox) && it.bbox.length === 4);
+    if (list.length < 2) return null;
+    const cw = (canvas && canvas.width) || 1;
+    const ch = (canvas && canvas.height) || 1;
+    const w = dim === "w";
+    let max = 0;
+    for (const it of list) max = Math.max(max, w ? it.bbox[2] - it.bbox[0] : it.bbox[3] - it.bbox[1]);
+    max = Math.min(max, w ? 1 : 1);           // 归一化坐标：上限就是整张画布
+    const out = new Map();
+    for (const it of list) {
+        const b = it.bbox.slice();
+        if (w) {
+            const x0 = clamp(b[0], 0, 1 - max);
+            b[0] = round3(x0); b[2] = round3(x0 + max);
+        } else {
+            const y0 = clamp(b[1], 0, 1 - max);
+            b[1] = round3(y0); b[3] = round3(y0 + max);
+        }
+        out.set(it.id, b);
+    }
+    void cw; void ch;                          // 归一化后不需要像素，留着参数位便于以后按像素对齐
+    return out;
 }
 
 /** 数组顺序即 z 序：把 id 上移 / 下移一位；越界或找不到就原样返回。 */
@@ -1338,6 +1408,7 @@ function ensureStyle() {
 .mossed-gridrow .mossed-field-label,.mossed-gridadv .mossed-field-label,.mossed-canvasrow .mossed-field-label{flex:0 0 auto;min-width:48px}
 .mossed-alignrow{display:inline-flex;align-items:center;gap:4px;margin-left:4px}
 .mossed-alignrow[hidden]{display:none}
+.mossed-distrow{display:flex;align-items:center;gap:4px;margin-top:2px}
 .mossed-root input[type=number],.mossed-root input[type=text],.mossed-root select,.mossed-root textarea{background:var(--comfy-input-bg,#2a2a2a);color:var(--input-text,#ddd);border:1px solid var(--border-color,#4a4f59);border-radius:6px;padding:2px 6px;font:inherit;min-width:0;height:26px;box-sizing:border-box}
 .mossed-root textarea{height:auto;padding:5px 6px;line-height:1.4}
 .mossed-root input:disabled{opacity:.45}
@@ -1851,6 +1922,18 @@ function buildUI() {
     orderRow.appendChild(alignRow);
     form.appendChild(orderRow);
 
+    // 分布 / 等大：和上面对齐按钮分两行 —— 12 个图标挤一行，每个只剩 ~20px，点不中。
+    const distRow = h("div", "mossed-row mossed-distrow");
+    const distBtns = {};
+    for (const [mode, glyph] of [["dist-h", "⇹"], ["dist-v", "⇳"], ["same-w", "⇔"], ["same-h", "⇕"]]) {
+        const b = h("button", "mossed-iconbtn mossed-alignbtn", glyph);
+        b.type = "button";
+        b.dataset.mode = mode;
+        distBtns[mode] = b;
+        distRow.appendChild(b);
+    }
+    form.appendChild(distRow);
+
     const gridOnly = h("div", "mossed-row");
     const sizeSel = h("select", "mossed-size");
     for (const v of SIZES) {
@@ -1921,7 +2004,7 @@ function buildUI() {
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
         fatalBox: fatal, status, panel,
         empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, capTa, capField, textRow, textIn,
-        palIn, swatches, boxRow, bx, centerBtn, upBtn, downBtn, alignBtns,
+        palIn, swatches, boxRow, bx, centerBtn, upBtn, downBtn, alignBtns, distBtns,
         gridOnly, sizeSel, sizeIn, sizeCustomOp, sizeNoneOp, noChip, warn,
     };
 }
@@ -2194,6 +2277,11 @@ function syncStatic(ui) {
         btn.title = t(ALIGN_LABELS[mode]);
         btn.setAttribute("aria-label", t(ALIGN_LABELS[mode]));
     }
+    for (const [mode, btn] of Object.entries(ui.distBtns)) {
+        const k = DIST_LABELS[mode];
+        btn.title = t(k);
+        btn.setAttribute("aria-label", t(k));
+    }
     ui.empty.textContent = t("emptySelection");
     ui.capTa.placeholder = t(st && st.preset === "grid" ? "captionPhGrid" : "captionPh");
     ui.textIn.placeholder = t("textPh");
@@ -2349,6 +2437,7 @@ function syncPanel(ui, force) {
     ui.upBtn.disabled = !!isGrid;
     ui.downBtn.disabled = !!isGrid;
     for (const btn of Object.values(ui.alignBtns)) btn.disabled = !!isGrid;
+    for (const btn of Object.values(ui.distBtns)) btn.disabled = !!isGrid;
     if (force || document.activeElement !== ui.labelSel) ui.labelSel.value = ITEM_LABELS.includes(it.label) ? it.label : "object";
     if (wired || force || document.activeElement !== ui.capTa) ui.capTa.value = wiredCap ?? it.caption ?? "";
     growCaption(ui.capTa);
@@ -2986,6 +3075,35 @@ function alignSelected(ui, mode) {
     syncPanel(ui, true);
 }
 
+/** 分布 / 等大：作用在**全部元素**上（编辑器是单选模型，没有多选可对齐）。
+ *  数量不够时给出具体数字，而不是点了没反应。 */
+function applyDistribute(ui, mode) {
+    const st = ui.state;
+    if (!st || st.preset === "grid") return;
+    const items = (st.items || []).filter((it) => it && Array.isArray(it.bbox));
+    if (mode === "dist-h" || mode === "dist-v") {
+        if (items.length < 3) {
+            flash(ui, t("distNeedThree").replace("{n}", String(items.length)), true);
+            return;
+        }
+        const out = distributeItems(items, mode === "dist-h" ? "h" : "v");
+        if (!out) {
+            flash(ui, t("distOverlap"), true);      // 数量够但已重叠：和「数量不够」是两回事
+            return;
+        }
+        for (const it of items) if (out.has(it.id)) it.bbox = out.get(it.id);
+    } else {
+        const out = matchSizeItems(items, mode === "same-w" ? "w" : "h", st.canvas);
+        if (!out) {
+            flash(ui, t("sizeNeedTwo").replace("{n}", String(items.length)), true);
+            return;
+        }
+        for (const it of items) if (out.has(it.id)) it.bbox = out.get(it.id);
+    }
+    commit(ui);
+    syncPanel(ui, true);
+}
+
 function centerItem(ui) {
     const it = selectedItem(ui);
     if (!it || !Array.isArray(it.bbox) || ui.state?.preset === "grid") return;
@@ -3445,6 +3563,9 @@ function wire(ui) {
     ui.downBtn.addEventListener("click", (e) => { e.stopPropagation(); moveSelectedZ(ui, 1); });
     for (const [mode, btn] of Object.entries(ui.alignBtns)) {
         btn.addEventListener("click", (e) => { e.stopPropagation(); alignSelected(ui, mode); });
+    }
+    for (const [mode, btn] of Object.entries(ui.distBtns)) {
+        btn.addEventListener("click", (e) => { e.stopPropagation(); applyDistribute(ui, mode); });
     }
 
     ui.svg.addEventListener("pointerdown", (ev) => {
