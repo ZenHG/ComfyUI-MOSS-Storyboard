@@ -117,7 +117,7 @@ import {
     makeHistory, recordHistory, stepHistory, HISTORY_MAX, HISTORY_MAX_CHARS,
     MAX_ITEMS,
     elementsToState, stateToElements, sniffLayoutDoc, ELEMENTS_VERSION,
-    alignBbox, moveItemInArray,
+    alignBbox, moveItemInArray, distributeItems, matchSizeItems,
     compileFinalPrompt, gridPromptText, layoutJsonText,
     findPlaceholders, findIgnoredGridFields,
 } from "./extensions/pack/moss_sb_editor.js";
@@ -356,6 +356,44 @@ ok("interop 生成 state 合法", validateState(est).errors.length === 0,
 const eback = stateToElements(est, "zh");
 ok("interop 导出往返", eback.elements[1].bbox.join(",") === "0,0,1000,1000"
     && eback.elements[0].text === "字" && eback.style === "胶片", JSON.stringify(eback.elements));
+ok("分布：3 个框水平等距（间隙 0.3）", (() => {
+    const out = distributeItems([
+        { id: "a", bbox: [0.0, 0, 0.1, 0.1] },
+        { id: "b", bbox: [0.2, 0, 0.3, 0.1] },
+        { id: "c", bbox: [0.8, 0, 0.9, 0.1] },
+    ], "h");
+    const b = out.get("b");
+    return b[0] === 0.4 && b[2] === 0.5;
+})());
+ok("分布：首尾不动", (() => {
+    const out = distributeItems([
+        { id: "a", bbox: [0.0, 0, 0.1, 0.1] },
+        { id: "b", bbox: [0.2, 0, 0.3, 0.1] },
+        { id: "c", bbox: [0.8, 0, 0.9, 0.1] },
+    ], "h");
+    return out.get("a")[0] === 0 && out.get("c")[2] === 0.9;
+})());
+ok("分布：少于 3 个返回 null", distributeItems([
+    { id: "a", bbox: [0, 0, 0.1, 0.1] }, { id: "b", bbox: [0.5, 0, 0.6, 0.1] },
+], "h") === null);
+ok("分布：已重叠时返回 null（不硬排）", distributeItems([
+    { id: "a", bbox: [0, 0, 0.5, 0.1] }, { id: "b", bbox: [0.1, 0, 0.6, 0.1] },
+    { id: "c", bbox: [0.2, 0, 0.7, 0.1] },
+], "h") === null);
+ok("等宽：全部取最大值", (() => {
+    const out = matchSizeItems([
+        { id: "a", bbox: [0, 0, 0.1, 0.1] }, { id: "b", bbox: [0.2, 0, 0.5, 0.1] },
+    ], "w", { width: 100, height: 100 });
+    return Math.abs((out.get("a")[2] - out.get("a")[0]) - 0.3) < 1e-9
+        && Math.abs((out.get("b")[2] - out.get("b")[0]) - 0.3) < 1e-9;
+})());
+ok("等宽：贴右边时往回夹，不出画布", (() => {
+    const out = matchSizeItems([
+        { id: "a", bbox: [0.9, 0, 1.0, 0.1] }, { id: "b", bbox: [0, 0, 0.5, 0.1] },
+    ], "w", { width: 100, height: 100 });
+    const b = out.get("a");
+    return b[0] >= 0 && b[2] <= 1 && Math.abs((b[2] - b[0]) - 0.5) < 1e-9;
+})());
 ok("interop 导入保留 preset", elementsToState(
     { version: 1, preset: "title-body", elements: [{ role: "object", desc: "d", bbox: [0, 0, 100, 100] }] },
     { lang: "zh" }).preset === "title-body");
