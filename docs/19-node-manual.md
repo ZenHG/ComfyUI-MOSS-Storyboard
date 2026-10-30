@@ -270,6 +270,19 @@ elements → Create Bounding Boxes · bboxes
 | 属性面板「上移 / 下移」+ 六向对齐 | 调层级（数组顺序 = z 序）或对齐边缘/中线；尺寸不变 |
 | 工具栏「排队」 | 按当前工作流排队，不改任何值 |
 
+**导入 / 导出（实测过，含一个现成例子）**
+
+- **导入**接受两种文件：`elements-v1`（`{version, canvas:{width,height}, style, elements:[{role,caption,bbox}]}`，
+  bbox 是 **0–1000 的 `[x0,y0,x1,y1]`**）或 `state v3`。**宫格 state 不能导入** —— 宫格的 item 是格位不是元素，
+  要 4 格就用「单图模式 + 4 个框」。
+- **编辑器里已有元素时会弹一次确认**（会替换当前内容），没有元素时直接导入。
+- **导出**只出 `elements-v1`；宫格模式不能导出。
+- 现成例子：[`assets/comic-4panel-lineart.json`](../assets/comic-4panel-lineart.json) ——
+  4 格黑白线稿漫画（2×2，画布 1024×1024，每格一句描述，`style` 里锁死「黑白线稿」）。
+  在**单图模式**的编辑器里点「导入」选它即可；成品参考
+  [`assets/comic-4panel-lineart-sample.png`](../assets/comic-4panel-lineart-sample.png)
+  （30 步 / cfg 3 / euler + sgm_uniform，单图模式 → `CLIPTextEncode` → `KSampler`）。
+
 **「最终提示词」是原样发出去的那段文字**（宫格是 `[STYLE]` + 逐格 `[PANEL n]`，单图是原生布局 JSON）。
 只读、可一键复制，改任何字段它就跟着变；与后端同一套编译口径（差分测试逐字节比对），不是「示意文字」。
 如果上游是运行时才算出来的节点，它会直接说「运行时才确定」，不拿旧内容冒充。
