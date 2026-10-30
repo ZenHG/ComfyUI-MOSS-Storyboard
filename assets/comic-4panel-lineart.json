@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "canvas": { "width": 1024, "height": 1024 },
+  "style": "black and white ink line art comic, manga style, clean bold outlines, cross-hatching for shadow, no color, pure white paper background, screentone dots, high contrast",
+  "elements": [
+    {
+      "role": "object",
+      "caption": "Panel 1, wide shot: a young woman sits at a wooden desk late at night, writing in a notebook, a single desk lamp lighting the page",
+      "bbox": [20, 20, 490, 490]
+    },
+    {
+      "role": "object",
+      "caption": "Panel 2, extreme close-up: her hand stops, the pen tip hovering just above the paper, a half-written sentence visible",
+      "bbox": [510, 20, 980, 490]
+    },
+    {
+      "role": "object",
+      "caption": "Panel 3, medium shot: she lifts her head and looks toward the window, rain streaks running down the glass",
+      "bbox": [20, 510, 490, 980]
+    },
+    {
+      "role": "object",
+      "caption": "Panel 4, close shot: outside, a man in a long coat holds an umbrella and stands still under a street lamp, heavy rain, seen through rain-covered glass",
+      "bbox": [510, 510, 980, 980]
+    }
+  ]
+}
