@@ -419,6 +419,18 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 ⇒ **要改原图里的人的姿势，只能换工具**：ControlNet（OpenPose / DWPose）、视频重演类模型，
 或先 `init=empty` 生成一张带目标姿势的新图、再对它换脸。
 
+**三条路径的分工**（这是最容易混的一处）：
+
+| 路径 | 用源图吗 | 动作可控 | 构图保留 |
+|---|---|---|---|
+| `init=source` + 蒙版 | **用** | ❌ 实测改不动（上面那张表） | ✅ 蒙版外逐像素 |
+| `init=empty` + 参考图 | **不用** | ✅ 九档全部生效 | ❌ 构图全新（场景也由提示词决定） |
+| ControlNet 姿态 | **用** | ✅ | ✅（但要装外部节点 + 骨架图） |
+
+上面九档测的是**第二行**：`EmptyFlux2LatentImage 1024×576` + 参考图进 vision +
+`A medium shot photograph of the person in Picture 1, framed from the knees up, standing in a plain grey studio…`
+—— 场景是棚拍、构图是新的，只有**身份**来自参考图。所以「动作可控」和「保留原图」在扩散这条路上**互斥**。
+
 **两档参数**（同一张图同一蒙版实测）：
 
 | 档 | 步数 / cfg | 用途 |
