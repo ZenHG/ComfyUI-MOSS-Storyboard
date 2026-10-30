@@ -191,6 +191,35 @@ def test_grid_convert():
     check("非宫格拒绝转换", msg and "不需要转换" in msg, msg)
 
 
+def test_preset_roundtrip():
+    """导出再导入必须保住「是哪个预设」和「融合成一张」。
+
+    这两项丢了不会报错，但会让「生成初始框」按自由预设（空框）重来 —— 等于删掉用户的布局；
+    blend 丢了提示词里那句 one continuous image 也没了，出图会变。都属于静默失真。
+    """
+    from core import presets as P
+
+    for name in E.PRESETS:
+        if name == "grid":
+            continue
+        st = E.parse_state(json.dumps(P.build(name), ensure_ascii=False))
+        back = I.to_state(I.from_state(st))
+        check("预设往返保住 %s" % name, back["preset"] == name, back["preset"])
+
+    for b in (True, False):
+        st = {"version": 3, "preset": "three-col", "style": "", "blend": b,
+              "canvas": {"width": 1536, "height": 864},
+              "items": [{"id": "o1", "label": "object", "caption": "d", "bbox": [0.1, 0.1, 0.5, 0.5]}]}
+        back = I.to_state(I.from_state(E.parse_state(json.dumps(st, ensure_ascii=False))))
+        check("blend=%s 往返" % b, back.get("blend") is b, back.get("blend"))
+
+    doc0 = I.from_state(E.parse_state(json.dumps(P.build("three-col"), ensure_ascii=False)))
+    doc0["preset"] = "nope"
+    check("非法 preset 回落 free", I.to_state(doc0)["preset"] == "free")
+    doc0["preset"] = "grid"
+    check("文档里写 grid 也回落 free", I.to_state(doc0)["preset"] == "free")
+
+
 def test_unknown():
     st = I.to_state(doc([el(weight=3, note="x")]))
     check("元素未知字段进 x_ext", st["items"][0].get("x_ext") == {"weight": 3, "note": "x"},
@@ -375,6 +404,7 @@ def main():
         ("随机往返", test_random_roundtrip), ("编译", test_compile),
         ("嗅探", test_sniff), ("CLI", test_cli),
         ("grid 转换", test_grid_convert),
+        ("preset/blend 往返", test_preset_roundtrip),
     ]:
         print("== %s ==" % name)
         fn()

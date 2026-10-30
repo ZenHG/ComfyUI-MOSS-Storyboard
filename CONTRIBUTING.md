@@ -8,7 +8,7 @@
 python -m ruff check .                    # 静态检查（CI 第一道）
 python tests/test_core.py                 # 313 项：几何 / 提示词 / 像素（零 GPU）
 python tests/test_editor.py               # 149 项：state v3 编译层 / 预设 / 错误路径 / 上限 / 占位守卫（零 GPU）
-python tests/test_interop.py              # 95 项：elements-v1 互操作 / 往返 / CLI / 宫格转单图（零 GPU）
+python tests/test_interop.py              # 106 项：elements-v1 互操作 / 往返 / CLI / 宫格转单图 / preset+blend 往返（零 GPU）
 python tests/test_extract.py              # 22 项：从散文/代码块提取 JSON、上限/扫描预算（零 GPU）
 python tests/test_adversarial.py          # 63 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算 / spec 的 16 倍数与回读）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
@@ -25,7 +25,7 @@ python tools/smoke_nodes.py               # 63 项：自加载 + 纯节点真跑
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 7 份共 105 项：连线 + 槽位（不带文件参数只查内建那一份 = 15 项）
 python tools/check_frontend.py            # 19 项：前端词表/语法/接线/标题可换语言/**汉化完整**（参数标签 / 枚举取值 / 编辑器文案 / 节点显示名 / 中文 tooltip）
-python tools/check_editor_ui.py           # 151 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
+python tools/check_editor_ui.py           # 154 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 53 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查）
 node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）

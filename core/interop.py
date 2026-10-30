@@ -47,7 +47,7 @@ ROLE_ALIASES = {
 #: 元素已知字段。其余键 → `x_ext`。
 _ELEMENT_KEYS = {"id", "role", "type", "text", "desc", "caption", "bbox", "palette", "z", "x_ext"}
 
-_DOC_KEYS = {"version", "canvas", "style", "elements", "x_ext"}
+_DOC_KEYS = {"version", "canvas", "style", "preset", "blend", "elements", "x_ext"}
 
 #: 生成 id 的前缀（与前端 `makeItemId` 同形：t1 / o1 / c1）。
 _ID_PREFIX = {"text": "t", "object": "o", "character": "c"}
@@ -209,16 +209,24 @@ def grid_to_elements(state):
     }
 
 
-def to_state(doc, preset="free", style=None):
+def to_state(doc, preset=None, style=None):
     """elements-v1 文档 → state v3（单张模式）。不合法就抛 ValueError。
 
-    `preset` 只能用单张模式的预设（默认 `free`）；`style` 传入则覆盖文档里的 `style`。
+    `preset`：**文档里的 `preset` 优先**（只认单图预设），没写才用参数，最后回落 `free`。
+    这样「导出 → 再导入」不会把「标题+主体+正文」悄悄变成「自由」—— 那会让「生成初始框」
+    按自由预设（空框）重来，等于删掉用户的布局。
+    `style` 传入则覆盖文档里的 `style`。
     """
     if not isinstance(doc, dict):
         _fail("elements 文档必须是 JSON 对象，收到 %s。" % type(doc).__name__)
     ver = doc.get("version")
     if not isinstance(ver, int) or isinstance(ver, bool) or ver != ELEMENTS_VERSION:
         _fail("elements 版本是 %r，本版只认 %d。" % (ver, ELEMENTS_VERSION))
+    doc_preset = doc.get("preset")
+    if isinstance(doc_preset, str) and doc_preset in E.PRESETS and doc_preset != "grid":
+        preset = doc_preset                     # 文档里是合法单图预设 ⇒ 以它为准
+    elif preset is None:
+        preset = "free"
     if preset == "grid" or preset not in E.PRESETS:
         if preset == "grid":
             _fail("grid 不支持导入：宫格的 item 是格位，不是元素。请用单张模式（free 等）。")
@@ -288,6 +296,9 @@ def to_state(doc, preset="free", style=None):
         "canvas": {"width": cw, "height": ch},
         "items": items,
     }
+    # 「融合成一张」也要带过去：它会给提示词加一句 one continuous image，丢了出图就变了。
+    if isinstance(doc.get("blend"), bool):
+        state["blend"] = doc["blend"]
     if "x_ext" in doc:
         doc_ext = doc["x_ext"]
         if not isinstance(doc_ext, dict):
@@ -312,6 +323,8 @@ def from_state(state):
         _fail("宫格 state 不能导出成 elements：每格是格位，不是元素。")
     doc = {
         "version": ELEMENTS_VERSION,
+        "preset": state.get("preset") or "free",
+        "blend": bool(state.get("blend")),
         "canvas": {"width": state["canvas"]["width"], "height": state["canvas"]["height"]},
         "style": state.get("style") or "",
         "elements": [],

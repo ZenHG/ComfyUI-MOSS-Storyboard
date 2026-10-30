@@ -751,7 +751,7 @@ const ROLE_ALIASES = {
     text: "text", object: "object", obj: "object", character: "character", person: "character",
 };
 const ELEMENT_KEYS = new Set(["id", "role", "type", "text", "desc", "caption", "bbox", "palette", "z", "x_ext"]);
-const DOC_KEYS = new Set(["version", "canvas", "style", "elements", "x_ext"]);
+const DOC_KEYS = new Set(["version", "canvas", "style", "preset", "blend", "elements", "x_ext"]);
 const ID_PREFIX = { text: "t", object: "o", character: "c" };
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const UNSAFE_EXT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -815,7 +815,12 @@ export function elementsToState(doc, opts = {}) {
         throw new Error(E(`elements 版本是 ${doc.version}，本版只认 ${ELEMENTS_VERSION}。`,
             `elements version is ${doc.version}; this build accepts ${ELEMENTS_VERSION} only`));
     }
-    const preset = opts.preset || "free";
+    // 文档里的 preset 优先（只认单图预设）：否则「导出→再导入」会把「标题+主体+正文」
+    // 悄悄变成「自由」，而「生成初始框」按自由预设（空框）重来等于删掉用户的布局。
+    const docPreset = typeof doc.preset === "string" ? doc.preset : "";
+    const preset = (docPreset && docPreset !== "grid" && PRESET_IDS.includes(docPreset))
+        ? docPreset
+        : (opts.preset || "free");
     if (preset === "grid") {
         throw new Error(E("grid 不支持导入：宫格的 item 是格位，不是元素。请用单张模式（free 等）。",
             "grid import is not supported: grid items are panels, not elements; use a single-canvas preset"));
@@ -918,6 +923,8 @@ export function elementsToState(doc, opts = {}) {
         canvas: { width: canvas.width, height: canvas.height },
         items: rows.map((r) => r.item),
     };
+    // 「融合成一张」跟着文档走：它会给提示词加一句 one continuous image，丢了出图就变了。
+    if (typeof doc.blend === "boolean") state.blend = doc.blend;
     if (hasKey(doc, "x_ext")) {
         if (!doc.x_ext || typeof doc.x_ext !== "object" || Array.isArray(doc.x_ext)) {
             throw new Error(E("文档级 x_ext 必须是对象。", "document-level x_ext must be an object"));
@@ -968,6 +975,8 @@ export function stateToElements(state, lang = "zh") {
     const canvas = state.canvas || DEFAULT_CANVAS;
     const out = {
         version: ELEMENTS_VERSION,
+        preset: state.preset || "free",
+        blend: !!state.blend,
         canvas: { width: canvas.width, height: canvas.height },
         style: state.style || "",
         elements: [],
