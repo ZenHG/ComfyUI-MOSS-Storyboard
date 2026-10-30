@@ -1,5 +1,37 @@
 # CHANGES
 
+## 未发布 — 宫格「导出再导入用不了」：改成转成 N 个框，并说清降级了什么
+
+**原来的行为是死胡同**：宫格模式点导出 → 直接报「宫格模式不能导出 elements」；
+把宫格 state 拿去导入 → 直接报「grid 不支持导入」。两句话都对（item 是格位不是元素），
+但对用户来说就是「我写好了 8 格、导出一存、再也打不开了」。
+
+**现在**：两个方向都**转成 N 个框**（单图模式），并**明确说清降级了什么** ——
+排布一致、每格描述保留，但**没有 `spec`、没有逐格裁切**。
+
+| 动作 | 以前 | 现在 |
+|---|---|---|
+| 宫格模式「导出」 | 报错，什么都不发生 | 下载 `moss-elements-from-grid.json` + 提示「已转成 N 个框」 |
+| 导入宫格 state | 报错「grid 不支持导入」 | 转成 N 个框导入 + 提示同上 |
+
+**实现**（两侧同一套算法）
+
+- `core/interop.py::grid_to_elements(state)`：用 `editor.geometry()` 的每格像素矩形换算成 0–1000 bbox，
+  景别用 `SIZE_EN` 译成英文子句（自定义景别原样保留，不猜）。
+- `web/moss_sb_editor.js::gridStateToElements()`：镜像同一算法（`gridCanvasPixels` + `snap16`）。
+- 导入分支：`kind === "state"` 且 `preset === "grid"` → 先转再进 `elementsToState`。
+- 导出分支：`preset === "grid"` → 转后下载；`downloadJson()` 抽出来给两条路共用。
+- 文案：删掉 `exportGrid`（不再用），新增 `exportGridConverted` / `importGridConverted`。
+
+**验证**
+
+- `tests/test_interop.py` +7 项（88 → 95）：8 个框 / 画布 2096×608 / 第 1 格 bbox 与 geometry 一致 /
+  景别译成英文 / 转出的文档能再导入 / 非宫格拒绝转换。
+- 真机（headless Chromium + 宿主）：
+  宫格示例点「导出」→ 真的下载 `moss-elements-from-grid.json`；
+  poster 示例导入宫格 state → **8 个框、画布 2096×608、preset=free**，
+  界面提示「已把宫格转成 8 个框（单图模式）：排布一致，但没有 spec 与逐格裁切」。
+
 ## 未发布 — 加一个可直接导入的 4 格黑白线稿例子，并实测导入链路
 
 **新文件**

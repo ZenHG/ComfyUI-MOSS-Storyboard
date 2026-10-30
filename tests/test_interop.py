@@ -169,6 +169,28 @@ def test_limits():
     check("未知预设拒绝", msg and "不认识" in msg, msg)
 
 
+def test_grid_convert():
+    """宫格 state → elements：给「导出再导入用不了」一条活路（明确降级，不是假装等价）。"""
+    from core import presets as P
+
+    st = E.parse_state(json.dumps(P.build("grid"), ensure_ascii=False))
+    doc2 = I.grid_to_elements(st)
+    check("宫格转出 8 个框", len(doc2["elements"]) == 8, len(doc2["elements"]))
+    check("画布 = 宫格画布", (doc2["canvas"]["width"], doc2["canvas"]["height"]) == (2096, 608), doc2["canvas"])
+    b0 = doc2["elements"][0]["bbox"]
+    check("第 1 格 bbox 与 geometry 一致",
+          b0 == [3.817, 13.158, 248.092, 486.842], b0)
+    check("景别译成英文子句", doc2["elements"][0]["caption"].startswith("Extreme wide shot"), doc2["elements"][0]["caption"][:40])
+
+    back = I.to_state(doc2)
+    check("转出的文档能再导入（8 项）", len(back["items"]) == 8 and back["preset"] == "free",
+          (len(back["items"]), back["preset"]))
+    check("转换后不再是宫格", back["preset"] != "grid")
+
+    msg = raises(I.grid_to_elements, back)
+    check("非宫格拒绝转换", msg and "不需要转换" in msg, msg)
+
+
 def test_unknown():
     st = I.to_state(doc([el(weight=3, note="x")]))
     check("元素未知字段进 x_ext", st["items"][0].get("x_ext") == {"weight": 3, "note": "x"},
@@ -352,6 +374,7 @@ def main():
         ("上限与版本", test_limits), ("未知字段", test_unknown), ("导出", test_export),
         ("随机往返", test_random_roundtrip), ("编译", test_compile),
         ("嗅探", test_sniff), ("CLI", test_cli),
+        ("grid 转换", test_grid_convert),
     ]:
         print("== %s ==" % name)
         fn()

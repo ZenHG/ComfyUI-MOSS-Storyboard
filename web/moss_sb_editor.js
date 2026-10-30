@@ -173,7 +173,14 @@ export const STR = {
     importWarn: { zh: "已导入 {n} 个元素，但有 {m} 条警告（见状态栏）", en: "Imported {n} items with {m} warning(s); see the status bar" },
     exportOk: { zh: "已导出 elements JSON", en: "Exported elements JSON" },
     exportFail: { zh: "导出失败：", en: "Export failed: " },
-    exportGrid: { zh: "宫格模式不能导出 elements（每格是格位，不是元素）", en: "Grid mode cannot export elements (panels are not elements)" },
+    exportGridConverted: {
+        zh: "宫格已转成 {n} 个框导出（单图模式）：排布一致，但没有 spec 与逐格裁切",
+        en: "Exported the grid as {n} boxes (single mode): same layout, but no spec and no per-panel crops",
+    },
+    importGridConverted: {
+        zh: "已把宫格转成 {n} 个框（单图模式）：排布一致，但没有 spec 与逐格裁切",
+        en: "Imported a grid as {n} boxes (single mode): same layout, but no spec and no per-panel crops",
+    },
     exportNoState: { zh: "没有可导出的 state", en: "No state to export" },
     queueBtn: { zh: "排队", en: "Queue" },
     queueTitle: { zh: "按当前工作流排队（不改任何值）", en: "Queue the current workflow (changes nothing)" },
@@ -993,6 +1000,68 @@ export function stateToElements(state, lang = "zh") {
         }
     }
     return out;
+}
+
+/** **宫格 state → elements-v1**（单图模式）。与 `core/interop.py::grid_to_elements` 同一套算法。
+ *
+ *  为什么要有：宫格的 item 是**格位**不是元素，直接导入会被拒（`grid 不支持导入`），
+ *  于是「导出 → 再导入」变成死胡同。转成 N 个框是**明确降级**：排布一致、每格描述保留，
+ *  失去的是 `spec` 与逐格裁切。宁可给一条有说明的路，也不给死胡同。
+ */
+export function gridStateToElements(state, lang = "zh") {
+    const L = interopLang(lang);
+    const E = (zh, en) => (L === "en" ? en : zh);
+    if (!state || state.preset !== "grid") {
+        throw new Error(E("这不是宫格 state，不需要转换。", "not a grid state"));
+    }
+    const g = state.grid || {};
+    const [W, H] = gridCanvasPixels(g);
+    const m = String(g.panel_aspect || "16:9").split(":");
+    const ar = (Number(m[0]) || 16) / (Number(m[1]) || 9);
+    const edge = Number(g.panel_edge) || 512;
+    const cols = Math.max(1, Math.floor(Number(g.cols) || 1));
+    const gutter = Math.max(0, Math.floor(Number(g.gutter) || 0));
+    const margin = Math.max(0, Math.floor(Number(g.margin) || 0));
+    const [pw, ph] = ar >= 1 ? [snap16(edge), snap16(pyRound(edge / ar))]
+        : [snap16(pyRound(edge * ar)), snap16(edge)];
+    const items = state.items || [];
+    if (!items.length) {
+        throw new Error(E("宫格是空的：先填每格描述再导出。", "the grid is empty: fill in the captions first"));
+    }
+    const q = (v) => Math.round(v * 1000) / 1000;
+    const elements = items.map((it, i) => {
+        const c = i % cols;
+        const r = Math.floor(i / cols);
+        const x0 = margin + c * (pw + gutter);
+        const y0 = margin + r * (ph + gutter);
+        const size = String(it.size || "").trim();
+        const head = SIZE_PROMPT[size] || size;      // 自定义景别原样保留，不猜
+        const cap = String(it.caption || "").trim();
+        return {
+            role: "object",
+            desc: [head, cap].filter(Boolean).join(", "),
+            bbox: [q(x0 / W * 1000), q(y0 / H * 1000), q((x0 + pw) / W * 1000), q((y0 + ph) / H * 1000)],
+        };
+    });
+    return {
+        version: ELEMENTS_VERSION,
+        canvas: { width: W, height: H },
+        style: state.style || "",
+        elements,
+    };
+}
+
+/** 把 JSON 文档存成文件（导出用）。两处导出（单图 / 宫格转换）共用同一段 Blob 逻辑。 */
+function downloadJson(doc, filename) {
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function sniffLayoutDoc(obj) {
@@ -3075,13 +3144,22 @@ function wire(ui) {
             let st;
             let fixed = false;
             let warnCount = 0;
+            let gridConverted = 0;
             if (kind === "elements") st = elementsToState(obj, { lang: uiLang(), preset: "free" });
             else if (kind === "state") {
                 const res = readState(text, uiLang());
                 if (res.fatal) throw new Error(res.fatal);
-                st = res.state;
-                fixed = !!res.fixed;
-                warnCount = (res.warnings || []).length;
+                if (res.state && res.state.preset === "grid") {
+                    // 宫格 state 不能直接导入（item 是格位）。**但不给死胡同**：
+                    // 转成 N 个框进单图模式，并把「失去了 spec 与逐格裁切」说清楚。
+                    const conv = gridStateToElements(res.state, uiLang());
+                    st = elementsToState(conv, { lang: uiLang(), preset: "free" });
+                    gridConverted = st.items.length;
+                } else {
+                    st = res.state;
+                    fixed = !!res.fixed;
+                    warnCount = (res.warnings || []).length;
+                }
             } else {
                 throw new Error(t("importUnknown"));
             }
@@ -3100,7 +3178,8 @@ function wire(ui) {
             commit(ui, "import");
             syncPanel(ui, true);
             syncStatic(ui);
-            if (warnCount) flash(ui, t("importWarn").replace("{n}", String(st.items.length)).replace("{m}", String(warnCount)), true);
+            if (gridConverted) flash(ui, t("importGridConverted").replace("{n}", String(gridConverted)), true);
+            else if (warnCount) flash(ui, t("importWarn").replace("{n}", String(st.items.length)).replace("{m}", String(warnCount)), true);
             else if (fixed) flash(ui, t("importFixed").replace("{n}", String(st.items.length)));
             else flash(ui, t("importOk").replace("{n}", String(st.items.length)));
         } catch (err) {
@@ -3144,19 +3223,12 @@ function wire(ui) {
         e.stopPropagation();
         const st = ui.state;
         if (!st) { flash(ui, t("exportNoState"), true); return; }
-        if (st.preset === "grid") { flash(ui, t("exportGrid"), true); return; }
         try {
-            const doc = stateToElements(st, uiLang());
-            const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `moss-elements-${st.preset}.json`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-            flash(ui, t("exportOk"));
+            const doc = st.preset === "grid" ? gridStateToElements(st, uiLang()) : stateToElements(st, uiLang());
+            downloadJson(doc, st.preset === "grid" ? "moss-elements-from-grid.json" : `moss-elements-${st.preset}.json`);
+            flash(ui, st.preset === "grid"
+                ? t("exportGridConverted").replace("{n}", String(doc.elements.length))
+                : t("exportOk"));
         } catch (err) {
             flash(ui, t("exportFail") + (err && err.message ? err.message : String(err)), true);
         }

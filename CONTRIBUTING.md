@@ -8,7 +8,7 @@
 python -m ruff check .                    # 静态检查（CI 第一道）
 python tests/test_core.py                 # 313 项：几何 / 提示词 / 像素（零 GPU）
 python tests/test_editor.py               # 149 项：state v3 编译层 / 预设 / 错误路径 / 上限 / 占位守卫（零 GPU）
-python tests/test_interop.py              # 88 项：elements-v1 互操作 / 往返 / CLI（零 GPU）
+python tests/test_interop.py              # 95 项：elements-v1 互操作 / 往返 / CLI / 宫格转单图（零 GPU）
 python tests/test_extract.py              # 22 项：从散文/代码块提取 JSON、上限/扫描预算（零 GPU）
 python tests/test_adversarial.py          # 63 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算 / spec 的 16 倍数与回读）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
