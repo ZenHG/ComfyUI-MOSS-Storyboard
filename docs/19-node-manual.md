@@ -279,6 +279,9 @@ elements → Create Bounding Boxes · bboxes
 - **编辑器里已有元素时会弹一次确认**（会替换当前内容），没有元素时直接导入。
 - **导出**：单图模式出 `elements-v1`；**宫格模式也能导出** —— 同样转成 N 个框
   （文件名 `moss-elements-from-grid.json`），提示语同上。
+- **往返会保住 `preset` 与 `blend`**：文档里带 `preset`（单图预设）和 `blend`（融合成一张），
+  再导入时按它们恢复。以前这两项会丢 —— 预设变「自由」后点「生成初始框」会按空框重来，
+  等于删掉你的布局；`blend` 丢了提示词里那句 `one continuous image` 也没了。
 - 现成例子：[`assets/comic-4panel-lineart.json`](../assets/comic-4panel-lineart.json) ——
   4 格黑白线稿漫画（2×2，画布 1024×1024，每格一句描述，`style` 里锁死「黑白线稿」）。
   在**单图模式**的编辑器里点「导入」选它即可；成品参考

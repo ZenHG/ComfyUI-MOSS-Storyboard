@@ -1,5 +1,32 @@
 # CHANGES
 
+## 未发布 — 其他预设的导出/导入补全：`preset` 与 `blend` 不再丢
+
+宫格那条路已经修过（转成 N 个框）。逐个预设再查一遍「导出 → 再导入」，**元素本身都对，但状态丢两项**：
+
+| 项 | 以前 | 现在 |
+|---|---|---|
+| `preset` | 全部变成 `free` | 原样保住（7 个单图预设逐个验过） |
+| `blend`（融合成一张） | 一律变成 `false` | 原样保住（`true` / `false` 都验过） |
+
+**为什么这是功能问题、不只是显示问题**：预设变「自由」后，再点「**生成初始框**」会按自由预设
+（空框）重来 —— 等于把用户的布局删了；`blend` 丢了，提示词里那句 `one continuous image` 也没了，
+出图结果跟着变。两者都不报错，属于**静默失真**。
+
+**改动**
+
+- `elements-v1` 文档新增两个可选字段 `preset` / `blend`（旧文件没有也照常导入，回落 `free` / `false`）。
+- `core/interop.py`：`to_state()` 改为**文档里的 `preset` 优先**（只认单图预设，非法或 `grid` 回落 `free`），
+  `blend` 按文档恢复；`from_state()` 两个字段都写出去。
+- `web/moss_sb_editor.js`：`elementsToState()` / `stateToElements()` 同样处理；`DOC_KEYS` 两处补键，
+  避免它们被当成未知字段塞进 `x_ext`。
+- 测试：`test_interop.py` +11 项（95 → 106，逐预设 + `blend` 两态 + 非法回落）；
+  `check_editor_ui.py` +3 项（151 → 154）。
+
+**验证**（真机 headless + 宿主，走完整文件下载/上传）：
+把 state 设成 `preset=title-body, blend=true` → 点导出 → 文档里 `preset=title-body, blend=true` →
+再导入 → `preset=title-body, blend=true, items=3`，三项全对。
+
 ## 未发布 — 宫格「导出再导入用不了」：改成转成 N 个框，并说清降级了什么
 
 **原来的行为是死胡同**：宫格模式点导出 → 直接报「宫格模式不能导出 elements」；

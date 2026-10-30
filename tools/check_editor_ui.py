@@ -356,6 +356,15 @@ ok("interop 生成 state 合法", validateState(est).errors.length === 0,
 const eback = stateToElements(est, "zh");
 ok("interop 导出往返", eback.elements[1].bbox.join(",") === "0,0,1000,1000"
     && eback.elements[0].text === "字" && eback.style === "胶片", JSON.stringify(eback.elements));
+ok("interop 导入保留 preset", elementsToState(
+    { version: 1, preset: "title-body", elements: [{ role: "object", desc: "d", bbox: [0, 0, 100, 100] }] },
+    { lang: "zh" }).preset === "title-body");
+ok("interop 非法 preset 回落 free", elementsToState(
+    { version: 1, preset: "nope", elements: [{ role: "object", desc: "d", bbox: [0, 0, 100, 100] }] },
+    { lang: "zh" }).preset === "free");
+ok("interop 导出带 preset", stateToElements(
+    { version: 3, preset: "three-col", style: "", canvas: { width: 1536, height: 864 },
+      items: [{ id: "o1", label: "object", caption: "d", bbox: [0, 0, 0.5, 0.5] }] }, "zh").preset === "three-col");
 ok("interop grid 拒绝导入", (() => {
     try { elementsToState({ version: 1, elements: [] }, { preset: "grid" }); return false; }
     catch (e) { return /grid/.test(e.message); }
