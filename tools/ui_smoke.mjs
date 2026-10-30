@@ -261,6 +261,95 @@ try {
             ? nag.after.filter((id) => !nag.before.includes(id)) : ["读不到队列"];
         check("取消确认后没有多出一条队列任务", added.length === 0,
             `新增 ${JSON.stringify(added)}｜点前 ${nag.before.length} 条（>0 = 宿主被别人占用）`);
+
+        // ---- 分布 / 等大按钮：真 DOM 点一下，看 state 里的 bbox 真的变了 ----
+        // 纯函数闸只验算法；按钮→applyDistribute→commit 这段接线只有真浏览器能验。
+        const sameW = await page.evaluate(async () => {
+            const root = document.querySelector(".mossed-root");
+            const btn = root.querySelector('[data-mode="same-w"]');
+            if (!btn) return { found: false };
+            btn.click();
+            await new Promise((r) => setTimeout(r, 400));
+            const node = (globalThis.app.graph._nodes || []).find((n) => n.type === "MossLayoutEditor");
+            const st = JSON.parse(node.widgets.find((w) => w.name === "editor_state").value);
+            const ws = (st.items || []).map((it) => +(it.bbox[2] - it.bbox[0]).toFixed(3));
+            return { found: true, preset: st.preset, ws };
+        });
+        check("点「等宽」后所有框宽度一致（按钮接线通到 state）",
+            sameW.found && sameW.ws.length >= 2 && new Set(sameW.ws).size === 1,
+            JSON.stringify(sameW));
+
+        // ---- 工具栏 🗑：单张能删、宫格不删（宫格的 item 是格位，删一个就「格数 != cols×rows」）----
+        // 放在最后：删元素会改掉状态，前面那些断言依赖「3 个框都带预设文案」。
+        const trash = () => page.evaluate(() => {
+            const root = document.querySelector(".mossed-root");
+            const btn = Array.from(root.querySelectorAll("button")).find((b) => b.textContent.trim() === "🗑");
+            const n = root.querySelectorAll('.mossed-svg [data-role="item"]').length;
+            const form = root.querySelector(".mossed-form");
+            return { exists: !!btn, disabled: btn ? btn.disabled : null, items: n,
+                noSel: !!form && form.hidden };
+        });
+        const pickFirst = () => page.evaluate(() => {
+            const rect = document.querySelector('.mossed-svg [data-role="item"]');
+            if (!rect) return false;
+            const r = rect.getBoundingClientRect();
+            const o = { bubbles: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2,
+                pointerId: 1, isPrimary: true, button: 0 };
+            rect.dispatchEvent(new PointerEvent("pointerdown", o));
+            rect.dispatchEvent(new PointerEvent("pointerup", o));
+            return true;
+        });
+
+        const t0 = await trash();
+        check("工具栏有删除按钮，灰态与「有没有选中」一致", t0.exists && t0.disabled === t0.noSel,
+            JSON.stringify(t0));
+        await pickFirst();
+        await page.waitForTimeout(300);
+        const t1 = await trash();
+        check("单张：选中后删除按钮可用", t1.disabled === false && t1.noSel === false, JSON.stringify(t1));
+        await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll(".mossed-root button"))
+                .find((b) => b.textContent.trim() === "🗑");
+            btn.click();
+        });
+        await page.waitForTimeout(400);
+        const t2 = await trash();
+        check("单张：点一次少一个框", t2.items === t1.items - 1, `${t1.items} → ${t2.items}`);
+
+        // 取消选中（Esc）后按钮要立刻变灰 —— 面板收起了按钮还亮着，就是"点了没反应"。
+        await page.evaluate(() => {
+            document.querySelector(".mossed-root").dispatchEvent(
+                new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        });
+        await page.waitForTimeout(300);
+        const t3 = await trash();
+        check("取消选中后删除按钮立刻变灰", t3.noSel === true && t3.disabled === true, JSON.stringify(t3));
+
+        // 回到宫格：item 数是 cols×rows，删不得。按 Delete 键也不能绕过按钮的灰态。
+        await page.evaluate(async () => {
+            const root = document.querySelector(".mossed-root");
+            const sel = root.querySelector(".mossed-bar select");
+            sel.value = "grid";
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            await new Promise((r) => setTimeout(r, 300));
+            const apply = Array.from(root.querySelectorAll("button")).find((b) => /生成初始框/.test(b.textContent));
+            const orig = window.confirm; window.confirm = () => true;
+            apply.click();
+            await new Promise((r) => setTimeout(r, 600));
+            window.confirm = orig;
+        });
+        await pickFirst();
+        await page.waitForTimeout(300);
+        const g2 = await trash();
+        const before = g2.items;
+        await page.evaluate(() => {
+            document.querySelector('.mossed-root')?.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+        });
+        await page.waitForTimeout(300);
+        const g3 = await trash();
+        check("宫格：删除按钮恒为灰", g2.disabled === true, JSON.stringify(g2));
+        check("宫格：按 Delete 也删不掉（格数必须 = cols×rows）", g3.items === before, `${before} → ${g3.items}`);
     }
 
     await page.evaluate(() => globalThis.MOSS_SB_LANG.set("en"));

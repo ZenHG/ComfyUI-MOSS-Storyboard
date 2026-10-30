@@ -19,6 +19,43 @@
 
 ---
 
+## 0.3.3 — 2026-10-30
+
+**画布手感 + 导入导出**，节点数仍是 7，模型侧只改两个默认值。
+
+- **四个对齐按钮**：水平/垂直等距、等宽、等高。等距按相等间隙、首尾不动；等大取最大值、贴边回夹。
+- **工具栏加删除**（撤销/重做右边）；宫格模式禁用 —— 删一个会让格数与列×行对不上，几何算不出来。
+- **宫格不再是死胡同**：导入/导出都转成 N 个框（单图），并提示丢了 spec 与逐格裁切。
+- **preset / blend 不再丢**：以前导出再导入变「自由」+ 关融合，点「生成初始框」会按空框重来。
+- **单图换脸修好**：默认 `face_pick` 改 `largest`（`right` 会挑到背景侧脸，蒙版只盖 0.7%，
+  看着像没变）；`report` 新增蒙版内改动率，低于 2% 直接说原因。
+- 新示例：单图换脸（自带演示图）、4 格黑白线稿漫画 JSON。
+- 文档：README 拆成导览 + 节点手册；前端闸补 8 项汉化检查。
+
+**升级动作**：不需要。旧工作流照常打开。
+
+<!-- EN -->
+
+### 0.3.3 — 2026-10-30
+
+**Canvas ergonomics and import/export.** Still 7 nodes; two defaults changed on the model side.
+
+- **Four align buttons**: distribute horizontally / vertically, equal width, equal height.
+  Distribution equalises the gaps (not centres) and keeps the first and last box in place.
+- **Delete on the toolbar** (next to undo / redo). It is disabled in grid mode: removing a panel
+  would leave the panel count out of step with cols × rows, and the geometry fails outright.
+- **Grid is no longer a dead end**: importing or exporting a grid state converts it to N boxes
+  and says what was lost — same layout, no `spec`, no per-panel crops.
+- **`preset` and `blend` survive a round trip.** They used to return as "free" with blending off,
+  and "Generate boxes" under "free" wipes the layout.
+- **Single-photo face swap fixed**: the default `face_pick` moved from `right` to `largest`
+  (on a multi-face image `right` picked a small background face, 0.7% mask, looked like nothing
+  happened). `report` now prints the inside-mask change rate and explains itself below 2%.
+- **New samples**: one-photo face swap with demo images, and a 4-panel line-art comic JSON.
+- Docs: the README is now a guide plus a node manual; the frontend gate gained 8 checks.
+
+**Action required**: none. Existing workflows open unchanged.
+
 ## 0.3.2 — 2026-10-30
 
 **整理版，功能没有任何变化。** 这一版只清掉文件列表里的残留、补上漏写的文档。

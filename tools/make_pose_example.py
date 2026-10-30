@@ -103,7 +103,7 @@ def node(nid, ntype, pos, size, widgets, inputs=(), outputs=(), title=None, orde
         "widgets_values": list(widgets),
     }
     if ours:
-        n["properties"].update({"cnr_id": "moss-storyboard", "ver": "0.3.2"})
+        n["properties"].update({"cnr_id": "moss-storyboard", "ver": "0.3.3"})
     if title:
         n["title"] = title
     return n

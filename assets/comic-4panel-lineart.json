@@ -1,27 +1,83 @@
 {
   "version": 1,
-  "canvas": { "width": 1024, "height": 1024 },
-  "style": "black and white ink line art comic, manga style, clean bold outlines, cross-hatching for shadow, no color, pure white paper background, screentone dots, high contrast",
+  "canvas": {
+    "width": 1536,
+    "height": 1536
+  },
+  "style": "black and white ink line art comic, manga style, clean bold outlines, cross-hatching for shadow, no color, pure white paper background, screentone dots, high contrast, faces drawn cleanly with clear eyes, nose and mouth, correct anatomy",
   "elements": [
     {
       "role": "object",
-      "caption": "Panel 1, wide shot: a young woman sits at a wooden desk late at night, writing in a notebook, a single desk lamp lighting the page",
-      "bbox": [20, 20, 490, 490]
+      "caption": "Panel 1, medium shot: a young woman with chin-length black hair and a dark crew-neck sweater sits at a wooden desk late at night, writing in a notebook, a single desk lamp lighting the page, her face clearly drawn and calm",
+      "bbox": [
+        20,
+        20,
+        490,
+        490
+      ]
     },
     {
       "role": "object",
-      "caption": "Panel 2, extreme close-up: her hand stops, the pen tip hovering just above the paper, a half-written sentence visible",
-      "bbox": [510, 20, 980, 490]
+      "caption": "Panel 2, extreme close-up: her right hand holds a fountain pen, the tip hovering just above the paper, a half-written line visible, knuckles slightly tense",
+      "bbox": [
+        510,
+        20,
+        980,
+        490
+      ]
+    },
+    {
+      "role": "text",
+      "caption": "thought bubble, cloud-shaped, white fill with a thin black outline, three small circles trailing to the lower left, clean lettering",
+      "text": "写不下去",
+      "bbox": [
+        660,
+        100,
+        940,
+        175
+      ]
     },
     {
       "role": "object",
-      "caption": "Panel 3, medium shot: she lifts her head and looks toward the window, rain streaks running down the glass",
-      "bbox": [20, 510, 490, 980]
+      "caption": "Panel 3, medium close shot from behind her shoulder: she lifts her head and looks toward the window, rain streaks running down the glass, her face in three-quarter view clearly drawn",
+      "bbox": [
+        20,
+        510,
+        490,
+        980
+      ]
+    },
+    {
+      "role": "text",
+      "caption": "thought bubble, cloud-shaped, white fill with a thin black outline, three small circles trailing to the lower right, clean lettering",
+      "text": "他还在楼下",
+      "bbox": [
+        250,
+        520,
+        490,
+        595
+      ]
     },
     {
       "role": "object",
-      "caption": "Panel 4, close shot: outside, a man in a long coat holds an umbrella and stands still under a street lamp, heavy rain, seen through rain-covered glass",
-      "bbox": [510, 510, 980, 980]
+      "caption": "Panel 4, medium close shot: outside, a man with round glasses in a long coat holds an umbrella and stands still under a street lamp, heavy rain, seen through rain-covered glass, his face clearly drawn",
+      "bbox": [
+        510,
+        510,
+        980,
+        980
+      ]
+    },
+    {
+      "role": "text",
+      "caption": "thought bubble, cloud-shaped, white fill with a thin black outline, three small circles trailing to the lower right, clean lettering",
+      "text": "她还没睡",
+      "bbox": [
+        530,
+        520,
+        790,
+        595
+      ]
     }
   ]
 }

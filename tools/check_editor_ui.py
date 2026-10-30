@@ -383,14 +383,14 @@ ok("分布：已重叠时返回 null（不硬排）", distributeItems([
 ok("等宽：全部取最大值", (() => {
     const out = matchSizeItems([
         { id: "a", bbox: [0, 0, 0.1, 0.1] }, { id: "b", bbox: [0.2, 0, 0.5, 0.1] },
-    ], "w", { width: 100, height: 100 });
+    ], "w");
     return Math.abs((out.get("a")[2] - out.get("a")[0]) - 0.3) < 1e-9
         && Math.abs((out.get("b")[2] - out.get("b")[0]) - 0.3) < 1e-9;
 })());
 ok("等宽：贴右边时往回夹，不出画布", (() => {
     const out = matchSizeItems([
         { id: "a", bbox: [0.9, 0, 1.0, 0.1] }, { id: "b", bbox: [0, 0, 0.5, 0.1] },
-    ], "w", { width: 100, height: 100 });
+    ], "w");
     const b = out.get("a");
     return b[0] >= 0 && b[2] <= 1 && Math.abs((b[2] - b[0]) - 0.5) < 1e-9;
 })());
