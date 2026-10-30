@@ -27,7 +27,7 @@ python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard
 python tools/check_frontend.py            # 19 项：前端词表/语法/接线/标题可换语言/**汉化完整**（参数标签 / 枚举取值 / 编辑器文案 / 节点显示名 / 中文 tooltip）
 python tools/check_editor_ui.py           # 160 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 53 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查）
-node   tools/ui_smoke.mjs                 # 31 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认）
+node   tools/ui_smoke.mjs                 # 38 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认 / 删除与分布按钮接线）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）
 node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 ```

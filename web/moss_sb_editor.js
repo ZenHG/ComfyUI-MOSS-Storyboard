@@ -727,16 +727,14 @@ export function distributeItems(items, axis) {
     return out;
 }
 
-/** **等宽 / 等高**（`dim` = "w" / "h"）：全部取当前最大值，保持左上角，贴到画布边时往回夹。 */
-export function matchSizeItems(items, dim, canvas) {
+/** **等宽 / 等高**（`dim` = "w" / "h"）：全部取当前最大值，保持左上角，贴到画布边时往回夹。
+ *  bbox 是归一化坐标，所以「最大值」天然 ≤ 1，不需要再和画布像素比。 */
+export function matchSizeItems(items, dim) {
     const list = (items || []).filter((it) => it && Array.isArray(it.bbox) && it.bbox.length === 4);
     if (list.length < 2) return null;
-    const cw = (canvas && canvas.width) || 1;
-    const ch = (canvas && canvas.height) || 1;
     const w = dim === "w";
     let max = 0;
     for (const it of list) max = Math.max(max, w ? it.bbox[2] - it.bbox[0] : it.bbox[3] - it.bbox[1]);
-    max = Math.min(max, w ? 1 : 1);           // 归一化坐标：上限就是整张画布
     const out = new Map();
     for (const it of list) {
         const b = it.bbox.slice();
@@ -749,7 +747,6 @@ export function matchSizeItems(items, dim, canvas) {
         }
         out.set(it.id, b);
     }
-    void cw; void ch;                          // 归一化后不需要像素，留着参数位便于以后按像素对齐
     return out;
 }
 
@@ -1697,6 +1694,12 @@ function buildUI() {
     redoBtn.type = "button";
     redoBtn.disabled = true;
     bar.appendChild(redoBtn);
+    // 删除放在撤销/重做旁边：选中框后最常做的三件事是「撤销 / 重做 / 删掉它」，
+    // 以前删除只在右侧属性面板里，鼠标要跨半个节点。
+    const trashBtn = h("button", "mossed-iconbtn mossed-danger", "🗑");
+    trashBtn.type = "button";
+    trashBtn.disabled = true;
+    bar.appendChild(trashBtn);
     const helpBtn = h("button", "mossed-iconbtn", "?");
     helpBtn.type = "button";
     helpBtn.title = t("help");
@@ -2003,7 +2006,7 @@ function buildUI() {
         canvasRow, canvasPresetSel, wIn, hIn, aspectChip, blendWrap, blendIn,
         stage, svg, welcome, welcomeTitle, welcomeSub, welcomeChips,
         fatalBox: fatal, status, panel,
-        empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, capTa, capField, textRow, textIn,
+        empty, form, typeDot, idChip, labelSel, dupBtn, delBtn, trashBtn, capTa, capField, textRow, textIn,
         palIn, swatches, boxRow, bx, centerBtn, upBtn, downBtn, alignBtns, distBtns,
         gridOnly, sizeSel, sizeIn, sizeCustomOp, sizeNoneOp, noChip, warn,
     };
@@ -2265,6 +2268,7 @@ function syncStatic(ui) {
     ui.undoBtn.title = t("undo") + " (Ctrl/Cmd + Z)";
     ui.undoBtn.setAttribute("aria-label", t("undo"));
     ui.redoBtn.title = t("redo") + " (Ctrl/Cmd + Shift + Z)";
+    ui.trashBtn.title = t("del") + " (Delete)";
     ui.redoBtn.setAttribute("aria-label", t("redo"));
     ui.gridAdvBtn.textContent = t("advanced");
     ui.dupBtn.textContent = t("duplicate");
@@ -2421,6 +2425,9 @@ function syncPanel(ui, force) {
     // 选中元素时把提示词预览收成一行：属性面板才放得下（单张模式的提示词本来也只读）。
     // 取消选择后自动展开，不占额外状态。
     if (ui.promptBox) ui.promptBox.classList.toggle("mossed-collapsed", !!it);
+    // 工具栏按钮在面板外、永远可见，所以它的可用性必须**在早退之前**算好：
+    // 取消选中后 syncPanel 会在这里 return，放在下面就会一直停在"可点"。
+    ui.trashBtn.disabled = !!isGrid || !ui.sel;
     if (!it) return;
 
     // 接线时描述框显示"真正会用到的"那句（外接稿覆盖后），并标成只读来源
@@ -2436,6 +2443,7 @@ function syncPanel(ui, force) {
     ui.centerBtn.disabled = !!isGrid;
     ui.upBtn.disabled = !!isGrid;
     ui.downBtn.disabled = !!isGrid;
+    ui.delBtn.disabled = !!isGrid;
     for (const btn of Object.values(ui.alignBtns)) btn.disabled = !!isGrid;
     for (const btn of Object.values(ui.distBtns)) btn.disabled = !!isGrid;
     if (force || document.activeElement !== ui.labelSel) ui.labelSel.value = ITEM_LABELS.includes(it.label) ? it.label : "object";
@@ -3026,7 +3034,9 @@ function applyPreset(ui, id, generate = true) {
 
 function deleteSelected(ui) {
     const it = selectedItem(ui);
-    if (!it || !ui.state) return;
+    // 宫格的 item 是**格位**不是元素：删一个就变成「格数 ≠ cols×rows」，geometry() 直接抛错。
+    // 要减少格数请改 cols / rows 再「生成初始框」。
+    if (!it || !ui.state || ui.state.preset === "grid") return;
     ui.state.items = ui.state.items.filter((x) => x !== it);
     ui.sel = null;
     commit(ui);
@@ -3093,7 +3103,7 @@ function applyDistribute(ui, mode) {
         }
         for (const it of items) if (out.has(it.id)) it.bbox = out.get(it.id);
     } else {
-        const out = matchSizeItems(items, mode === "same-w" ? "w" : "h", st.canvas);
+        const out = matchSizeItems(items, mode === "same-w" ? "w" : "h");
         if (!out) {
             flash(ui, t("sizeNeedTwo").replace("{n}", String(items.length)), true);
             return;
@@ -3555,6 +3565,7 @@ function wire(ui) {
         commit(ui);
     });
     ui.delBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteSelected(ui); });
+    ui.trashBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteSelected(ui); });
     ui.undoBtn.addEventListener("click", (e) => { e.stopPropagation(); stepUndo(ui, -1); });
     ui.redoBtn.addEventListener("click", (e) => { e.stopPropagation(); stepUndo(ui, 1); });
     ui.dupBtn.addEventListener("click", (e) => { e.stopPropagation(); duplicateItem(ui); });
