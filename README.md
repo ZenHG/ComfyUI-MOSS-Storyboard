@@ -547,7 +547,7 @@ the source are the same person, or the mask is too small / picked the wrong face
 |---|---|---|
 | **face swap** | ✅ | leave `spec` unwired (whole image = one panel), give `ref` a face close-up. Example `moss-faceswap-single-ui.json` |
 | **change one region** (clothes / expression / background) | ✅ | wire **the source image itself** into `ref` (`ref` is required), turn `auto_mask` off, wire `ImageToMask(red)`. Measured on clothes: 97% changed inside the mask, 0.01% visible outside; **background does not work** |
-| **change the whole body pose** | ❌ no reliable path | in `source` mode the body sits outside the mask and does not move; in `empty` mode the source is **ignored**, so it regenerates from the reference. Masking the whole body is a large-area replacement — the background case (76.8% coverage) failed exactly that way |
+| **change the whole body pose** | ❌ no reliable path | measured: mask over everything below the chin (56% of frame), prompt "arms crossed", 30 steps / denoise 0.6 → 51% of the mask changed but **the pose did not**. Pose is global structure; a mask only says *where*, and without a pose condition there is no geometric constraint |
 
 > The pose and body-motion measurements (seven / nine tiers) are on the **generate** path:
 > reference + prompt → a new image, **not** an edit of an existing photo. To give "the person in this
