@@ -1,0 +1,103 @@
+{
+  "pack": "moss-llm-prompts",
+  "version": "1.0.0",
+  "updated": "2026-10-30",
+  "files": [
+    {
+      "id": "caption.faithful.en",
+      "path": "caption.faithful.en.txt",
+      "sha256": "81266ca34ecbf822257533761cedfae6c276974f3633ec0c9b465fa9ef26b2c9",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "caption.clean.en",
+      "path": "caption.clean.en.txt",
+      "sha256": "a551c1953ef9079342ffca69608426e11db0cdc72ca32b06d9818d8f2197df6b",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "caption.pass1.en",
+      "path": "caption.pass1.en.txt",
+      "sha256": "de548df945c9b16838cf2ce287b97f96f55442a51fad75d06521fa6e236907cd",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "caption.pass2.en",
+      "path": "caption.pass2.en.txt",
+      "sha256": "928385aa46c7434855216aefa52c1d4845115242b68d7306b587a141352693ce",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "expand.method.en",
+      "path": "expand.method.en.txt",
+      "sha256": "1e96fee1c16647a240412bd3180b886ffd230955bb2a13b0f6188e3a8dfd1aeb",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "expand.moss_image.en",
+      "path": "expand.moss_image.en.txt",
+      "sha256": "7e216697698732949d009aa5dd5469ea49fad66f1f0e7fbae6cd211dfdda8e76",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "expand.moss_storyboard.zh",
+      "path": "expand.moss_storyboard.zh.txt",
+      "sha256": "2abc8c8cfd7aa3f09ce40307d06e2d745a503adf6ef949a629ca45ae1a9319c8",
+      "lang": "zh",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "expand.cn_natural.zh",
+      "path": "expand.cn_natural.zh.txt",
+      "sha256": "e08f10e7bf33eaff47becd4de5bafc1fb6fa9590199aa8b7dd2168517000d8db",
+      "lang": "zh",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "expand.generic_natural.en",
+      "path": "expand.generic_natural.en.txt",
+      "sha256": "9d952ef138b7aed19d51d3316f0b5cc133e2713c5b8b9c2a49bb298658bfff48",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "expand.generic_tags.en",
+      "path": "expand.generic_tags.en.txt",
+      "sha256": "8bee6910eb4af7e190ec78f35231d683b42c126426458d32ca8b6a34a92a2dbe",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "expand.cinematic.en",
+      "path": "expand.cinematic.en.txt",
+      "sha256": "6cf4ff28646584917e006b30fa9b568304308e4bd44e3db153c7652a71a30a0d",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    },
+    {
+      "id": "edit.i2i.en",
+      "path": "edit.i2i.en.txt",
+      "sha256": "574b815bb98060c83b7091f60740b0a5756459d530823ba80e00aad1cb3e90db",
+      "lang": "en",
+      "license": "MIT",
+      "source": "Original; method informed by public sources"
+    }
+  ]
+}

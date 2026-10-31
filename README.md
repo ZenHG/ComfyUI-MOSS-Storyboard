@@ -144,8 +144,18 @@ Outputs: a **1024×576** board and four **496×272** panels.
 | `moss-faceswap-single-ui.json` | **one photo** → face swap → image out (no `spec`) | ✅ | needs DMD2 + edit LoRA |
 | `moss-pose-generate-ui.json` | reference face + prompt → one posed image (`init=empty`) | ✅ | none |
 | `moss-storyboard-4panels-edit.json` | crop one panel → instruction edit → paste back | ✅ | needs edit LoRA |
+| `llm-caption-to-moss.json` | 🧩 one image → reverse-engineered prompt + report | ✅ | optional `moss_llm` subpackage |
+| `llm-idea-to-storyboard.json` | 🧩 one line → 4-panel board script → straight into the sampler | ✅ | optional `moss_llm` subpackage |
+| `llm-wash.json` | 🧩 re-wash: caption (ignoring compression/watermark class defects) → edit → redraw at the same ratio | ✅ | optional `moss_llm` subpackage |
 
-> ⚠ **Four of the eight examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
+> 🧩 The three marked `moss_llm` use `MossPromptSmith` from the **optional LLM subpackage**
+> (category `moss/llm`). They are not among the seven core nodes: delete the whole
+> `moss_llm/` directory and the core keeps working. It needs a llama-server
+> (set the node's `runtime` to the update option to install an official build in one click),
+> or the `外部 API` channel against any OpenAI-compatible endpoint.
+> **Both of those reach the network**, once per queued run.
+
+> ⚠ **Four of the eleven examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
 > `4panels-edit` / `poster`; the face-swap and pose examples have none) between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core
 > (`comfy_extras/nodes_easycache.py`, experimental, filed under `advanced/debug`) and lets the sampler reuse steps.
 > **Bypass it (`Ctrl+B`) or delete it before comparing anything against the numbers on this page** — with it on,

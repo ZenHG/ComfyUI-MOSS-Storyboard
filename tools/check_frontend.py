@@ -17,8 +17,9 @@
       （2026-10-30 实测：换脸节点 8 个入参不在 `LABELS` 里 ⇒ 中文界面显示英文参数名）
 - F7 每个**静态枚举**的每个取值都有中文显示（宿主给的采样器/调度器列表除外）
 - F8 编辑器文案表 `STR` 每条都有 zh 与 en，且没有死键
-- F9 `NODES` 覆盖全部 7 个节点，中英名都不为空
+- F9 `NODES` 覆盖全部 8 个节点（核心 7 + 子包 1），中英名都不为空
 - F10 每个入参都有**中文** tooltip（界面汉化最后一道：没有说明等于没汉化）
+- F5b 子包节点每个入参都有**英文**提示（`TIPS` 只存 en；缺一条 ⇒ 英文界面露出中文）
 
 用法：
     python tools/check_frontend.py                       # 默认查 examples/*.json
@@ -79,7 +80,7 @@ def f1_english_clean(nodes_en, tips):
     bad = [k for k, v in nodes_en.items() if CJK.search(v)]
     check("F1a 节点英文名不含中文/全角标点", not bad, str(bad))
 
-    entries = re.findall(r'"((?:\*|MossStoryboard\w+)\.(\w+)":\s*\{[^}]*\})', tips, re.S)
+    entries = re.findall(r'"((?:\*|Moss\w+)\.(\w+)":\s*\{[^}]*\})', tips, re.S)
     bad_tip = []
     for key, _, body in [(e[0], e[1], e[0]) for e in entries]:
         m = re.search(r'en:\s*"((?:[^"\\]|\\.)*)"', body, re.S)
@@ -160,9 +161,22 @@ def f4_titles(paths, nodes_zh, nodes_en):
 
 
 def f5_tip_keys(tips, param_names):
-    keys = re.findall(r'"(\*|MossStoryboard\w+)\.(\w+)":', tips)
+    keys = re.findall(r'"(\*|Moss\w+)\.(\w+)":', tips)
     orphan = [(t, p) for t, p in keys if t != "*" and (t, p) not in param_names]
     check("F5 提示键都能对上真实节点与参数（%d 条）" % len(keys), not orphan, str(orphan[:4]))
+
+
+def f5b_llm_tips(tips, param_names):
+    """子包节点的每个入参都要有英文提示。
+
+    `TIPS` 只存 en（中文唯一源在后端）；少一条就会在英文界面露出中文说明。
+    F5 只查"没有孤儿键"，查不出"漏了某个参数"。
+    """
+    keys = set(re.findall(r'"MossPromptSmith\.(\w+)":', tips))
+    params = {p for t, p in param_names if t == "MossPromptSmith"}
+    missing = sorted(params - keys)
+    check("F5b 提示词工匠每个入参都有英文提示（%d 个）" % len(params), bool(params) and not missing,
+          ", ".join(missing[:6]))
 
 
 def f6_label_coverage(param_names, src):
@@ -206,6 +220,10 @@ def _class_body(src, cls):
 #: 宿主给的列表，值就是英文 ID（euler / dpmpp_2m …），翻译反而会让人对不上别的节点。
 HOST_COMBO = {"sampler_name", "scheduler"}
 
+#: 值来自磁盘/运行时的动态下拉（GGUF 文件名、mmproj 文件名）——
+#: 文件名本来就该原样显示；只有固定项（auto / none）在 COMBOS 里有中文。
+DYNAMIC_COMBO = {"model", "mmproj"}
+
 
 def f7_combo_labels(mapping, src_js):
     """每个**枚举入参**的每个取值都要有中文显示。
@@ -235,7 +253,7 @@ def f7_combo_labels(mapping, src_js):
         for sec in ("required", "optional"):
             for name, spec in (it.get(sec) or {}).items():
                 opts = spec[0] if spec else None
-                if not isinstance(opts, list) or name in HOST_COMBO:
+                if not isinstance(opts, list) or name in HOST_COMBO or name in DYNAMIC_COMBO:
                     continue
                 # 比例值（16:9 / 2.39:1）本身就能读，不要求翻译；其余值必须有中文。
                 vals = [str(v) for v in opts
@@ -298,7 +316,7 @@ def f9_node_titles(src_js, classes):
             missing.append(cls)
         elif not CJK.search(zh.group(1)):
             no_cjk.append(cls)
-    check("F9 七个节点都有中英显示名", not missing, str(missing))
+    check("F9 八个节点都有中英显示名", not missing, str(missing))
     check("F9b 中文显示名确实是中文", not no_cjk, str(no_cjk))
 
 
@@ -334,8 +352,24 @@ def main(argv):
     sys.modules["moss_sb_fe"] = mod
     loader.exec_module(mod)
     from moss_sb_fe.nodes import NODE_CLASS_MAPPINGS as V1
+
+    # 可选子包（`moss_llm/`）同一手法加载：它的 `nodes.py` 只用标准库。
+    # 子包的节点也要过 F4–F10 —— 它同样带中文标签/枚举显示/中英标题。
+    llm_dir = os.path.join(ROOT, "moss_llm")
+    llm_loader = importlib.machinery.SourceFileLoader(
+        "moss_llm", os.path.join(llm_dir, "__init__.py"))
+    llm_spec = importlib.util.spec_from_loader(
+        "moss_llm", llm_loader, origin=os.path.join(llm_dir, "__init__.py"), is_package=True)
+    llm_mod = importlib.util.module_from_spec(llm_spec)
+    llm_mod.__path__ = [llm_dir]
+    sys.modules["moss_llm"] = llm_mod
+    llm_loader.exec_module(llm_mod)
+    from moss_llm.nodes import NODE_CLASS_MAPPINGS as LLM
+
+    ALL = dict(V1)
+    ALL.update(LLM)
     param_names = set()
-    for name, cls in V1.items():
+    for name, cls in ALL.items():
         it = cls.INPUT_TYPES()
         for section in ("required", "optional"):
             for pname in (it.get(section) or {}):
@@ -354,18 +388,21 @@ def main(argv):
     f4_titles(wfs, nodes_zh, nodes_en)
     print("\n== F5 提示键对账 ==")
     f5_tip_keys(tips, param_names)
+    f5b_llm_tips(tips, param_names)
     print("\n== F6 中文标签覆盖 ==")
     f6_label_coverage(param_names, src)
 
-    classes = list(V1)
+    classes = list(ALL)
     print("\n== F7 枚举取值中文 ==")
-    f7_combo_labels(V1, src)
+    f7_combo_labels(ALL, src)
     print("\n== F8 编辑器文案中英 ==")
     f8_editor_strings()
     print("\n== F9 节点显示名 ==")
     f9_node_titles(src, classes)
     print("\n== F10 中文 tooltip ==")
-    f10_tooltips(open(os.path.join(ROOT, "nodes.py"), encoding="utf-8").read(), classes)
+    src_py = open(os.path.join(ROOT, "nodes.py"), encoding="utf-8").read()
+    src_llm = open(os.path.join(ROOT, "moss_llm", "nodes.py"), encoding="utf-8").read()
+    f10_tooltips(src_py + "\n" + src_llm, classes)
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:

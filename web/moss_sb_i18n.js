@@ -83,6 +83,12 @@ export const NODES = {
         zh: "🎬 故事板 · 换脸", en: "🎬 Storyboard · Face Swap",
         legacy: "MOSS Storyboard Face Swap",
     },
+    //: 可选 LLM 子包（分类 `moss/llm`）的唯一节点。后端显示名仍是英文
+    //: （`MOSS Prompt Smith`），老工作流里的标题就是它 ⇒ legacy 必须收进来。
+    MossPromptSmith: {
+        zh: "🖊 提示词工匠", en: "🖊 Prompt Smith",
+        legacy: "MOSS Prompt Smith",
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -105,6 +111,41 @@ export const LABELS_EN = {
     panel: "edited panel",
     grid: "grid image",
     marked: "marked grid",
+    // ---- LLM 子包（MossPromptSmith）----
+    task: "task",
+    channel: "channel",
+    dialect: "dialect",
+    text: "idea / change",
+    length: "length",
+    temperature: "temperature",
+    max_tokens: "max tokens",
+    mmproj: "vision mmproj",
+    language: "prose language",
+    thinking: "thinking",
+    style_lock: "style lock",
+    must_keep: "must keep",
+    wash: "ignore artifacts",
+    two_pass: "two passes",
+    runtime: "runtime",
+    api_base: "API endpoint",
+    api_model: "API model",
+    api_key: "API key",
+    api_key_env: "key env var",
+    ctx_size: "context size",
+    gpu_layers: "GPU layers",
+    cache_type_k: "K cache type",
+    cache_type_v: "V cache type",
+    flash_attn: "flash attention",
+    image_max_tokens: "image max tokens",
+    ubatch: "micro-batch",
+    parallel: "parallel",
+    fit_on: "fit to VRAM",
+    fit_target_mib: "VRAM reserve (MiB)",
+    mtp: "MTP draft",
+    mtp_draft_n: "draft tokens",
+    server_exe: "llama-server path",
+    port: "port",
+    release_after_run: "free VRAM after run",
 };
 
 export const LABELS = {
@@ -158,6 +199,41 @@ export const LABELS = {
     mask: "蒙版",
     width: "宽",
     height: "高",
+    // ---- LLM 子包（MossPromptSmith）----
+    task: "任务",
+    channel: "通道",
+    dialect: "方言",
+    text: "想法 / 要改什么",
+    length: "篇幅",
+    temperature: "温度",
+    max_tokens: "最大 token",
+    mmproj: "视觉投影",
+    language: "说明语言",
+    thinking: "思考模式",
+    style_lock: "角色 / 风格锁定",
+    must_keep: "必留项",
+    wash: "忽略杂项",
+    two_pass: "两遍法",
+    runtime: "运行时",
+    api_base: "API 端点",
+    api_model: "API 模型名",
+    api_key: "API Key",
+    api_key_env: "Key 环境变量",
+    ctx_size: "上下文长度",
+    gpu_layers: "GPU 层数",
+    cache_type_k: "K 缓存精度",
+    cache_type_v: "V 缓存精度",
+    flash_attn: "闪存注意力",
+    image_max_tokens: "每图视觉 token",
+    ubatch: "微批大小",
+    parallel: "并发请求",
+    fit_on: "显存适配",
+    fit_target_mib: "预留显存（MiB）",
+    mtp: "推测解码 MTP",
+    mtp_draft_n: "草稿 token 数",
+    server_exe: "服务器程序",
+    port: "端口",
+    release_after_run: "跑完释放显存",
 };
 
 //: **同名参数在不同节点上含义不同** —— 全局标签只能取一个，所以这里按节点覆盖。
@@ -179,6 +255,12 @@ const LABELS_NODE = {
     },
     MossStoryboardLayout: {
         prompt: "提示词（留空即可）",
+    },
+    //: `image` 在子包里是给模型看的参考图（反推必接），不是被改的源图。
+    //: `panels` 不是截图的格数，而是宫格稿里声明的面板数。
+    MossPromptSmith: {
+        image: "参考图（反推必接）",
+        panels: "面板数（宫格稿）",
     },
 };
 
@@ -209,6 +291,33 @@ export const COMBOS = {
     show_guides: { true: "开", false: "关" },
     // 种子下面那一栏（生成后控制）：值是 fixed/increment/decrement/randomize
     control_after_generate: { fixed: "固定", increment: "递增", decrement: "递减", randomize: "随机" },
+
+    // ===== LLM 子包 =====
+    // 存档值一律 ASCII id（见 `moss_llm/nodes.py` 顶部注释），这里只给中文显示。
+    // 动态下拉（模型文件名 / mmproj 文件名）没有条目 ⇒ 原样显示文件名。
+    task: { caption: "反推", expand: "扩写", edit: "编辑指令" },
+    channel: { local: "本地 GGUF", api: "外部 API" },
+    dialect: {
+        moss_image: "MOSS 单图（英文散文）",
+        moss_storyboard: "MOSS 宫格（中文 [PANEL]）",
+        generic_natural: "通用自然语言",
+        generic_tags: "通用标签",
+        cinematic: "电影感",
+        cn_natural: "国内模型（中文）",
+    },
+    length: { brief: "简短", standard: "标准", detailed: "详细" },
+    language: { auto: "自动", zh: "中文", en: "英文" },
+    thinking: { off: "关（推荐）", on: "开" },
+    runtime: { current: "用现有", update: "更新到最新版" },
+    mmproj: { auto: "自动匹配", none: "不使用（纯文本）" },
+    cache_type_k: { q8_0: "q8_0（省一半）", q4_0: "q4_0（再省一半）", f16: "f16（不省）" },
+    cache_type_v: { q8_0: "q8_0（省一半）", q4_0: "q4_0（再省一半）", f16: "f16（不省）" },
+    flash_attn: { on: "开", off: "关" },
+    fit_on: { on: "开", off: "关" },
+    mtp: { auto: "自动", on: "开", off: "关" },
+    wash: { true: "开", false: "关" },
+    two_pass: { true: "开", false: "关" },
+    release_after_run: { true: "开", false: "关" },
 };
 
 // ---------------------------------------------------------------------------
@@ -535,6 +644,169 @@ export const TIPS = {
     },
     "MossStoryboardFaceSwap.negative": {
         en: "[Optional] Negative prompt. At cfg = 1.0 the host skips the negative branch, so this does nothing.",
+    },
+
+    // ===== LLM 子包 · 提示词工匠 =====
+    // 中文唯一源 = `moss_llm/nodes.py` 的 tooltip；这里只写 en，按键逐条对齐。
+    "MossPromptSmith.task": {
+        en: "[What to run] caption = look at the image and write the prompt (image required);\n"
+            + "expand = turn your idea into a full scene description (text required);\n"
+            + "edit = one instruction for image-to-image (image + what to change).",
+    },
+    "MossPromptSmith.channel": {
+        en: "[Where the model runs] local = start a llama-server sidecar (no network, VRAM freed after the run);\n"
+            + "api = any OpenAI-compatible endpoint (OpenAI / Volcengine Ark / Zhipu / Kimi / MiniMax /\n"
+            + "DeepSeek / Ollama / LM Studio ...): no sidecar, no VRAM, but images and text leave the machine.",
+    },
+    "MossPromptSmith.dialect": {
+        en: "[Output dialect] moss_image = MOSS single-image English prose (official default);\n"
+            + "moss_storyboard = MOSS board Chinese [STYLE] + [PANEL n] (the format verified in this repo;\n"
+            + "panels must equal the number of sections); generic_* for Flux/Krea/SDXL; cn_natural for\n"
+            + "Seedream / Jimeng / Kling / Vidu.",
+    },
+    "MossPromptSmith.model": {
+        en: "[Pick a file] Every GGUF under ComfyUI/models/LLM and models/text_encoders, shown by relative path;\n"
+            + "any architecture llama.cpp supports. Captioning needs vision: either a main model + mmproj,\n"
+            + "or a single VL model.",
+    },
+    "MossPromptSmith.text": {
+        en: "[What to enter] expand = your idea (fixed facts go in must_keep, not here);\n"
+            + "edit = what to change. Leave empty for caption.",
+    },
+    "MossPromptSmith.length": {
+        en: "[What to enter] brief 80-120 words / standard 160-260 / detailed 280-360, with a per-dialect cap.\n"
+            + "Caption favours stable wording, expand favours variation.",
+    },
+    "MossPromptSmith.temperature": {
+        en: "[What to enter] 0.2 for caption (stable, reproducible); 0.7 for expand (more varied).\n"
+            + "Same seed + prompt + model reproduces.",
+    },
+    "MossPromptSmith.max_tokens": {
+        en: "[What to enter] Output cap. 512-1024 for caption; 768-1024 for expand.\n"
+            + "A long system prompt plus strict JSON can hit the cap occasionally; leave headroom.",
+    },
+    "MossPromptSmith.seed": {
+        en: "[What to enter] Same seed + prompt + model reproduces. Changing the seed only changes sampling,\n"
+            + "not what the prompt says.",
+    },
+    "MossPromptSmith.image": {
+        en: "[Wire] Required for caption; optional reference for expand; required for edit.",
+    },
+    "MossPromptSmith.mmproj": {
+        en: "[Vision tower] Required whenever an image goes in (without it the model cannot see the image).\n"
+            + "auto = match by width (model embedding_length == tower projection_dim) in the model's folder\n"
+            + "and both scan roots; several matches raise instead of guessing. none = never load an mmproj\n"
+            + "even if one exists. MOSS TE pairs with Qwen3.5-9B.mmproj-Q8_0.gguf.",
+    },
+    "MossPromptSmith.language": {
+        en: "[What to enter] Language of the prose description. Text inside the image keeps its own language.",
+    },
+    "MossPromptSmith.thinking": {
+        en: "[Keep off] Thinking mode. Measured: with it on the answer goes to reasoning_content, content is\n"
+            + "empty and finish=length, so the prompt comes back blank. Only enable for models that must\n"
+            + "reason first, and raise max_tokens at the same time.",
+    },
+    "MossPromptSmith.panels": {
+        en: "[moss_storyboard only] Panel count declared in the global section. The number of [PANEL] sections\n"
+            + "must equal it; report warns on a mismatch and never edits silently.",
+    },
+    "MossPromptSmith.style_lock": {
+        en: "[What to enter] Character / clothing / environment / medium lock. In a board script a character is\n"
+            + "defined once here; each panel only states the difference (repeating the full description\n"
+            + "squeezes out the shot-size clause).",
+    },
+    "MossPromptSmith.must_keep": {
+        en: "[What to enter] Exact words / numbers / colours / positions the user pins, semicolon separated.\n"
+            + "They must appear verbatim; expand may not change them. report checks each one.",
+    },
+    "MossPromptSmith.wash": {
+        en: "[Caption only] Ignore compression noise / watermarks / UI clutter that are not design defects,\n"
+            + "and list them under omitted_artifacts (never silently dropped).",
+    },
+    "MossPromptSmith.two_pass": {
+        en: "[Caption only] Inventory first, then write the prose. Use it when cleaning up an image or when\n"
+            + "fidelity matters; one pass is faster, two passes are steadier (both calls reuse one sidecar).",
+    },
+    "MossPromptSmith.runtime": {
+        en: "[What to enter] current = find llama-server via server path / env var / this package's runtime / PATH;\n"
+            + "update = download and install the latest official llama.cpp release from GitHub first\n"
+            + "(CUDA/ROCm/Vulkan/SYCL/Metal/CPU picked for this machine; MOSS_LLM_MIRROR for a slow network,\n"
+            + "MOSS_LLM_BACKEND to override), then use it.",
+    },
+    "MossPromptSmith.api_base": {
+        en: "[api channel] OpenAI-compatible endpoint. Either https://host/v1 or the full .../v1/chat/completions\n"
+            + "works. Examples: https://api.openai.com/v1, https://ark.cn-beijing.volces.com/api/v3,\n"
+            + "http://127.0.0.1:11434/v1 (Ollama), http://127.0.0.1:1234/v1 (LM Studio).\n"
+            + "Required when channel=api.",
+    },
+    "MossPromptSmith.api_model": {
+        en: "[api channel] Model id as the provider names it. Required when channel=api; ignored on the local channel.",
+    },
+    "MossPromptSmith.api_key": {
+        en: "[api channel] API key. NOTE: typed here it is saved into the workflow JSON and shared with it;\n"
+            + "to share a workflow, clear this and use the env var below.",
+    },
+    "MossPromptSmith.api_key_env": {
+        en: "[api channel] Which environment variable holds the key (empty = do not read one).\n"
+            + "Keeping the key out of the workflow is the safe route; local endpoints (Ollama / LM Studio)\n"
+            + "usually need no key, leave both empty.",
+    },
+    "MossPromptSmith.ctx_size": {
+        en: "[Local engine] Caption prompts carry many image tokens; 8192 or more is recommended.\n"
+            + "Bigger values cost more VRAM (KV cache).",
+    },
+    "MossPromptSmith.gpu_layers": {
+        en: "[Local engine] Empty = auto (llama.cpp computes layers from free VRAM, together with fit);\n"
+            + "a number = how many layers to put on the GPU.",
+    },
+    "MossPromptSmith.cache_type_k": {
+        en: "[Local engine] K cache quantisation: q8_0 roughly halves it, q4_0 halves it again\n"
+            + "(slight quality loss).",
+    },
+    "MossPromptSmith.cache_type_v": {
+        en: "[Local engine] V cache quantisation, same choices as K. Usually keep it equal to K.",
+    },
+    "MossPromptSmith.flash_attn": {
+        en: "[Local engine] Cuts KV VRAM and speeds things up; on by default.",
+    },
+    "MossPromptSmith.image_max_tokens": {
+        en: "[Local engine] Maximum vision tokens per reference image - the biggest VRAM variable when\n"
+            + "several images go in.",
+    },
+    "MossPromptSmith.ubatch": {
+        en: "[Local engine] Tokens per forward batch; sets peak VRAM and speed. Drop to 256 if VRAM runs out.",
+    },
+    "MossPromptSmith.parallel": {
+        en: "[Local engine] Concurrent requests; the KV cache grows by the same factor. Keep 1 for single-user prompting.",
+    },
+    "MossPromptSmith.fit_on": {
+        en: "[Local engine] llama.cpp native VRAM fitting: squeeze usage under (total VRAM - reserve) and\n"
+            + "offload layers that do not fit to the CPU. Keep it on for a 12 GB card shared with ComfyUI.",
+    },
+    "MossPromptSmith.fit_target_mib": {
+        en: "[Local engine] VRAM reserve for the fit target (room left for ComfyUI sampling). Default 1024 MiB.",
+    },
+    "MossPromptSmith.mtp": {
+        en: "[Local engine] auto = read GGUF metadata for nextn/mtp (never the file name - the dhq build has\n"
+            + "nextn without -mtp in its name); on = force it (falls back with a warning if unsupported);\n"
+            + "off = disable. Measured 1.48-1.64x on the same target; DFlash accepts only 10-31% for MOSS\n"
+            + "targets, so it is not used.",
+    },
+    "MossPromptSmith.mtp_draft_n": {
+        en: "[Local engine] --spec-draft-n-max for draft-mtp. Default 2.",
+    },
+    "MossPromptSmith.server_exe": {
+        en: "[Local engine] Full path to llama-server. Empty = search env MOSS_LLM_SERVER >\n"
+            + "this package's moss_llm/runtime/ > system PATH.",
+    },
+    "MossPromptSmith.port": {
+        en: "[Local engine] Avoids 8080 used by the Banzhang package. An externally occupied port is reused,\n"
+            + "never killed.",
+    },
+    "MossPromptSmith.release_after_run": {
+        en: "[Local engine] On (default): terminate llama-server and free VRAM after the run.\n"
+            + "Off: keep the service for faster repeat calls, but it holds VRAM - release it by running this\n"
+            + "node again or restarting before sampling.",
     },
 };
 

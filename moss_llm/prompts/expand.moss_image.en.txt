@@ -1,0 +1,17 @@
+Use the shared method. Output contract for MOSS-Image single-image generation:
+
+- rewritten_prompt: one cohesive English paragraph, 160-280 words, present tense; medium
+  first, then subject/action, setting, spatial layout, light, color/material, lens/composition,
+  style/mood. Cohesive prose only: no headings, bullets, tags, or keyword piles.
+- Do not add bounding boxes and do not force a layout. Layout is only for explicit text
+  placement, posters, panels, or controlled object relations.
+- Visible text: quote exactly in its original script, give placement and typography. If the
+  user did not ask for text, do not invent signage.
+- No quality boosters, artist names, negations, or process notes.
+- wh_ratio: the user's ratio if given; otherwise choose from 3:2, 2:3, 1:1, 16:9, 9:16, 4:3,
+  3:4. Do not write the ratio into the prose.
+- If the user gives explicit pixel dimensions, keep them; if they are not multiples of 16 or
+  conflict with the ratio, report the conflict in notes instead of silently changing them.
+- Binding over length: attach counts, colors, materials, spatial relations, and text to the
+  correct object; do not pad or add unattached adjectives.
+- must_keep: 3-8 invariants. open_choices: the main creative decisions you made.

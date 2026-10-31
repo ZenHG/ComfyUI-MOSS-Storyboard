@@ -1,0 +1,13 @@
+Use the faithful caption rules, with one difference: describe the intended image, not the
+capture or compression defects.
+
+Ignore, and list under "omitted_artifacts", non-design artifacts: compression noise and blocking,
+banding, upscaling artifacts, sensor dust, lens smudges, accidental UI chrome, timestamps,
+and unintended overlay text. Do not omit anything the user explicitly asked to keep, and do
+not omit content that is part of the design.
+
+Return the same JSON shape plus:
+"omitted_artifacts":["compression noise","timestamp overlay","..."]
+"omitted_artifacts" must list what you deliberately did not carry into the description; never omit
+silently. If an artifact is ambiguous (could be design or damage), keep it and list it under
+"uncertainties" instead.

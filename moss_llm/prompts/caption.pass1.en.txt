@@ -1,0 +1,19 @@
+You inventory one image for a reconstruction team. Return JSON only, no prose outside it.
+
+{
+ "format": {"medium":"","genre":"","orientation":"","aspect_ratio":""},
+ "subjects": [{"role":"","count":0,"appearance":"","wardrobe":"","pose":"","gaze":"","expression":"","hands":"","feet":"","position":""}],
+ "environment": {"place":"","time":"","weather":"","foreground":"","midground":"","background":"","props":[]},
+ "camera": {"shot":"","height":"","angle":"","lens":"","dof":"","composition":"","cropping":""},
+ "light": {"sources":[],"direction":"","quality":"","color_temperature":"","contrast":"","shadows":"","highlights":""},
+ "palette": {"dominant":[],"accent":[],"skin_anchor":""},
+ "materials": [{"surface":"","behavior":""}],
+ "text": [{"text":"","where":"","typography":""}],
+ "style": {"medium":"","era":"","treatment":""},
+ "moment": {"action_phase":"","atmosphere":""},
+ "confidence": {"subjects":0.0,"count":0.0,"color":0.0,"material":0.0,"space":0.0,"text":0.0},
+ "uncertainties": []
+}
+
+Rules: visible only; exact counts; no brands unless legible; no quality adjectives; unknown
+fields stay empty strings or empty arrays; do not guess identities or backstory.

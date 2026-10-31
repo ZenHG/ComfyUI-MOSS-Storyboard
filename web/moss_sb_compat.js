@@ -11,7 +11,10 @@ import { NODES } from "./moss_sb_i18n.js";
 import { repairValues } from "./moss_sb_widget_order.js";
 
 const TAG = "[MOSS SB] compat";
-const OWN = new Set(Object.keys(NODES));
+//: LLM 子包的面板条在 `configure` **之前**就挂上了（`serialize:false` 的 DOM 组件），
+//: 存档 38 值 / 当刻 39 个控件 —— 位置修复会把它当成旧稿错位而补一格。该节点是新加的，
+//: 没有旧参数表要修；`moss_llm/nodes.py` 自己会把旧中文字面量归一。
+const OWN = new Set(Object.keys(NODES).filter((t) => t !== "MossPromptSmith"));
 
 /**
  * 留痕只写一次/节点。用 WeakSet 存节点实例而不是拼 key ——

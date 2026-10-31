@@ -44,13 +44,29 @@ if NODE_API == "v3":
               "要显式用 V1：设 MOSSSB_NODE_API=v1 后重启。")
         NODE_API = "v1"
 
+# 可选 LLM 子包（`moss_llm/`）：🔴 **不属于核心 7 个节点**，装载失败只缺它自己。
+# 判据「是不是核心」看的是 `nodes.py` 的注册表，这里只是把它并进宿主看得见的出口。
+try:
+    from .moss_llm import (NODE_CLASS_MAPPINGS as _LLM_CLASS_MAPPINGS,
+                           NODE_DISPLAY_NAME_MAPPINGS as _LLM_DISPLAY_MAPPINGS,
+                           llama_server_hint as _llama_server_hint)
+except Exception as _llm_err:
+    _LLM_CLASS_MAPPINGS, _LLM_DISPLAY_MAPPINGS = {}, {}
+    _LLM_LOAD_ERROR = "%s: %s" % (type(_llm_err).__name__, _llm_err)
+else:
+    _LLM_LOAD_ERROR = None
+
 if NODE_API == "v3":
     # ⚠ 必须是 None 而不是空 dict：宿主判据含 "is not None"。
     NODE_CLASS_MAPPINGS = None
     NODE_DISPLAY_NAME_MAPPINGS = None
     __all__ = ["comfy_entrypoint"]
 else:
-    from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+    from .nodes import NODE_CLASS_MAPPINGS as _CORE_CLASS_MAPPINGS
+    from .nodes import NODE_DISPLAY_NAME_MAPPINGS as _CORE_DISPLAY_MAPPINGS
+    # V1 出口也把可选子包并进来 ⇒ 两条出口的节点集一致（V3 由 `v3/entrypoint.py` 追加）。
+    NODE_CLASS_MAPPINGS = {**_CORE_CLASS_MAPPINGS, **_LLM_CLASS_MAPPINGS}
+    NODE_DISPLAY_NAME_MAPPINGS = {**_CORE_DISPLAY_MAPPINGS, **_LLM_DISPLAY_MAPPINGS}
     __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
 __version__ = "0.3.3"
@@ -67,8 +83,9 @@ def _node_names():
             names = [getattr(c, "__name__", "?") for c in (NODES or ())]
             if names:
                 return names
-        elif NODE_CLASS_MAPPINGS:
-            return sorted(NODE_CLASS_MAPPINGS)
+        else:
+            # 只数核心：可选子包不进这个数（README 引用的是「节点 7 个」那行）
+            return sorted(_CORE_CLASS_MAPPINGS)
     except Exception as _e:
         print("[MOSS SB] ⚠️ 节点清单取用失败（%s: %s）" % (type(_e).__name__, _e))
     try:
@@ -81,8 +98,17 @@ def _node_names():
 def _load_banner():
     names = _node_names()
     api = NODE_API + ("（V3 失败已回退）" if NODE_API_FALLBACK_REASON else "")
-    return "[MOSS SB] v%s 已加载｜节点 %d 个（出口 %s）｜3/4/6/8/9 宫格" % (
+    line = "[MOSS SB] v%s 已加载｜节点 %d 个（出口 %s）｜3/4/6/8/9 宫格" % (
         __version__, len(names) if names else -1, api)
+    if _LLM_CLASS_MAPPINGS:
+        line += "\n[MOSS SB] 可选 LLM 子包 %d 个节点（分类 moss/llm，不计入上面那 %d 个）" % (
+            len(_LLM_CLASS_MAPPINGS), len(names))
+        _hint = _llama_server_hint()
+        if _hint:
+            line += "\n[MOSS SB] ⚠ " + _hint
+    elif _LLM_LOAD_ERROR:
+        line += "\n[MOSS SB] ⚠️ 可选 LLM 子包未加载（核心不受影响）：%s" % _LLM_LOAD_ERROR
+    return line
 
 
 try:

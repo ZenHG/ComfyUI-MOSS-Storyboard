@@ -14,7 +14,7 @@
 //   ⑥ 词表完整性（新增参数忘了翻译）由 `tests/test_contract.py` 在 Python 侧核对
 
 import {
-    NODES, LABELS, COMBOS, TIPS, LANG_KEY, LANG_EVENT,
+    NODES, LABELS, LABELS_EN, COMBOS, TIPS, LANG_KEY, LANG_EVENT,
     normLang, defaultLang, defaultTitles, isDefaultTitle, swapTitle,
     comboLabel, applyCombo, pickTip, tipFor, applyLang, ownNodes,
 } from "../web/moss_sb_i18n.js";
@@ -55,7 +55,7 @@ check("1.4 defaultLang：非法语言码 ⇒ en（宿主常见 fr/ja）",
 
 // ---- 2. 词表完整性 ----
 const types = Object.keys(NODES);
-check("2.1 七个节点都有 zh/en", types.length === 7 && types.every((t) => NODES[t].zh && NODES[t].en),
+check("2.1 八个节点都有 zh/en", types.length === 8 && types.every((t) => NODES[t].zh && NODES[t].en),
     types.join(","));
 check("2.2 标题 zh 与 en 不相同", types.every((t) => NODES[t].zh !== NODES[t].en));
 const tipKeys = Object.keys(TIPS);
@@ -70,6 +70,24 @@ check("2.7 LABELS 都是非空中文串",
     Object.keys(LABELS).length > 20 && Object.values(LABELS).every((v) => typeof v === "string" && v.length > 0));
 check("2.8 COMBOS 的值都是字符串（不会误翻数字枚举）",
     Object.values(COMBOS).every((m) => Object.values(m).every((v) => typeof v === "string")));
+
+// ---- 2.5 子包节点：38 个参数一个都不许漏（漏了 = 中文界面显示英文名 / 英文界面显示中文说明）----
+const SMITH = "MossPromptSmith";
+//: 与 `moss_llm/nodes.py::INPUT_TYPES` 同步；参数表对账（增删参数）在 Python 侧 `check_frontend` F5/F6。
+const SMITH_PARAMS = [
+    "task", "channel", "dialect", "model", "text", "length", "temperature", "max_tokens", "seed",
+    "image", "mmproj", "language", "thinking", "panels", "style_lock", "must_keep", "wash", "two_pass",
+    "runtime", "api_base", "api_model", "api_key", "api_key_env", "ctx_size", "gpu_layers",
+    "cache_type_k", "cache_type_v", "flash_attn", "image_max_tokens", "ubatch", "parallel",
+    "fit_on", "fit_target_mib", "mtp", "mtp_draft_n", "server_exe", "port", "release_after_run",
+];
+const missLabel = SMITH_PARAMS.filter((n) => !LABELS[n]);
+const missTip = SMITH_PARAMS.filter((n) => !(TIPS[SMITH + "." + n] && TIPS[SMITH + "." + n].en));
+check("2.9 提示词工匠 38 个参数都有中文标签", SMITH_PARAMS.length === 38 && !missLabel.length,
+    missLabel.join(","));
+check("2.10 提示词工匠 38 个参数都有英文提示", !missTip.length, missTip.join(","));
+check("2.11 子包节点的后端显示名进了 legacy（老工作流才可切）",
+    NODES[SMITH].legacy === "MOSS Prompt Smith" && defaultTitles(SMITH).length === 3);
 
 // ---- 3. 标题 ----
 const T = "MossStoryboardSampler";
@@ -86,12 +104,25 @@ check("3.7 isDefaultTitle 判定正确",
     && isDefaultTitle("", T) && !isDefaultTitle("自定义", T));
 check("3.8 defaultTitles 含 中/英/后端显示名 三种", defaultTitles(T).length === 3,
     JSON.stringify(defaultTitles(T)));
+check("3.9 后端旧标题（无图标）也能换语言",
+    swapTitle("MOSS Prompt Smith", SMITH, "zh") === NODES[SMITH].zh
+    && swapTitle("MOSS Prompt Smith · 反推", SMITH, "en") === NODES[SMITH].en + " · 反推");
 
 // ---- 4. 枚举显示 ----
 check("4.1 白名单内 ⇒ 中文", comboLabel("init", "layout", "zh") === COMBOS.init.layout);
 check("4.2 白名单内、英文态 ⇒ 原值", comboLabel("init", "layout", "en") === "layout");
 check("4.3 白名单外 ⇒ null（不翻）", comboLabel("init", "unknown-value", "zh") === null
     && comboLabel("sampler_name", "euler", "zh") === null);
+check("4.4 子包枚举：任务 / 通道 / 篇幅 / 思考都有中文显示",
+    comboLabel("task", "caption", "zh") === "反推"
+    && comboLabel("channel", "api", "zh") === "外部 API"
+    && comboLabel("length", "detailed", "zh") === "详细"
+    && comboLabel("thinking", "off", "zh") === COMBOS.thinking.off
+    && comboLabel("task", "caption", "en") === "caption");
+check("4.5 动态下拉（模型 / mmproj 文件名）原样显示",
+    comboLabel("model", "GGUF/x.gguf", "zh") === null
+    && comboLabel("mmproj", "mmproj-x.gguf", "zh") === null
+    && comboLabel("mmproj", "auto", "zh") === COMBOS.mmproj.auto);
 
 // ---- 5. 悬停提示 ----
 check("5.1 en 命中", tipFor(T, "steps", "en") === TIPS[T + ".steps"].en);
@@ -193,6 +224,31 @@ check("6.22 英文：placeholder 回滚成原名（不残留中文）",
 const fta = mkText("KSampler", ["positive"]);
 applyLang(fta, "zh");
 check("6.23 外来节点的 placeholder 一个字节都不动", phOf(fta, "positive") === "positive");
+
+// ---- 6.6 子包节点：多行框与下拉（同一个 applyLang，不许两套规则）----
+const sm = mkText(SMITH, ["text", "style_lock", "must_keep"]);
+applyLang(sm, "zh");
+check("6.24 子包多行框：中文 placeholder",
+    phOf(sm, "text") === LABELS.text && phOf(sm, "style_lock") === LABELS.style_lock,
+    phOf(sm, "text") + "/" + phOf(sm, "style_lock"));
+applyLang(sm, "en");
+check("6.25 子包多行框：英文换成 LABELS_EN（不是裸参数名）",
+    phOf(sm, "text") === LABELS_EN.text && phOf(sm, "style_lock") === LABELS_EN.style_lock,
+    phOf(sm, "text") + "/" + phOf(sm, "style_lock"));
+
+const sn = mkNode(SMITH, [
+    { name: "task", value: "caption", label: "task", values: ["caption", "expand", "edit"] },
+    { name: "channel", value: "local", label: "channel", values: ["local", "api"] },
+]);
+applyLang(sn, "zh");
+check("6.26 子包下拉：显示中文、存档值不动",
+    sn.widgets[0].options.getOptionLabel("caption") === COMBOS.task.caption
+    && sn.widgets[1].options.getOptionLabel("api") === COMBOS.channel.api
+    && sn.widgets[0].value === "caption" && sn.widgets[1].value === "local");
+applyLang(sn, "en");
+check("6.27 子包下拉：切英文拆除显示钩子",
+    sn.widgets[0].options.getOptionLabel === undefined
+    && sn.widgets[1].options.getOptionLabel === undefined);
 
 // ---- 7. 自定义标题在切换中存活 ----
 const custom = mkNode("MossStoryboardCrop", [], { title: "我自己的裁格" });

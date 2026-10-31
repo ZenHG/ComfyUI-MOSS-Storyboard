@@ -1,5 +1,49 @@
 # CHANGES
 
+## 未发布 · 可选 LLM 子包 `moss_llm`（**节点数仍是 7**）
+
+一个全功能节点 `MossPromptSmith`（分类 `moss/llm`），对外**只出成品提示词** + 一份可读 report。
+提案与 6 路调研在 维护者本地交接目录 `_handover/新节点-反推与扩写-设计与提示词框架-2026-10-30.md`（不随包分发）；
+落地形态与实测在 `docs/20-llm-prompt-nodes.md`。
+
+- **反推 / 扩写 / 编辑指令**一个 `task` 旋钮；六种方言（MOSS 单图英文散文 · MOSS 宫格中文
+  `[STYLE]+[PANEL n]` · 通用自然语言 · 通用标签 · 电影感 · 国内模型中文）。
+- **不绑模型**：扫 `models/LLM` + `models/text_encoders` 全部 GGUF，认架构的事交给 llama.cpp；
+  mmproj 只在同目录唯一候选或名字含模型前缀时才自动配，多候选要用户手选 —— 不猜。
+- **MTP 读元数据不读文件名**：实测 `moss-te-heretic-dhq-K-6.6G.gguf` 有
+  `qwen35.nextn_predict_layers=1` 但文件名不含 `-mtp`（只看文件名的判据会漏）。默认 `d2`；
+  DFlash 对 MOSS target 接受率只有 10–31%，不用。
+- **一键更新 llama.cpp**：`runtime` 选「更新到最新版」→ GitHub 官方 release 按平台挑包装进
+  `moss_llm/runtime/`（已 `.gitignore`）。也可指 `MOSS_LLM_MIRROR` / `MOSS_LLM_RUNTIME_URL`。
+- **外部 API 通道**（`channel`）：任何 OpenAI 兼容端点，不起侧车、不占显存；
+  Key 优先从环境变量名读，写进工作流会在 report 里警告「随 JSON 分享出去」。
+- 🔴 **实测坑写进代码注释**：MOSS TE 默认开思考时内容全进 `reasoning_content`、
+  正文空 + `finish=length` ⇒ 提示词直接空掉。只有 `chat_template_kwargs.enable_thinking`
+  这一种传法生效（另两种实测无效），所以 `thinking` 默认关；正文为空就报错，
+  **不把思考内容当答案端上桌**。
+- 提示词包 12 个自写文件 + manifest，**改一个字就判红**并给出重新生成命令；
+  report 回显 pack 版本 / 每个文件 sha 前 8 位 / tokens / 耗时 / 降级记录。
+- 机检**只报数不裁决**：must_keep 哪几项没逐字命中、`[PANEL]` 段数 vs `panels`、
+  `confidence.risks`、`omitted_*`、`uncertainties`。
+- 核心 7 节点**没动**：`nodes.py` / `core/` / `v3/nodes_v3.NODES` 全不变，
+  子包由 `v3/entrypoint.py` 与根 `__init__.py` **追加**注册，装载失败只缺它自己（并出声）。
+  加载摘要那行仍是「节点 7 个」，子包单列一行。
+- 闸：`tests/test_llm_subpackage.py` 66/0（新增，已进 CONTRIBUTING 与 CI）·
+  `check_ui_workflow.py examples/llm-*.json` 46/0 · `tools/ui_llm_panel.mjs` 36/0 + 1 skip（真机）·
+  `check_frontend` 20/0 · `test_i18n.mjs` 64/0 · `ruff` 全绿。
+- 示例三份：`llm-caption-to-moss.json` / `llm-idea-to-storyboard.json` / `llm-wash.json`
+  （由 `tools/make_llm_examples.py` 生成，槽位序与门禁同源，不手抄 38 个 widget）。
+- **参数面板**（`web/moss_llm_panel.js`，随 `WEB_DIRECTORY` 自动加载）：开关条**钉在节点顶部**，
+  展开的组都在它下方（控制件坐标不随展开跑）；说明行高度恒定，悬停换 tooltip 不抖。
+  38 个参数默认只露常驻 5 项，一次只看一组（常用调优 / 本地引擎 / 外部 API），折起的组里
+  有改动就在 chip 上点一个蓝点。只改显隐、并按可见内容调节点高度 —— `widgets_values`
+  的格数与位置一个字节不动（真机闸 `tools/ui_llm_panel.mjs` 含「存盘→重开逐位一致」）。
+- **子包节点与核心 7 节点共用一套 i18n**：`NODES`（旧显示名进 legacy）/ 38 个 `LABELS` /
+  `LABELS_NODE` / 16 组 `COMBOS` / 38 条英文 `TIPS`；中文仍是后端唯一源。
+  「中/EN」按钮由核心 i18n 画进面板开关条（`langSlot`），不额外占 DOM 行。
+  枚举**存档值一律 ASCII id**（`caption/local/standard`…），中文只在显示层；
+  初版写进存档的中文由 `_LEGACY_VALUES` 运行时就地归一并在 report 里出声。
+
 ## 0.3.3 — 2026-10-30 · 编辑器交互 + 互操作补全（节点数仍是 7）
 
 这一版全在**画布上的手感**和**导入导出**，模型侧只改了两个默认值。

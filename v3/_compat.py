@@ -96,8 +96,10 @@ def schema_from_v1(v1_cls) -> io.Schema:
     name = v1_cls.__name__
     return io.Schema(
         node_id=name,
-        display_name=_DISPLAY.get(name, name),
-        category=_CATEGORY,
+        # 可选子包的类不在本包显示名表里：先看类自己的 DISPLAY_NAME，再退回表。
+        display_name=getattr(v1_cls, "DISPLAY_NAME", None) or _DISPLAY.get(name, name),
+        # 同理，分类也以类上的 CATEGORY 为准（核心七个类的它 == 模块级那个，行为不变）。
+        category=getattr(v1_cls, "CATEGORY", _CATEGORY),
         description=getattr(v1_cls, "DESCRIPTION", "") or "",
         inputs=v1_inputs(v1_cls.INPUT_TYPES()),
         outputs=v1_outputs(v1_cls.RETURN_TYPES, v1_cls.RETURN_NAMES),
@@ -118,4 +120,12 @@ def call_v1(class_name, kwargs):
     return node_output(getattr(cls(), cls.FUNCTION)(**kwargs))
 
 
-__all__ = ["ComfyExtension", "io", "schema_from_v1", "call_v1", "node_output"]
+def call_class(v1_cls, kwargs):
+    """按**类对象**转调 V1 的 FUNCTION —— 供可选子包用（它们不在本包 `nodes.py` 里）。
+
+    宿主按 schema 的入参名以 kwargs 传参 ⇒ 全接住，不挑名字。
+    """
+    return node_output(getattr(v1_cls(), v1_cls.FUNCTION)(**kwargs))
+
+
+__all__ = ["ComfyExtension", "io", "schema_from_v1", "call_v1", "call_class", "node_output"]

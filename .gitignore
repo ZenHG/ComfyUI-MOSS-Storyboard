@@ -6,6 +6,11 @@ build/
 .venv/
 venv/
 *.log
+# 一键装下来的 llama.cpp 运行时（几百 MB 二进制，且每台机器平台不同）：
+# 只由 `python -m moss_llm.runtime_install` 生成，绝不入库、绝不进发布包。
+moss_llm/runtime/
+moss_llm/runtime.old/
+moss_llm/runtime.new/
 .comfy_registry_token
 .DS_Store
 Thumbs.db

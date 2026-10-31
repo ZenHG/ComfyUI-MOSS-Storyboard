@@ -168,7 +168,15 @@ function mountBtn(node) {
     installSaveCleanup(node);
     if (node.__mosssbBar) return false;
 
-    const slot = node.__mossedUI && node.__mossedUI.langSlot;
+    // LLM 子包的面板条自己留了语言按钮的槽（`moss_llm_panel.js::buildBar`）。面板可能比本
+    // 扩展晚挂上 ⇒ 与布局编辑器一样先等几轮；等不到（宿主不支持 DOM 组件）再退回独立行。
+    const llmSlot = node.__mossllm && node.__mossllm.langSlot;
+    if (String(node.type || "") === "MossPromptSmith" && !llmSlot) {
+        const misses = (node.__mosssbWait = (node.__mosssbWait || 0) + 1);
+        if (misses <= 4) return false;
+    }
+
+    const slot = llmSlot || (node.__mossedUI && node.__mossedUI.langSlot);
     if (slot) {
         try {
             const btn = makeBtn();
@@ -219,6 +227,9 @@ function ensureFallbackButton() {
         const exist = document.getElementById("mosssb-lang");
         if (!own.length) { if (exist) exist.remove(); return; }
         if (_BTNS.size > 0) { if (exist) exist.remove(); return; }   // 节点内有按钮就不需要它
+        // LLM 子包的面板条还在挂载中（按钮要进它的 langSlot）⇒ 等它，别抢跑放一个全局按钮。
+        if (own.some((n) => n.type === "MossPromptSmith"
+            && n.__mosssbWait > 0 && n.__mosssbWait <= 4)) return;
         if (exist || !document.body) return;
         const b = document.createElement("button");
         b.id = "mosssb-lang";

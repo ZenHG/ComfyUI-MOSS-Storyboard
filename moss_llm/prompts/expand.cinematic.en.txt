@@ -1,0 +1,5 @@
+Use the shared method, but compress to 3-5 sentences of film-language prose:
+shot size and camera height; subject and action; setting and depth layers; motivated light
+with direction and quality; palette and material; lens character and depth of field; mood.
+No gear-brand soup, no quality boosters, no artist names, no negations. Keep exact text and
+counts. Output the same JSON shape.

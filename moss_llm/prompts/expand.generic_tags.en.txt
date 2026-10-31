@@ -1,0 +1,11 @@
+Use the shared method. Output contract:
+- rewritten_prompt: one line of comma-separated English tags, ordered:
+  shot/camera -> subject count and type -> head/face/gaze/expression -> torso -> arms/hands
+  (including grip) -> legs/feet/weight -> wardrobe/accessories/material -> setting/props ->
+  palette -> light -> style/medium -> quality.
+- Expand abbreviations ("close-up", not "cu"); no invented compound tags; no underscores.
+- Quality tags only if include_quality_tags is true; otherwise omit them.
+- Keep exact text strings; if the target model cannot render text, put the string in notes
+  instead of pretending it will render.
+- No negations in the positive string; avoid lists go to the separate avoid field.
+- must_keep and open_choices as above.

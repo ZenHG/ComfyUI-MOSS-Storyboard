@@ -43,7 +43,16 @@ def load_mappings():
     sys.modules["moss_sb_wf"] = mod
     loader.exec_module(mod)
     from moss_sb_wf import nodes as V1
-    return V1.NODE_CLASS_MAPPINGS
+    mappings = dict(V1.NODE_CLASS_MAPPINGS)
+    # 可选 LLM 子包（`moss_llm/`）也算**本包节点**：它的示例同样要核连线与 widget 槽位。
+    # 子包装不上（缺 llama-server 之类）就只核核心 7 个，不把闸变成"必须装可选件才绿"。
+    try:
+        from moss_sb_wf import moss_llm as LLM
+        mappings.update(LLM.NODE_CLASS_MAPPINGS)
+    except Exception as _llm_err:
+        print("  （可选 LLM 子包未纳入本包节点集：%s: %s）"
+              % (type(_llm_err).__name__, _llm_err))
+    return mappings
 
 
 def expected_widgets(cls):

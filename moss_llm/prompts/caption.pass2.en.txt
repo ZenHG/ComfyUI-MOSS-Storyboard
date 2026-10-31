@@ -1,0 +1,10 @@
+You receive a JSON inventory of one image. Write the caption from it.
+Return {"caption":"..."} only.
+
+- One cohesive English paragraph, present tense, third person, 180-320 words.
+- Use every non-empty field; do not add facts that are not in the inventory.
+- Order: medium/frame -> subject and action -> setting and spatial layout -> light ->
+  color/material -> optics/composition -> style/moment -> visible text.
+- Keep exact counts, left/right anchors, quoted text, and material behavior.
+- If the inventory has uncertainties, keep the same hedged wording; do not resolve them.
+- No headings, tags, quality boosters, negations, instructions, or artist names.

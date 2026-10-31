@@ -138,8 +138,16 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 | `moss-faceswap-single-ui.json` | **单张照片** → 换脸 → 整张出（不接 `spec`） | ✅ | 需 DMD2 + 编辑 LoRA |
 | `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图（`init=empty`） | ✅ | 无 |
 | `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 | ✅ | 需编辑 LoRA |
+| `llm-caption-to-moss.json` | 🧩 一张图 → 反推出成品提示词 + report | ✅ | 可选子包 `moss_llm` |
+| `llm-idea-to-storyboard.json` | 🧩 一句话 → 4 格宫格稿 → 直接进采样器出图 | ✅ | 可选子包 `moss_llm` |
+| `llm-wash.json` | 🧩 洗图：反推（忽略压缩/水印类缺陷）→ 改词 → 同比例重绘 | ✅ | 可选子包 `moss_llm` |
 
-> ⚠ **八份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
+> 🧩 标 `moss_llm` 的三份用**可选 LLM 子包**的 `MossPromptSmith`（分类 `moss/llm`）。
+> 它不属于上面那七个核心节点：删掉 `moss_llm/` 整个目录，核心照常工作。
+> 它需要一个 llama-server（节点里把「runtime」选成「更新到最新版」可一键装官方构建），
+> 或改走「外部 API」通道接任何 OpenAI 兼容端点。**这两份能力会联网**，只在你排队时发生一次。
+
+> ⚠ **十一份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
 > `poster`；换脸与姿态示例没有），夹在 LoRA 与采样器之间。它**不是本包的节点**，是 ComfyUI 自带
 > （`comfy_extras/nodes_easycache.py`，实验性，分类 `advanced/debug`），作用是让采样器复用部分步。
 > **要跟本页的数字对得上，先 `Ctrl+B` 旁路或删掉它** —— 开着它，采样器跑的不是本页数字测的那份活。

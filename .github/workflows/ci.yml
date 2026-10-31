@@ -15,14 +15,15 @@
 #   ·  79/0  tests/test_skill_draft.py        官方 prompt-enhancer 草稿 / 编译 / state / CLI
 #   · 149/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性 / 调度器同源 / 上下限同源 / 人物格
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
-#   ·  54/0  tests/test_i18n.mjs              中英切换纯函数（node）
+#   ·  64/0  tests/test_i18n.mjs              中英切换纯函数（node）
 #   ·  43/0  tests/test_compat.mjs            旧工作流 widgets_values 错位修复（纯函数）
+#   ·  66/0  tests/test_llm_subpackage.py     可选 LLM 子包纯函数：包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点
 #   ·  63/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
 #   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
 #   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
 #                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑
 #                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
-#   ·  19/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 标题可换语言 / 汉化完整（标签·枚举·文案·标题·tooltip）
+#   ·  20/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 标题可换语言 / 汉化完整（标签·枚举·文案·标题·tooltip）
 #   · 160/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 分布与等大 / 滚轮与旧稿错位守卫
 #   ·  95/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
 #   ·  22/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
@@ -95,6 +96,8 @@ jobs:
         run: python tests/test_contract.py --no-host
       - name: 采样 API 契约
         run: python tests/test_sampling_contract.py
+      - name: 可选 LLM 子包（纯函数，不碰 GPU 与网络）
+        run: python tests/test_llm_subpackage.py
       - name: 跨语言词表一致性
         run: python tests/test_cross_language.py
       # 前端一致性放在这个 job：它需要 torch（要 import nodes.py 取参数名），
@@ -183,4 +186,7 @@ jobs:
           python tools/check_ui_workflow.py examples/moss-layout-editor-poster.json
           python tools/check_ui_workflow.py examples/moss-layout-editor-storyboard.json
           python tools/check_ui_workflow.py examples/moss-prompt-compiler.json
+          python tools/check_ui_workflow.py examples/llm-caption-to-moss.json
+          python tools/check_ui_workflow.py examples/llm-idea-to-storyboard.json
+          python tools/check_ui_workflow.py examples/llm-wash.json
           python tools/check_ui_workflow.py tests/fixtures/moss-storyboard-0.1-20slots.json

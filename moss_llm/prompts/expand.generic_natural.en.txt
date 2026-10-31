@@ -1,0 +1,6 @@
+Use the shared method. Output contract:
+- rewritten_prompt: English natural-language paragraph, 100-200 words. Medium, subject and
+  action, setting, light, palette, lens/composition, style. No tag piles, no quality boosters,
+  no artist names, no negations, no process notes.
+- Keep exact text strings and counts. Do not invent brands or backstory.
+- wh_ratio as a simple pair. must_keep 3-8 items; open_choices lists your decisions.
