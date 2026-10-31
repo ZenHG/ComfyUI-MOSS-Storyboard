@@ -1,0 +1,51 @@
+{
+  "ir_version": "0.1",
+  "task": "t2i",
+  "canvas": {
+    "aspect_ratio": "3:2",
+    "background": "an ivory studio backdrop with a soft falloff toward the edges"
+  },
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "object",
+      "label": "handmade ceramic cup",
+      "importance": 1.0,
+      "descriptors": {"material": "fine speckled glaze"},
+      "spatial": {"anchor": "left half", "bbox_norm": [0.115, 0.219, 0.521, 0.844]}
+    },
+    {
+      "id": "e2",
+      "kind": "text",
+      "label": "main title",
+      "importance": 1.0,
+      "text_content": "把日常，过成诗。",
+      "typography": {
+        "weight": "moderately heavy",
+        "color": "dark green",
+        "align": "center",
+        "style_hint": "crisp lettering with generous spacing, no backing panel"
+      },
+      "spatial": {"anchor": "upper right", "bbox_norm": [0.604, 0.266, 0.917, 0.438]}
+    },
+    {
+      "id": "e3",
+      "kind": "text",
+      "label": "supporting copy",
+      "importance": 0.9,
+      "text_content": "一杯温暖\n一刻从容",
+      "typography": {"weight": "regular", "color": "dark green", "align": "left", "lines": 2},
+      "spatial": {"anchor": "lower right", "bbox_norm": [0.604, 0.5, 0.896, 0.641]}
+    }
+  ],
+  "camera": {"shot": "close_up", "angle": "eye_level", "lens_mm": 100, "dof": "medium"},
+  "lighting": {"key": "soft side light from the right", "mood": "calm"},
+  "style": {"medium": "photograph", "substyle": ["studio product campaign"], "photoreal": 0.95},
+  "constraints": {
+    "avoid": ["cluttered layout", "harsh shadows"],
+    "age_gate": "enforced",
+    "ip_policy": "attribution"
+  },
+  "budget": {"target_tokens": null, "verbosity": 0.8},
+  "provenance": {"source": "user"}
+}

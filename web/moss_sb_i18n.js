@@ -115,6 +115,7 @@ export const LABELS_EN = {
     task: "task",
     channel: "channel",
     dialect: "dialect",
+    target: "compile target",
     text: "idea / change",
     length: "length",
     temperature: "temperature",
@@ -203,6 +204,7 @@ export const LABELS = {
     task: "任务",
     channel: "通道",
     dialect: "方言",
+    target: "编译目标",
     text: "想法 / 要改什么",
     length: "篇幅",
     temperature: "温度",
@@ -295,8 +297,17 @@ export const COMBOS = {
     // ===== LLM 子包 =====
     // 存档值一律 ASCII id（见 `moss_llm/nodes.py` 顶部注释），这里只给中文显示。
     // 动态下拉（模型文件名 / mmproj 文件名）没有条目 ⇒ 原样显示文件名。
-    task: { caption: "反推", expand: "扩写", edit: "编辑指令" },
+    task: { caption: "反推", expand: "扩写", edit: "编辑指令", compile: "编译（零模型）" },
     channel: { local: "本地 GGUF", api: "外部 API" },
+    target: {
+        "moss-image": "MOSS 单图",
+        "qwen-image-2_1": "Qwen-Image 2.1",
+        krea2: "Krea 2",
+        flux3: "FLUX 3",
+        flux1_dev: "FLUX.1 dev",
+        sdxl: "SDXL",
+        "minimax-h3": "MiniMax H3（视频）",
+    },
     dialect: {
         moss_image: "MOSS 单图（英文散文）",
         moss_storyboard: "MOSS 宫格（中文 [PANEL]）",
@@ -651,7 +662,9 @@ export const TIPS = {
     "MossPromptSmith.task": {
         en: "[What to run] caption = look at the image and write the prompt (image required);\n"
             + "expand = turn your idea into a full scene description (text required);\n"
-            + "edit = one instruction for image-to-image (image + what to change).",
+            + "edit = one instruction for image-to-image (image + what to change);\n"
+            + "compile = render an IR into a backend dialect (NO model, milliseconds, reproducible --\n"
+            + "paste the IR into the text box, pick the direction with target).",
     },
     "MossPromptSmith.channel": {
         en: "[Where the model runs] local = start a llama-server sidecar (no network, VRAM freed after the run);\n"
@@ -671,7 +684,14 @@ export const TIPS = {
     },
     "MossPromptSmith.text": {
         en: "[What to enter] expand = your idea (fixed facts go in must_keep, not here);\n"
-            + "edit = what to change. Leave empty for caption.",
+            + "edit = what to change; compile = an IR (JSON or YAML, or a .json/.yaml file path).\n"
+            + "Leave empty for caption.",
+    },
+    "MossPromptSmith.target": {
+        en: "[compile only] Which backend to render for. moss-image = MOSS single image;\n"
+            + "qwen-image-2_1 / krea2 / flux3 / flux1_dev / sdxl are their own dialects;\n"
+            + "minimax-h3 is video (the IR needs a timeline). Compiling is deterministic Python:\n"
+            + "no model is loaded, it takes milliseconds, and the same IR always gives the same text.",
     },
     "MossPromptSmith.length": {
         en: "[What to enter] brief 80-120 words / standard 160-260 / detailed 280-360, with a per-dialect cap.\n"

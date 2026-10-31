@@ -62,7 +62,10 @@ const chanOf = (v) => CH_LEGACY[v] || v;
 const GROUPS = [
     { key: "core", always: true, items: ["task", "channel", "dialect", "model", "text"] },
     { key: "tune", items: ["length", "temperature", "max_tokens", "seed", "control_after_generate",
-        "language", "thinking", "panels", "style_lock", "must_keep", "wash", "two_pass"] },
+        "language", "thinking", "panels", "style_lock", "must_keep", "wash", "two_pass",
+        // 编译目标放 tune 而不是 core：core 是「常驻 5 行」的口径（见 docs/20 §九），
+        // 多一项就把默认视图改成 6 行。它只在 task=compile 时有意义。
+        "target"] },
     { key: "local", channel: CH_LOCAL, items: ["mmproj", "runtime", "ctx_size", "gpu_layers",
         "cache_type_k", "cache_type_v", "flash_attn", "image_max_tokens", "ubatch", "parallel",
         "fit_on", "fit_target_mib", "mtp", "mtp_draft_n", "server_exe", "port", "release_after_run"] },

@@ -1,0 +1,202 @@
+{
+  "ir_version": "0.1",
+  "task": "reverse",
+  "canvas": {
+    "aspect_ratio": "1:1",
+    "canvas_type": "multi_panel"
+  },
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "character",
+      "label": "woman",
+      "importance": 0.9,
+      "age_years": 28,
+      "descriptors": {
+        "gender": "woman",
+        "hair": "short, dark, straight, bangs",
+        "skin": "light tone, smooth surface",
+        "face": "oval bone structure, neutral expression",
+        "expression": "focused, slightly tired",
+        "pose": "sitting, writing with right hand, left hand resting on paper",
+        "wardrobe": [
+          "dark long-sleeved sweater",
+          "plain fabric"
+        ],
+        "props": [
+          "pen",
+          "notebook",
+          "desk lamp"
+        ]
+      },
+      "spatial": {
+        "anchor": "left panel, center",
+        "bbox_norm": [
+          0.1,
+          0.12,
+          0.46,
+          0.96
+        ],
+        "bbox_source": "model"
+      },
+      "evidence": [
+        "left panel: woman with short dark hair writing at a desk"
+      ]
+    },
+    {
+      "id": "e2",
+      "kind": "character",
+      "label": "man",
+      "importance": 0.8,
+      "age_years": 30,
+      "descriptors": {
+        "gender": "man",
+        "hair": "short, dark, neat",
+        "skin": "light tone, smooth surface",
+        "face": "oval bone structure, glasses, neutral expression",
+        "expression": "pensive, slightly weary",
+        "pose": "standing, holding umbrella with right hand, left hand in pocket",
+        "wardrobe": [
+          "dark coat",
+          "turtleneck sweater",
+          "dark pants"
+        ],
+        "props": [
+          "umbrella"
+        ]
+      },
+      "spatial": {
+        "anchor": "right bottom panel, center-right",
+        "bbox_norm": [
+          0.5,
+          0.5,
+          0.9,
+          0.96
+        ],
+        "bbox_source": "model"
+      },
+      "evidence": [
+        "right bottom panel: man with glasses holding an umbrella in rain"
+      ]
+    },
+    {
+      "id": "e3",
+      "kind": "text",
+      "label": "speech bubble",
+      "importance": 0.8,
+      "text_content": "写不下去",
+      "spatial": {
+        "anchor": "top right panel, center-right",
+        "bbox_norm": [
+          0.6,
+          0.2,
+          0.9,
+          0.5
+        ],
+        "bbox_source": "model"
+      },
+      "typography": {
+        "weight": "regular",
+        "case": "lower",
+        "color": "black",
+        "align": "center",
+        "style_hint": "sans-serif"
+      },
+      "evidence": [
+        "top right panel: speech bubble with Chinese characters"
+      ]
+    },
+    {
+      "id": "e4",
+      "kind": "text",
+      "label": "speech bubble",
+      "importance": 0.8,
+      "text_content": "他还在楼下",
+      "spatial": {
+        "anchor": "bottom left panel, center-left",
+        "bbox_norm": [
+          0.1,
+          0.6,
+          0.4,
+          0.9
+        ],
+        "bbox_source": "anchor"
+      },
+      "typography": {
+        "weight": "regular",
+        "case": "lower",
+        "color": "black",
+        "align": "center",
+        "style_hint": "sans-serif"
+      },
+      "evidence": [
+        "bottom left panel: speech bubble with Chinese characters"
+      ]
+    },
+    {
+      "id": "e5",
+      "kind": "text",
+      "label": "speech bubble",
+      "importance": 0.8,
+      "text_content": "她还没睡",
+      "spatial": {
+        "anchor": "bottom right panel, center-right",
+        "bbox_norm": [
+          0.6,
+          0.6,
+          0.9,
+          0.9
+        ],
+        "bbox_source": "anchor"
+      },
+      "typography": {
+        "weight": "regular",
+        "case": "lower",
+        "color": "black",
+        "align": "center",
+        "style_hint": "sans-serif"
+      },
+      "evidence": [
+        "bottom right panel: speech bubble with Chinese characters"
+      ]
+    }
+  ],
+  "relations": [],
+  "style": {
+    "medium": "manga",
+    "notes": "High-contrast ink lines, clean hatching for shading, minimal cross-hatching, strong outlines defining forms and clothing folds.",
+    "substyle": []
+  },
+  "camera": {},
+  "lighting": {},
+  "composition": {},
+  "atmosphere": [],
+  "constraints": {
+    "avoid": [],
+    "age_gate": "enforced"
+  },
+  "budget": {
+    "target_tokens": null,
+    "verbosity": 0.7,
+    "priority_policy": "importance_desc"
+  },
+  "provenance": {
+    "source": "reverse",
+    "image": "comic-4panel-lineart-sample.png",
+    "model_size": [
+      1536,
+      1536
+    ],
+    "prep": [],
+    "text_pass": {
+      "blocks": 3
+    },
+    "size": [
+      1536,
+      1536
+    ]
+  },
+  "notes": {
+    "medium": "High-contrast ink lines, clean hatching for shading, minimal cross-hatching, strong outlines defining forms and clothing folds."
+  }
+}

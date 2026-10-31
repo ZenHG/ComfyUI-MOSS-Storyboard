@@ -195,19 +195,30 @@ def _entry(a):
             (a.get("digest") or "").replace("sha256:", "") or None)
 
 
-def _cudart(assets, tok, arch, ver):
-    """运行库包要和主包的 CUDA 版本一致；找不到同版本就退回最低版本。"""
+def _cudart_map(assets, tok, arch):
+    """本 build 里所有 `cudart-…-cuda-<ver>-<arch>` 运行库：{版本串: entry}。"""
     pat = re.compile(r"^cudart-llama-(?:b\d+-)?bin-%s-cuda-([\d.]+)-%s\.(?:zip|tar\.gz)$"
                      % (re.escape(tok), re.escape(arch)))
-    cands = []
+    out = {}
     for a in assets or []:
         m = pat.match((a.get("name") or "").lower())
         if m:
-            cands.append((m.group(1), a))
-    if not cands:
-        return None
-    same = [x for x in cands if _ver(x[0]) == _ver(ver)]
-    return _entry((same or sorted(cands, key=lambda y: _ver(y[0])))[0][1])
+            out[m.group(1)] = _entry(a)
+    return out
+
+
+def _cudart(assets, tok, arch, ver):
+    """同版本的运行库包。**不同版本不给**。
+
+    旧版找不到同版本就退回最低版本，于是会出现「主包 cuda-13.4 + 运行库 cuda-12.4」——
+    装完是加载失败，而错误信息只会说某个 DLL 找不到，和真实原因无关。
+    宁可返回 None（上层据此换 build），也不给一个装不起来的组合。
+    """
+    for k, e in _cudart_map(assets, tok, arch).items():
+        if _ver(k) == _ver(ver):
+            return e
+    return None
+
 
 
 def _pick(assets, tag, plat, backend, max_cuda):
@@ -232,22 +243,33 @@ def _pick(assets, tag, plat, backend, max_cuda):
     if pf == "macos":
         lst = by.get("metal") or []
         return [_entry(lst[0][1])] if lst else []
-    be = next((b for b in (backend, "cuda", "vulkan", "cpu") if b in by), None)
-    if not be:
+    # 要哪个后端就给哪个后端。**不静默换**：给 Intel 卡装 cuda 包等于装完跑不起来，
+    # 而报错会指向「显卡驱动」——和真实原因（选错包）无关。这个 build 没有就返回空，
+    # 由 `latest_build` 往更旧的 build 找；全都没有就报错让人选。
+    # （旧版这里会 fallback 到 cuda/vulkan/cpu，等于替用户做了个它看不见的决定。）
+    if backend not in by:
         return []
-    lst = by[be]
-    if be != "cuda":
+    lst = by[backend]
+    if backend != "cuda":
         return [_entry(lst[0][1])]
     if max_cuda:                       # 不让包超过驱动能力（老驱动跑不了新 CUDA）
         lst = [x for x in lst if _ver(x[0]) <= max_cuda]
         if not lst:
             return []
-        ver, a = max(lst, key=lambda x: _ver(x[0]))
+        picker = max
     else:
         # 驱动未知时选最低版本：CUDA 包对旧架构不向下兼容，低版可借 PTX 跑新卡
-        ver, a = min(lst, key=lambda x: _ver(x[0]))
+        picker = min
+    # CUDA 主包没有运行库跑不起来，而运行库必须**同版本**。所以只在「有配套运行库」的
+    # 版本里挑；一个都没有就返回空，让上层换 build 或在报错里说清。
+    cud_missing = not _cudart_map(assets, tok, arch)
+    if not cud_missing:
+        lst = [x for x in lst if _cudart(assets, tok, arch, x[0])]
+        if not lst:
+            return []
+    ver, a = picker(lst, key=lambda x: _ver(x[0]))
     out = [_entry(a)]
-    cud = _cudart(assets, tok, arch, ver)
+    cud = None if cud_missing else _cudart(assets, tok, arch, ver)
     return out + ([cud] if cud else [])
 
 
@@ -266,6 +288,17 @@ def latest_build(plat, backend, max_cuda):
         if got:
             return tag, got
     return None, []
+
+
+def build_for(tag, plat, backend, max_cuda):
+    """指定 build 标签的可用包。找不到返回 []（由调用方报错，不悄悄换成别的版本）。"""
+    if not tag:
+        return []
+    for r in _get(API + "/releases?per_page=60"):
+        if (r.get("tag_name") or "") == tag:
+            return _pick(r.get("assets") or [], tag, plat, backend, max_cuda)
+    return []
+
 
 
 # ------------------------------------------------------------------ 安装
@@ -417,12 +450,24 @@ def _unpack(path, dest):
                 tf.extractall(dest)
 
 
-def install(force=False):
-    """装/更新。返回 (exe 路径, tag, 来源说明)。已是最新且不 force 时直接返回现有。"""
-    plat, backend, max_cuda = detect()
+def install(force=False, backend="", tag=""):
+    """装/更新。返回 (exe 路径, tag, 来源说明)。已是最新且不 force 时直接返回现有。
+
+    `backend` / `tag` 是给命令行用的显式覆盖（`--backend` / `--tag`）：
+    不填就和以前一样自动探测 + 取最新。**不猜**——指定的 tag 不存在就报错，
+    不悄悄换成别的版本。
+    """
+    plat, detected, max_cuda = detect()
+    backend = (backend or "").strip() or detected
     direct = os.environ.get("MOSS_LLM_RUNTIME_URL", "").strip()
     if direct:
         tag, want = None, [(direct, os.path.basename(direct.split("?")[0]), None, None)]
+    elif tag:
+        want = build_for(tag, plat, backend, max_cuda)
+        if not want:
+            raise RuntimeError(
+                "官方 release 里 %s 没有 %s/%s 的 %s 包。用别的 tag，或省略 --tag 取最新。"
+                % (tag, plat, backend, backend))
     else:
         tag, want = latest_build(plat, backend, max_cuda)
         if not want:
@@ -432,6 +477,7 @@ def install(force=False):
                 "再把 llama-server 所在目录填进「🖥️ LLM 服务器程序」；\n"
                 "    或用 MOSS_LLM_RUNTIME_URL 指直链，MOSS_LLM_BACKEND 指定后端。"
                 % (REPO, plat, backend, REPO, backend))
+
     exe = find_exe()
     if tag and installed_tag() == tag and exe and not force:
         print("已是最新（%s），跳过下载。" % tag)

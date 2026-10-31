@@ -48,7 +48,7 @@ check("载入 examples/llm-wash.json", (await loadGraph(page, wf)).ok);
 await page.waitForTimeout(2500);
 const loaded = await where();
 check("面板已挂载（DOM 组件行）", loaded && loaded[0] && loaded[0].mounted, JSON.stringify(loaded));
-check("参数控件仍是 38 个（一个不多一个不少）", loaded && loaded[0].widgets === 38, "widgets=" + (loaded && loaded[0].widgets));
+check("参数控件仍是 39 个（一个不多一个不少）", loaded && loaded[0].widgets === 39, "widgets=" + (loaded && loaded[0].widgets));
 const ID = await page.evaluate(() => app.graph.nodes.find((x) => x.type === "MossPromptSmith").id);
 // 面板文案与核心 i18n 同源（节点标题/标签/说明会一起换）⇒ 先钉中文，后面断言的
 // 「常用调优 / 本地引擎 / 通道外 / 已改」才有确定口径。宿主自己的 `<html lang>` 可能是 en。
@@ -166,7 +166,7 @@ await page.waitForTimeout(700);
 after = await where();
 check("切回本地 ⇒ 焦点自动回到 local 组", after && after[0].focus === "local", JSON.stringify(after));
 
-// —— (c) 一键全开：38 个参数一个不少 ——
+// —— (c) 一键全开：39 个参数一个不少 ——
 await page.evaluate(() => document.querySelector(".mossllm-btn").click());
 await page.waitForTimeout(800);
 r = await visRows(ID);
@@ -177,8 +177,8 @@ const names = await page.evaluate(() => {
     return { total: ws.length, hidden: ws.filter((w) => w.options && w.options.hidden).length,
         invisible: ws.filter((w) => typeof n.isWidgetVisible === "function" && !n.isWidgetVisible(w)).map((w) => w.name) };
 });
-check("全展开后 38 个参数一个不少（逐个核 isWidgetVisible）",
-    names.total === 38 && names.hidden === 0 && names.invisible.length === 0,
+check("全展开后 39 个参数一个不少（逐个核 isWidgetVisible）",
+    names.total === 39 && names.hidden === 0 && names.invisible.length === 0,
     "widgets=" + names.total + " hidden=" + names.hidden + " 不可见=" + JSON.stringify(names.invisible));
 const bad = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
@@ -225,12 +225,12 @@ const diff = [];
 for (let i = 0; i < Math.max(save.orig.length, save.after.length); i += 1) {
     if (JSON.stringify(save.orig[i]) !== JSON.stringify(save.after[i])) diff.push([i, save.orig[i], save.after[i]]);
 }
-check("存档里 widgets_values 长度 38（DOM 组件那格被剔掉）", save.orig.length === 38, "len=" + save.orig.length);
+check("存档里 widgets_values 长度 39（DOM 组件那格被剔掉）", save.orig.length === 39, "len=" + save.orig.length);
 check("重开后 widgets_values 逐位一致", diff.length === 0, JSON.stringify(diff.slice(0, 3)));
 check("折叠/聚焦状态没写进存档（无 mossllm/hidden/focus 键）", save.stray.length === 0, JSON.stringify(save.stray));
 check("改过的值重开还在（0.55 / 路上小心）", save.temp === 0.55 && save.keep === "路上小心", save.temp + "/" + save.keep);
-check("重后面板自动挂回、回到默认（常驻 5 行 / 33 项隐藏 / 无聚焦组）",
-    save.mounted && save.hidden === 33 && save.focus === null, "mounted=" + save.mounted
+check("重后面板自动挂回、回到默认（常驻 5 行 / 34 项隐藏 / 无聚焦组）",
+    save.mounted && save.hidden === 34 && save.focus === null, "mounted=" + save.mounted
     + " hidden=" + save.hidden + " focus=" + JSON.stringify(save.focus));
 r = await visRows(await page.evaluate(() => app.graph.nodes.find((x) => x.type === "MossPromptSmith").id));
 check("重开后界面上仍是 5 行", r && r.shown === 5, JSON.stringify(r));
@@ -267,8 +267,8 @@ const two = await page.evaluate(async () => {
         widgets: m.widgets.length, values: (m.serialize().widgets_values || []).length,
         hidden: m.widgets.filter((w) => w.options && w.options.hidden).length }));
 });
-check("两个同型节点各自挂载、各自 38 格存档、各自 33 项隐藏", two.length === 2
-    && two.every((t) => t.mounted && t.widgets === 39 && t.values === 38 && t.hidden === 33), JSON.stringify(two));
+check("两个同型节点各自挂载、各自 39 格存档、各自 34 项隐藏", two.length === 2
+    && two.every((t) => t.mounted && t.widgets === 40 && t.values === 39 && t.hidden === 34), JSON.stringify(two));
 
 // 接了线的参数不许藏（把 ctx_size 标成已连线）
 const linked = await page.evaluate(async () => {

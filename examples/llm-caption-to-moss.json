@@ -109,7 +109,7 @@
    "inputs": [
     {
      "name": "task",
-     "type": "['CAPTION', 'EXPAND', 'EDIT']",
+     "type": "['CAPTION', 'EXPAND', 'EDIT', 'COMPILE']",
      "link": null,
      "widget": {
       "name": "task"
@@ -415,6 +415,14 @@
      "widget": {
       "name": "release_after_run"
      }
+    },
+    {
+     "name": "target",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3']",
+     "link": null,
+     "widget": {
+      "name": "target"
+     }
     }
    ],
    "outputs": [
@@ -476,7 +484,8 @@
     2,
     "",
     8091,
-    true
+    true,
+    "moss-image"
    ],
    "title": "🖊 提示词工匠 · 反推"
   },

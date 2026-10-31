@@ -1,0 +1,223 @@
+{
+  "ir_version": "0.1",
+  "task": "reverse",
+  "canvas": {
+    "aspect_ratio": "16:9",
+    "canvas_type": "multi_panel"
+  },
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "character",
+      "label": "woman",
+      "importance": 0.9,
+      "age_years": 28,
+      "descriptors": {
+        "gender": "woman",
+        "hair": "black, long, tied back",
+        "skin": "fair, smooth",
+        "face": "oval, neutral expression",
+        "expression": "thoughtful, slightly sad",
+        "pose": "sitting, hands holding a glass",
+        "wardrobe": [
+          "white turtleneck sweater",
+          "soft fabric, fitted"
+        ],
+        "props": [
+          "glass of lemonade"
+        ]
+      },
+      "spatial": {
+        "anchor": "left foreground",
+        "bbox_norm": [
+          0.05,
+          0.1,
+          0.45,
+          0.9
+        ]
+      },
+      "evidence": [
+        "visible in the top-left panel, sitting at a table"
+      ]
+    },
+    {
+      "id": "e2",
+      "kind": "character",
+      "label": "man",
+      "importance": 0.9,
+      "age_years": 28,
+      "descriptors": {
+        "gender": "man",
+        "hair": "black, short, neat",
+        "skin": "fair, smooth",
+        "face": "angular, neutral expression",
+        "expression": "thoughtful, slightly sad",
+        "pose": "sitting, hands holding a glass",
+        "wardrobe": [
+          "dark coat",
+          "soft fabric, fitted"
+        ],
+        "props": [
+          "glass of lemonade"
+        ]
+      },
+      "spatial": {
+        "anchor": "right foreground"
+      },
+      "evidence": [
+        "visible in the top-left panel, sitting at a table"
+      ]
+    },
+    {
+      "id": "e3",
+      "kind": "character",
+      "label": "woman",
+      "importance": 0.8,
+      "age_years": 28,
+      "descriptors": {
+        "gender": "woman",
+        "hair": "black, long, tied back",
+        "skin": "fair, smooth",
+        "face": "oval, neutral expression",
+        "expression": "thoughtful, slightly sad",
+        "pose": "sitting, hands holding a glass",
+        "wardrobe": [
+          "white turtleneck sweater",
+          "soft fabric, fitted"
+        ],
+        "props": [
+          "glass of lemonade"
+        ]
+      },
+      "spatial": {
+        "anchor": "right foreground",
+        "bbox_norm": [
+          0.46,
+          0.12,
+          1.0,
+          0.96
+        ]
+      },
+      "evidence": [
+        "visible in the top-right panel, close-up of face"
+      ]
+    },
+    {
+      "id": "e4",
+      "kind": "character",
+      "label": "man",
+      "importance": 0.8,
+      "age_years": 28,
+      "descriptors": {
+        "gender": "man",
+        "hair": "black, short, neat",
+        "skin": "fair, smooth",
+        "face": "angular, neutral expression",
+        "expression": "thoughtful, slightly sad",
+        "pose": "sitting, hands holding a cup",
+        "wardrobe": [
+          "dark coat",
+          "soft fabric, fitted"
+        ],
+        "props": [
+          "white cup"
+        ]
+      },
+      "spatial": {
+        "anchor": "left foreground"
+      },
+      "evidence": [
+        "visible in the bottom-left panel, close-up of face"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "subject": "e1",
+      "predicate": "facing",
+      "object": "e2"
+    },
+    {
+      "subject": "e3",
+      "predicate": "facing",
+      "object": "e4"
+    }
+  ],
+  "style": {
+    "medium": "photograph",
+    "notes": "Soft, cinematic lighting with shallow depth of field. Warm, muted tones. Realistic skin texture and fabric rendering.",
+    "substyle": []
+  },
+  "camera": {
+    "shot": "medium shot",
+    "angle": "eye level",
+    "lens_mm": 50,
+    "dof": "shallow",
+    "focus": "the two people at the table",
+    "notes": "The frame is tightly cropped around the subjects, with the background blurred. The perspective is even, with no strong tilt."
+  },
+  "lighting": {
+    "key": "soft, warm light from the front and side",
+    "fill": "ambient light from the environment",
+    "time_of_day": "dusk",
+    "mood": "intimate, contemplative",
+    "notes": "Light falls softly on the subjects' faces and clothing, creating gentle shadows. The background is dimly lit with bokeh from distant lights."
+  },
+  "composition": {
+    "rules": [
+      "grid layout",
+      "centered"
+    ],
+    "negative_space": "top and bottom margins of the frame",
+    "notes": "The four panels are arranged in a 2x2 grid. The eye moves from the wide shot to the close-ups, creating a narrative flow."
+  },
+  "atmosphere": [
+    "intimate",
+    "contemplative",
+    "warm",
+    "soft",
+    "evening",
+    "quiet"
+  ],
+  "constraints": {
+    "avoid": [],
+    "age_gate": "enforced"
+  },
+  "budget": {
+    "target_tokens": null,
+    "verbosity": 0.7,
+    "priority_policy": "importance_desc"
+  },
+  "provenance": {
+    "source": "reverse",
+    "image": "hero-storyboard.png",
+    "model_size": [
+      1536,
+      864
+    ],
+    "prep": [
+      "已 Lanczos 缩放 1600x900 → 1536x864"
+    ],
+    "size": [
+      1536,
+      864
+    ],
+    "audit": {
+      "score": 60,
+      "missing": [
+        "The background is dimly lit with bokeh from distant lights",
+        "Intimate, contemplative, warm, soft, evening and quiet",
+        "Warm, muted tones",
+        "Realistic skin texture and fabric rendering"
+      ],
+      "wrong": [],
+      "changes": []
+    }
+  },
+  "notes": {
+    "medium": "Soft, cinematic lighting with shallow depth of field. Warm, muted tones. Realistic skin texture and fabric rendering.",
+    "camera": "The frame is tightly cropped around the subjects, with the background blurred. The perspective is even, with no strong tilt.",
+    "lighting": "Light falls softly on the subjects' faces and clothing, creating gentle shadows. The background is dimly lit with bokeh from distant lights.",
+    "composition": "The four panels are arranged in a 2x2 grid. The eye moves from the wide shot to the close-ups, creating a narrative flow."
+  }
+}

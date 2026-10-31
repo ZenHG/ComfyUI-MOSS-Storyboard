@@ -1,5 +1,55 @@
 # CHANGES
 
+## 未发布 · 两份实现合流：一个能力一份实现（**节点数仍是 7**）
+
+`moss_llm/smith/` 落地时与父包有五处功能重叠，docstring 里各挂着一句「本版并存，
+下一版二选一」。这一版收敛掉，并把取舍写成可复查的账：`docs/25-两份实现的合流.md`。
+
+- **侧车只剩一个类**（`moss_llm/server.py:LlamaServer`）。取 A 的 fit / KV 量化 /
+  ubatch / parallel / MTP 元数据判定与回退 / mmproj 投影宽度配对；取 B 的 `--help` 探测 /
+  日志落盘 / attached 模式 / JSON 约束四级降级 / 构建请求体与命令行可离线单测 / LoRA。
+  `smith/llm.py` 变成转发（测试断言 `is` 同一个对象，谁再抄一份就红）。
+- **装运行时只剩一份**（`moss_llm/runtime_install.py`）：镜像链、GitHub 摘要校验、
+  断点续传、原子替换。`smith/runtime.py` **删除**——它没有摘要、没有镜像，
+  解压到一半失败会把可用的运行时砸掉。`smith setup` 改调父包。
+- 🔴 **修掉「合起来才错」的六个 bug**（单看任一份都对）：服务端口令打挂 `/tokenize`
+  真实计数并静默退回估算；CUDA 主包与运行库版本不配套（13.4 包 + 12.4 库 = 装完加载失败）；
+  未知后端静默换成 CUDA 包（给 Intel 卡装 CUDA）；一条测试因 `"moss_llm.smith"` 路径拼错
+  只在装了 PyYAML 的解释器上才跑；`_to_uint8_array` 在装了 torch 却传 numpy 时炸；
+  前端门禁 F7 读不到带引号的枚举键（假红）。
+- **图像预处理只剩一份**（`moss_llm/vision.py`，两个入口 `prepare` / `prepare_tensor`）：
+  节点不再把原尺寸 PNG 直传，改成长边 1536 + JPEG q95 4:4:4 + EXIF 转正 + 透明合成白底，
+  降级说明进 report。
+- 🆕 **节点多一个 `task=compile`**：把 IR 贴进「文字输入」、`target` 选后端，
+  零模型、毫秒级、可复现，report 带方言机检与 M1–M6 结论。**没有权重也能用**——
+  这是合流带来的最大可用性变化，也是 `smith` 第一次进 ComfyUI。
+- **没合的两处**（`reverse` / `expand`）在文档里写了理由：它们和节点的同名通道
+  **不是同一个任务**（取证 vs 出词、可验证扩写 vs 自由扩写），合了会得到一个
+  既不可复现又验不了的中间态。
+- 测试：`tests/test_llm_subpackage.py` **66 → 98**（侧车命令 / 图像预处理 / 零模型编译 /
+  反漂移断言），`tests/test_smith_ir.py` **335 → 347**（门面 `smith.api` 的入参形态与
+  报错话术；运行时选包测试改到统一实现上）。`check_frontend` 20/0。
+
+## 未发布 · 子包 `moss_llm.smith`（**节点数仍是 7**）
+
+语义 IR 与多方言确定性编译层，`moss_llm` 的子包。**不是新节点**，不给节点加任何默认行为。
+
+- **一份 IR → 7 个后端原生方言**（MOSS-Image · Qwen-Image 2.1 · Krea 2 · FLUX 3 Image ·
+  SDXL · MiniMax-H3 · 通用）。确定性编译**不需要模型**，毫秒级、可复现；
+  模型只用在「反推（图→IR）」与「扩写（IR→更长的话）」，两者都可以没有。
+- **自检不靠 ground truth**：6 条不变式（幂等 / 顺序无关 / 规避隔离 / 预算只做减法 /
+  提权不丢 / 时间线往返），每条都有破坏版测试证明它会变红；另有往返校验
+  （IR → prompt → 事实差）与「跟源 prompt 比」的覆盖率判据——**只跟产物比会自欺**。
+- **H3 让时间成为 IR 的一等维度**：`timeline` 空时序列化整个键省略 ⇒ 老 IR 的 JSON
+  逐字节不变（有用例钉住）。`h3 check` 是 28 条出词铁律里可机检的子集，每条注明守哪一条。
+- **零依赖**：只用标准库（registry 走内置 YAML 子集解析器，图片元数据用标准库读）。
+  `moss_llm/__init__.py` 用 `find_spec` 探测，不 import 就不会付 8000 行的加载成本。
+- **未做**：H3 六段式（全参考）、Rewriter LoRA 真跑（基座权重未随包分发）、
+  图像后端的 `--lang zh`。这三条在 `docs/22-smith-ir-路线图.md` 里写了卡点。
+- 测试：`python tests/test_smith_ir.py` = **347 项**（零 GPU 零网络）；
+  确定性输出基线 `python tools/freeze_smith_set.py --check`；
+  设计见 `docs/21-smith-ir-架构.md`，用法见 `moss_llm/smith/README.md`。
+
 ## 未发布 · 可选 LLM 子包 `moss_llm`（**节点数仍是 7**）
 
 一个全功能节点 `MossPromptSmith`（分类 `moss/llm`），对外**只出成品提示词** + 一份可读 report。

@@ -1,0 +1,280 @@
+# 模型能力矩阵 —— 提示词工匠的「后端事实源」
+# 规则：每条带 source 与 confidence。confidence=low 的字段，后端必须做运行时探测，不得硬编码。
+# 最后核验：2026-10-31
+
+version: "0.1"
+updated: "2026-10-31"
+
+targets:
+
+  # ─────────────────────────────────────────────────────────────
+  moss-image:
+    display: "MOSS-Image"
+    vendor: OpenMOSS
+    confidence: high
+    source:
+      - "OpenMOSS/MOSS-Image README + skills/moss-image-prompt-enhancer/SKILL.md"
+      - "MaxKruse/ComfyUI-PromptEnhancer presets/moss-image-sft-t2i.txt"
+    encoder: { name: "Qwen3.5-9B", max_tokens: 4000, truncation: "unknown", family: qwen }
+    prompt:
+      mode: prose                 # prose | tag | hybrid
+      verbosity: 1.0
+      language: en
+      # 词数带。standard 有出处（README §4 表）；brief/detailed 由 standard 推导，非官方值。
+      length: { brief: [70, 120], standard: [150, 300], detailed: [300, 450] }
+      quality_words: banned
+      weight_syntax: none
+      structured_output: [caption, layout_json, tag]
+    negative:
+      supported: true
+      channel: uncond_slg         # 真负向分支
+      default: "nsfw, worst quality, bad anatomy, watermark, jpeg artifact"
+    layout:
+      supported: true
+      dialect: moss-json
+      input_space: abs_xyxy
+      output_space: abs_centralized_yxyx
+      require_multiple_of_16: true
+    edit:
+      supported: false
+    sampling:
+      sampler: euler
+      steps: 50
+      cfg: 3.0
+      shift: 5.0
+      slg_layer: 22
+      profiles:
+        photoreal_fast: { mp: 0.6, steps: 16, cfg: 3.0, slg: null }
+        anime_painterly: { mp: 0.6, steps: 28, cfg: 3.3, slg: null }
+        text_dense: { mp: 1.6, steps: 50, cfg: 3.0, slg: 22 }
+    resolution: { native_mp: [1, 2], step: 16 }
+    pitfalls:
+      - "相机型号/渲染引擎/画师名单写无效（须整句词组化）"
+      - "SLG 不是画风开关"
+      - "正文残留写实词会压制开头画风词"
+
+  # ─────────────────────────────────────────────────────────────
+  krea2:
+    display: "Krea 2"
+    vendor: krea.ai
+    confidence: high
+    source:
+      - "github.com/krea-ai/krea-2 docs/prompting.md"
+      - "github.com/krea-ai/krea-2 docs/expansion.txt"
+      - "github.com/krea-ai/krea-2 encoder.py"
+    encoder: { name: "Qwen3-VL-4B-Instruct", max_tokens: 512, truncation: "silent_truncate", family: qwen }
+    prompt:
+      mode: prose
+      verbosity: 1.0               # 官方要长，但受 512 硬约束
+      language: en
+      # 上界卡在 512 token 硬截断之前；写超了会被**按位置**砍掉尾部
+      length: { brief: [70, 120], standard: [250, 380], detailed: [380, 450] }
+      quality_words: unverified
+      weight_syntax: none
+      structured_output: [caption]
+    negative:
+      supported: false             # 无 --negative 参数
+      channel: none
+    layout:
+      supported: false
+    edit:
+      supported: false             # 开源版 inference.py 无图像输入
+    sampling:
+      profiles:
+        raw:   { steps: 52, cfg: 3.5, mp: 1.0 }
+        turbo: { steps: 8,  cfg: 0.0, mu: 1.15, mp_range: [1, 2] }
+    resolution: { align_to: 16, no_preset_aspects: true }
+    pitfalls:
+      - ">512 token 静默截断，尾部（光照/媒介/文字）直接丢失"
+      - "过度指定细节（官方 expansion.txt 明令 Avoid Over-Specification）"
+      - "擅自替换用户指定的媒介"
+      - "图内文字必须加引号"
+
+  # ─────────────────────────────────────────────────────────────
+  flux3:
+    display: "FLUX 3 Image"
+    vendor: Black Forest Labs
+    confidence: high
+    source:
+      - "docs.bfl.ai/guides/prompting_summary"
+      - "docs.bfl.ai/guides/prompting_unified_reference"
+      - "docs.bfl.ai/flux_3/flux3_image_bounding_boxes"
+      - "huggingface.co/docs/diffusers main/api/pipelines/flux3"
+    encoder:
+      name: "Qwen3-VL-4B"
+      max_tokens: 8192
+      truncation: "truncate"
+      upsampler: "flux-3-image-klein-pup (9B, max_new_tokens=3584)"
+      family: qwen
+    prompt:
+      mode: prose
+      verbosity: 0.25              # 核心差异：短 + 模型自己扩写
+      language: en
+      # 写长=过度指定：模型自带 9B upsampler，你只写「想控制的东西」
+      length: { brief: [25, 50], standard: [40, 90], detailed: [90, 140] }
+      quality_words: unverified
+      weight_syntax: none
+      structured_output: [caption, bbox_table]
+      expand_by_model: true
+    negative:
+      supported: false             # distilled 版无此字段，未知字段 422
+      channel: none
+      note: "Base 版（50 steps / guidance 3.5）支持 negative_prompt"
+    layout:
+      supported: true
+      dialect: flux3-bbox
+      coord_space: "0-1000"
+      bbox_order: [top, left, bottom, right]
+      ref_syntax: "<silhouette_n>"
+      min_box_px: [40, 25]
+      require_aspect_match: true
+    edit:
+      supported: true
+      ref_syntax: "<ref_image_N>"
+      max_refs: 10
+      bbox_fields: [src_bbox, tgt_bbox]
+      delete_rule: "tgt_bbox=null 即删除"
+    sampling:
+      profiles:
+        distilled: { steps: 16, steps_range: [4, 16], cfg: 0 }
+        base:      { steps: 50, guidance: 3.5 }
+    resolution:
+      presets: [768sq, 1k, 1.5k, 2k, 4k]
+      max_mp: 16.8
+      max_mp_with_refs: 4.19
+      aspect_enum_count: 15
+    pitfalls:
+      - "照搬 FLUX.2 参数会 422（无 seed / guidance / negative_prompt 字段）"
+      - "bbox 只引导不裁剪；框与 aspect_ratio 不一致会被拉伸"
+      - "小于 40×25 px 的新元素常生成失败"
+      - "增删元素要「说两遍」：指令 + JSON 行一致"
+      - "每行文字单独成框"
+
+  # ─────────────────────────────────────────────────────────────
+  qwen-image-2_1:
+    display: "Qwen-Image 2.1"
+    vendor: Alibaba Qwen
+    confidence: high
+    source:
+      - "huggingface.co/Qwen/Qwen-Image-2.1-PE-T2I/raw/main/system_prompt.txt"
+      - "huggingface.co/Qwen/Qwen-Image-2.1-PE-I2I/raw/main/system_prompt.txt"
+      - "github.com/QwenLM/Qwen-Image-2.1"
+    encoder: { name: "Qwen3-VL-8B", ctx: 262144, max_tokens: null, truncation: "unknown", family: qwen }
+    prompt:
+      mode: prose
+      verbosity: 1.0
+      language: en                 # 描述恒英文；图内文字保留原语种
+      length: { brief: [80, 150], standard: [150, 450], detailed: [450, 600] }
+      quality_words: banned
+      weight_syntax: none
+      structured_output: [caption]
+      voice: "third-person present-tense observer; no 'you', no 'create', no 'make sure'"
+      target_words: [400, 500]
+    negative:
+      supported: false             # API 侧不支持
+      channel: "local true_cfg only (需 cfg>1 且同时给 negative_prompt)"
+    layout:
+      supported: false
+      note: "仅靠方位短语 + 圈选/涂鸦/mask 图像"
+    edit:
+      supported: true
+      ref_syntax: "<imageN>"
+      max_refs: 10
+      rules:
+        - "指令式、动词开头、单段无换行"
+        - "保持项只按类型/位置/角色点名，不描述外观（越描述越漂移）"
+        - "单图禁用 <imageN> 标签；多图强制使用"
+    sampling:
+      steps: 40
+      true_cfg_scale: 1.0          # 默认关闭
+      guidance_scale: null         # 不存在此参数
+      scheduler: "Euler Flow Matching + dynamic shift"
+      turbo_steps: 8
+    resolution: { native: 2048, preset_aspects: 7, max_mp: 4 }
+    pitfalls:
+      - "质量词（masterpiece/8K/highly detailed）被 system prompt 明令禁止"
+      - "长文本渲染易错字漏字，只适合标题短语"
+      - "负向词在 API 上静默忽略，本地滥用会让耗时翻倍"
+      - "描述「要保留的东西」会导致漂移"
+
+  # ─────────────────────────────────────────────────────────────
+  flux1_dev:
+    display: "FLUX.1 dev (legacy)"
+    vendor: Black Forest Labs
+    confidence: medium
+    source: ["BFL docs (FLUX.1 series)"]
+    encoder: { name: "CLIP-L + T5-XXL", max_tokens: 512, truncation: "truncate", family: "clip+t5" }
+    prompt: { mode: prose, verbosity: 0.7, language: en, weight_syntax: none }
+    negative: { supported: true, channel: true_cfg }
+    layout: { supported: false }
+    edit: { supported: false, note: "需 Kontext 变体" }
+    sampling: { steps: 28, guidance: 3.5, distilled_variant: "schnell 4 steps / cfg 0" }
+    resolution: { native_mp: 1 }
+
+  # ─────────────────────────────────────────────────────────────
+  sdxl:
+    display: "SDXL (legacy)"
+    vendor: Stability
+    confidence: high
+    source: ["Stability SDXL docs", "A1111 / ComfyUI CLIP 77-token 限制"]
+    encoder: { name: "CLIP-L + CLIP-G", max_tokens: 77, chunking: "compel/BREAK", family: clip }
+    prompt: { mode: tag, verbosity: 0.4, language: en, weight_syntax: "a1111/comfy" }
+    negative: { supported: true, channel: true_cfg }
+    layout: { supported: false, note: "需 Regional Prompter / Attention Couple" }
+    edit:
+      supported: false             # 局部重绘由 mask 驱动，不是指令式 prompt
+      note: "inpaint 靠 mask 与区域提示词，没有「指令式编辑」形态；本工具不生成该形态"
+    sampling: { steps: 28, cfg: 7.0 }
+    resolution: { native: [1024, 1024] }
+
+  # ─────────────────────────────────────────────────────────────
+  # H3 是**视频**后端：它的提示词是一条时间线，不是一张画面的属性表。
+  # 所以 prompt.mode = timeline，且没有 negative / layout / token 预算概念。
+  minimax-h3:
+    display: "MiniMax-H3 (音视频联合)"
+    vendor: MiniMax
+    confidence: high
+    source:
+      - "lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA: prompt_template.py（三字段输出契约，逐字采纳）"
+      - "MiniMax-H3 官方提示词格式规范 · 基础模式（T2VA / I2VA / FL2VA / L2VA）"
+      - "MiniMax-H3 官方提示词格式规范 · 全参考六段式（参考标签口径）"
+      - "MiniMax-H3 出词铁律 28 条（社区整理；本工具只实现可机检子集）"
+    encoder: { name: "H3 text encoder", max_tokens: 4000, truncation: "unknown", family: h3 }
+    prompt:
+      mode: timeline
+      verbosity: 1.0
+      language: zh+en              # 格式英文、内容中文（铁律 12）；有台词段正文英译（12·补）
+      length: { brief: [80, 140], standard: [150, 300], detailed: [300, 520] }
+      quality_words: banned
+      weight_syntax: none
+      fields: [integrated_multimodal_description, overall_soundscape, non_diegetic_music]
+      shot_timestamp: "At MM:SS.mmm"
+      dialogue_tag: "<d>[lang]…</d>"
+      speaker_tag: "(S1)"
+    negative: { supported: false, note: "H3 无负向通道；回避只能改正向描述" }
+    layout: { supported: false, note: "空间由文字描述与参考图决定；没有 bbox 输入" }
+    edit: { supported: false, note: "参考图走 I2VA/FL2VA 的「续写」，不是指令式编辑" }
+    video:
+      duration_s: { min: 4, max: 15, default: 8 }
+      frame_grid: "ceil(sec*24) 对齐 ≡5 mod 17（3s=73 / 5s=124 / 6s=158 / 8s=192）"
+      aspects: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+      note: "时长真值唯一来源是工作流字段 length（帧数）；正文不写秒数/帧数（铁律 10/13）"
+    sampling:
+      steps: 8
+      note: "采样参数由工作流决定；这里只记常见档位，不作为默认值下发"
+    rewriter:
+      repo: "lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA"
+      base_model: "Qwen/Qwen3.6-27B"
+      # 只记文件名，不记路径：放哪儿是用户的事（见 paths.py 的查找规则）。
+      file: "MiniMax-H3-Prompt-Rewriter-LoRA-Q8_0.gguf"
+      arch: qwen35
+      lora_rank: 256
+      lora_alpha: 512
+      tasks: ["t2va"]
+      note: "只覆盖 T2VA；FL2VA / Ref2VA 官方标为未实现"
+    pitfalls:
+      - "Shot 1 写时间戳会把首帧锁成参考图（实测根因）"
+      - "否定式封锁无效：扩散架构没有否定算子，仍会激活被否概念"
+      - "数量词不可承诺：同一数字有时中有时不中，是随机遵从"
+      - "Geo 方位（东南西北）在画面里不存在，写了只能瞎猜"
+      - "非语言人声写进 <d> 外的导演说明，会被读进语音轨（杂字/碎句多包）"

@@ -1,0 +1,25 @@
+{
+  "ir_version": "0.1",
+  "task": "edit",
+  "canvas": {"aspect_ratio": "1:1"},
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "character",
+      "label": "the person in the photo",
+      "importance": 1.0,
+      "age_years": 30,
+      "descriptors": {"gender": "woman"},
+      "must_keep": ["face", "hairstyle", "background"]
+    }
+  ],
+  "constraints": {
+    "instruction": "Replace the grey coat with a deep red wool coat",
+    "age_gate": "enforced",
+    "ip_policy": "attribution"
+  },
+  "provenance": {
+    "source": "user",
+    "source_images": ["refs/source.png"]
+  }
+}

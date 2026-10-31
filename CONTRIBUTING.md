@@ -21,7 +21,7 @@ python tests/test_faceswap_wiring.py    # 36 项：换脸接线（桩 clip/vae/�
 python tests/test_init_empty.py         # 18 项：init 两个分支 —— 空 latent 不碰源图 / 画布来源 / 忽略项写明 / 缺 image 报错
 node   tests/test_i18n.mjs                # 64 项：中英切换纯函数（含子包 38 个参数标签 / en 提示 / 枚举显示）
 node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
-python tests/test_llm_subpackage.py        # 66 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一）
+python tests/test_llm_subpackage.py        # 98 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一 / 侧车启动命令 / 图像预处理 / 零模型编译 / 反漂移断言）
 python tools/smoke_nodes.py               # 63 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 共 197 项：连线 + 槽位（不带文件参数只查内建那一份 = 15 项）

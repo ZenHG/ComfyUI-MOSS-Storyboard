@@ -1,0 +1,48 @@
+{
+  "ir_version": "0.1",
+  "task": "t2i",
+  "canvas": {
+    "aspect_ratio": "16:9",
+    "background": "a rain-soaked convenience store entrance at night"
+  },
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "character",
+      "label": "girl in a red umbrella",
+      "importance": 1.0,
+      "age_years": 17,
+      "descriptors": {
+        "gender": "girl",
+        "hair": "long straight black hair",
+        "wardrobe": ["a navy school uniform", "a red umbrella"],
+        "pose": "standing still under the awning"
+      },
+      "spatial": {"anchor": "left third, midground", "bbox_norm": [0.08, 0.3, 0.36, 0.92]}
+    },
+    {
+      "id": "e2",
+      "kind": "character",
+      "label": "boy in a blue jacket",
+      "importance": 0.85,
+      "age_years": 18,
+      "descriptors": {
+        "gender": "boy",
+        "hair": "short messy brown hair",
+        "wardrobe": ["a blue windbreaker"],
+        "pose": "walking toward her"
+      },
+      "spatial": {"anchor": "right third, foreground", "bbox_norm": [0.62, 0.34, 0.92, 0.95]}
+    }
+  ],
+  "relations": [
+    {"subject": "e2", "predicate": "facing", "object": "e1"},
+    {"subject": "e1", "predicate": "left_of", "object": "e2"}
+  ],
+  "camera": {"shot": "wide", "angle": "eye_level", "lens_mm": 24, "dof": "deep"},
+  "lighting": {"key": "cold fluorescent light from the storefront, warm rim from the street lamp"},
+  "style": {"medium": "photograph", "substyle": ["cinematic still"], "photoreal": 0.85},
+  "atmosphere": ["rain", "steam from a vent"],
+  "constraints": {"avoid": ["anime"], "age_gate": "enforced", "ip_policy": "attribution"},
+  "provenance": {"source": "user"}
+}

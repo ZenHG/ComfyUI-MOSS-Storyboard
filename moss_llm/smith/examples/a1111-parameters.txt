@@ -1,0 +1,4 @@
+a 28-year-old woman in a yellow raincoat, standing on wet asphalt at night, neon signs reflected in the puddles, 35mm, upper left of frame, light film grain, a poster on the wall reading "STAY DRY" in bold white letters
+
+Negative prompt: worst quality, bad anatomy, extra fingers, watermark, jpeg artifacts
+Steps: 28, Sampler: dpmpp_2m, CFG scale: 7, Seed: 12345, Size: 832x1216, Model: someSDXL_v30

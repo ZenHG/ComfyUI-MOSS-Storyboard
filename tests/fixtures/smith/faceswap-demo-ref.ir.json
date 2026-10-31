@@ -1,0 +1,103 @@
+{
+  "ir_version": "0.1",
+  "task": "reverse",
+  "canvas": {
+    "aspect_ratio": "1:1"
+  },
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "character",
+      "label": "man",
+      "importance": 1.0,
+      "age_years": 30,
+      "descriptors": {
+        "gender": "man",
+        "hair": "dark brown, short, styled with volume on top, neat",
+        "skin": "light tone, smooth surface",
+        "face": "oval bone structure, defined jawline, faint stubble",
+        "expression": "neutral, direct gaze",
+        "pose": "head slightly tilted forward, shoulders relaxed",
+        "wardrobe": [
+          "light gray crew neck t-shirt, textured knit, fitted"
+        ]
+      },
+      "spatial": {
+        "anchor": "center",
+        "bbox_norm": [
+          0.12,
+          0.12,
+          0.88,
+          0.96
+        ]
+      },
+      "evidence": [
+        "visible facial features",
+        "hair texture",
+        "t-shirt neckline",
+        "background blur"
+      ]
+    }
+  ],
+  "relations": [],
+  "style": {
+    "medium": "photograph",
+    "notes": "Smooth, even lighting with minimal shadowing. Clean, digital rendering with soft skin texture and subtle grain.",
+    "substyle": []
+  },
+  "camera": {
+    "shot": "close-up",
+    "angle": "eye level",
+    "lens_mm": 85,
+    "dof": "shallow",
+    "focus": "the man's face, especially the eyes",
+    "notes": "Tight crop on the head and shoulders, background is softly blurred. The frame is centered on the face with no negative space."
+  },
+  "lighting": {
+    "key": "front-center, soft",
+    "fill": "soft frontal fill",
+    "mood": "calm, neutral",
+    "notes": "Even illumination with no harsh shadows. Highlights are soft on the forehead and cheekbones. Skin has a matte finish."
+  },
+  "composition": {
+    "rules": [
+      "centered"
+    ],
+    "notes": "The subject is centered in the frame, occupying the majority of the space. The eye is drawn directly to the face due to the shallow depth of field."
+  },
+  "atmosphere": [
+    "neutral",
+    "professional",
+    "studio",
+    "clean",
+    "focused"
+  ],
+  "constraints": {
+    "avoid": [],
+    "age_gate": "enforced"
+  },
+  "budget": {
+    "target_tokens": null,
+    "verbosity": 0.7,
+    "priority_policy": "importance_desc"
+  },
+  "provenance": {
+    "source": "reverse",
+    "image": "faceswap-demo-ref.png",
+    "model_size": [
+      768,
+      768
+    ],
+    "prep": [],
+    "size": [
+      768,
+      768
+    ]
+  },
+  "notes": {
+    "medium": "Smooth, even lighting with minimal shadowing. Clean, digital rendering with soft skin texture and subtle grain.",
+    "camera": "Tight crop on the head and shoulders, background is softly blurred. The frame is centered on the face with no negative space.",
+    "lighting": "Even illumination with no harsh shadows. Highlights are soft on the forehead and cheekbones. Skin has a matte finish.",
+    "composition": "The subject is centered in the frame, occupying the majority of the space. The eye is drawn directly to the face due to the shallow depth of field."
+  }
+}

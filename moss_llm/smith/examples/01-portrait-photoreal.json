@@ -1,0 +1,50 @@
+{
+  "ir_version": "0.1",
+  "task": "t2i",
+  "canvas": {
+    "aspect_ratio": "3:2",
+    "background": "a narrow Kyoto backstreet after rain, wet asphalt mirroring the shop signs"
+  },
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "character",
+      "label": "woman in a yellow raincoat",
+      "importance": 1.0,
+      "age_years": 28,
+      "descriptors": {
+        "gender": "woman",
+        "hair": "shoulder-length damp black hair",
+        "skin": "fair skin with visible pores",
+        "wardrobe": ["a yellow raincoat", "black ankle boots"],
+        "expression": "looking up at the sky",
+        "pose": "standing with her weight on one leg"
+      },
+      "spatial": {"anchor": "left third, foreground"}
+    }
+  ],
+  "camera": {
+    "shot": "medium",
+    "angle": "low",
+    "lens_mm": 35,
+    "dof": "shallow",
+    "focus": "her face"
+  },
+  "lighting": {
+    "key": "soft overcast daylight from the left",
+    "time_of_day": "blue hour",
+    "mood": "quiet"
+  },
+  "composition": {
+    "rules": ["rule of thirds"],
+    "negative_space": "open sky in the upper right"
+  },
+  "style": {"medium": "photograph", "substyle": ["35mm film"], "photoreal": 0.9},
+  "atmosphere": ["wet pavement", "light mist"],
+  "constraints": {
+    "avoid": ["anime", "illustration", "plastic skin"],
+    "age_gate": "enforced",
+    "ip_policy": "attribution"
+  },
+  "provenance": {"source": "user"}
+}

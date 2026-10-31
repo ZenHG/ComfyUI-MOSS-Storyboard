@@ -1,0 +1,727 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/prompt-artisan/schema/ir.schema.json",
+  "title": "Prompt IR (Scene Packet) v0.1",
+  "description": "模型无关的提示词中间表示。所有后端适配器只从这里取事实，不直接读用户原话。",
+  "type": "object",
+  "required": [
+    "ir_version",
+    "task",
+    "canvas",
+    "entities"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "ir_version": {
+      "const": "0.1"
+    },
+    "task": {
+      "enum": [
+        "t2i",
+        "edit",
+        "inpaint",
+        "outpaint",
+        "variation",
+        "reverse"
+      ],
+      "description": "edit/inpaint/outpaint 必须同时给 source_images 与 entities[].must_keep"
+    },
+    "canvas": {
+      "type": "object",
+      "required": [
+        "aspect_ratio"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "aspect_ratio": {
+          "type": "string",
+          "pattern": "^[0-9]{1,2}:[0-9]{1,2}$"
+        },
+        "width": {
+          "type": "integer",
+          "multipleOf": 16
+        },
+        "height": {
+          "type": "integer",
+          "multipleOf": 16
+        },
+        "background": {
+          "type": "string",
+          "description": "背景的语义描述，不是颜色值"
+        },
+        "transparent": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "entities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "importance"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^e[0-9]{1,3}$"
+          },
+          "kind": {
+            "enum": [
+              "character",
+              "object",
+              "text",
+              "panel",
+              "effect",
+              "background"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "一句话标识，如 '28-year-old woman in yellow raincoat'。不是最终 prompt 文本。"
+          },
+          "importance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "预算不足时被裁剪的优先级。1.0=不可删（主体/必须文字），0.3=可牺牲（氛围修饰）。"
+          },
+          "age_years": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 120,
+            "description": "character 必填。硬闸：<18 强制 SFW。"
+          },
+          "descriptors": {
+            "type": "object",
+            "description": "原子化属性，禁止塞整段散文。键名自由但建议用受控词表。",
+            "properties": {
+              "gender": {
+                "type": "string"
+              },
+              "build": {
+                "type": "string"
+              },
+              "skin": {
+                "type": "string"
+              },
+              "hair": {
+                "type": "string"
+              },
+              "face": {
+                "type": "string"
+              },
+              "expression": {
+                "type": "string"
+              },
+              "pose": {
+                "type": "string"
+              },
+              "wardrobe": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "props": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "material": {
+                "type": "string"
+              }
+            }
+          },
+          "spatial": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "anchor": {
+                "type": "string",
+                "description": "自然语言方位，全模型通用。如 'left third, foreground'"
+              },
+              "bbox_norm": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "minItems": 4,
+                "maxItems": 4,
+                "description": "归一化 [x0,y0,x1,y1]，左上原点。后端按需转 abs 像素或 0-1000 网格。"
+              },
+              "layer": {
+                "enum": [
+                  "foreground",
+                  "midground",
+                  "background"
+                ]
+              },
+              "scale": {
+                "type": "string",
+                "description": "相对尺度，如 'occupies 60% of frame height'"
+              }
+            }
+          },
+          "text_content": {
+            "type": "string",
+            "description": "kind=text 必填。逐字内容，保留原语种与标点，不翻译不改写。"
+          },
+          "typography": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "weight": {
+                "type": "string"
+              },
+              "case": {
+                "enum": [
+                  "upper",
+                  "lower",
+                  "title",
+                  "mixed"
+                ]
+              },
+              "color": {
+                "type": "string"
+              },
+              "align": {
+                "enum": [
+                  "left",
+                  "center",
+                  "right"
+                ]
+              },
+              "lines": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "visual_weight": {
+                "enum": [
+                  "large",
+                  "small"
+                ],
+                "description": "字号（内容属性）。normalize() 时由 importance 派生并冻结，此后 importance 只决定裁剪顺序，不再影响字号"
+              },
+              "style_hint": {
+                "type": "string",
+                "description": "如 'crisp moderately heavy lettering, generous spacing'"
+              }
+            }
+          },
+          "must_keep": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "仅 edit/inpaint/outpaint 用。要保住的属性名。注意：不要描述其外观，只点名。"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "仅 task=reverse 用。每个描述对应一条可见证据，用于压制幻觉。"
+          }
+        },
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "character"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "age_years"
+          ]
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "text"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "text_content"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "subject",
+          "predicate",
+          "object"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "predicate": {
+            "enum": [
+              "left_of",
+              "right_of",
+              "above",
+              "below",
+              "behind",
+              "in_front_of",
+              "holding",
+              "touching",
+              "facing",
+              "occluding"
+            ]
+          },
+          "object": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "实体间关系。用于多主体场景的属性绑定，防止 color bleeding。"
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "medium": {
+          "enum": [
+            "photograph",
+            "illustration",
+            "anime",
+            "3d_render",
+            "graphic_design",
+            "painting",
+            "mixed"
+          ]
+        },
+        "substyle": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "photoreal": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "artist_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "policy": {
+                "enum": [
+                  "allowed",
+                  "attribution_required",
+                  "blocked"
+                ],
+                "default": "allowed"
+              }
+            }
+          },
+          "description": "画师/工作室引用。policy=blocked 时后端必须丢弃并记录 warning。"
+        },
+        "palette": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "maxItems": 16
+        }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shot": {
+          "enum": [
+            "extreme_wide",
+            "wide",
+            "full",
+            "medium",
+            "close_up",
+            "extreme_close_up",
+            "macro"
+          ]
+        },
+        "angle": {
+          "enum": [
+            "eye_level",
+            "low",
+            "high",
+            "dutch",
+            "overhead",
+            "worm"
+          ]
+        },
+        "lens_mm": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 1200
+        },
+        "dof": {
+          "enum": [
+            "shallow",
+            "medium",
+            "deep"
+          ]
+        },
+        "focus": {
+          "type": "string"
+        },
+        "motion": {
+          "type": "string",
+          "description": "如 'slight handheld blur'"
+        }
+      }
+    },
+    "lighting": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "主光：quality + direction + temp，一句话"
+        },
+        "fill": {
+          "type": "string"
+        },
+        "rim": {
+          "type": "string"
+        },
+        "time_of_day": {
+          "type": "string"
+        },
+        "mood": {
+          "type": "string"
+        }
+      }
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "negative_space": {
+          "type": "string"
+        },
+        "horizon": {
+          "type": "string"
+        },
+        "depth_layers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "atmosphere": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "avoid": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "语义负向（'anime look' / 'plastic skin'）。后端决定走真负向、正向规避句、还是丢弃。"
+        },
+        "must_include_text": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "age_gate": {
+          "const": "enforced"
+        },
+        "ip_policy": {
+          "enum": [
+            "strict",
+            "attribution",
+            "off"
+          ],
+          "default": "attribution"
+        },
+        "verbatim": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "用户原话中不可改写的片段"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "null = 由后端 registry 决定"
+        },
+        "verbosity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "0=极简控制点，1=满密度散文"
+        },
+        "priority_policy": {
+          "const": "importance_desc",
+          "default": "importance_desc"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "user",
+            "reverse",
+            "template",
+            "import"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "source_images": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "description": "时间线。图像后端只有一帧，这一维退化成常量；视频后端（H3）必须。空对象表示「没有时间维」，序列化时整个键省略。",
+      "properties": {
+        "duration_s": {
+          "type": "number",
+          "minimum": 0.1
+        },
+        "mode": {
+          "enum": [
+            "t2va",
+            "i2va",
+            "fl2va",
+            "l2va"
+          ]
+        },
+        "style": {
+          "type": "string",
+          "description": "首镜的风格前缀，如 'Live-action, cinematic'"
+        },
+        "one_take": {
+          "type": "boolean",
+          "description": "一镜到底：规范化时清掉所有时间戳（铁律 11）"
+        },
+        "shots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "index"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "t_start": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "切点秒数。Shot 1 必须为空（铁律 11）"
+              },
+              "framing": {
+                "type": "string",
+                "description": "景别，如 'a medium-wide shot'"
+              },
+              "action": {
+                "type": "string",
+                "description": "动作短语或完整句，见 action_kind"
+              },
+              "action_kind": {
+                "enum": [
+                  "participle",
+                  "clause",
+                  ""
+                ],
+                "description": "participle：拼进 `a X shot frames <NP> <分词>`；clause：整句另起；空：由 _is_clause 推断"
+              },
+              "detail": {
+                "type": "string",
+                "description": "认不出结构的原文，原样追加（宁粗不丢）"
+              },
+              "cut": {
+                "type": "string",
+                "description": "切镜动词，官方只认五个普切写法"
+              },
+              "camera": {
+                "type": "object",
+                "properties": {
+                  "move": {
+                    "type": "string"
+                  },
+                  "amplitude": {
+                    "enum": [
+                      "small",
+                      "large"
+                    ]
+                  },
+                  "speed": {
+                    "enum": [
+                      "slow",
+                      "fast"
+                    ]
+                  },
+                  "toward": {
+                    "type": "string"
+                  }
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "本镜出场的实体 id，**按出场顺序**。空数组 = 主体不出场"
+              },
+              "dialogue": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "text"
+                  ],
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "description": "逐字，不翻译不改写"
+                    },
+                    "speaker": {
+                      "type": "string",
+                      "description": "稳定 ID，如 S1"
+                    },
+                    "lang": {
+                      "type": "string",
+                      "description": "<d>[lang] 的语言标签"
+                    },
+                    "subject": {
+                      "type": "string",
+                      "description": "说话人是哪个实体"
+                    },
+                    "offscreen": {
+                      "type": "boolean"
+                    },
+                    "verb": {
+                      "type": "string",
+                      "description": "如 'says:' / 'shouts together:'"
+                    },
+                    "carry": {
+                      "enum": [
+                        "scenetrans",
+                        "cutoff",
+                        ""
+                      ]
+                    }
+                  }
+                }
+              },
+              "onscreen_text": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "carrier": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "sound": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "soundscape": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "1–4 句环境音/物理声/非语言人声；对白不重复"
+        },
+        "music": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "空数组 → 渲染成 N/A（铁律 8 的后期 BGM 口径）"
+        }
+      }
+    }
+  }
+}

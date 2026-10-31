@@ -1,0 +1,116 @@
+{
+  "ir_version": "0.1",
+  "task": "t2va",
+  "canvas": {
+    "aspect_ratio": "16:9"
+  },
+  "style": {
+    "medium": "Live-action, cinematic"
+  },
+  "entities": [
+    {
+      "id": "c1",
+      "kind": "character",
+      "label": "baker",
+      "importance": 0.95,
+      "age_years": 45,
+      "descriptors": {
+        "gender": "man",
+        "wardrobe": [
+          "a flour-dusted apron"
+        ],
+        "expression": "a calm, unhurried manner"
+      }
+    },
+    {
+      "id": "c2",
+      "kind": "character",
+      "label": "customer",
+      "importance": 0.6,
+      "descriptors": {
+        "gender": "woman",
+        "wardrobe": [
+          "a navy rain jacket"
+        ]
+      }
+    },
+    {
+      "id": "o1",
+      "kind": "object",
+      "label": "a paper bag",
+      "importance": 0.55
+    },
+    {
+      "id": "o2",
+      "kind": "object",
+      "label": "sliced bread",
+      "importance": 0.55
+    }
+  ],
+  "timeline": {
+    "duration_s": 8.0,
+    "mode": "t2va",
+    "style": "Live-action, cinematic",
+    "one_take": false,
+    "shots": [
+      {
+        "index": 1,
+        "framing": "a medium-wide shot",
+        "entities": [
+          "c1"
+        ],
+        "action": "lifting the wooden shutters until the warm light from inside spills onto the wet pavement",
+        "camera": {
+          "move": "push in",
+          "amplitude": "small",
+          "speed": "slow"
+        },
+        "dialogue": [
+          {
+            "speaker": "S1",
+            "lang": "zh",
+            "text": "第一炉，刚出炉。",
+            "subject": "c1"
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "t_start": 2.8,
+        "framing": "a close-up",
+        "entities": [],
+        "action": "Steam rises from the sliced bread and curls past the baker's hands",
+        "camera": {
+          "move": "static"
+        }
+      },
+      {
+        "index": 3,
+        "t_start": 5.8,
+        "framing": "a medium shot",
+        "entities": [
+          "c1",
+          "c2",
+          "o1"
+        ],
+        "action": "slides a paper bag across the wooden counter toward the customer in a navy rain jacket whose back fills the frame-right edge",
+        "camera": {
+          "move": "pan right",
+          "amplitude": "small"
+        }
+      }
+    ],
+    "soundscape": [
+      "Wooden shutters scrape open over a quiet street as metal trays clink softly inside the bakery.",
+      "The doorbell rings once, followed by light footsteps on wet stone and the soft rustle of a paper bag."
+    ],
+    "music": []
+  },
+  "constraints": {
+    "avoid": []
+  },
+  "provenance": {
+    "source": "hand-written",
+    "note": "H3 官方格式的输入样例：时间线是 IR 的一等维度，不是适配器的私货"
+  }
+}

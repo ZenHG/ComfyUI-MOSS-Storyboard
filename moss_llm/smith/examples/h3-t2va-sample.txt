@@ -1,0 +1,5 @@
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames a 45-year-old man wearing a flour-dusted apron lifting the wooden shutters until the warm light from inside spills onto the wet pavement. The camera pushes in with small amplitude at slow speed. The baker (S1) says: <d>[zh]第一炉，刚出炉。</d> [Shot 2] At 00:02.800, the camera cuts to a close-up, steam rises from the sliced bread and curls past the baker's hands. The camera holds a static shot. [Shot 3] At 00:05.800, the camera cuts to a medium shot. A 45-year-old man wearing a flour-dusted apron slides a paper bag across the wooden counter toward the customer in a navy rain jacket whose back fills the frame-right edge. The camera pans right with small amplitude.
+
+overall_soundscape: Wooden shutters scrape open over a quiet street as metal trays clink softly inside the bakery. The doorbell rings once, followed by light footsteps on wet stone and the soft rustle of a paper bag.
+
+non_diegetic_music: N/A

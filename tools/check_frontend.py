@@ -238,14 +238,17 @@ def f7_combo_labels(mapping, src_js):
     m = re.search(r"const COMBOS = \{(.*?)\n\};", src_js, re.S)
     blk = m.group(1) if m else ""
     groups, cur = {}, None
+    # 取值可以带引号（`"moss-image": "MOSS 单图"`）——带连字符的后端名在 JS 里必须加引号，
+    # 旧正则只认裸标识符，于是那几个值永远「缺中文」，而表里其实写了。
+    _KV = r"[\"']?([\w:.\-]+)[\"']?:\s*\""
     for ln in blk.splitlines():
         g = re.match(r"\s{4}([a-z_0-9]+):\s*\{(.*)", ln)
         if g:
             cur = g.group(1)
-            groups[cur] = set(re.findall(r'([\w:.\-]+):\s*"', g.group(2)))
+            groups[cur] = set(re.findall(_KV, g.group(2)))
             continue
         if cur:
-            groups[cur] |= set(re.findall(r'([\w:.\-]+):\s*"', ln))
+            groups[cur] |= set(re.findall(_KV, ln))
 
     bad, seen = [], 0
     for _cls, klass in mapping.items():

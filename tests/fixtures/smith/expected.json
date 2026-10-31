@@ -1,0 +1,134 @@
+{
+  "comic-4panel-lineart-sample.ir.json": {
+    "entities": 5,
+    "needs_layout": true,
+    "notes": 1,
+    "targets": {
+      "flux3": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "82e260c5a501a35c",
+        "words": 217
+      },
+      "krea2": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "de8fe70532902d16",
+        "words": 155
+      },
+      "moss-image": {
+        "negative": "8bf51c0e08ebd933",
+        "positive": "85adab1c64b887d6",
+        "words": 223
+      },
+      "qwen-image-2_1": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "b1c00e31f207e4ab",
+        "words": 155
+      },
+      "sdxl": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "a6c74d246e6f3031",
+        "words": 159
+      }
+    },
+    "texts": 3
+  },
+  "faceswap-demo-ref.ir.json": {
+    "entities": 1,
+    "needs_layout": false,
+    "notes": 4,
+    "targets": {
+      "flux3": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "4ed051525aad76cd",
+        "words": 88
+      },
+      "krea2": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "591150c6387a1e06",
+        "words": 135
+      },
+      "moss-image": {
+        "negative": "8bf51c0e08ebd933",
+        "positive": "83ff702116bda11b",
+        "words": 135
+      },
+      "qwen-image-2_1": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "83ff702116bda11b",
+        "words": 135
+      },
+      "sdxl": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "1035406a26bb06e8",
+        "words": 138
+      }
+    },
+    "texts": 0
+  },
+  "hero-storyboard.ir.json": {
+    "entities": 4,
+    "needs_layout": true,
+    "notes": 4,
+    "targets": {
+      "flux3": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "4fc79ba9d565f6d5",
+        "words": 270
+      },
+      "krea2": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "c48823d67fba59cb",
+        "words": 255
+      },
+      "moss-image": {
+        "negative": "8bf51c0e08ebd933",
+        "positive": "69127ce556de69b7",
+        "words": 321
+      },
+      "qwen-image-2_1": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "651ad1380f3ae302",
+        "words": 255
+      },
+      "sdxl": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "48dc9843650b3d80",
+        "words": 261
+      }
+    },
+    "texts": 0
+  },
+  "ui-smoke.ir.json": {
+    "entities": 8,
+    "needs_layout": true,
+    "notes": 1,
+    "targets": {
+      "flux3": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "8be1f3b761029503",
+        "words": 104
+      },
+      "krea2": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "ab8fe47d5c8f22be",
+        "words": 129
+      },
+      "moss-image": {
+        "negative": "8bf51c0e08ebd933",
+        "positive": "58f46b1e184e8ad3",
+        "words": 92
+      },
+      "qwen-image-2_1": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "6b7c87d3ee5137cc",
+        "words": 129
+      },
+      "sdxl": {
+        "negative": "e3b0c44298fc1c14",
+        "positive": "30acf99fbdf18012",
+        "words": 133
+      }
+    },
+    "texts": 8
+  }
+}

@@ -350,6 +350,138 @@ def main():
             check("所有源失败 → 显性报错", "所有来源都不可用" in str(e),
                   str(e).splitlines()[0])
 
+    print("\n== 10. 合流：侧车启动命令是纯函数（参数拼错只有真机才炸）==")
+    srv = server.LlamaServer(model="m.gguf", ctx=8192)
+    cmd, notes = srv.build_cmd("/x/llama-server", flags=set())
+    check("带上 fit / fit-target（显存适配）",
+          "--fit" in cmd and "--fit-target" in cmd, " ".join(cmd))
+    check("带上 KV cache 量化（q8_0 省一半显存）",
+          "--cache-type-k" in cmd and "q8_0" in cmd)
+    check("带上 ubatch 与 parallel", "--ubatch-size" in cmd and "--parallel" in cmd)
+    check("默认**不设**服务端口令（否则 /tokenize 回 401，真实 token 数被静默降级成估算）",
+          "--api-key" not in cmd)
+    check("alias 与实例指纹同源（端口占用时据此判能不能复用）",
+          "--alias" in cmd and srv.alias() in cmd)
+
+    cmd2, notes2 = srv.build_cmd("/x/llama-server", flags={"--jinja", "--ctx-size"})
+    check("--help 探测不到的开关一律不加（老版本会启动即退出）",
+          "--fit" not in cmd2 and "--cache-type-k" not in cmd2, " ".join(cmd2))
+    check("不支持 fit 时出声，不静默少一层保护",
+          any("--fit" in n for n in notes2), str(notes2))
+
+    with tempfile.TemporaryDirectory() as td:
+        mp = os.path.join(td, "mmproj-Q8_0.gguf")
+        with open(mp, "wb") as f:
+            f.write(b"GGUF")
+        c3, _n = server.LlamaServer(model="m.gguf", mmproj=mp).build_cmd(
+            "/x/llama-server", flags=set())
+        check("mmproj 文件存在才加 --mmproj", "--mmproj" in c3 and mp in c3)
+        c4, _n = srv.build_cmd("/x/llama-server", flags=set())
+        check("没给 mmproj 就不加（纯文本臂不会被塞一个塔）", "--mmproj" not in c4)
+
+    check("mtp=off 时不开投机解码",
+          server.LlamaServer(model="m.gguf", mtp="off").mtp_enabled() is False)
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "m.gguf")
+        write_gguf(p, {"general.architecture": "qwen35", "qwen35.nextn_predict_layers": 1})
+        check("mtp=auto 读元数据判（不看文件名）",
+              server.LlamaServer(model=p).mtp_enabled() is True)
+
+    print("\n== 11. 合流：图像预处理只有一份（张量入口与文件入口同一套纪律）==")
+    try:
+        import numpy as np
+    except ImportError:                                   # pragma: no cover
+        np = None
+    if np is None:
+        check("跳过：没有 numpy（torch 也没装时的最小环境）", True)
+    else:
+        from moss_sb_t.moss_llm import vision as V
+        prep = V.prepare_tensor(np.zeros((1, 1024, 2048, 3), dtype="float32"))
+        check("张量入口缩到最长边 1536（以前是原尺寸直传，白烧一两千 token）",
+              (prep.width, prep.height) == (1536, 768), "%sx%s" % (prep.width, prep.height))
+        check("编成 JPEG q95 4:4:4（不是原尺寸 PNG）",
+              prep.data_url.startswith("data:image/jpeg;base64,"), prep.data_url[:30])
+        check("缩放这件事写进 notes（不静默改输入）",
+              any("缩放" in n for n in prep.notes), str(prep.notes))
+        with tempfile.TemporaryDirectory() as td:
+            from PIL import Image
+            pth = os.path.join(td, "a.png")
+            Image.new("RGBA", (400, 200), (255, 0, 0, 0)).save(pth)
+            pf = V.prepare(pth)
+            check("文件入口把透明合成到白底（直接丢 alpha 会变黑底）",
+                  any("白底" in n for n in pf.notes), str(pf.notes))
+            check("文件入口同样出 JPEG", pf.data_url.startswith("data:image/jpeg;base64,"))
+
+    print("\n== 12. 合流：compile 任务（零模型、确定性、可断言）==")
+    ex_dir = os.path.join(ROOT, "moss_llm", "smith", "examples")
+    with open(os.path.join(ex_dir, "01-portrait-photoreal.json"), encoding="utf-8") as f:
+        ir_text = f.read()
+    # channel=api 且 api_base 为空：真去调模型会立刻报错。能出结果就证明没走模型。
+    base_c = {"task": "compile", "channel": "api", "api_base": "",
+              "dialect": "moss_image", "model": "(未找到 GGUF 模型)", "text": ir_text,
+              "length": "standard", "temperature": 0.2, "max_tokens": 512, "seed": 0}
+    out, rep = smith.smith(target="moss-image", **base_c)
+    check("没有权重、没有 api_base 也能出提示词（零模型）", bool(out.strip()))
+    check("报告写明「未调用模型」", "未调用模型" in rep, rep.splitlines()[0])
+    check("报告带不变式结论（M1–M6）", "不变式" in rep, rep.splitlines()[1])
+    check("确定性：同 IR 两次编译逐字节相同", smith.smith(target="moss-image", **base_c)[0] == out)
+
+    out2, rep2 = smith.smith(target="sdxl", **base_c)
+    check("同一 IR 换后端 → 换方言（不是原样复制）", out2 != out and bool(out2.strip()))
+
+    with open(os.path.join(ex_dir, "05-h3-t2va.json"), encoding="utf-8") as f:
+        h3_ir = f.read()
+    out3, rep3 = smith.smith(target="minimax-h3", **{**base_c, "text": h3_ir})
+    check("视频后端也走同一条路（timeline 是 IR 的一等字段）",
+          "[Shot 1]" in out3, out3[:40])
+
+    for bad, needle, tag in [
+        ("{}", "entities", "缺 entities"),
+        ("", "空的", "空输入"),
+        ("任务：做个海报", "认不出", "不是结构化的"),
+    ]:
+        try:
+            smith.smith(target="moss-image", **{**base_c, "text": bad})
+            check("坏 IR 要报错（%s）" % tag, False, "没报错")
+        except ValueError as e:
+            check("坏 IR 要报错（%s）" % tag, needle in str(e), str(e).splitlines()[0][:70])
+    try:
+        smith.smith(target="nope", **base_c)
+        check("未知后端要报错并列出可选项", False, "没报错")
+    except ValueError as e:
+        check("未知后端要报错并列出可选项", "moss-image" in str(e), str(e).splitlines()[0][:70])
+
+    reg_mod = importlib.import_module("moss_sb_t.moss_llm.smith.registry")
+    names = set(reg_mod.Registry.load().names())
+    extra = [t for t in nodes._TARGETS if t not in names]
+    check("节点的 target 列表与 registry 一致（%d 个，镜像不许漂移）"
+          % len(nodes._TARGETS), not extra, str(extra))
+    check("compile 在任务枚举里", "compile" in nodes._TASKS)
+    check("编译任务的中文旧值也有归一映射", nodes._LEGACY_VALUES.get("编译") == "compile")
+
+    print("\n== 13. 合流：llama-server 只有一个查找入口，转发不是副本 ==")
+    paths_mod = importlib.import_module("moss_sb_t.moss_llm.smith.paths")
+    llm_mod = importlib.import_module("moss_sb_t.moss_llm.smith.llm")
+    check("smith.llm.LlamaServer 就是父包那个类（不是又抄了一份）",
+          llm_mod.LlamaServer is server.LlamaServer)
+    with tempfile.TemporaryDirectory() as td:
+        exe = os.path.join(td, "llama-server.exe" if os.name == "nt" else "llama-server")
+        with open(exe, "wb") as f:
+            f.write(b"x")
+        old = os.environ.get("MOSS_LLM_SERVER")
+        os.environ["MOSS_LLM_SERVER"] = exe
+        try:
+            check("smith.paths 与父包找到同一个可执行文件",
+                  paths_mod.find_llama_server() == exe and server.find_server_exe() == exe,
+                  paths_mod.find_llama_server())
+            check("支持性探测走父包（同一个带缓存的 --help 结果）",
+                  paths_mod.supports_flag(exe, "--fit") is False)   # 假 exe 问不出帮助
+        finally:
+            if old is None:
+                os.environ.pop("MOSS_LLM_SERVER", None)
+            else:
+                os.environ["MOSS_LLM_SERVER"] = old
+
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     for f in FAIL:
         print("  - " + f)

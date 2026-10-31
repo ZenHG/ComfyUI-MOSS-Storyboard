@@ -99,7 +99,7 @@ MossPromptSmith
 |---|---|---|
 | 宿主端到端 | 维护者本地实验 `p0_host_e2e.py`：`/prompt` 提交 `LoadImage → MossPromptSmith → SaveText×2` | ✅ `status=success`，16.0s，产物落 `output/moss_llm_e2e/`；report 里 pack 版本 / `MTP(draft-mtp d=2) 已启用` / 模型与 mmproj 名 / tokens 2786 / `confidence.overall=0.95` / 12 个文件的 sha8 全在 |
 
-> 这一臂证明的是**宿主侧**：V3 注册、`image` 入参接线、38 个 widget 的 API 形态、
+> 这一臂证明的是**宿主侧**：V3 注册、`image` 入参接线、39 个 widget 的 API 形态、
 > 以及节点自己拉起并释放 llama-server。链尾必须挂输出节点，否则宿主直接
 > `prompt_no_outputs`（第一次就栽在这）。
 
@@ -117,10 +117,15 @@ MossPromptSmith
 
 ## 七、闸与计数
 
-`python tests/test_llm_subpackage.py` = **66/0**（纯函数，零 GPU 零网络）：
+`python tests/test_llm_subpackage.py` = **98/0**（纯函数，零 GPU 零网络）：
 包 sha 篡改检测、JSON 围栏与容错、`_pick_prompt` 优先级、must_keep 对账、段数=格数、
 MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外部 API 端点拼接与 Key 来源、
-任务边界报错、旧稿中文枚举归一、mmproj 宽度配对（同名 > 同目录唯一 > 全局唯一，多候选报错）。
+任务边界报错、旧稿中文枚举归一、mmproj 宽度配对（同名 > 同目录唯一 > 全局唯一，多候选报错），
+以及 2026-10-31 合流后新增的四组：侧车启动命令（fit / KV 量化 / ubatch / parallel /
+MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不加）、图像预处理（张量入口
+最长边 1536 + JPEG 444 + 透明合成白底）、`task=compile`（零模型、确定性、换后端换方言、
+坏 IR 与未知后端的报错话术、`target` 与 registry 不许漂移）、以及
+`smith.llm.LlamaServer is server.LlamaServer` 这条**防再抄一份**的断言。
 
 真机闸：`tools/check_ui_workflow.py examples/llm-*.json` = 46/0；
 `node tools/ui_llm_panel.mjs` = 36/0 + 1 skip（参数面板，见 §九）；
@@ -129,9 +134,9 @@ MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外�
 
 ✅ **子包节点已与核心 7 节点共用同一套 i18n 表**（`web/moss_sb_i18n.js`）：
 `NODES`（后端旧显示名 `MOSS Prompt Smith` 收进 legacy，老工作流标题也能换）、
-`LABELS`（38 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
-`COMBOS`（任务/通道/方言/篇幅/语言/思考/运行时/mmproj/KV 精度/开关，共 16 组）、
-`TIPS`（38 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
+`LABELS`（39 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
+`COMBOS`（任务/通道/方言/编译目标/篇幅/语言/思考/运行时/mmproj/KV 精度/开关，共 17 组）、
+`TIPS`（39 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
 **存档值一律 ASCII id**（`caption` / `local` / `standard` …），中文只在显示层 ——
 英文用户的工作流里不会出现中文枚举；初版已写进存档的中文由 `_LEGACY_VALUES` 在运行时就地
 归一，并把「哪几格被改」写进 report（不静默迁移）。
@@ -160,7 +165,7 @@ MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外�
 
 ## 九、参数面板 `web/moss_llm_panel.js`
 
-38 个参数平铺是一堵墙。面板只做三件事：**默认只露常驻**、**一次只看一组**、**把改动标出来**。
+39 个参数平铺是一堵墙。面板只做三件事：**默认只露常驻**、**一次只看一组**、**把改动标出来**。
 
 - **默认 5 项**（`task` `channel` `dialect` `model` `text`）。这个节点的日常动作是
   「贴图/贴文本 → 跑」，其余 33 项是配置不是操作。默认状态节点 `size` 高 **353 画布单位**；
@@ -210,7 +215,40 @@ MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外�
 
 真机闸：`node tools/ui_llm_panel.mjs` = **36/0 + 1 skip**（只读界面、不排队）。断言含：默认 5 行 /
 开关条在参数上方且是 `widgets[0]`（**重开后也自愈回首位**）/ 悬停换说明时开关条高度与参数 top 都不动（不抖）/
-节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 38 个 `isWidgetVisible` /
+节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 39 个 `isWidgetVisible` /
 **存盘→重开 `widgets_values` 逐位一致** / 折叠状态不进存档 / 两个同型节点各自独立 /
 只作用于本节点 / 页面无 JS 异常。skip 的那条：造不出「已连线的 widget 槽」（直接写 `slot.link`
 被宿主立刻归零），代码里的 `isLinked` 只是防一手 —— **未证**。
+
+## 八、同一层的另一件事：`moss_llm.smith`（IR 编译层）
+
+本子包解决「要一次词」，`moss_llm.smith` 解决「同一份内容换后端时事实还在不在」。
+
+**2026-10-31 合流后的依赖方向是单向的**：`smith` 可以 import 父包的运行时
+（侧车 `server.py` / 图像预处理 `vision.py` / 装包器 `runtime_install.py`），
+父包**只在 `task=compile` 时懒加载** `smith.api`。所以删掉 `moss_llm/smith/`
+不影响另外三个任务、也不影响核心 7 节点（`moss_llm.smith_available()` 用
+`find_spec` 探测，平时不付加载成本）。哪一半归谁、为什么这么切，见
+`docs/25-两份实现的合流.md`。
+
+| | `MossPromptSmith` 节点 | `moss_llm.smith` |
+|---|---|---|
+| 形态 | 一次 LLM 调用 → 成品提示词 + report | 结构化 IR ⇄ N 个方言，确定性编译 |
+| 用模型吗 | 必须（`compile` 任务除外） | 可选（只有反推/扩写用，编译不用）|
+| 换方言 | 换 `dialect` 旋钮，重出一次词 | 同一份 IR 直接编译，事实集合不变 |
+| 自检 | `_checks` 报数不裁决 | 6 条不变式 + 往返校验 + 覆盖率 |
+| H3 | 不管 | 时间线进 IR 一等维度 |
+
+**节点里的 `task=compile` 就是这一层的入口**：把 IR 贴进「文字输入」，
+`target` 选后端，零模型、毫秒级、可复现，report 里带方言机检与 M1–M6 结论。
+没有权重也能用——这是合流带来的最大可用性变化。
+
+边界：`smith` 的几何/布局归核心编辑器（`core/prompt.py` 的 bbox 系列），它只写文字描述；
+反过来，节点的 `_checks` 也不裁决「好不好看」。两边都不越界。
+
+- 用法：`moss_llm/smith/README.md`
+- 设计：`docs/21-smith-ir-架构.md`
+- 路线图与卡点：`docs/22-smith-ir-路线图.md`
+- 合流决策（谁强、留谁、代价）：`docs/25-两份实现的合流.md`
+- 闸：`python tests/test_smith_ir.py`（347）、`python tools/freeze_smith_set.py --check`
+

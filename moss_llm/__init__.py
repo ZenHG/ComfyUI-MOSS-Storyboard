@@ -11,16 +11,31 @@ LLM 自动补词（内容与节奏归作者，见 `docs/14-top-level-design.md` 
 不改变核心的任何默认行为，也不给核心引入第三方依赖。
 
 模块分工：
-- `server.py`  llama-server 侧车（acquire/release、fit、KV 量化、MTP 元数据判定）
-- `nodes.py`   `MossPromptSmith`（V1 契约 = 参数表唯一真相源）
+- `server.py`  llama-server 侧车与客户端（`LlamaServer`：fit / KV 量化 / MTP 判定与回退 /
+  flag 探测 / 日志 / attached 模式；`GgufLocalServer` 是节点用的薄壳）+ GGUF 头部读取 +
+  mmproj 投影宽度配对
+- `nodes.py`   `MossPromptSmith`（V1 契约 = 参数表唯一真相源；四个任务：反推/扩写/编辑/编译）
+- `vision.py`  图像预处理（最长边 1536 + JPEG 4:4:4 + EXIF 转正 + 透明合成白底）
 - `pack.py`    提示词包加载与 sha 校验（`python -m moss_llm.pack --write` 重新生成 manifest）
 - `runtime_install.py`  一键装/更新 llama.cpp 运行时（`python -m moss_llm.runtime_install`）
+- `smith/`     IR 编译层（可选；节点只在 `task=compile` 时懒加载它）
 - `v3_shells.py`  V3 外壳（需要宿主 `comfy_api`，故不在这里 import）
 """
 
 from .nodes import CATEGORY, NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
-__all__ = ["CATEGORY", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "llama_server_hint"]
+__all__ = ["CATEGORY", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS",
+           "llama_server_hint", "smith_available"]
+
+
+def smith_available() -> bool:
+    """`moss_llm.smith`（IR 编译层）是否可用。
+
+    用 `find_spec` 而不是 import：那一层有 8000 行，节点不用它时不该付 import 成本；
+    它也**不依赖**本子包的任何东西，删掉不影响节点。两件事互不牵连。
+    """
+    import importlib.util
+    return importlib.util.find_spec("moss_llm.smith") is not None
 
 
 def llama_server_hint():

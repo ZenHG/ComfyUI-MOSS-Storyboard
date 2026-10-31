@@ -7,14 +7,23 @@ PromptSmith / PromptCheck，合成 `MossPromptSmith` 一个全功能节点；对
 **最终提示词**（+ report 供复盘）。理由：本包承诺「几何确定、提示词透明、返工便宜」，
 多一个节点就多一层「配置在哪、提示词从哪来」的追踪成本。
 
+四件事，靠 `task` 分流（见 `_TASKS`）：
+
+    反推 caption / 扩写 expand / 编辑指令 edit   → 模型在环，llama-server 或外部 API
+    编译 compile                                 → **零模型**，IR 直接渲染成后端方言
+
+`compile` 是 2026-10-31 合流时接进来的：`moss_llm/smith/` 那套 IR 编译器本来只有 CLI，
+接上之后同一个节点在有权重时能出词、没权重时也能用——确定性、毫秒级、可复现，
+而且顺带拿到了方言机检与 M1–M6 不变式。它不 import 侧车，也不读任何权重。
+
 通用性（开源前提）：不绑定任何具体模型/仓库——模型与 mmproj 从
 `models/LLM` + `models/text_encoders` 扫描，任何 llama.cpp 支持的 GGUF 都能跑；
 llama-server 运行时一键从 GitHub 官方 release 更新；提示词包按方言分发，
 MOSS 两个方言只是其中两项。核心 7 节点不 import 本模块，本模块也不 import 核心包。
+
+两份实现的合流记录与逐项取舍见 `docs/25-两份实现的合流.md`。
 """
 
-import base64
-import io
 import json
 import os
 import re
@@ -23,8 +32,21 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from . import vision as _vision
 from .pack import load_pack
-from .server import GgufLocalServer, gguf_metadata, instance_alias
+#: 这些名字里有一半只被测试直接调用（`_check_pair` / `_proj_width` / `_pair_key` /
+#: `_text_width`），它们留在节点命名空间是有意的：既有测试与调用方按旧名字取，
+#: 而实现已经在 `server.py`（侧车与节点必须用同一套配对判据）。
+from .server import (MMPROJ_AUTO as _MMPROJ_AUTO,  # noqa: F401
+                     MMPROJ_NONE as _MMPROJ_NONE,
+                     GgufLocalServer,
+                     check_mmproj_pair as _check_pair,
+                     gguf_metadata,
+                     gguf_proj_width as _proj_width,
+                     gguf_text_width as _text_width,
+                     instance_alias,
+                     pair_key as _pair_key,
+                     resolve_mmproj as _resolve_mmproj)
 
 CATEGORY = "moss/llm"
 
@@ -32,9 +54,15 @@ CATEGORY = "moss/llm"
 #: 中文只说在显示层 —— `web/moss_sb_i18n.js` 的 `COMBOS`（切中文时显示），
 #: 切英文时回落成下面这些 id。把中文写进 `widgets_values` 会让英文用户的工作流里
 #: 出现中文，也让值变成"已经翻译过一次"的一次性数据。
-_TASKS = ["caption", "expand", "edit"]
+_TASKS = ["caption", "expand", "edit", "compile"]
 _DIALECTS = ["moss_image", "moss_storyboard", "generic_natural", "generic_tags",
              "cinematic", "cn_natural"]
+#: `task=compile` 的目标后端。**与 `dialect` 是两件事**：
+#: dialect 是「让模型按哪种方言写字」，target 是「让确定性编译器往哪个后端渲染」。
+#: 列表取自 `smith/data/model-registry.yaml`（唯一事实源），下面这份是它的镜像，
+#: 只用于 V1 参数表——组合框必须能在不 import 编译器时也有值。
+_TARGETS = ["moss-image", "qwen-image-2_1", "krea2", "flux3", "flux1_dev",
+            "sdxl", "minimax-h3"]
 _LENGTHS = ["brief", "standard", "detailed"]
 _LANGS = ["auto", "zh", "en"]
 _RUNTIMES = ["current", "update"]
@@ -51,14 +79,11 @@ _CHANNELS = ["local", "api"]
 #: 判据取 `chat_template_kwargs.enable_thinking`；顶层 `enable_thinking` 与
 #: `chat_template_kwargs.thinking` 两种写法都**不生效**（逐条实测过，别改回去）。
 _THINKING = ["off", "on"]
-#: mmproj 的两个哨兵值。其余取值是扫描到的文件名（原样显示，不翻译）。
-_MMPROJ_AUTO = "auto"
-_MMPROJ_NONE = "none"
 
 #: 旧稿兼容：2026-10-30 的初版把中文写进了枚举值。载入旧工作流时在这里归一，
 #: 归一过的字段写进 report（不静默改用户的图）。
 _LEGACY_VALUES = {
-    "反推": "caption", "扩写": "expand", "编辑指令": "edit",
+    "反推": "caption", "扩写": "expand", "编辑指令": "edit", "编译": "compile",
     "本地 GGUF": "local", "外部 API": "api",
     "简短": "brief", "标准": "standard", "详细": "detailed",
     "自动": "auto", "中文": "zh", "英文": "en",
@@ -107,106 +132,10 @@ def _scan_gguf():
     return models, mmprojs
 
 
-def _text_width(model_path):
-    """模型文本宽度 = `<arch>.embedding_length`；读不懂返回 None。"""
-    try:
-        md = gguf_metadata(model_path)
-    except (OSError, EOFError):
-        return None
-    arch = md.get("general.architecture") or ""
-    w = md.get("%s.embedding_length" % arch) if arch else None
-    return w if isinstance(w, int) else None
-
-
-def _proj_width(mmproj_path):
-    """塔投影宽度 = `clip.vision.projection_dim`。
-
-    不能拿 `clip.vision.embedding_length` 顶替：那是塔内部的视觉宽度（如 1152），
-    决定「配不配得上」的只有 projection_dim。
-    """
-    try:
-        w = gguf_metadata(mmproj_path).get("clip.vision.projection_dim")
-    except (OSError, EOFError):
-        return None
-    return w if isinstance(w, int) else None
-
-
-def _pair_key(name):
-    """认「同一套权重的塔」用的名字键：去掉量化档与 mmproj 标记；认不出返回空串。"""
-    stem = Path(name).stem.lower()
-    stem = re.split(
-        r"[-.](?=(?:ud-)?(?:q\d|iq\d|bf16|f16|f32|mxfp\d|nvfp\d|tq\d|pq\d|ptq\d))",
-        stem)[0]
-    return stem.replace(".mmproj", "").replace("-mmproj", "").strip("-.")
-
-
-def _check_pair(model_path, mmproj_path):
-    """校验塔宽 == 模型文本宽；不符 raise，读不懂返回一句「未验证」写进 report。"""
-    want, got = _text_width(model_path), _proj_width(mmproj_path)
-    if want is None or got is None:
-        return ("⚠️ mmproj 配对未验证（模型宽度 %s，塔投影 %s）：头里缺字段。"
-                % (want, got))
-    if want != got:
-        raise ValueError(
-            "mmproj 与模型不配对：塔投影宽度 %d，模型文本宽度 %d。\n"
-            "    换一个投影宽度相同的塔，或把「mmproj」留「自动匹配」让节点自己找。"
-            % (got, want))
-    return ""
-
-
-def _resolve_mmproj(model_path, mmprojs, choice=_MMPROJ_AUTO):
-    """选塔：按投影宽度硬校验，只在无歧义时自动选，否则报错让用户选。
-
-    旧版只按文件名前缀猜（`qwen3.8-27b` 被削成 `qwen3`，两个塔时按字母序取首个），
-    不同家族只要 proj_dim 恰好相等就能配上 —— 那种错配不报错，只会「看错图」。
-    """
-    if choice == _MMPROJ_NONE:
-        return "", ""
-    if choice and choice not in (_MMPROJ_AUTO, ""):
-        path = mmprojs.get(choice) or (choice if Path(choice).is_file() else "")
-        if not path:
-            raise ValueError("mmproj 不存在：%r。请在「mmproj」下拉里重选。" % choice)
-        return path, _check_pair(model_path, path)
-
-    p = Path(model_path)
-    seen, cands = set(), []
-    for f in sorted(p.parent.glob("*.gguf")):
-        if "mmproj" in f.name.lower() and str(f) not in seen:
-            seen.add(str(f))
-            cands.append(f)
-    for v in (mmprojs or {}).values():
-        if str(v) not in seen:
-            seen.add(str(v))
-            cands.append(Path(v))
-    if not cands:
-        return "", ""
-    want = _text_width(model_path)
-    if want is None:
-        raise ValueError(
-            "读不到模型头里的文本宽度（%s），没法验证 mmproj 配对。\n"
-            "    在「mmproj」下拉里显式选一个塔；纯文本任务可选「(不使用/纯文本)」。"
-            % Path(model_path).name)
-    ok = [f for f in cands if _proj_width(str(f)) == want]
-    if not ok:
-        lines = "\n".join("    - %s（投影 %s）" % (f.name, _proj_width(str(f)))
-                          for f in cands[:6])
-        raise ValueError(
-            "找到 %d 个 mmproj，但没有一个能配到 %s：模型文本宽度 %d。候选：\n%s\n"
-            "    换一个投影宽度 %d 的塔。"
-            % (len(cands), Path(model_path).name, want, lines, want))
-    key = _pair_key(p.name)
-    for pool in ([f for f in ok if key and _pair_key(f.name) == key],
-                 [f for f in ok if f.parent == p.parent],
-                 ok):
-        if len(pool) == 1:
-            return str(pool[0]), _check_pair(model_path, str(pool[0]))
-        if pool:
-            lines = "\n".join("    - %s" % f.name for f in pool[:8])
-            raise ValueError(
-                "有 %d 个 mmproj 都能配到 %s（投影宽度 %d）：\n%s\n"
-                "    请在「mmproj」下拉里显式选一个。"
-                % (len(pool), Path(model_path).name, want, lines))
-    return "", ""
+#: mmproj 配对与 GGUF 头部读取都在 `server.py` —— 侧车启动时要用同一套判据，
+#: 放在节点层会让「节点能配上、编译器配不上」这种错配无处暴露。
+#: `_text_width` / `_proj_width` / `_pair_key` / `_check_pair` / `_resolve_mmproj`
+#: 由文件顶部的 import 提供（名字不变，既有测试与调用方无需改动）。
 
 
 class MossPromptSmith:
@@ -223,7 +152,9 @@ class MossPromptSmith:
             "required": {
                 "task": (_TASKS, {"default": "caption",
                     "tooltip": "反推=看图写提示词（必须接图片）；扩写=把想法扩成完整画面描述（必须填文字）；"
-                               "编辑指令=图生图的一条改法（接图片+填要改什么）"}),
+                               "编辑指令=图生图的一条改法（接图片+填要改什么）；"
+                               "编译=把一段 IR 直接渲染成提示词（**不开模型**、毫秒级，"
+                               "IR 贴在「文字输入」里，方向由 target 选）"}),
                 "channel": (_CHANNELS, {"default": "local",
                     "tooltip": "出词通道。本地 GGUF=起 llama-server 侧车（不联网、跑完还显存）；"
                                "外部 API=任何 OpenAI 兼容端点（OpenAI/火山方舟/智谱/Kimi/MiniMax/"
@@ -239,7 +170,8 @@ class MossPromptSmith:
                                "反推任务需要视觉能力：主模型+mmproj，或直接用 VL 一体模型"}),
                 "text": ("STRING", {"default": "", "multiline": True,
                     "tooltip": "扩写=你的想法（固定项写进 must_keep，不要混在这里）；"
-                               "编辑指令=要改什么。反推任务下留空"}),
+                               "编辑指令=要改什么；编译=一段 IR（JSON 或 YAML，"
+                               "也可以填 .json/.yaml 文件路径）。反推任务下留空"}),
                 "length": (_LENGTHS, {"default": "standard",
                     "tooltip": "简短 80–120 词 / 标准 160–260 词 / 详细 280–360 词。"
                                "按目标方言有上限；反推要稳，扩写要活"}),
@@ -348,6 +280,13 @@ class MossPromptSmith:
                     "tooltip": "开启：跑完终止 llama-server 并释放显存（默认）；关闭：保留服务复用，"
                                "连续出词更快但常驻显存——采样前必须再跑一次本节点或重启来释放",
                     "advanced": True}),
+                # 放在**最后**：ComfyUI 的 widgets_values 是按位置存的，插在中间会让
+                # 老工作流的每个值往后错一位。新增控件只能往后加。
+                "target": (_TARGETS, {"default": "moss-image",
+                    "tooltip": "仅 task=编译 用：往哪个后端渲染。moss-image=MOSS 单图；"
+                               "qwen-image-2_1 / krea2 / flux3 / flux1_dev / sdxl 是各自的方言；"
+                               "minimax-h3 是视频（IR 里要有 timeline）。"
+                               "编译是确定性 Python，不开模型、毫秒级、可复现"}),
             },
         }
 
@@ -363,11 +302,13 @@ class MossPromptSmith:
     #: 被服务端 400 逼着摘掉的可选键（report 里逐项出声）
     _degraded = []
     _thinking_unsupported = False
-    DESCRIPTION = ("本地 LLM 提示词工匠：反推（看图写提示词）/ 扩写（想法→完整画面描述）/ "
-                   "编辑指令（图生图一条改法）。llama-server sidecar，跑完释放显存；"
-                   "输出可直接接 CLIPTextEncode 或采样器 positive。")
+    DESCRIPTION = ("提示词工匠：反推（看图写提示词）/ 扩写（想法→完整画面描述）/ "
+                   "编辑指令（图生图一条改法）/ 编译（IR→7 个后端方言，零模型）。"
+                   "前三个走 llama-server sidecar，跑完释放显存；编译是确定性 Python，"
+                   "毫秒级可复现。输出可直接接 CLIPTextEncode 或采样器 positive。")
     SEARCH_ALIASES = ["prompt smith", "reverse prompt", "caption", "expand", "prompt enhance",
-                      "反推", "扩写", "caption", "expand", "洗图", "提示词工匠", "本地LLM", "gguf"]
+                      "反推", "扩写", "caption", "expand", "洗图", "提示词工匠",
+                      "本地LLM", "gguf", "compile", "ir", "编译", "确定性"]
 
     # ------------------------------------------------------------------ 主流程
 
@@ -378,10 +319,12 @@ class MossPromptSmith:
               ctx_size=8192, gpu_layers="", cache_type_k="q8_0", cache_type_v="q8_0",
               flash_attn="on", image_max_tokens=1024, ubatch=512, parallel=1, fit_on="on",
               fit_target_mib=1024, mtp="auto", mtp_draft_n=2, server_exe="", port=8091,
-              release_after_run=True):
+              release_after_run=True, target="moss-image"):
         t0 = time.time()
         report = []
         self._degraded, self._json_unsupported, self._thinking_unsupported = [], False, False
+        #: 图像预处理的降级说明（缩放 / 透明合成 / 没装 Pillow）。不静默。
+        self._img_notes = []
 
         # 旧稿兼容：初版把中文写进了枚举值。这里归一成存档 id，并把归一过的字段写进
         # report —— 用户看见的是「我的图被就地改了哪几格」，不是静默迁移。
@@ -405,6 +348,12 @@ class MossPromptSmith:
         mmproj = _norm("mmproj", mmproj)
         if legacy:
             report.append("旧稿枚举值已归一：" + "；".join(legacy))
+
+        # 编译任务先走：它**不开模型**，下面所有通道/权重/显存参数都与它无关。
+        # 放在这里而不是拆成第二个节点，是因为「一个节点吃下全部功能」是本包的形态选择
+        # （见模块文档）——多一个节点就多一层「配置在哪、提示词从哪来」的追踪成本。
+        if task == "compile":
+            return self._compile(text, target, report, t0)
 
         # 任务边界与通道无关，先判：反推/编辑必须接图；扩写必须有文字
         if task in ("caption", "edit") and image is None:
@@ -529,6 +478,8 @@ class MossPromptSmith:
 
         checks = self._checks(prompt, obj if isinstance(obj, dict) else None,
                               task, dialect, panels, must_keep)
+        if self._img_notes:
+            report.extend("图像预处理：" + n for n in self._img_notes)
         if self._json_unsupported:
             report.append("⚠️ 服务端拒绝 response_format（HTTP 400），已去掉它重试；"
                           "输出仍按提示词里的 JSON 契约要求")
@@ -542,6 +493,67 @@ class MossPromptSmith:
             "%s=%s" % (f["id"], f["sha256"][:8]) for f in pack["files"]))
         if not prompt.strip():
             raise RuntimeError("模型返回空内容。")
+        return (prompt, "\n".join(report))
+
+    # ------------------------------------------------------------------ 确定性编译
+
+    def _compile(self, text, target, report, t0):
+        """IR → 提示词。零模型、零网络、毫秒级。
+
+        这条通道是合流时从 `moss_llm.smith` 接过来的：同一个 IR 换后端只是换方言，
+        事实不变；再叠上 lint（方言规则）与 M1–M6 不变式（不需要 ground truth 的自检）。
+        报告要能让用户判断「这段提示词为什么长这样」，所以把砍掉的子句、越界的预算、
+        失败的判据逐条列出来，不只给一个「成功」。
+        """
+        try:
+            from .smith.api import compile_ir
+        except Exception as e:                       # 编译器目录被删/损坏
+            raise RuntimeError(
+                "编译任务需要 `moss_llm/smith/`（语义 IR 与多方言编译器），但它加载失败：%r\n"
+                "    其它三个任务（反推/扩写/编辑指令）不依赖它，可以照常用。" % (e,)) from e
+
+        try:
+            r = compile_ir(text, target or "moss-image")
+        except ValueError as e:                      # CompileError 是 ValueError 的子类
+            raise ValueError("编译失败：%s" % e) from e
+
+        prompt = r["positive"]
+        if not prompt.strip():
+            raise RuntimeError("编译结果为空：IR 里没有可渲染的内容。"
+                               "检查 entities 是否为空、importance 是否全为 0。")
+
+        n_err = sum(1 for i in r["issues"] if i["level"] == "error")
+        n_warn = len(r["issues"]) - n_err
+        report.append("编译：%s｜%s｜%d 个实体｜tokens %s/%s｜耗时 %.0fms"
+                      % (r["target"], "确定性（未调用模型）", r["ir"]["entities"],
+                         r["token_count"], r["token_limit"] or "不限",
+                         (time.time() - t0) * 1000))
+        report.append("不变式：%s" % r["invariants_line"])
+        for it in r["issues"]:
+            report.append("%s %s %s%s" % ("❌" if it["level"] == "error" else "⚠️",
+                                          it["code"], it["message"],
+                                          ("　→ " + it["fix"]) if it["fix"] else ""))
+        if not r["issues"]:
+            report.append("机检：无问题")
+        elif not n_err:
+            report.append("机检：%d 条提醒，无 error" % n_warn)
+        elif n_err:
+            report.append("机检：%d 条 error、%d 条提醒——上面逐条列了，先修 error 再出图"
+                          % (n_err, n_warn))
+        for w in r["warnings"]:
+            report.append("⚠️ " + w)
+        if r["dropped"]:
+            report.append("按预算砍掉 %d 条低权子句：%s"
+                          % (len(r["dropped"]), "；".join(r["dropped"][:6])))
+        if r["negative"]:
+            report.append("负向（该后端有独立负向通道，需另接 CLIPTextEncode 负向）："
+                          + r["negative"])
+        if r["layout"]:
+            report.append("该后端还出了 layout：%d 个框（layout JSON 见 CLI 的 --json）"
+                          % len((r["layout"] or {}).get("boxes") or []))
+        if r["params"]:
+            report.append("采样参数建议：" + "，".join(
+                "%s=%s" % (k, v) for k, v in sorted(r["params"].items())))
         return (prompt, "\n".join(report))
 
     # ------------------------------------------------------------------ 提示词拼装
@@ -592,8 +604,15 @@ class MossPromptSmith:
               want_json=True, thinking=False, key=None):
         content = [{"type": "text", "text": system + "\n\n" + (user or "")}]
         if image is not None:
+            # 编码走 `moss_llm.vision`（最长边 1536 + JPEG q95 4:4:4）。
+            # 以前是原始尺寸编 PNG：1536x1024 的图能吃掉一两千视觉 token，而且
+            # PNG 无二次压缩、4:2:0 的糊字问题也躲不掉——编码选择反了方向。
+            prep = _vision.prepare_tensor(image)
+            for n in prep.notes:
+                if n not in self._img_notes:
+                    self._img_notes.append(n)
             content.append({"type": "image_url",
-                            "image_url": {"url": "data:image/png;base64," + _b64_png(image)}})
+                            "image_url": {"url": prep.data_url}})
         payload = {
             "model": self._model_id,
             "messages": [{"role": "user", "content": content}],
@@ -739,19 +758,6 @@ def _api_setup(api_base, api_model, api_key, api_key_env):
 def _host_of(endpoint):
     m = re.match(r"https?://([^/]+)", endpoint or "")
     return m.group(1) if m else (endpoint or "?")
-
-
-def _b64_png(image):
-    """ComfyUI IMAGE tensor (B,H,W,C) float 0..1 → PNG base64。"""
-    from PIL import Image
-    try:
-        import torch
-        arr = (image[0].clamp(0.0, 1.0) * 255).round().to(torch.uint8).cpu().numpy()
-    except Exception:
-        arr = (image[0] * 255).round().astype("uint8")
-    buf = io.BytesIO()
-    Image.fromarray(arr).save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def _strip_fences(text):

@@ -1,0 +1,238 @@
+{
+  "ir_version": "0.1",
+  "task": "reverse",
+  "canvas": {
+    "aspect_ratio": "5:3",
+    "canvas_type": "single"
+  },
+  "entities": [
+    {
+      "id": "e1",
+      "kind": "text",
+      "label": "unsaved workflow (3)",
+      "importance": 0.9,
+      "text_content": "Unsaved Workflow (3)",
+      "spatial": {
+        "anchor": "top-center",
+        "bbox_norm": [
+          0.2,
+          0.04,
+          0.8,
+          0.14
+        ],
+        "bbox_source": "model"
+      },
+      "typography": {
+        "weight": "bold",
+        "case": "title",
+        "color": "white",
+        "align": "center",
+        "style_hint": "sans-serif"
+      },
+      "evidence": [
+        "top-center title bar text"
+      ]
+    },
+    {
+      "id": "e2",
+      "kind": "text",
+      "label": "lazy cache - 加速 (默认开)",
+      "importance": 0.8,
+      "text_content": "LazyCache - 加速 (默认开)",
+      "spatial": {
+        "anchor": "left-center",
+        "bbox_norm": [
+          0.12,
+          0.15,
+          0.6,
+          0.3
+        ],
+        "bbox_source": "model"
+      },
+      "typography": {
+        "weight": "bold",
+        "case": "title",
+        "color": "white",
+        "align": "left",
+        "style_hint": "sans-serif"
+      },
+      "evidence": [
+        "left panel header"
+      ]
+    },
+    {
+      "id": "e3",
+      "kind": "text",
+      "label": "使用说明",
+      "importance": 0.7,
+      "text_content": "使用说明",
+      "spatial": {
+        "anchor": "left-center",
+        "bbox_norm": [
+          0.12,
+          0.45,
+          0.6,
+          0.6
+        ],
+        "bbox_source": "model"
+      },
+      "typography": {
+        "weight": "bold",
+        "case": "title",
+        "color": "white",
+        "align": "left",
+        "style_hint": "sans-serif"
+      },
+      "evidence": [
+        "brown panel title"
+      ]
+    },
+    {
+      "id": "e5",
+      "kind": "text",
+      "label": "caption is still a placeholder: make it specific or the panels look alike",
+      "importance": 0.6,
+      "text_content": "caption is still a placeholder: make it specific or the panels look alike",
+      "spatial": {
+        "anchor": "center",
+        "bbox_norm": [
+          0.03,
+          0.2,
+          0.07,
+          0.215
+        ],
+        "bbox_source": "model"
+      },
+      "typography": {
+        "weight": "normal",
+        "case": "title",
+        "color": "orange",
+        "align": "center",
+        "style_hint": "sans-serif"
+      },
+      "evidence": [
+        "orange text in middle"
+      ]
+    },
+    {
+      "id": "t1",
+      "kind": "text",
+      "label": "label",
+      "importance": 0.6,
+      "text_content": "模型\n重用阈值\n起始百分比\n结束百分比\n详细模式\nBETA",
+      "spatial": {
+        "anchor": "top-center",
+        "bbox_norm": [
+          0.3833,
+          0.05,
+          0.6167,
+          0.2833
+        ],
+        "bbox_source": "anchor"
+      },
+      "evidence": [
+        "transcription pass"
+      ]
+    },
+    {
+      "id": "t2",
+      "kind": "text",
+      "label": "body text",
+      "importance": 0.5,
+      "text_content": "0.20\n0.15\n0.95",
+      "spatial": {
+        "anchor": "middle-left",
+        "bbox_norm": [
+          0.05,
+          0.3833,
+          0.2833,
+          0.6167
+        ],
+        "bbox_source": "anchor"
+      },
+      "evidence": [
+        "transcription pass"
+      ]
+    },
+    {
+      "id": "t3",
+      "kind": "text",
+      "label": "caption",
+      "importance": 0.5,
+      "text_content": "2x2 · 4 panels △ 4 caption(s) are still preset placeholders; the panels will look alike",
+      "spatial": {
+        "anchor": "middle-right",
+        "bbox_norm": [
+          0.7167,
+          0.3833,
+          0.95,
+          0.6167
+        ],
+        "bbox_source": "anchor"
+      },
+      "evidence": [
+        "transcription pass"
+      ]
+    },
+    {
+      "id": "t4",
+      "kind": "text",
+      "label": "label",
+      "importance": 0.6,
+      "text_content": "模板预览\n图像\nimages",
+      "spatial": {
+        "anchor": "bottom-right",
+        "bbox_norm": [
+          0.7167,
+          0.7167,
+          0.95,
+          0.95
+        ],
+        "bbox_source": "anchor"
+      },
+      "evidence": [
+        "transcription pass"
+      ]
+    }
+  ],
+  "relations": [],
+  "style": {
+    "medium": "photograph",
+    "notes": "Flat UI with crisp edges, dark theme, subtle anti-aliasing on text and borders.",
+    "substyle": []
+  },
+  "camera": {},
+  "lighting": {},
+  "composition": {},
+  "atmosphere": [],
+  "constraints": {
+    "avoid": [],
+    "age_gate": "enforced"
+  },
+  "budget": {
+    "target_tokens": null,
+    "verbosity": 0.7,
+    "priority_policy": "importance_desc"
+  },
+  "provenance": {
+    "source": "reverse",
+    "image": "ui-smoke.png",
+    "model_size": [
+      1536,
+      914
+    ],
+    "prep": [
+      "已 Lanczos 缩放 1680x1000 → 1536x914"
+    ],
+    "text_pass": {
+      "blocks": 7
+    },
+    "size": [
+      1536,
+      914
+    ]
+  },
+  "notes": {
+    "medium": "Flat UI with crisp edges, dark theme, subtle anti-aliasing on text and borders."
+  }
+}

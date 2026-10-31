@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 """生成 `moss_llm` 的三个示例工作流（UI 格式，可直接在 ComfyUI 打开）。
 
-为什么用脚本而不是手写 JSON：`MossPromptSmith` 有 33 个 widget 槽，`widgets_values`
+为什么用脚本而不是手写 JSON：`MossPromptSmith` 有几十个 widget 槽（数量随参数表变），`widgets_values`
 **按位置存** —— 手抄必错一次，而且错得静默（参数串位不报错）。这里先按
 `INPUT_TYPES()` 自动展开成声明，再逐例覆盖要改的值，槽位序与
 `tools/check_ui_workflow.py` 同一份判据。
