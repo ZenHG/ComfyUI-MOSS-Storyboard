@@ -538,5 +538,236 @@ class TestCalibrate(unittest.TestCase):
             self.assertIn("<3", se)
 
 
+# ─────────────────────────────────────────────────────────────
+# calib-packet：从 merged 的「verdict 不一致 claim」生成预校准包
+# ─────────────────────────────────────────────────────────────
+
+def _first_claim_ids(packet_out: Path, per_unit: int = 2) -> dict:
+    """从 packet manifest 取每单元前若干 claim id（确定性夹具用）。"""
+    man = json.loads((packet_out / "manifest.json").read_text(encoding="utf-8"))
+    out = {}
+    for u in man["units"]:
+        key = (u["model"], u["image_id"])
+        out[key] = [c["id"] for c in u["claims"][:per_unit]]
+    return out
+
+
+def _packet_and_flips(tmp: Path) -> tuple:
+    """先跑 packet，再按真实 claim id 构造「judge_b 改判」的 flips。
+
+    必须先有 packet manifest 才知道 claim id 的真实集合；flips 只是夹具（两名判读者
+    在这几条上不一致），用于驱动 calib-packet 的「只选不一致 claim」逻辑。
+    """
+    json_dir, images = make_dataset(tmp)
+    rc, so, se, out = run_packet(tmp)
+    assert rc == 0, (rc, so, se)
+    ids = _first_claim_ids(out)
+    flips = {}
+    flips[ids[("A-4B", "img01")][0]] = "unverifiable"
+    flips[ids[("A-4B", "img01")][1]] = "wrong"
+    flips[ids[("A-4B", "img02")][0]] = "unverifiable"
+    flips[ids[("B-9B", "img01")][0]] = "wrong"
+    return out, json_dir, images, flips
+
+
+def make_merged_with_flips(tmp: Path, flips: dict) -> tuple:
+    """packet → 两名判读者（judge_b 在 flips 上改判）→ merge。
+
+    返回 (packet_out, merged_path, json_dir, images_path)。
+    """
+    if not (tmp / "adjudication" / "manifest.json").is_file():
+        _packet_and_flips(tmp)
+    out = tmp / "adjudication"
+    json_dir, images = tmp / "json", tmp / "images.json"
+
+    def fill_all(unit):
+        return dict.fromkeys(unit["claims"], "correct") | {"_hallucination": "absent"}
+
+    def fill_b(unit):
+        got = fill_all(unit)
+        for cid in list(got):
+            if cid in flips:
+                got[cid] = flips[cid]
+        return got
+
+    ja = write_judge(out, "judge_a", load_judge_template(out, "judge_a"), fill_all)
+    jb = write_judge(out, "judge_b", load_judge_template(out, "judge_b"), fill_b)
+    rc, so, se = run_merge(out, [ja, jb])
+    # 夹具只有少数几条分歧 → κ 必然低、merge 按设计返回非零（闸红）；
+    # merged.json 仍然会落盘，这是 calib-packet 的输入，所以接受 0/1 两种退出码。
+    assert rc in (0, 1) and (out / "merged.json").is_file(), (rc, so, se)
+    return out, out / "merged.json", json_dir, images
+
+
+def run_calib(tmp: Path, merged: Path, json_dir: Path, images: Path,
+              extra=()) -> tuple:
+    dest = tmp / "calib2"
+    argv = ["calib-packet", "--merged", str(merged), "--json-dir", str(json_dir),
+            "--images", str(images), "--out", str(dest)]
+    argv += list(extra)
+    rc, so, se = run_cli(argv)
+    return rc, so, se, dest
+
+
+class TestCalibPacket(unittest.TestCase):
+    @staticmethod
+    def _flips(tmp: Path) -> dict:
+        _out, _json_dir, _images, flips = _packet_and_flips(tmp)
+        return flips
+
+    def _build(self, tmp: Path, max_claims=None):
+        out, json_dir, images, flips = _packet_and_flips(tmp)
+        merged = make_merged_with_flips(tmp, flips)[1]
+        extra = () if max_claims is None else ("--max-claims", str(max_claims))
+        rc, so, se, dest = run_calib(tmp, merged, json_dir, images, extra)
+        return rc, so, se, dest, flips, merged, json_dir
+
+    def test_selects_only_disputed_claims(self):
+        with tempfile.TemporaryDirectory() as d:
+            rc, so, se, dest, flips, merged, json_dir = self._build(Path(d))
+            self.assertEqual(rc, 0, se)
+            man = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+            got = [c["id"] for u in man["units"] for c in u["claims"]]
+            self.assertEqual(sorted(got), sorted(flips))
+            sel = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(sel["source"]["claims"], len(flips))
+            self.assertGreaterEqual(sel["source"]["units"], 1)
+
+    def test_max_claims_caps_per_unit_and_is_deterministic(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            flips = self._flips(tmp)
+            out, merged, json_dir, images = make_merged_with_flips(tmp, flips)
+            rc1, _so, se1, dest1 = run_calib(
+                tmp, merged, json_dir, images, ("--max-claims", "1"))
+            self.assertEqual(rc1, 0, se1)
+            man1 = (dest1 / "manifest.json").read_text(encoding="utf-8")
+            # 同一输入再跑一次 → 字节一致（确定性）
+            rc2, _so, se2, dest2 = run_calib(
+                Path(d), merged, json_dir, images, ("--max-claims", "1"))
+            self.assertEqual(rc2, 0, se2)
+            self.assertEqual(man1,
+                             (dest2 / "manifest.json").read_text(encoding="utf-8"))
+            man = json.loads(man1)
+            for u in man["units"]:
+                self.assertLessEqual(len(u["claims"]), 1)
+            self.assertEqual(man["source"]["claims"],
+                             len({cid.split("|")[0] + "|" + cid.split("|")[1]
+                                  for cid in flips}))
+
+    def test_manifest_pins_three_fingerprints_and_source_sha(self):
+        with tempfile.TemporaryDirectory() as d:
+            rc, _so, se, dest, flips, merged, json_dir = self._build(Path(d))
+            self.assertEqual(rc, 0, se)
+            man = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(man["schema"], A.PACKET_SCHEMA)
+            self.assertEqual(man["source"]["merged"], str(merged))
+            self.assertEqual(man["source"]["merged_sha256"],
+                             A._sha256_file(merged))
+            for u in man["units"]:
+                payload = json.loads((json_dir / u["model"] / (
+                    u["image_id"] + ".json")).read_text(encoding="utf-8"))
+                self.assertEqual(u["caption_sha256"], A._sha256(payload["caption"]))
+                self.assertEqual(u["ir_sha256"], A._sha256(A._canon(payload["ir"])))
+                self.assertEqual(u["image_sha256"], payload["image_sha256"])
+
+    def test_templates_are_blank_ai_labeled_and_variant_aligned(self):
+        with tempfile.TemporaryDirectory() as d:
+            rc, _so, se, dest, flips, _merged, _json_dir = self._build(Path(d))
+            self.assertEqual(rc, 0, se)
+            man = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+            man_order = {u["model"] + "|" + u["image_id"]:
+                         [c["id"] for c in u["claims"]] for u in man["units"]}
+            tpl_a = json.loads((dest / "judge_a" / "judge_a.json")
+                               .read_text(encoding="utf-8"))
+            tpl_b = json.loads((dest / "judge_b" / "judge_b.json")
+                               .read_text(encoding="utf-8"))
+            self.assertEqual(tpl_a["variant"], "variant_a")
+            self.assertEqual(tpl_b["variant"], "variant_b")
+            for tpl in (tpl_a, tpl_b):
+                self.assertEqual(tpl["schema"], A.JUDGE_SCHEMA)
+                self.assertIn(A.AI_LABEL, tpl["ai_label"])
+            for ua, ub in zip(tpl_a["units"], tpl_b["units"], strict=True):
+                key = ua["model"] + "|" + ua["image_id"]
+                self.assertTrue(all(v is None for v in ua["claims"].values()))
+                self.assertTrue(all(v is None for v in ub["claims"].values()))
+                self.assertEqual(set(ua["claims"]), set(man_order[key]))
+                self.assertEqual(list(ua["claims"]), man_order[key])
+                self.assertEqual(list(ub["claims"]), list(reversed(man_order[key])))
+
+    def test_no_old_verdicts_or_dispute_words_leak(self):
+        """包里不得出现旧判法值/「争议」字样；md 里的 verdict 词只允许在判读规则/填写说明。"""
+        with tempfile.TemporaryDirectory() as d:
+            rc, _so, se, dest, flips, _merged, _json_dir = self._build(Path(d))
+            self.assertEqual(rc, 0, se)
+            man_text = (dest / "manifest.json").read_text(encoding="utf-8")
+            for token in ('"correct"', '"wrong"', '"unverifiable"', "争议",
+                          "disagreement", "verdicts"):
+                self.assertNotIn(token, man_text)
+            selected = set(flips)
+            for md in (dest / "judge_a" / "packets").rglob("*.md"):
+                text = md.read_text(encoding="utf-8")
+                for line in text.splitlines():
+                    for token in ("correct", "wrong", "unverifiable"):
+                        if token in line:
+                            self.assertTrue(
+                                line.startswith("- `")
+                                or "逐条填 correct / wrong / unverifiable" in line,
+                                "旧判法值/非法 verdict 出现在 md：%r" % line)
+                for cid in selected:
+                    if "`%s`" % cid in text:
+                        row = next(ln for ln in text.splitlines()
+                                   if "`%s`" % cid in ln)
+                        self.assertTrue(row.rstrip().endswith("待填 |"),
+                                        "claim 行带了非空 verdict：%r" % row)
+
+    def test_no_dispute_is_actionable_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            out, merged, json_dir, images = make_merged_with_flips(tmp, {})
+            rc, _so, se, _dest = run_calib(tmp, merged, json_dir, images)
+            self.assertNotEqual(rc, 0)
+            self.assertIn("verdict 不一致", se)
+
+    def test_bad_merged_structure_is_actionable_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            json_dir, images = make_dataset(tmp)
+            bad = tmp / "bad-merged.json"
+            bad.write_text('{"schema": "g7-adjudication-merged/1"}', encoding="utf-8")
+            rc, _so, se, _dest = run_calib(tmp, bad, json_dir, images)
+            self.assertNotEqual(rc, 0)
+            self.assertIn("disagreements", se)
+
+    def test_missing_record_is_actionable_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            flips = self._flips(tmp)
+            _out, merged, json_dir, images = make_merged_with_flips(tmp, flips)
+            (json_dir / "A-4B" / "img01.json").unlink()
+            rc, _so, se, _dest = run_calib(tmp, merged, json_dir, images)
+            self.assertNotEqual(rc, 0)
+            self.assertIn("找不到对应产出", se)
+
+    def test_merge_consumes_calib_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            rc, _so, se, dest, flips, _merged, _json_dir = self._build(Path(d))
+            self.assertEqual(rc, 0, se)
+            tpl_a = json.loads((dest / "judge_a" / "judge_a.json")
+                               .read_text(encoding="utf-8"))
+            tpl_b = json.loads((dest / "judge_b" / "judge_b.json")
+                               .read_text(encoding="utf-8"))
+            ja = write_judge(dest, "judge_a", tpl_a, all_correct)
+            jb = write_judge(dest, "judge_b", tpl_b, all_correct)
+            rc2, so2, se2 = run_cli(
+                ["merge", "--judges", "%s,%s" % (ja, jb),
+                 "--manifest", str(dest / "manifest.json"), "--out", str(dest)])
+            self.assertEqual(rc2, 0, se2 + so2)
+            merged = json.loads((dest / "merged.json").read_text(encoding="utf-8"))
+            self.assertEqual(merged["agreement"]["claims"]["n"], len(flips))
+            self.assertEqual(merged["disagreements"], [])
+            self.assertEqual(merged["agreement"]["claims"]["kappa"], 1.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

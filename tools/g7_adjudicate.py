@@ -523,6 +523,193 @@ def cmd_packet(args) -> int:
 
 
 # ─────────────────────────────────────────────────────────────
+# calib-packet：从 merged 的「verdict 不一致 claim」生成小样预校准包
+# ─────────────────────────────────────────────────────────────
+# 为什么需要它：第一轮双盲判读的 κ 只有 0.41（事实）/ 0.04（幻觉），主因是两名判读者
+# 对「不可判」的口径不一致。要先把判据校准到 κ≥0.6，才允许进 60 图全量。校准集取
+# **第一轮里两人判法不一致的 claim**（约 40–51 条，最难样本），让判读者在新判例下重判。
+#
+# 三条纪律：
+# 1. **旧判定绝不入包**：包里只有 claim id / 类别 / 断言文本 / 图与 caption 与 IR，
+#    不出现既有判法，也不出现「争议」字样——否则判读者只是在照抄既有判定。
+# 2. 复用 packet 的 markdown/空白模板/manifest 结构，保证现有 merge 能直接消费。
+# 3. A/B 顺序变体（judge_b 反序）防顺序锚定；claim 集合与 manifest 完全一致。
+
+def _sha256_file(path: Path) -> str:
+    """文件字节 sha256（用于 manifest 里记录 merged.json 指纹）。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _disputed_from_merged(merged: dict, max_claims: int) -> list:
+    """merged.json → 按单元分组的待重判 claim（只带 id/类别/文本，剥掉旧 verdict）。
+
+    结构以 `cmd_merge` 的真实输出为准（schema=g7-adjudication-merged/1）：
+    {"disagreements": [{"claim_id","model","image_id","category","claim","verdicts",...}]}
+    这里**只取定位与文本**；`verdicts` 只用于「确认两人确实不一致」的筛选，绝不返回。
+    """
+    if not isinstance(merged, dict):
+        raise SystemExit("merged.json 顶层不是对象（期望 schema=%s）" % MERGED_SCHEMA)
+    disagreements = merged.get("disagreements")
+    if disagreements is None:
+        raise SystemExit(
+            "merged.json 缺 `disagreements` 字段，无法抽取校准集。\n"
+            "  期望：tools/g7_adjudicate.py merge 的输出（schema=%s）。\n"
+            "  如果给的是某位判读者的结果文件，请先跑 merge。" % MERGED_SCHEMA)
+    if not isinstance(disagreements, list):
+        raise SystemExit("merged.json 的 `disagreements` 不是数组（实际 %s）"
+                         % type(disagreements).__name__)
+    if not disagreements:
+        raise SystemExit(
+            "merged.json 里没有「verdict 不一致」的 claim（两名判读者完全一致）。\n"
+            "  预校准需要最难样本才有意义；请确认两份判读结果不是同一位判读者的副本，"
+            "或换一份 merged。")
+    grouped: dict = {}
+    for d in disagreements:
+        if not isinstance(d, dict):
+            raise SystemExit("merged.json 的 disagreements 里有非对象条目：%r" % (d,))
+        cid = str(d.get("claim_id") or "")
+        model = str(d.get("model") or "")
+        image_id = str(d.get("image_id") or "")
+        if not (cid and model and image_id):
+            raise SystemExit("disagreement 条目缺 claim_id/model/image_id：%r" % (d,))
+        norm = {k: _norm_verdict(v) for k, v in (d.get("verdicts") or {}).items()}
+        vals = [v for v in norm.values() if v in VERDICTS]
+        if len(vals) < 2 or len(set(vals)) < 2:
+            continue        # 防御：merge 已保证不一致，这里只做结构自检
+        grouped.setdefault((model, image_id), []).append({
+            "id": cid,
+            "category": str(d.get("category") or ""),
+            "text": str(d.get("claim") or ""),
+        })
+    if not grouped:
+        raise SystemExit("merged.json 的 disagreements 里没有可用的两条不一致 verdict"
+                         "（结构可能被改过）")
+    selected = []
+    for key in sorted(grouped):
+        items = sorted(grouped[key], key=lambda c: c["id"])[:max(1, int(max_claims))]
+        selected.append((key, items))
+    return selected
+
+
+def cmd_calib_packet(args) -> int:
+    merged_path = Path(args.merged)
+    merged = _load_json(merged_path, "merged.json")
+    json_dir = Path(args.json_dir)
+    if not json_dir.is_dir():
+        raise SystemExit("找不到模型产目录：%s（应与 merged 同版本）" % json_dir)
+    images = {}
+    if args.images and Path(args.images).is_file():
+        data = _load_json(args.images, "图片清单")
+        images = {i["id"]: i for i in (data.get("images") or [])}
+
+    selected = _disputed_from_merged(merged, args.max_claims)
+    units, missing = [], []
+    for (model, image_id), claims in selected:
+        p = json_dir / model / ("%s.json" % image_id)
+        if not p.is_file():
+            missing.append("%s/%s.json（文件不存在）" % (model, image_id))
+            continue
+        payload = _load_json(p, "模型产出")
+        if not payload.get("ok"):
+            missing.append("%s/%s.json（记录失败：%s）"
+                           % (model, image_id, str(payload.get("error") or "")[:80]))
+            continue
+        units.append(_unit_from_payload(model, image_id, payload,
+                                        images.get(image_id), claims))
+    if missing:
+        raise SystemExit(
+            "merged 的 claim 在 json-dir 里找不到对应产出（%d 处）：\n  %s\n"
+            "  json-dir 与 merged 版本不匹配？校准包必须用生成 merged 时同一批落盘。"
+            % (len(missing), "\n  ".join(missing[:8])))
+    if not units:
+        raise SystemExit("没有可生成的校准单元（merged 与 json-dir 对不上）")
+
+    dest = Path(args.out)
+    split = [s.strip() for s in (args.split or "judge_a,judge_b").split(",") if s.strip()]
+    if len(split) != 2:
+        raise SystemExit("calib-packet 固定两名判读者（--split a,b），当前 %r" % split)
+
+    variant_for_judge = {}
+    for i, judge_name in enumerate(split):
+        variant = ("variant_a", "variant_b")[i]
+        variant_for_judge[judge_name] = variant
+        for unit in units:
+            ordered = (unit if variant == "variant_a"
+                       else dict(unit, claims=list(reversed(unit["claims"]))))
+            md = _packet_md(ordered, variant, "ai", judge_name=judge_name)
+            # 统一模板路径：calib2/<judge>/<judge>.json（packet 的旧文案写的是 templates/）
+            md = md.replace(
+                "同目录/同名 JSON 模板（`templates/` 下，按 claim_id 对齐）",
+                "本包模板：`%s/%s.json`（按 claim_id 对齐）" % (judge_name, judge_name))
+            md_path = dest / judge_name / "packets" / unit["model"] / (
+                "%s.md" % unit["image_id"])
+            md_path.parent.mkdir(parents=True, exist_ok=True)
+            md_path.write_text(md, encoding="utf-8")
+        # 模板路径统一：calib2/judge_a/judge_a.json、calib2/judge_b/judge_b.json
+        _dump(dest / judge_name / ("%s.json" % judge_name),
+              _blank_judge(judge_name, "ai", variant, units,
+                           reverse=(variant == "variant_b")))
+
+    claim_total = sum(len(u["claims"]) for u in units)
+    manifest = {
+        "schema": PACKET_SCHEMA,
+        "generated_by": "tools/g7_adjudicate.py calib-packet",
+        "ai_label": AI_LABEL,
+        "source": {
+            "kind": "calib-from-merged",
+            "note": "校准集来源：从 round2 merged 的 verdict 不一致 claim 抽取"
+                    "（只取 claim id/类别/文本；旧 verdict 不入包）",
+            "merged": str(merged_path),
+            "merged_sha256": _sha256_file(merged_path),
+            "json_dir": str(json_dir),
+            "images": str(args.images or ""),
+            "units": len(units),
+            "claims": claim_total,
+            "max_claims": args.max_claims,
+        },
+        "variants": {"variant_a": {"order": "original"},
+                     "variant_b": {"order": "reversed",
+                                   "note": "claim id 与 A 相同；只改顺序，防顺序锚定"}},
+        "split": variant_for_judge,
+        "instruction": "判读者不得查看机检产物，也不得查看两轮旧判读结果；"
+                       "AI 判读结果必须带 ai_label=%r；按 docs/58 的判例逐条重判"
+                       % AI_LABEL,
+        "units": [{"model": u["model"], "image_id": u["image_id"],
+                   "category": u["category"], "image_sha256": u["image_sha256"],
+                   "caption_sha256": u["caption_sha256"], "ir_sha256": u["ir_sha256"],
+                   "claims_total": u["claims_total"],
+                   "claims": [{"id": c["id"], "category": c["category"],
+                               "text": c["text"]} for c in u["claims"]]}
+                  for u in units],
+    }
+    # 自查：claim 集合必须与 manifest 完全一致（变体只是反序，不增不减）
+    for judge_name in split:
+        tpl = _load_json(dest / judge_name / ("%s.json" % judge_name), "空白模板")
+        tpl_ids = [cid for u in tpl["units"] for cid in (u.get("claims") or {})]
+        man_ids = [c["id"] for u in manifest["units"] for c in u["claims"]]
+        if sorted(tpl_ids) != sorted(man_ids):
+            raise SystemExit("内部错误：%s 模板的 claim 集合与 manifest 不一致" % judge_name)
+
+    _dump(dest / "manifest.json", manifest)
+    manifest_sha = _sha256_file(dest / "manifest.json")
+    print("校准判读包已写：%s" % dest)
+    print("  单元 %d 个；claim %d 条（每单元 ≤%d）"
+          % (len(units), claim_total, args.max_claims))
+    for u in units:
+        print("    %-6s %-6s claims=%d" % (u["model"], u["image_id"],
+                                           len(u["claims"])))
+    print("  模板：%s / %s"
+          % (dest / split[0] / ("%s.json" % split[0]),
+             dest / split[1] / ("%s.json" % split[1])))
+    print("  manifest sha256：%s" % manifest_sha)
+    return 0
+
+
+# ─────────────────────────────────────────────────────────────
 # merge：一致性 + 仲裁 + 准确率/统计 + 三档结论
 # ─────────────────────────────────────────────────────────────
 
@@ -1023,6 +1210,20 @@ def build_parser() -> argparse.ArgumentParser:
                    help="每图每模型最多保留几条候选事实（协议 3–9）")
     p.add_argument("--out", default=str(DEFAULT_OUT))
     p.set_defaults(func=cmd_packet)
+
+    cp = sub.add_parser(
+        "calib-packet",
+        help="从 merged 的 verdict 不一致 claim 生成小样预校准包（旧判定不入包）")
+    cp.add_argument("--merged", required=True, help="第一轮 merge 输出的 merged.json")
+    cp.add_argument("--json-dir", required=True,
+                    help="与该 merged 同版本的模型产目录（含 <model>/<img>.json）")
+    cp.add_argument("--images", default=str(OUT / "images.json"))
+    cp.add_argument("--split", default="judge_a,judge_b",
+                    help="两名判读者代号；judge_a=原始顺序，judge_b=反序")
+    cp.add_argument("--max-claims", type=int, default=9,
+                    help="每单元最多保留几条待重判 claim（默认 9）")
+    cp.add_argument("--out", default=str(DEFAULT_OUT / "calib2"))
+    cp.set_defaults(func=cmd_calib_packet)
 
     m = sub.add_parser("merge", help="合并判读者结果：κ/分歧/仲裁/准确率/三档结论")
     m.add_argument("--judges", required=True, help="逗号分隔的判读者结果 JSON（≥2）")
