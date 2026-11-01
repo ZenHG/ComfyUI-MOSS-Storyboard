@@ -601,7 +601,8 @@ def cmd_h3_rewrite(args) -> int:
 def _name_matches(filename: str, model_name: str) -> bool:
     """文件名是不是 `model_name` 那一版（而不是同架构的另一版）。
 
-    `Qwen3.6-27B` vs `Qwen3.8-27B-Q4.gguf`：架构、尺寸都一样，**权重不是一套**。
+    `Qwen3-VL-8B-Instruct` vs 同架构、同尺寸的另一套 8B 权重：架构、尺寸都一样，
+    **权重不是一套**。
     判据取模型名里的每个版本号片段，要求全部出现在文件名里。不硬编码任何具体
     版本号——那是模型知识，写进代码就成了「只有作者盘上那份能用」。
     """
@@ -685,19 +686,27 @@ def cmd_h3_doctor(args) -> int:
     # 基座 = 适配器训练时用的那个模型。位置由用户决定，这里只在约定目录里找，
     # 找不到就明说没有（`paths.model_dirs()` 写清了去哪找、怎么覆盖）。
     wanted = str(rw.get("base_model") or "")
-    token = wanted.rsplit("/", 1)[-1]              # `Qwen/Qwen3.6-27B` → `Qwen3.6-27B`
+    token = wanted.rsplit("/", 1)[-1]              # `Qwen/Qwen3-VL-8B-Instruct` → `Qwen3-VL-8B-Instruct`
     base = args.base or ""
     if not base and token:
         exact = PATHS.find_files(token)
+        if not exact:
+            # 官方 GGUF 文件名常把模型 id 的标点去掉（`Qwen3-VL-8B-Instruct` →
+            # `Qwen3VL-8B-Instruct-Q4_K_M.gguf`）。按「只留字母数字」再比一次，
+            # 否则正确基座会被当成「同架构的别的权重」报红。
+            norm = re.sub(r"[^a-z0-9]", "", token.lower())
+            if norm:
+                exact = [c for c in PATHS.find_files(None)
+                         if norm in re.sub(r"[^a-z0-9]", "", c.stem.lower())]
         base = str(exact[0]) if exact else ""
     # 全部候选单独取一份：要报的坑是「同架构同尺寸、但版本不是这一版」，
     # 拿被名字筛过的列表去比，永远比不出来（自己把自己筛掉了）。
     cands = PATHS.find_files(None)
     if not base or not Path(base).exists():
         # 🔴 这一条是本模块最重要的输出：同架构 ≠ 同权重。
-        # 实测盘上的 Qwen3.8-27B 有 ssm_alpha / attn_qkv / attn_gate 等全部同名张量，
-        # llama.cpp 的 LoRA 加载器**不会报错**——它会安静地把 3.6 训出来的增量
-        # 加到 3.8 的权重上，然后输出一段语法正确、语义无效的提示词。
+        # 27B 契约时期实测：盘上的 Qwen3.8-27B 与基座 Qwen3.6-27B 的 ssm_alpha /
+        # attn_qkv / attn_gate 等张量全部同名；llama.cpp 的 LoRA 加载器**不会报错**——
+        # 它会安静地把 A 训出来的增量加到 B 的权重上，然后输出一段语法正确、语义无效的提示词。
         # 这类静默失败正是这个项目存在的理由，所以这里必须点名，而不是只说「没找到」。
         # 只报「同架构 **且** 同参数量」的：尺寸不同的模型连张量形状都对不上，
         # llama.cpp 会直接报错，那反而是安全的。危险的是同尺寸不同版本。

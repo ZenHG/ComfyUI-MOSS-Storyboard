@@ -603,5 +603,71 @@ class TestH3SixLintWiring(unittest.TestCase):
         self.assertIn("(主体:1.3)", hits[0].message)
 
 
+class TestH3ParamFalsePositives(unittest.TestCase):
+    """H3-PARAM 不能被自然语言里的 steps / 时间骗到（T12 真机首跑暴露的误报）。
+
+    背景：挂 8B LoRA 的输出里有 "rhythmic steps"（脚步），旧判据 `\\bsteps?\\b`
+    直接把它当结构化参数 steps；不挂 LoRA 的输出因时间戳被 `_blank_ts()` 挖掉
+    反而 pass。判据要报的是「参数名 + 数值」的写法，不是自然词。
+    """
+
+    BASE = ("integrated_multimodal_description: [Shot 1] a red fox walks through "
+            "a snowy forest at dawn.\n\n"
+            "overall_soundscape: soft wind in the pines.\n\n"
+            "non_diegetic_music: N/A")
+
+    def _codes(self, first_sentence):
+        text = self.BASE.replace(
+            "[Shot 1] a red fox walks through a snowy forest at dawn.", first_sentence)
+        return [i.code for i in h3.check(text)]
+
+    def test_rhythmic_steps_is_not_a_parameter(self):
+        self.assertNotIn("H3-PARAM", self._codes(
+            "[Shot 1] The fox moves with rhythmic steps over packed snow."))
+
+    def test_footsteps_and_two_steps_are_not_parameters(self):
+        codes = self._codes(
+            "[Shot 1] Footsteps crunch; the fox takes two steps forward.")
+        self.assertNotIn("H3-PARAM", codes)
+
+    def test_real_steps_parameter_still_errors(self):
+        for body in ("[Shot 1] a fox, steps: 20.",
+                     "[Shot 1] a fox, steps 20.",
+                     "[Shot 1] a fox, steps=20."):
+            self.assertIn("H3-PARAM", self._codes(body), body)
+
+    def test_time_phrases_are_not_parameters(self):
+        codes = self._codes(
+            "[Shot 1] the fox walks on; a few seconds later it stops.")
+        self.assertNotIn("H3-PARAM", codes)
+
+    def test_mmss_timestamp_is_not_an_aspect_parameter(self):
+        """`At 00:03` 不能被当成 `00:03` 画幅；时间戳规则另有 H3-SHOTN-TS。"""
+        codes = self._codes(
+            "[Shot 1] a fox. [Shot 2] At 00:03, the camera cuts to the snow.")
+        self.assertNotIn("H3-PARAM", codes)
+
+    def test_common_aspect_ratios_are_parameters(self):
+        """白名单收窄会漏报：2.35:1 / 4:5 / 16:10 / 5:4 都是真参数。"""
+        for body in ("[Shot 1] a fox, 2.35:1.",
+                     "[Shot 1] a fox, 1.85:1.",
+                     "[Shot 1] a fox, 4:5.",
+                     "[Shot 1] a fox, 16:10.",
+                     "[Shot 1] a fox, 5:4."):
+            self.assertIn("H3-PARAM", self._codes(body), body)
+
+    def test_chinese_suffix_ratio_is_parameter(self):
+        self.assertIn("H3-PARAM", self._codes("[Shot 1] a fox, 画幅 4:5。"))
+
+    def test_fps_before_number_is_parameter(self):
+        for body in ("[Shot 1] a fox, fps 24.", "[Shot 1] a fox, fps: 24."):
+            self.assertIn("H3-PARAM", self._codes(body), body)
+
+    def test_rhythmic_steps_still_safe_after_ratio_restore(self):
+        """恢复通用比例规则后，自然语言 steps 仍不能报（防回归）。"""
+        self.assertNotIn("H3-PARAM", self._codes(
+            "[Shot 1] rhythmic steps across snow; another two steps forward."))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

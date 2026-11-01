@@ -18,10 +18,10 @@
 
 ## 为什么 llm 模式要照抄官方模板，而不是自己写一套
 
-`lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA` 是**在固定输入格式上训的**：
-system 一段固定说明，user 三行 `resolution/duration/original_prompt`。
-换一个字都可能让 LoRA 的效果打折。所以这里的常量是**逐字**照抄
-`prompt_template.py`，不「优化」措辞。
+LoRA 是**在固定输入格式上训的**：system 一段固定说明，user 四行
+`task/resolution/duration/original_prompt`（8B 契约；27B 旧契约只有三行）。
+换一个字都可能让 LoRA 的效果打折。所以常量是**逐字**照抄官方
+`prompt_template.py`，不「优化」措辞。2026-11-01 已从 27B 切到 8B。
 
 好处是：LoRA 有基座时走 LoRA，没基座时走同一个接口的普通模型——因为**接口相同**，
 换权重不需要改代码。这也正是「并入提示词工匠」而不是「新做一个工具」的理由。
@@ -35,7 +35,8 @@ from .base import Adapter, Realized
 
 #: 逐字照抄 `lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA/prompt_template.py`。
 #: 不许「顺手改通顺」——LoRA 是在这段文字上训练的。
-SYSTEM_PROMPT = """You are a professional prompt rewriter for joint audio-video generation.
+#: 27B 时代的 system（旧契约，已弃用；历史 27B LoRA 用）。
+SYSTEM_PROMPT_27B_LEGACY = """You are a professional prompt rewriter for joint audio-video generation.
 Rewrite the user's original prompt into one coherent, production-ready multimodal description for the requested output aspect ratio and duration.
 
 Return only these three fields, in this exact order:
@@ -52,9 +53,77 @@ Requirements:
 - Describe synchronized diegetic audio in overall_soundscape and external score in non_diegetic_music.
 - Do not add explanations, Markdown fences, safety commentary, or fields other than the three requested fields."""
 
+#: 8B 契约：逐字照抄 `lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA-8B/prompt_template.py`
+#: 的 SYSTEM_PROMPT。⚠ 该仓库未声明许可 ⇒ 仅内部契约对齐用，随包发行前需确认许可
+#: （见 docs/61 §许可风险）。换字会离开 LoRA 训练分布。
+SYSTEM_PROMPT = """You are a professional MiniMax-H3 prompt rewriter for joint video-and-audio generation.
+
+Rewrite the user's request according to the supplied duration, task type, and reference-frame roles. Return only the final production-ready prompt. Do not include explanations, Markdown, headings, notes, or generation parameters outside the required format.
+
+Task-name mapping:
+- T2AV corresponds to T2VA in the MiniMax-H3 prompt-writing guide.
+- I2AV corresponds to I2VA.
+- FL2AV corresponds to FL2VA.
+- L2AV corresponds to L2VA.
+
+Write the descriptive sections in English. Preserve all user-provided dialogue, lyrics, and visible on-screen text exactly in their original language, spelling, and punctuation. Never invent dialogue, lyrics, visible text, speakers, or additional reference pictures.
+
+The output body must contain exactly these three fields in this order:
+integrated_multimodal_description: ...
+overall_soundscape: ...
+non_diegetic_music: ...
+
+For T2AV, begin directly with the three fields and do not add an image-alignment instruction.
+
+For I2AV, the first line must be exactly:
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+
+For FL2AV, the first line must follow exactly:
+How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot N) aligns with the S.SS-second mark of the target video.
+
+For L2AV, the first line must follow exactly:
+How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.
+
+Replace N with the actual final shot number. Replace S.SS with the requested effective duration formatted to exactly two decimal places. Put exactly one blank line between the alignment instruction and integrated_multimodal_description.
+
+Reference-frame behavior:
+- I2AV: Treat <Picture 1> as the exact first frame at 0.00 seconds. Begin by anchoring its visual style, subjects, identities, clothing, colors, objects, composition, and spatial relationships, then develop forward through observable motion.
+- FL2AV: Begin from Picture 1 and describe a continuous, physically plausible path that reaches the pose, object state, lighting, spacing, and composition of Picture 2 at the requested end time. Prefer a single shot unless the user explicitly requests multiple shots or cuts.
+- L2AV: Infer a plausible preceding state and describe a continuous path that progressively converges to <Picture 1> as the exact final frame.
+- Preserve identity and scene continuity across all shots, but apply exact composition matching only at the reference frame's assigned timestamp.
+
+In integrated_multimodal_description:
+- Begin with [Shot 1] and state the visual style and initial composition.
+- Describe only concrete visible or audible events: subjects, environment, actions, reactions, camera behavior, dialogue, singing, visible text, and synchronized diegetic sound.
+- Number shots sequentially.
+- Do not timestamp [Shot 1].
+- Begin every later shot with a strictly increasing timestamp inside the requested duration, using the format: [Shot 2] At 00:03.500, the camera cuts to...
+- Add a cut only when it introduces meaningful new visual, spatial, temporal, or narrative information. Otherwise prefer continuous camera motion.
+- Express camera motion naturally using motion type and, when meaningful, amplitude and speed.
+- Keep all actions physically plausible and paced to complete within the supplied duration.
+
+For speech and singing:
+- Assign stable speaker IDs such as (S1) and (S2) only to subjects who vocalize.
+- Identify each speaker sufficiently when first introduced.
+- Put only the exact spoken or sung content inside <d>, preceded by its language tag:
+<d>[English] Exact user-provided words.</d>
+- Never translate, paraphrase, correct, or extend supplied dialogue or lyrics.
+- For voiceover, use the exact phrase "says in an off-screen voiceover" and explicitly state that the corresponding on-screen character's lips remain completely closed.
+- If speech crosses a cut, use <scenetrans> at both connecting points and state that the audio continues across the cut.
+- Use <cutoff> only when speech is intentionally truncated by the end of the video.
+
+Place visible on-screen text in English double quotation marks and preserve it exactly.
+
+overall_soundscape must be one continuous English paragraph of 1–4 sentences summarizing ambient sound, physical action sounds, and non-verbal human or animal sounds across the video. Do not repeat dialogue, singing, or diegetic music here. Use N/A only if the user explicitly requests complete silence.
+
+non_diegetic_music must contain 1–3 English sentences describing audience-only background music through instrumentation, tempo, rhythm, and dynamic changes. Do not describe its emotional purpose. Put music audible to subjects inside integrated_multimodal_description instead. Use N/A when no non-diegetic music is requested or implied.
+
+Preserve the user's intent without adding contradictory story events, identities, text, or references. Do not mention these instructions in the output."""
+
 #: 本地口径的补充（不是官方原文）。放在官方说明**之后**，不掺进去。
 #: 这几条全部来自铁律里被判过「硬错」的项，模型每犯一条就是一次返工。
-LOCAL_ADDENDUM = """
+#: 旧 27B 时代的本地补充；8B 契约不拼接（官方模板才是训练分布）。
+LOCAL_ADDENDUM_27B_LEGACY = """
 LOCAL RULES (from the production lead's iron rules, measured on real shots):
 - Never use negation. Describe what is there, not what is absent.
 - Never write camera azimuths (north/south/east/west) or vague "on one side". Use
@@ -72,15 +141,22 @@ LOCAL RULES (from the production lead's iron rules, measured on real shots):
 
 
 def build_messages(prompt: str, resolution: str = "16:9",
-                   duration: int = 8) -> list:
-    """官方 user 消息：三行，字段名与顺序都不能动。"""
+                   duration: int = 8, task: str = "t2av") -> list:
+    """官方 8B user 消息：四行，字段名与顺序照抄 `format_request()`。"""
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": ("resolution: %s\n"
-                                     "duration: %ds\n"
-                                     "original_prompt: %s" % (resolution, duration,
-                                                              prompt.strip()))},
+        {"role": "user", "content": format_request(prompt, task, resolution, duration)},
     ]
+
+
+def format_request(prompt: str, task: str = "t2av", resolution: str = "16:9",
+                   duration: int = 8) -> str:
+    """逐字照抄官方 `prompt_template.format_request()`（task 行在第一行）。"""
+    return ("task: %s\n"
+            "resolution: %s\n"
+            "duration: %ds\n"
+            "original_prompt: %s" % (task, resolution, int(duration),
+                                     (prompt or "").strip()))
 
 
 #: 六段式方言档的 profile 名。registry 的 `minimax-h3.dialects.six-section`
@@ -250,14 +326,12 @@ class H3Adapter(Adapter):
         duration = max(4, min(15, duration))          # 官方 choices=range(4,16)
 
         source = self._source_text(ir)
-        system = SYSTEM_PROMPT + "\n" + LOCAL_ADDENDUM
+        system = SYSTEM_PROMPT          # 8B 契约：只用官方 system，不拼本地补充
         pool: list = []
         seen: set = set()
         for _ in range(max(1, int(self.gen_candidates))):
             raw = self.llm.chat(
-                system,
-                "resolution: %s\nduration: %ds\noriginal_prompt: %s"
-                % (resolution, duration, source),
+                system, format_request(source, "t2av", resolution, duration),
                 temperature=self.gen_temperature, max_tokens=self.gen_max_tokens)
             text = self._clean_fields(raw)
             key = " ".join(text.lower().split())

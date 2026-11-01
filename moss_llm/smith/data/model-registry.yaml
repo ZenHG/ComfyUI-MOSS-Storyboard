@@ -267,15 +267,22 @@ targets:
       steps: 8
       note: "采样参数由工作流决定；这里只记常见档位，不作为默认值下发"
     rewriter:
-      repo: "lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA"
-      base_model: "Qwen/Qwen3.6-27B"
+      # 8B 契约（2026-11-01 拍板 C 档；决策与证据见 docs/61-T12-8B契约验证.md）。
+      repo: "lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA-8B"
+      base_model: "Qwen/Qwen3-VL-8B-Instruct"
       # 只记文件名，不记路径：放哪儿是用户的事（见 paths.py 的查找规则）。
-      file: "MiniMax-H3-Prompt-Rewriter-LoRA-Q8_0.gguf"
-      arch: qwen35
+      file: "MiniMax-H3-Prompt-Rewriter-LoRA-8B-Q8_0.gguf"
+      arch: qwen3vl
       lora_rank: 256
-      lora_alpha: 512
+      lora_alpha: 256
       tasks: ["t2va"]
-      note: "只覆盖 T2VA；FL2VA / Ref2VA 官方标为未实现"
+      # 注意：这是「本仓库实现子集」的理由，不是官方能力清单。8B 官方支持
+      # T2VA/T2AV、I2VA/I2AV、L2VA/L2AV、FL2VA/FL2AV/FLF2V，仅 Ref2VA 不支持
+      # （docs/61 §2）。本包的 h3 rewrite 目前只实现 T2VA 文本路径。
+      note: "本仓库已实现子集：只覆盖 T2VA（官方能力清单见 docs/61 §2；仅 Ref2VA 官方不支持）"
+      # 历史（已弃用）：27B 契约 repo=lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA、
+      # base_model=Qwen/Qwen3.6-27B、file=MiniMax-H3-Prompt-Rewriter-LoRA-Q8_0.gguf、
+      # arch=qwen35、lora_rank=256、lora_alpha=512；12GB 卡边界，2026-11-01 放弃。
     # ── 六段式方言档（全参考）。不是独立 target：selector 是 profile 名，
     #    与基础模式三字段并存；格式与判据见 docs/27-H3六段式.md。
     dialects:

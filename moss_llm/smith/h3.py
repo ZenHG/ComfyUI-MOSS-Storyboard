@@ -93,10 +93,19 @@ SPEECH_META = (
 )
 
 #: 数值/画幅/帧率这类**结构化参数**不许进正文（铁律 13）。真值在工作流字段里。
+#: ⚠ 白名单不能收太窄：`2.35:1` / `4:5` / `16:10` / `fps 24` 都是真参数，必须报；
+#: 但自然语言里的 "rhythmic steps"（脚步）、"two steps"、"footsteps" 不能报
+#: （T12 真机实测的误报）。所以：steps 只认「名字紧跟数值」，比例用通用 `N:M`
+#: 并在扫描前先由 `_blank_ts()` 挖掉 `At MM:SS[.mmm]` 时间戳（否则 `At 00:03`
+#: 会被当成 `00:03` 画幅——那不是结构化参数，是切点时间）。
 PARAM_WORDS = (
-    r"\b\d+(?:\.\d+)?\s*fps\b|\b\d+(?:\.\d+)?\s*帧\b|\bframe[ _]?rate\b|"
-    r"\b\d{3,4}\s*[x×]\s*\d{3,4}\b|\b\d{1,3}\s*:\s*\d{1,3}\s*(?:画幅|比例|aspect)?\b|"
-    r"\bresolution\b|\bsteps?\b|\bcfg\b|\bseed\b|\blength\s*[=:]\s*\d+"
+    r"\b\d+(?:\.\d+)?\s*fps\b|\bfps\s*[=:]?\s*\d+|\b\d+(?:\.\d+)?\s*帧\b|"
+    r"\bframe[ _]?rate\b|"
+    r"\b\d{3,4}\s*[x×]\s*\d{3,4}\b|"
+    r"\b\d{1,3}\s*:\s*\d{1,3}\b|"                 # 2.35:1 / 4:5 / 16:10 / 5:4 …
+    r"\b\d{1,2}\.\d{1,2}\s*:\s*1\b|"              # 2.35:1 / 1.85:1（显式小数比例）
+    r"\bresolution\s*[=:]?\s*\d|\bsteps?\s*[=:]?\s*\d+|\bcfg\s*[=:]?\s*\d|"
+    r"\bseed\s*[=:]?\s*\d+|\blength\s*[=:]\s*\d+|\b步数\s*[=:]?\s*\d+"
 )
 
 #: 地理方位。画面里没有东南西北，写了模型只能瞎猜（铁律 28）。
@@ -1042,8 +1051,12 @@ def check(text: str, ir: IR | None = None, *, music_policy: str = "any",
 
 
 def _blank_ts(text: str) -> str:
-    """把时间戳挖掉，免得 `00:03.500` 被当成「画幅 3:5」判成结构化参数。"""
-    return re.sub(r"At\s+\d{2}:\d{2}\.\d{3}", "At <ts>", text)
+    """把 `At MM:SS[.mmm]` 时间戳挖掉，免得被当成「画幅 N:M」判成结构化参数。
+
+    两种写法都挖：官方推荐 `At 00:03.500`，但旧稿/模型输出常省略毫秒（`At 00:03`）。
+    `At 00:03` 是切点时间，不是参数——通用 `N:M` 比例规则必须在挖掉之后才能跑。
+    """
+    return re.sub(r"At\s+\d{1,3}:\d{1,2}(?:\.\d{1,3})?", "At <ts>", text, flags=re.I)
 
 
 def verdict(issues: list) -> str:
