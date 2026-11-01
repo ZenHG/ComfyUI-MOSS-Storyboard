@@ -13,7 +13,7 @@ python tests/test_extract.py              # 22 项：从散文/代码块提取 J
 python tests/test_adversarial.py          # 63 项：恶意/极端输入（JSON 常量 / 原型链 / 量化 / 扫描预算 / spec 的 16 倍数与回读）
 python tests/test_planner.py              # 27 项：brief → elements 模板 / 错误路径 / CLI（零 GPU）
 python tests/test_skill_draft.py          # 79 项：官方 prompt-enhancer 草稿 / 编译 / state / CLI（零 GPU）
-python tests/test_contract.py             # 149 项（--no-host，CI 口径）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
+python tests/test_contract.py             # 150 项（--no-host，CI 口径）：参数表 / 错误路径 / 依赖 / 卫生 / 词表
 python tests/test_cross_language.py       # 95 项：JS ↔ Python 预设/默认值/校验/elements/canvas/最终提示词/外接稿差分
 python tests/test_panel_assembly.py       # 22 项：逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
@@ -23,6 +23,14 @@ node   tests/test_i18n.mjs                # 64 项：中英切换纯函数（含
 node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
 python tests/test_llm_subpackage.py        # 98 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一 / 侧车启动命令 / 图像预处理 / 零模型编译 / 反漂移断言）
 python -m unittest tests.test_smith_ir     # 365 项：IR 编译层（7 后端方言 / 6 条不变式 / 往返 / 分解对账 / 结构化方言判据 / 覆盖率）
+python tests/test_expand_steps.py          # 21 项：扩写三拆（补全/翻译/改写各自的判据、开关、归因；假 LLM）
+python tests/test_h3_six.py                # 56 项：H3 全参考六段式（3 段真稿字节往返 / 17 错误码 / profile 并存 / lint 接线）
+python tests/test_lang_zh.py               # 20 项：中文整句（中英事实集相等 / 默认 en 逐字节不变 / 语序机检 Z01–Z07）
+python tests/test_registry_family.py       # 12 项：跨家族 registry（新增 target 纯 YAML 可编译，不改一行 Python）
+python tests/test_coverage_gate.py         #  2 项：覆盖率闸自身（基线绿 + 红时点名丢了哪条事实）
+python tests/test_g7_binding.py            # 35 项：G7 binding 判据（五类绑定规则正例/反例，离线不跑模型）
+python tests/test_pitfalls_ab.py           # 34 项：pitfalls A/B 判定函数（三档结论机械求值，离线不出图）
+python tests/test_wash_benchmark.py        # 30 项：洗图基准离线层（workflow 构造 / 编译 / 打分确定性 / 降级）
 python tools/check_coverage.py --check     # 覆盖率闸：4 份夹具 × 7 后端，不丢固定项、不编数字与文字、覆盖率不低于基线
 python tools/smoke_nodes.py               # 63 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
@@ -32,7 +40,7 @@ python tools/check_editor_ui.py           # 160 项：编辑器接线 / 语法 /
 python tools/check_release_ready.py       # 53 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查）
 node   tools/ui_smoke.mjs                 # 38 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认 / 删除与分布按钮接线）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）
-node   tools/ui_llm_panel.mjs            # 36 项 + 1 skip：**真机** LLM 面板（开关条置顶 / 悬停不抖 / 默认常驻 5 项 / 单组视图 / 已改点 / 存档逐位不变 / 只动本节点）
+node   tools/ui_llm_panel.mjs            # 43 项：**真机** LLM 面板（开关条置顶 / 悬停不抖 / 默认常驻 5 项 / 单组视图 / 已改点 / 已接线参数不被藏（三层分开断言）/ 存档逐位不变 / 只动本节点）
 node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 ```
 

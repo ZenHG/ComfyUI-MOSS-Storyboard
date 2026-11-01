@@ -49,3 +49,7 @@ docs/_local/
 # 已 `git rm --cached` 清掉。根目录不该有 PNG —— 正式图片一律放 assets/。
 /_*.png
 /_*.jpg
+
+# 真机跑批与实验产物（`out/live/`、`out/reverse/`、`out/g7/`、`out/wash_benchmark/`…）：
+# 可删可重建，且含大图。docs/22 早就写了「已 gitignore」，实际漏了 —— 2026-11-01 补上。
+out/

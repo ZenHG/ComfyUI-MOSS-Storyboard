@@ -53,8 +53,14 @@ def human_text(out: str) -> str:
 
 
 def measure() -> tuple:
+    """返回 (rows, bad, detail)。`rows` 与基线同形（只有计数），`detail` 是红时的人话线索。
+
+    为什么另给 detail：闸红只报「hard=1 num=0 quote=0」等于让人自己回去猜哪条事实丢了。
+    验收要求是「删掉一条事实 ⇒ 闸红**并指出少了哪条**」，所以红的分支必须能打印
+    具体的固定项标签与没落地的内容词。detail 不进基线（基线只冻结计数与覆盖率）。
+    """
     reg = Registry.load()
-    rows, bad = {}, []
+    rows, bad, detail = {}, [], {}
     for p in sorted(FIXTURES.glob("*.ir.json")):
         ir = IR.load(p)
         key = p.stem.replace(".ir", "")
@@ -65,7 +71,7 @@ def measure() -> tuple:
                 rows["%s|%s" % (key, t)] = {"skip": str(e)[:80]}
                 continue
             rep = verify(ir, out, t, reg)
-            cov, _missing = coverage(human_text(out), ir)
+            cov, missing = coverage(human_text(out), ir)
             row = {
                 "fixed": len(rep.fixed),
                 "hard_misses": len(rep.hard_misses),
@@ -73,10 +79,15 @@ def measure() -> tuple:
                 "extra_quotes": len(rep.extra_quotes),
                 "coverage": None if cov is None else round(cov, 4),
             }
-            rows["%s|%s" % (key, t)] = row
+            k = "%s|%s" % (key, t)
+            rows[k] = row
+            detail[k] = {"hard_misses": list(rep.hard_misses),
+                         "extra_numbers": list(rep.extra_numbers),
+                         "extra_quotes": list(rep.extra_quotes),
+                         "missing": list(missing)}
             if row["hard_misses"] or row["extra_numbers"] or row["extra_quotes"]:
-                bad.append(("%s × %s" % (key, t), row))
-    return rows, bad
+                bad.append((k, row, detail[k]))
+    return rows, bad, detail
 
 
 def main() -> int:
@@ -85,15 +96,21 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="对账（默认）")
     args = ap.parse_args()
 
-    rows, bad = measure()
+    rows, bad, detail = measure()
     pairs = len(rows)
     skipped = sum(1 for r in rows.values() if "skip" in r)
 
     if bad:
         print("FAIL 事实闸：%d 个组合丢固定项或编了东西" % len(bad))
-        for name, row in bad[:12]:
+        for name, row, det in bad[:12]:
             print("  · %-42s hard=%d num=%d quote=%d"
                   % (name, row["hard_misses"], row["extra_numbers"], row["extra_quotes"]))
+            for label in det["hard_misses"][:6]:
+                print("      丢了固定项 %s" % label)
+            for n in det["extra_numbers"][:6]:
+                print("      凭空数字 %s" % n)
+            for q in det["extra_quotes"][:6]:
+                print("      凭空文字 %s" % q)
     else:
         print("OK   事实闸：%d 个组合（%d 跳过）全部不丢不编" % (pairs - skipped, skipped))
 
@@ -115,11 +132,13 @@ def main() -> int:
         if want is None or got is None:
             continue
         if got + 1e-9 < want:
-            drops.append((k, want, got))
+            drops.append((k, want, got, detail.get(k, {}).get("missing") or []))
     if drops:
         print("FAIL 覆盖率跌破基线：%d 处" % len(drops))
-        for k, want, got in drops[:12]:
+        for k, want, got, missing in drops[:12]:
             print("  · %-42s %.3f → %.3f" % (k, want, got))
+            if missing:
+                print("      编译结果里没落地的内容词：%s" % "、".join(missing[:10]))
     else:
         print("OK   覆盖率不低于基线（%d 行）" % len(base))
 

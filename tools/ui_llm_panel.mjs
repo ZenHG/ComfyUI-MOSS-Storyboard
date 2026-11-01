@@ -274,25 +274,115 @@ const two = await page.evaluate(async () => {
 check("两个同型节点各自挂载、各自 39 格存档、各自 34 项隐藏", two.length === 2
     && two.every((t) => t.mounted && t.widgets === 40 && t.values === 39 && t.hidden === 34), JSON.stringify(two));
 
-// 接了线的参数不许藏（把 ctx_size 标成已连线）
-const linked = await page.evaluate(async () => {
+// 接了线的参数不许藏：**造真机条件**——PrimitiveNode 连一根真链到 ctx_size 的输入槽。
+//
+// 以前 SKIP 的原因不是「宿主不允许接线」，是造法不对：直接写 `slot.link = 999001`
+// 不是图上的链接对象，宿主下一帧就把 link 归零（实测 seen=[null]）。
+// `LiteGraph.createNode("PrimitiveNode")` + `primitive.connect(0, node, inputIndex)`
+// 走宿主自己的连接路径：链接进 `graph.links`，也会随 `serialize()`/`loadGraphData()` 往返。
+//
+// 三种「藏」要分开（实测口径）：
+//   ① 面板旗标 `widget.options.hidden` —— 本仓面板负责：接了线必须保持 false；
+//   ② 宿主按连接抑制控件 `widget.connectionSuppressed` —— 宿主行为，面板改不了；
+//      断言它 true 只是把预期写清楚，不算面板绿；
+//   ③ 存档 `widgets_values` —— 接线/折叠都不许动它，逐位比。
+const linkProof = await page.evaluate(async () => {
     const m = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
     const slot = (m.inputs || []).find((i) => i.name === "ctx_size");
-    if (!slot) return { noSlot: true };
-    const cw = m.widgets.find((x) => x.name === "channel");
-    const w = m.widgets.find((x) => x.name === "ctx_size");
-    slot.link = 999001;
-    const seen = (m.inputs || []).filter((i) => i.name === "ctx_size").map((i) => i.link);
+    if (!slot) return { noSlot: true, inputs: (m.inputs || []).map((i) => i.name) };
+    const ctxW = () => m.widgets.find((x) => x.name === "ctx_size");
+    const ubW = () => m.widgets.find((x) => x.name === "ubatch");
+    const snap = () => ({ hidden: !!((ctxW().options || {}).hidden),
+        ubatchHidden: !!((ubW().options || {}).hidden),
+        suppressed: !!ctxW().connectionSuppressed, slotLink: slot.link });
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const click = (key) => {
+        const b = document.querySelector('[data-mossllm-chip="' + key + '"]');
+        if (b) b.click();
+        return !!b;
+    };
+    // 先回到默认视图（只露常驻）：此时 ctx_size 与 ubatch 本来都该被藏
+    globalThis.MOSS_SB_LLM_PANEL.focus(null);
     m.__mossllm.force = false;
-    cw.callback(String(cw.value));                       // 同步触发一次重算
-    const out = { seen, hidden: !!(w.options && w.options.hidden) };
-    slot.link = null;
-    cw.callback(String(cw.value));
-    out.restored = !!(w.options && w.options.hidden);
-    return out;
+    await wait(500);
+    const baseline = snap();
+    const valuesBefore = JSON.parse(JSON.stringify(m.widgets_values));
+    const linksBefore = Object.keys(app.graph.links || {}).length;
+    const p = LiteGraph.createNode("PrimitiveNode");
+    app.graph.add(p);
+    p.pos = [1150, 80];
+    await wait(300);
+    const link = p.connect(0, m, m.inputs.indexOf(slot));       // 真链：宿主连接路径
+    await wait(600);
+    const connected = snap();                                    // 还没通知面板，旗标可能仍是旧值
+    click("tune");                                              // ctx_size 属「本地引擎」组，tune 视图里本应被藏
+    await wait(700);
+    const atTune = snap();
+    click("api");                                               // 换到「外部 API」，本地组整体本应被藏
+    await wait(700);
+    const atApi = snap();
+    click("api");                                               // 再点一次 = 收起，回默认视图
+    await wait(700);
+    const folded = snap();
+    return { noSlot: false, linkOk: !!link, linkId: slot.link, linksBefore,
+        linksAfter: Object.keys(app.graph.links || {}).length,
+        baseline, connected, atTune, atApi, folded,
+        valuesBefore, valuesAfter: JSON.parse(JSON.stringify(m.widgets_values)),
+        primitive: { id: p.id, widgets: (p.widgets || []).map((x) => x.name) } };
 });
-c.skip("接了线的参数不会被藏", "造不出真机条件：直接写 slot.link 被宿主立刻归零（seen=" + JSON.stringify(linked.seen) + "）；"
-    + "宿主自己会把已提升的 widget 行按 byConnection 抑制掉，代码里的 isLinked 只是防一手");
+check("造出真机条件：PrimitiveNode 连到 ctx_size 的真链（走宿主连接路径，不是手写 slot.link）",
+    !linkProof.noSlot && linkProof.linkOk && linkProof.linkId != null
+    && linkProof.linksAfter === linkProof.linksBefore + 1,
+    JSON.stringify({ slot: linkProof.linkId, links: [linkProof.linksBefore, linkProof.linksAfter] }));
+check("对照组成立：接线前默认视图里 ctx_size 与 ubatch 都被面板隐藏（条件非空转）",
+    linkProof.baseline && linkProof.baseline.hidden === true
+    && linkProof.baseline.ubatchHidden === true, JSON.stringify(linkProof.baseline));
+check("接线后切到「常用调优」：ctx_size 不被藏（hidden=false），未接线的 ubatch 照常藏",
+    linkProof.atTune && linkProof.atTune.hidden === false
+    && linkProof.atTune.ubatchHidden === true && linkProof.atTune.suppressed === true,
+    JSON.stringify(linkProof.atTune));
+check("切到「外部 API」再折回默认：已接线参数仍然不藏（每次重算都尊重 isLinked）",
+    linkProof.atApi && linkProof.folded
+    && linkProof.atApi.hidden === false && linkProof.folded.hidden === false
+    && linkProof.folded.ubatchHidden === true,
+    JSON.stringify({ api: linkProof.atApi, folded: linkProof.folded }));
+console.log("  真链证据 =", JSON.stringify({ slot: linkProof.linkId, baseline: linkProof.baseline,
+    connected: linkProof.connected, atTune: linkProof.atTune, atApi: linkProof.atApi,
+    folded: linkProof.folded }));
+
+// —— 真链还得过「存盘 → 重开」：链接恢复、旗标不复发、widgets_values 一位不动 ——
+const reloadLinked = await page.evaluate(async () => {
+    const m = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
+    const orig = JSON.parse(JSON.stringify(m.widgets_values));
+    const g = app.graph.serialize();
+    await app.loadGraphData(JSON.parse(JSON.stringify(g)));
+    await new Promise((r) => setTimeout(r, 2800));
+    const m2 = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
+    const slot2 = m2 && (m2.inputs || []).find((i) => i.name === "ctx_size");
+    const w2 = m2 && m2.widgets.find((x) => x.name === "ctx_size");
+    const u2 = m2 && m2.widgets.find((x) => x.name === "ubatch");
+    const after = m2 ? JSON.parse(JSON.stringify(m2.widgets_values)) : [];
+    const diff = [];
+    for (let i = 0; i < Math.max(orig.length, after.length); i += 1) {
+        if (JSON.stringify(orig[i]) !== JSON.stringify(after[i])) diff.push([i, orig[i], after[i]]);
+    }
+    return { slotLink: slot2 ? slot2.link : null,
+        hidden: w2 ? !!((w2.options || {}).hidden) : null,
+        suppressed: w2 ? !!w2.connectionSuppressed : null,
+        ubatchHidden: u2 ? !!((u2.options || {}).hidden) : null,
+        len: after.length, diff: diff.slice(0, 3),
+        mounted: !!(m2 && m2.__mossllmBar && m2.__mossllmBar.nodeType) };
+});
+check("重开工作流后真链还在（ctx_size 输入槽 slot.link 非空）",
+    reloadLinked.slotLink != null, "slot.link=" + reloadLinked.slotLink);
+check("重开后 widgets_values 逐位一致（39 格；接线与折叠都不写存档）",
+    reloadLinked.len === 39 && reloadLinked.diff.length === 0,
+    "len=" + reloadLinked.len + " diff=" + JSON.stringify(reloadLinked.diff));
+check("重开后已接线参数仍不被面板藏（hidden=false；宿主 byConnection 抑制控件本身是宿主行为，如实记录）",
+    reloadLinked.hidden === false && reloadLinked.suppressed === true
+    && reloadLinked.ubatchHidden === true && reloadLinked.mounted,
+    JSON.stringify(reloadLinked));
+console.log("  真链重开证据 =", JSON.stringify(reloadLinked));
 
 check("只作用于 MossPromptSmith", await page.evaluate(() => app.graph.nodes.filter((n) => n.type !== "MossPromptSmith")
     .every((n) => !n.__mossllmBar && !(n.widgets || []).some((w) => w && w.name === "mosssb_llm_panel"))));

@@ -13,17 +13,25 @@
 #   ·  63/0  tests/test_adversarial.py        恶意/极端输入：JSON 常量 / 原型链 / 量化 / 扫描预算 / spec 16 倍数
 #   ·  27/0  tests/test_planner.py            brief → elements 模板 / 错误路径 / CLI
 #   ·  79/0  tests/test_skill_draft.py        官方 prompt-enhancer 草稿 / 编译 / state / CLI
-#   · 149/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性 / 调度器同源 / 上下限同源 / 人物格
+#   · 150/0  tests/test_contract.py --no-host 参数表 / 错误路径 / 依赖边界 / 仓库卫生 / 词表完整性 / 调度器同源 / 上下限同源 / 人物格
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  64/0  tests/test_i18n.mjs              中英切换纯函数（node）
 #   ·  43/0  tests/test_compat.mjs            旧工作流 widgets_values 错位修复（纯函数）
 #   ·  98/0  tests/test_llm_subpackage.py     可选 LLM 子包纯函数：包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 侧车命令 / 图像预处理 / 零模型编译 / 反漂移断言
 #   · 365/0  tests/test_smith_ir.py           IR 编译层：7 后端方言 / 6 条不变式 / 往返 / 分解对账 / 结构化方言判据 / 覆盖率
+#   ·  21/0  tests/test_expand_steps.py       扩写三拆：补全/翻译/改写各自的判据、开关、归因（假 LLM，零 GPU）
+#   ·  56/0  tests/test_h3_six.py             H3 全参考六段式：3 段真稿字节往返 / 17 错误码 / profile 并存 / lint 接线
+#   ·  20/0  tests/test_lang_zh.py            中文整句：中英事实集相等 / 默认 en 逐字节不变 / 语序机检 Z01–Z07
+#   ·  12/0  tests/test_registry_family.py    跨家族 registry：新增 target 纯 YAML 可编译（不改一行 Python）
+#   ·   2/0  tests/test_coverage_gate.py      覆盖率闸自身：基线绿 + 红时必须点名丢了哪条事实
+#   ·  35/0  tests/test_g7_binding.py         G7 binding 判据（离线）：五类绑定规则的正例/反例
+#   ·  34/0  tests/test_pitfalls_ab.py        pitfalls A/B 判定函数（离线）：三档结论的机械求值
+#   ·  30/0  tests/test_wash_benchmark.py     洗图基准离线层：workflow 构造 / 编译 / 打分确定性 / 降级路径
 #   ·  63/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
 #   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
-#   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
+#   ·  16/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
 #                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑
-#                （CI 传 4 个示例 + 2 个夹具 ⇒ 实际 88 项）
+#                （CI 实际传 10 个文件 ⇒ 共 158 项；不带文件参数只查内建那一份 = 15 项）
 #   ·  20/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 标题可换语言 / 汉化完整（标签·枚举·文案·标题·tooltip）
 #   · 160/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 分布与等大 / 滚轮与旧稿错位守卫
 #   ·  95/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
@@ -101,6 +109,22 @@ jobs:
         run: python tests/test_llm_subpackage.py
       - name: IR 编译层（零 GPU 零网络）
         run: python -m unittest tests.test_smith_ir
+      - name: 扩写三拆（假 LLM，零 GPU）
+        run: python tests/test_expand_steps.py
+      - name: H3 六段式（真稿夹具 + 17 错误码）
+        run: python tests/test_h3_six.py
+      - name: 中文整句（--lang zh，中英事实集相等）
+        run: python tests/test_lang_zh.py
+      - name: 跨家族 registry（纯 YAML 接入新 target）
+        run: python tests/test_registry_family.py
+      - name: 覆盖率闸自身（基线绿 + 红时点名事实）
+        run: python tests/test_coverage_gate.py
+      - name: G7 binding 判据（离线，不跑模型）
+        run: python tests/test_g7_binding.py
+      - name: pitfalls A/B 判定函数（离线，不出图）
+        run: python tests/test_pitfalls_ab.py
+      - name: 洗图基准离线层（workflow / 打分 / 降级）
+        run: python tests/test_wash_benchmark.py
       - name: 覆盖率闸（不丢固定项 / 不编内容）
         run: python tools/check_coverage.py --check
       - name: 确定性基线（4 份 IR × 5 后端 sha256）
