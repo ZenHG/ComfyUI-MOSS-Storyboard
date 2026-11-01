@@ -1,5 +1,23 @@
 # CHANGES
 
+## 未发布 · 洗图闭环第一轮（MOSS-only，2026-11-01）
+
+- 🆕 **用户指定 MOSS 档真机跑通**：`MOSS-Image-SFT-Q4_K_S` + `8-steps-dmd2-lora` + `moss-te-heretic` TE
+  （8 步 / cfg 1.0 / euler / simple）；`tools/workflows` 新增 `moss-image-q4` backend 模板。
+- **W1 洗图方差线**：20 图 × 3 seed **60/60 成功**、全流程 17.2 min；代理 triage 均值 0.7542
+  （**`calibrated=false`，只作漂移测量**）；**每源 3-seed 极差中位 0.0339**（噪声线）。
+- **W3 roundtrip**：源图→B-9B 反推→扩写→MOSS 出图→B-9B 再反推；19/20 成功（img16 再反推循环失败单列）；
+  **hard 事实 lost 15/36（41.7%）、全部 lost 65/154（42.2%）**；如实注明不能全归因洗图
+  （含生成视觉差异 + 单次反推方差）。
+- **W2 扩写事实保持**：桩下限 `all` 107/115（93.0%）、`rewrite` 103/115（89.6%）；
+  **真实 A-4B 10 单元 spot-check：lost=0 0/10（桩同子集 8/10）、lost 15、extra 21（含真编造）**；
+  n=10 / 单次 / 4B / all 组，**不能外推成模型结论**，但足以说明扩写固定文本契约需先修。
+- 🆕 工具：`wash_benchmark` 加 `--sources-file/--ir-root/--seeds/--out`；新增 `tools/expand_facts.py`
+  与 `tools/wash_roundtrip.py`；测试 36 + 13 + 8 条；docs/67（计划）、docs/68（结果）、
+  docs/69（独立复核）。
+- 边界：代理分未校准、尺寸按源图比例 ≈1MP（非固定 1024²）、无 OCR/人类判读、单后端；
+  Qwen-Image 2.1 未参与（等用户下载），H3 冻结。
+
 ## 未发布 · 重复循环显式失败 + G7 第三轮复测（2026-11-01）
 
 - 🔴 **不再把「语法层截断」当成功**：`reverse.py::coerce_ir` 在实体数达 `MAX_ENTITIES=40`

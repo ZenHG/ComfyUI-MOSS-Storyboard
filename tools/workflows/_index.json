@@ -16,6 +16,20 @@
         "negative 由 positive 做 ConditioningZeroOut，与真机工作流一致（MOSS 的负向另有 uncond_slg 通道，本图未接 SLG）。"
       ]
     },
+    "moss-image-q4": {
+      "display": "MOSS-Image SFT Q4_K_S + 8-steps-dmd2 LoRA + moss-te-heretic TE",
+      "file": "moss_image_q4_8step_t2i.api.json",
+      "nodes": {"positive": "4", "negative": "5", "sampler": "7", "latent": "6", "save": "10"},
+      "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0},
+      "wh_step": 16,
+      "max_pixels_hint": 2048,
+      "provenance": "用户指定权重：MOSS-Image-SFT-Q4_K_S.gguf + 8-steps-dmd2-lora.safetensors + moss-te-heretic-dhq-K-6.6G.gguf（8 步 / cfg 1.0 / euler / simple / 1024²）。Lead 2026-11-01 真机验证：首图 94.0s（含加载），热态 12.4/12.3/13.0s @1024²，显存 used≈8.0–8.4GB；原始节点图 out/wash_test/moss_q4_8step_test.api.json。",
+      "notes": [
+        "代理 triage 未校准：只用于 3-seed 漂移/方差测量，不作质量结论，不作放行闸。",
+        "与旧 moss-image（4 步 turbo merged bf16）不是同一量化/蒸馏档，结论不可互相外推。",
+        "CLIPLoaderGGUF type=moss_image；VAE 为 flux2-vae；negative 由 positive 做 ConditioningZeroOut（与 Lead 验证图一致）。"
+      ]
+    },
     "krea2": {
       "display": "Krea 2 Turbo HD V1 (NVFP4)",
       "file": "krea2_t2i.api.json",

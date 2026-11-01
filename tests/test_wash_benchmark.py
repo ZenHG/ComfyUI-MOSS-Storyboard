@@ -61,9 +61,10 @@ class TestDesignAndBackends(unittest.TestCase):
     def test_check_design_is_green(self):
         self.assertEqual(wb.check_design(), [])
 
-    def test_three_backends_available(self):
+    def test_four_backends_available(self):
         avail = [b for b, m in wb.BACKENDS.items() if m.get("available")]
-        self.assertEqual(sorted(avail), ["krea2", "moss-image", "qwen-image-2_1"])
+        self.assertEqual(sorted(avail),
+                         ["krea2", "moss-image", "moss-image-q4", "qwen-image-2_1"])
 
     def test_missing_backends_have_reason(self):
         for name in ("flux3", "flux1_dev"):
@@ -382,6 +383,150 @@ class TestDegradationPaths(unittest.TestCase):
             self.assertTrue((env.out / "score.json").is_file())
         finally:
             env.close()
+
+
+class TestMultiSeedAndSources(unittest.TestCase):
+    """W1：`--seeds` / `--sources-file` / `--ir-root` / moss-image-q4 的离线判据。"""
+
+    def test_parse_seeds_ok_and_errors(self):
+        self.assertEqual(wb.parse_seeds("42,43,44"), [42, 43, 44])
+        self.assertEqual(wb.parse_seeds(" 7 , 8 "), [7, 8])
+        self.assertIsNone(wb.parse_seeds(""))
+        self.assertIsNone(wb.parse_seeds(None))
+        for bad in ("42,x", "-1", "42,42", ","):
+            with self.subTest(bad=bad):
+                with self.assertRaises(RuntimeError):
+                    wb.parse_seeds(bad)
+
+    def test_load_sources_file_g7_format_and_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            a = _make_png(base / "a.png", "photo", (320, 240))
+            doc = {"images": [{"id": "a", "category": "单人特写", "path": str(a),
+                               "name": "a.png"}]}
+            sf = base / "sources.json"
+            sf.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+            srcs = wb.load_sources_file(sf)
+            self.assertEqual([s["id"] for s in srcs], ["a"])
+            self.assertEqual(srcs[0]["category"], "单人特写")
+            self.assertEqual(srcs[0]["path"], str(a))
+            with self.assertRaises(FileNotFoundError):
+                wb.load_sources_file(base / "nope.json")
+            bad = {"images": [{"id": "b", "category": "x",
+                               "path": str(base / "missing.png")}]}
+            badf = base / "bad.json"
+            badf.write_text(json.dumps(bad), encoding="utf-8")
+            with self.assertRaises(FileNotFoundError):
+                wb.load_sources_file(badf)
+
+    def test_stage_ir_sources_copies_ir_and_lists_failed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            ir_root = base / "g7"
+            ir_root.mkdir()
+            out = base / "out"
+            srcs = []
+            for sid in ("ok1", "fail1", "miss1"):
+                srcs.append({"id": sid, "category": "x",
+                             "path": str(_make_png(base / "src" / (sid + ".png"),
+                                                   "photo", (320, 240)))})
+            ir = {"task": "reverse", "entities": [
+                {"id": "e1", "kind": "character", "label": "woman"}]}
+            (ir_root / "ok1.json").write_text(
+                json.dumps({"ok": True, "ir": ir}), encoding="utf-8")
+            (ir_root / "fail1.json").write_text(
+                json.dumps({"ok": False, "error": "ReverseError: JSON 未闭合"}),
+                encoding="utf-8")
+            doc = wb.stage_ir_sources(srcs, ir_root, out)
+            self.assertEqual([s["id"] for s in doc["sources"]], ["ok1"])
+            self.assertTrue((out / "captions" / "ok1.ir.json").is_file())
+            copied = json.loads((out / "captions" / "ok1.ir.json")
+                                .read_text(encoding="utf-8"))
+            self.assertEqual(copied["entities"][0]["label"], "woman")
+            skipped = {row["id"]: row["reason"] for row in doc["skipped"]}
+            self.assertIn("ok=false", skipped["fail1"])
+            self.assertIn("缺 G7 记录", skipped["miss1"])
+
+    def test_generate_multi_seed_dry_naming_and_run_entries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            out = base / "out"
+            src_dir = base / "src"
+            (out / "captions").mkdir(parents=True)
+            img = _make_png(src_dir / "img01.png", "photo", (640, 480))
+            (out / "captions" / "img01.ir.json").write_text(
+                FIXTURE_IR.read_text(encoding="utf-8"), encoding="utf-8")
+            sources = [{"id": "img01", "category": "单人特写", "path": str(img)}]
+            run = wb.generate(sources=sources, out=out, dry=True,
+                              only=["moss-image-q4"], seeds=[42, 43, 44])
+            self.assertEqual(run["seeds"], [42, 43, 44])
+            imgs = run["backends"]["moss-image-q4"]["images"]
+            self.assertEqual(len(imgs), 3)
+            self.assertEqual([e["seed_tag"] for e in imgs], [42, 43, 44])
+            names = [Path(e["workflow"]).name for e in imgs]
+            self.assertTrue(any("__seed42" in n for n in names), names)
+            self.assertTrue((out / "run.json").is_file())
+            saved = json.loads((out / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(saved["backends"]["moss-image-q4"]["images"]), 3)
+            # 不加 --seeds 时：单条、命名不带 seed 后缀（旧行为）
+            out2 = base / "out2"
+            (out2 / "captions").mkdir(parents=True)
+            (out2 / "captions" / "img01.ir.json").write_text(
+                FIXTURE_IR.read_text(encoding="utf-8"), encoding="utf-8")
+            run2 = wb.generate(sources=sources, out=out2, dry=True,
+                               only=["moss-image-q4"])
+            imgs2 = run2["backends"]["moss-image-q4"]["images"]
+            self.assertEqual(len(imgs2), 1)
+            self.assertNotIn("seed_tag", imgs2[0])
+            self.assertNotIn("__seed", Path(imgs2[0]["workflow"]).name)
+
+    def test_score_run_multi_seed_aggregation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            out = base / "out"
+            src = _make_png(base / "src" / "img01.png", "photo", (320, 240))
+            g42 = _make_png(out / "images" / "moss-image-q4" / "img01__seed42.png",
+                            "photo", (320, 240))
+            g43 = _make_png(out / "images" / "moss-image-q4" / "img01__seed43.png",
+                            "photo", (320, 240))
+            run = {"backends": {"moss-image-q4": {
+                "images": [
+                    {"source": "img01", "category": "单人特写",
+                     "image": str(g42), "seed": 42, "seed_tag": 42},
+                    {"source": "img01", "category": "单人特写",
+                     "image": str(g43), "seed": 43, "seed_tag": 43},
+                ], "errors": []}}}
+            (out / "run.json").write_text(json.dumps(run), encoding="utf-8")
+            sc = wb.score_run(sources=[{"id": "img01", "category": "单人特写",
+                                        "path": str(src)}], out=out)
+            b = sc["backends"]["moss-image-q4"]
+            self.assertEqual(b["n"], 2)
+            self.assertEqual(len(b["sources"]), 1)
+            agg = b["sources"][0]
+            self.assertEqual(agg["n"], 2)
+            self.assertEqual(agg["seeds"], [42, 43])
+            self.assertAlmostEqual(agg["range_triage"], 0.0, places=3)
+            self.assertAlmostEqual(agg["mean_triage"], b["mean_triage"], places=4)
+
+    def test_moss_q4_backend_index_and_workflow_injection(self):
+        idx = wb.load_index()
+        self.assertIn("moss-image-q4", idx["backends"])
+        b = idx["backends"]["moss-image-q4"]
+        self.assertEqual(b["nodes"]["save"], "10")
+        self.assertEqual(b["defaults"]["steps"], 8)
+        self.assertAlmostEqual(b["defaults"]["cfg"], 1.0)
+        self.assertEqual(wb.BACKENDS["moss-image-q4"]["workflow"], "moss-image-q4")
+        wf = wb.build_workflow("moss-image-q4", "hello", 7, 832, 1216, "wash/x")
+        self.assertEqual(wf["4"]["inputs"]["text"], "hello")
+        self.assertEqual(wf["7"]["inputs"]["seed"], 7)
+        self.assertEqual(wf["6"]["inputs"]["width"], 832)
+        self.assertEqual(wf["6"]["inputs"]["height"], 1216)
+        self.assertEqual(wf["10"]["inputs"]["filename_prefix"], "wash/x")
+        self.assertEqual(wf["7"]["inputs"]["steps"], 8)
+        # 旧 moss-image 模板不被新后端改坏
+        old = wb.load_template("moss-image")
+        self.assertEqual(old["5"]["inputs"]["steps"], 4)
+        self.assertEqual(old["9"]["class_type"], "SaveImage")
 
 
 if __name__ == "__main__":

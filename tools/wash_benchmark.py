@@ -117,7 +117,14 @@ BACKENDS = {
         "available": True,
         "compile_target": "moss-image",
         "workflow": "moss-image",
-        "note": "MOSS-Image SFT 4steps turbo merged（本机权重）",
+        "note": "MOSS-Image SFT 4steps turbo merged（本机权重；历史对照档，本轮不跑）",
+    },
+    "moss-image-q4": {
+        "available": True,
+        "compile_target": "moss-image",
+        "workflow": "moss-image-q4",
+        "note": ("用户指定档：MOSS-Image-SFT-Q4_K_S + 8-steps-dmd2 LoRA + "
+                 "moss-te-heretic TE（8 步 / cfg 1.0 / euler / simple）"),
     },
     "krea2": {
         "available": True,
@@ -217,6 +224,69 @@ def resolve_sources(sources: list[dict] | None = None) -> list[dict]:
     return out
 
 
+def load_sources_file(path) -> list[dict]:
+    """从 G7 格式 JSON（`{"images":[{id,category,path,...}]}`）载入源图清单。
+
+    找不到文件 / 缺 path / 路径不存在都直接报错——**不静默跳过**（W1 任务口径）。
+    """
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError("--sources-file 不存在：%s" % p)
+    try:
+        doc = json.loads(p.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise RuntimeError("--sources-file 不是合法 JSON：%s（%s）" % (p, exc)) from exc
+    imgs = doc.get("images") if isinstance(doc, dict) else None
+    if not imgs:
+        raise RuntimeError("--sources-file 没有 images 数组：%s" % p)
+    out = []
+    for i, im in enumerate(imgs):
+        if not isinstance(im, dict) or not str(im.get("id") or "").strip():
+            raise RuntimeError("--sources-file 第 %d 项缺 id：%s" % (i, p))
+        raw = str(im.get("path") or "").strip()
+        if not raw:
+            raise RuntimeError("--sources-file 源图 %r 缺 path：%s" % (im.get("id"), p))
+        src_path = Path(raw) if Path(raw).is_absolute() else ROOT / raw
+        if not src_path.is_file():
+            raise FileNotFoundError("--sources-file 源图 %r 不存在：%s"
+                                    % (im.get("id"), src_path))
+        out.append({"id": str(im["id"]), "category": str(im.get("category") or "未分类"),
+                    "path": str(src_path),
+                    "why": str(im.get("why") or im.get("name") or "")})
+    return out
+
+
+def parse_seeds(text: str | None) -> list[int] | None:
+    """解析 `--seeds "42,43,44"`；空白 = None（单 seed 旧行为）。非法值直接报错。"""
+    if text is None or not str(text).strip():
+        return None
+    seeds = []
+    for part in str(text).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            sd = int(part)
+        except ValueError:
+            raise RuntimeError("--seeds 里有非整数：%r（示例：42,43,44）" % part) from None
+        if sd < 0:
+            raise RuntimeError("--seeds 不接受负数：%d" % sd)
+        seeds.append(sd)
+    if not seeds:
+        raise RuntimeError("--seeds 解析后为空（示例：42,43,44）")
+    if len(set(seeds)) != len(seeds):
+        raise RuntimeError("--seeds 有重复：%r" % seeds)
+    return seeds
+
+
+def resolve_out(value: str | None) -> Path:
+    """`--out`：相对路径按仓库根解析；默认沿用全局 OUT（旧产物路径行为不变）。"""
+    if not value:
+        return OUT
+    p = Path(value)
+    return p if p.is_absolute() else ROOT / p
+
+
 def size_for(shape: tuple[int, int] | None, mp: float = 1.0,
              step: int = 16, lo: int = 512, hi: int = 1536) -> tuple[int, int]:
     """按源图比例算一个面积≈mp 兆像素、边长是 step 倍数、且落在 [lo, hi] 的画布。"""
@@ -267,6 +337,74 @@ def stage_sources(sources: list[dict] | None = None, out: Path | None = None) ->
            "sources": [merged[k] for k in merged]}
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
     return doc
+
+
+def stage_ir_sources(sources: list[dict] | None = None, ir_root=None,
+                     out: Path | None = None) -> dict:
+    """从既有 G7 产物复制 IR（不跑 llama-server / 不占 GPU）。
+
+    `ir_root` 下每个 `<id>.json` 是一个 G7 单元记录：取其中 `ir` 字段落到
+    `captions/<id>.ir.json`；`ok=false`（跑批失败）的单元记 `skipped` 并列出，
+    不静默跳过。源图仍会 stage 一份（sha256 可复核）。
+    """
+    if ir_root is None:
+        raise RuntimeError("需要 --ir-root <G7 产物目录>")
+    root = Path(ir_root)
+    if not root.is_dir():
+        raise FileNotFoundError("--ir-root 不是目录：%s" % root)
+    out = out or OUT
+    capdir = out / "captions"
+    capdir.mkdir(parents=True, exist_ok=True)
+    staged = stage_sources(sources, out)["sources"]
+    requested = {s["id"] for s in (sources or SOURCES)}
+    ok_rows, skipped = [], []
+    for src in staged:
+        if src["id"] not in requested:
+            continue
+        record = root / ("%s.json" % src["id"])
+        if not record.is_file():
+            skipped.append({"id": src["id"], "reason": "缺 G7 记录 %s" % _rel(record)})
+            print("  ✗ ir-root %-10s 缺记录 %s" % (src["id"], _rel(record)))
+            continue
+        try:
+            doc = json.loads(record.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            skipped.append({"id": src["id"], "reason": "G7 记录不是合法 JSON：%s" % exc})
+            continue
+        if doc.get("ok") is False:
+            skipped.append({"id": src["id"],
+                            "reason": "G7 单元 ok=false：%s"
+                                      % str(doc.get("error") or "")[:200]})
+            print("  - ir-root %-10s ok=false（单列，不判）" % src["id"])
+            continue
+        ir = doc.get("ir")
+        if not isinstance(ir, dict):
+            skipped.append({"id": src["id"], "reason": "G7 记录里没有 ir 对象"})
+            continue
+        ir_path = capdir / ("%s.ir.json" % src["id"])
+        ir_path.write_text(json.dumps(ir, ensure_ascii=False, indent=2), encoding="utf-8")
+        ok_rows.append({"id": src["id"], "category": src["category"],
+                        "ir": _rel(ir_path), "g7_record": _rel(record),
+                        "staged_source": src.get("staged"),
+                        "entities": len(ir.get("entities") or []),
+                        "source": "g7-ir-root", "reverse_mode": "reuse-g7-ir"})
+    cap_manifest_path = out / "captions" / "manifest.json"
+    old_sources = {}
+    if cap_manifest_path.is_file():
+        try:
+            for old in (json.loads(cap_manifest_path.read_text(encoding="utf-8"))
+                        .get("sources") or []):
+                old_sources[old.get("id")] = old
+        except (ValueError, OSError):
+            old_sources = {}
+    merged = dict(old_sources)
+    merged.update({e["id"]: e for e in ok_rows})
+    manifest = {"generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "mode": "ir-root", "ir_root": _rel(root),
+                "sources": [merged[k] for k in merged], "skipped": skipped}
+    cap_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2),
+                                 encoding="utf-8")
+    return manifest
 
 
 def _reverse_or_fallback(image_path: Path, llm, conf: dict):
@@ -509,14 +647,27 @@ def compile_for(ir_path: Path, backend: str) -> dict:
 def generate(sources: list[dict] | None = None, out: Path | None = None,
              api: str = DEFAULT_API, only: list[str] | None = None,
              dry: bool = False, timeout: float = 900.0,
-             seed: int | None = None) -> dict:
-    """IR → prompt → ComfyUI 出图。占 GPU。`dry=True` 只落 workflow。"""
+             seed: int | None = None, seeds: list[int] | None = None) -> dict:
+    """IR → prompt → ComfyUI 出图。占 GPU。`dry=True` 只落 workflow。
+
+    `seeds` 非空 = 多 seed 方差线：每个 (source, seed) 一条记录，文件命名
+    `images/<backend>/<id>__seed<N>.png`；不传 `seeds` 时行为与旧版完全一致
+    （`<id>.png`、每源一条、seed 用 `--seed` 或确定性 `seed_for`）。
+    """
     out = out or OUT
     idx = load_index()
     srcs = [s for s in resolve_sources(sources) if s["exists"]]
     capdir = out / "captions"
+    seed_list = list(seeds) if seeds else [seed if seed is not None else None]
     run = {"started_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "api": api, "dry": dry,
+           "seeds": list(seeds) if seeds else None,
            "backends": {}, "skipped": {}}
+
+    def save() -> None:
+        # 增量落盘：中断/模型重载失败时前面的结果不丢
+        (out / "run.json").write_text(json.dumps(run, ensure_ascii=False, indent=2),
+                                      encoding="utf-8")
+
     for backend, b in BACKENDS.items():
         if only and backend not in only:
             continue
@@ -526,11 +677,14 @@ def generate(sources: list[dict] | None = None, out: Path | None = None,
             print("  - 跳过 %-16s %s" % (backend, b.get("reason", "")))
             continue
         bucket = {"images": [], "errors": []}
+        # 先挂进 run（引用），之后的增量 save() 才能带上本后端的中间结果；
+        # 否则中断时 run.json 里的 backends 还是空的（本轮真跑踩到）。
+        run["backends"][backend] = bucket
         for src in srcs:
             ir_path = capdir / ("%s.ir.json" % src["id"])
             if not ir_path.is_file():
                 bucket["errors"].append({"source": src["id"],
-                                         "error": "缺 %s（先跑 --caption）"
+                                         "error": "缺 %s（先跑 --caption / --stage）"
                                                   % ir_path.name})
                 continue
             comp = compile_for(ir_path, backend)
@@ -541,54 +695,65 @@ def generate(sources: list[dict] | None = None, out: Path | None = None,
                                  encoding="utf-8")
             if comp["status"] != "ok":
                 bucket["errors"].append({"source": src["id"], "error": comp["error"]})
+                save()
                 continue
             w, h = size_for(tuple(src.get("size") or ()) or None)
-            sd = seed if seed is not None else seed_for(backend, src["id"])
-            prefix = "wash_benchmark/%s/%s" % (backend, src["id"])
-            wf = build_workflow(backend, comp["positive"], sd, w, h, prefix)
-            wpath = out / "workflows" / backend / ("%s.%s.api.json"
-                                                   % (src["id"], "dry" if dry else "run"))
-            wpath.parent.mkdir(parents=True, exist_ok=True)
-            wpath.write_text(json.dumps(wf, ensure_ascii=False, indent=2), encoding="utf-8")
-            entry = {"source": src["id"], "category": src["category"],
-                     "seed": sd, "width": w, "height": h,
-                     "prompt_mode": comp["mode"], "prompt_chars": len(comp["positive"]),
-                     "token_count": comp["token_count"], "token_limit": comp["token_limit"],
-                     "compile_errors": comp["issues"], "workflow": _rel(wpath)}
-            if dry:
+            for sd_override in seed_list:
+                sd = sd_override if sd_override is not None else seed_for(backend, src["id"])
+                suffix = ("__seed%d" % sd_override) if seeds else ""
+                prefix = "wash_benchmark/%s/%s%s" % (backend, src["id"], suffix)
+                wf = build_workflow(backend, comp["positive"], sd, w, h, prefix)
+                wpath = out / "workflows" / backend / (
+                    "%s%s.%s.api.json" % (src["id"], suffix, "dry" if dry else "run"))
+                wpath.parent.mkdir(parents=True, exist_ok=True)
+                wpath.write_text(json.dumps(wf, ensure_ascii=False, indent=2),
+                                 encoding="utf-8")
+                entry = {"source": src["id"], "category": src["category"],
+                         "seed": sd, "width": w, "height": h,
+                         "prompt_mode": comp["mode"],
+                         "prompt_chars": len(comp["positive"]),
+                         "token_count": comp["token_count"],
+                         "token_limit": comp["token_limit"],
+                         "compile_errors": comp["issues"], "workflow": _rel(wpath)}
+                if seeds:
+                    entry["seed_tag"] = sd_override
+                if dry:
+                    bucket["images"].append(entry)
+                    save()
+                    continue
+                t0 = time.time()
+                try:
+                    q = queue_and_wait(api, wf, timeout=timeout)
+                    if q["status"] != "success":
+                        raise RuntimeError("status=%s：%s" % (
+                            q["status"], json.dumps(q["entry"].get("status"),
+                                                   ensure_ascii=False)[:600]))
+                    items = collect_outputs(
+                        q["entry"], idx["backends"][b["workflow"]]["nodes"]["save"])
+                    if not items:
+                        raise RuntimeError("没有输出图")
+                    dest = out / "images" / backend / ("%s%s.png" % (src["id"], suffix))
+                    download(api, items[0], dest)
+                except Exception as exc:
+                    bucket["errors"].append({"source": src["id"], "seed": sd,
+                                             "error": str(exc)[:800]})
+                    print("  ✗ %-16s %-10s seed=%-10s %s"
+                          % (backend, src["id"], sd, str(exc)[:110]))
+                    save()
+                    continue
+                entry.update({"image": _rel(dest), "prompt_id": q["prompt_id"],
+                              "elapsed_s": round(time.time() - t0, 1),
+                              "server_file": items[0]})
                 bucket["images"].append(entry)
-                continue
-            t0 = time.time()
-            try:
-                q = queue_and_wait(api, wf, timeout=timeout)
-                if q["status"] != "success":
-                    raise RuntimeError("status=%s：%s" % (
-                        q["status"], json.dumps(q["entry"].get("status"),
-                                               ensure_ascii=False)[:600]))
-                items = collect_outputs(q["entry"], idx["backends"][b["workflow"]]["nodes"]["save"])
-                if not items:
-                    raise RuntimeError("没有输出图")
-                dest = out / "images" / backend / ("%s.png" % src["id"])
-                download(api, items[0], dest)
-            except Exception as exc:
-                bucket["errors"].append({"source": src["id"], "error": str(exc)[:800]})
-                print("  ✗ %-16s %-10s %s" % (backend, src["id"], str(exc)[:120]))
-                continue
-            entry.update({"image": _rel(dest), "prompt_id": q["prompt_id"],
-                          "elapsed_s": round(time.time() - t0, 1),
-                          "server_file": items[0]})
-            bucket["images"].append(entry)
-            print("  ✓ %-16s %-10s %s %dx%d %.1fs"
-                  % (backend, src["id"], comp["mode"], w, h, entry["elapsed_s"]))
+                print("  ✓ %-16s %-10s seed=%-10s %dx%d %.1fs"
+                      % (backend, src["id"], sd, w, h, entry["elapsed_s"]))
+                save()
         run["backends"][backend] = bucket
-        # 增量落盘：中断/模型重载失败时前面的结果不丢
         run["partial"] = backend
-        (out / "run.json").write_text(json.dumps(run, ensure_ascii=False, indent=2),
-                                      encoding="utf-8")
+        save()
     run.pop("partial", None)
     run["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-    (out / "run.json").write_text(json.dumps(run, ensure_ascii=False, indent=2),
-                                  encoding="utf-8")
+    save()
     return run
 
 
@@ -743,7 +908,11 @@ def make_compares(sources: list[dict] | None = None, out: Path | None = None) ->
 
 
 def score_run(sources: list[dict] | None = None, out: Path | None = None) -> dict:
-    """读 run.json + 图片，产出 score.json。零 GPU。"""
+    """读 run.json + 图片，产出 score.json。零 GPU。
+
+    多 seed 时按 source 聚合：`mean/min/max/range`（同源跨 seed 的 triage 极差），
+    同时保留每个 (source, seed) 的原始行（单 seed 时行结构不变）。
+    """
     out = out or OUT
     run_path = out / "run.json"
     if not run_path.is_file():
@@ -762,13 +931,39 @@ def score_run(sources: list[dict] | None = None, out: Path | None = None) -> dic
             if not src or not src.get("exists") or not gen.is_file():
                 continue
             sc = score_pair(Path(src["path"]), gen)
-            rows.append({"source": entry["source"], "category": entry.get("category"),
-                         "image": entry["image"], **sc})
+            row = {"source": entry["source"], "category": entry.get("category"),
+                   "image": entry["image"], **sc}
+            if "seed" in entry:
+                row["seed"] = entry.get("seed")
+            if "seed_tag" in entry:
+                row["seed_tag"] = entry["seed_tag"]
+            rows.append(row)
+        by_source: dict[str, list] = {}
+        for row in rows:
+            by_source.setdefault(row["source"], []).append(row)
+        source_rows = []
+        for sid in sorted(by_source):
+            rs = by_source[sid]
+            vals = [r["triage_index"] for r in rs]
+            source_rows.append({
+                "source": sid,
+                "category": rs[0].get("category"),
+                "n": len(rs),
+                "mean_triage": round(sum(vals) / len(vals), 4),
+                "min_triage": round(min(vals), 4),
+                "max_triage": round(max(vals), 4),
+                "range_triage": round(max(vals) - min(vals), 4),
+                "seeds": [r.get("seed_tag", r.get("seed")) for r in rs],
+                "images": [r["image"] for r in rs],
+            })
         result["backends"][backend] = {
-            "n": len(rows), "rows": rows,
+            "n": len(rows), "rows": rows, "sources": source_rows,
             "errors": bucket.get("errors") or [],
             "mean_triage": round(sum(r["triage_index"] for r in rows) / len(rows), 4)
             if rows else None,
+            "mean_range_triage": round(
+                sum(s["range_triage"] for s in source_rows) / len(source_rows), 4)
+            if source_rows else None,
         }
         if rows:
             means[backend] = result["backends"][backend]["mean_triage"]
@@ -777,7 +972,8 @@ def score_run(sources: list[dict] | None = None, out: Path | None = None) -> dic
             result["missing_backends"][backend] = meta.get("reason", "不可用")
     result["ranking"] = sorted(means.items(), key=lambda kv: -kv[1])
     result["note"] = ("代理指标未校准：只用于 triage/回归，不是质量结论，不作放行闸。"
-                      "分差 <0.02 视为噪声（同一后端不同源图的离散度就大于它）。")
+                      "分差 <0.02 视为噪声（同一后端不同源图的离散度就大于它）。"
+                      "多 seed 的 range_triage 是同一 prompt 的采样噪声线，不是质量差。")
     (out / "score.json").write_text(json.dumps(result, ensure_ascii=False, indent=2),
                                     encoding="utf-8")
     return result
@@ -839,7 +1035,7 @@ def download(api: str, item: dict, dest: Path) -> Path:
 # 离线自检 / 计划
 # ─────────────────────────────────────────────────────────────
 
-def check_design() -> list[str]:
+def check_design(sources: list[dict] | None = None) -> list[str]:
     problems = []
     if not BACKENDS:
         problems.append("没有登记任何后端")
@@ -854,9 +1050,9 @@ def check_design() -> list[str]:
     for name, meta in BACKENDS.items():
         if not meta.get("available") and not meta.get("reason"):
             problems.append("%s: 不可用但没写 reason（不许静默跳过）" % name)
-    srcs = resolve_sources()
+    srcs = resolve_sources(sources)
     if not any(s["exists"] for s in srcs):
-        problems.append("四张源图一张都不在：源图路径需要在本机核对")
+        problems.append("源图一张都不在：源图路径需要在本机核对")
     for s in srcs:
         if not s["exists"]:
             problems.append("源图缺失 %s：%s" % (s["id"], s["path"]))
@@ -870,8 +1066,8 @@ def check_design() -> list[str]:
     return problems
 
 
-def plan() -> dict:
-    srcs = resolve_sources()
+def plan(sources: list[dict] | None = None) -> dict:
+    srcs = resolve_sources(sources)
     rows = []
     for backend, meta in BACKENDS.items():
         for src in srcs:
@@ -908,6 +1104,14 @@ def main(argv=None) -> int:
                     help="只处理指定源图 id（配合 --caption 增量重跑）")
     ap.add_argument("--limit", type=int, default=None, help="反推只跑前 N 张源图")
     ap.add_argument("--seed", type=int, default=None, help="覆盖出图 seed（默认确定性生成）")
+    ap.add_argument("--seeds", default="",
+                    help="多 seed 方差线，如 \"42,43,44\"（同 prompt 重复出图）")
+    ap.add_argument("--sources-file", default="",
+                    help="G7 格式源图清单 {\"images\":[...]}；不给则用内建 4 张源图")
+    ap.add_argument("--ir-root", default="",
+                    help="配合 --stage：从既有 G7 产物复制 <id>.json 的 ir 字段（不跑反推）")
+    ap.add_argument("--out", default="",
+                    help="产物根目录（默认 out/wash_benchmark；本轮用 out/wash_benchmark/moss_q4_round1）")
     ap.add_argument("--api", default=DEFAULT_API)
     ap.add_argument("--timeout", type=float, default=900.0)
     ap.add_argument("--server", default="",
@@ -919,15 +1123,25 @@ def main(argv=None) -> int:
     ap.add_argument("--ctx", type=int, default=None, help="反推侧车 ctx（默认 16384）")
     args = ap.parse_args(argv)
 
+    try:
+        sources = load_sources_file(args.sources_file) if args.sources_file else None
+        seeds = parse_seeds(args.seeds)
+    except (FileNotFoundError, RuntimeError) as exc:
+        print("✗ " + str(exc))
+        return 2
+    out = resolve_out(args.out)
+
     if args.check:
-        problems = check_design()
+        problems = check_design(sources)
         for p in problems:
             print("✗ " + p)
         if not problems:
-            n = plan()["planned_images"]
-            print("✓ 设计通过：4 张源图 × %d 可用后端 = %d 张计划出图；"
+            p = plan(sources)
+            print("✓ 设计通过：%d 张源图 × %d 可用后端 = %d 张计划出图；"
                   "代理指标声明为未校准、不作闸"
-                  % (sum(1 for m in BACKENDS.values() if m.get("available")), n))
+                  % (len(p["sources"]),
+                     sum(1 for m in BACKENDS.values() if m.get("available")),
+                     p["planned_images"]))
         return 1 if problems else 0
 
     if args.check_workflows:
@@ -939,21 +1153,30 @@ def main(argv=None) -> int:
         return 1 if problems else 0
 
     if args.plan:
-        p = plan()
-        OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / "plan.json").write_text(json.dumps(p, ensure_ascii=False, indent=2),
+        p = plan(sources)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "plan.json").write_text(json.dumps(p, ensure_ascii=False, indent=2),
                                        encoding="utf-8")
         print("已写 %s：源图 %d 张（可用 %d），计划出图 %d 张，缺后端 %s"
-              % ((OUT / "plan.json").relative_to(ROOT), len(p["sources"]),
+              % (_rel(out / "plan.json"), len(p["sources"]),
                  sum(1 for s in p["sources"] if s["exists"]), p["planned_images"],
                  "、".join(k for k, m in BACKENDS.items() if not m.get("available"))))
         return 0
 
     if args.stage:
-        doc = stage_sources()
+        if args.ir_root:
+            doc = stage_ir_sources(sources, args.ir_root, out)
+            ok = sum(1 for s in doc["sources"] if s.get("ir"))
+            skipped = doc.get("skipped") or []
+            print("已从 %s 复制 IR %d 张到 %s/captions；跳过 %d 张（不判）"
+                  % (_rel(Path(args.ir_root)), ok, _rel(out), len(skipped)))
+            for row in skipped:
+                print("  - %-10s %s" % (row.get("id"), row.get("reason")))
+            return 0 if ok else 1
+        doc = stage_sources(sources, out)
         ok = sum(1 for s in doc["sources"] if s["staged"])
         print("已另存 %d/%d 张源图到 %s/sources；清单 %s/sources.json"
-              % (ok, len(doc["sources"]), _rel(OUT), _rel(OUT)))
+              % (ok, len(doc["sources"]), _rel(out), _rel(out)))
         return 0 if ok == len(doc["sources"]) else 1
 
     rc = 0
@@ -964,31 +1187,38 @@ def main(argv=None) -> int:
         except RuntimeError as exc:
             print("✗ " + str(exc))
             return 2
-        srcs = [s for s in SOURCES
+        srcs = [s for s in (sources or SOURCES)
                 if not args.only_source or s["id"] in args.only_source]
-        m = caption_sources(sources=srcs, conf=conf, limit=args.limit)
+        m = caption_sources(sources=srcs, out=out, conf=conf, limit=args.limit)
         print("caption 完成：%d 张（源图已另存到 sources/；本批 %s）"
               % (len(m["sources"]),
                  "、".join(s["id"] for s in srcs) if args.only_source else "全部"))
     if args.generate or args.all:
-        run = generate(api=args.api, only=args.only, dry=args.dry,
-                       timeout=args.timeout, seed=args.seed)
+        run = generate(sources=sources, out=out, api=args.api, only=args.only,
+                       dry=args.dry, timeout=args.timeout, seed=args.seed, seeds=seeds)
         ok = sum(len(b.get("images") or []) for b in run["backends"].values())
-        print("generate 完成：%d 张（dry=%s，跳过 %d 个后端）"
-              % (ok, args.dry, len(run["skipped"])))
+        bad = sum(len(b.get("errors") or []) for b in run["backends"].values())
+        print("generate 完成：%d 张成功 / %d 条失败（dry=%s，seeds=%s，跳过 %d 个后端）"
+              % (ok, bad, args.dry,
+                 ",".join(str(s) for s in seeds) if seeds else "单 seed",
+                 len(run["skipped"])))
         if not run["backends"] and not run["skipped"]:
             rc = 1
+        if bad:
+            rc = 1
     if args.score or args.all:
-        sc = score_run()
+        sc = score_run(sources=sources, out=out)
         print("score 完成：%d 个后端有分；缺失 %d 个后端"
               % (sum(1 for b in sc["backends"].values() if b["n"]),
                  len(sc["missing_backends"])))
         for name, mean in sc["ranking"]:
-            print("  %-16s mean_triage=%.4f" % (name, mean))
+            b = sc["backends"][name]
+            print("  %-16s mean_triage=%.4f  mean_range=%.4f  n=%d"
+                  % (name, mean, b.get("mean_range_triage") or 0.0, b["n"]))
         print("  ⚠ 代理指标未校准，只 triage、不作放行闸")
     if args.compare:
-        made = make_compares()
-        print("已生成 %d 张并排拼图：out/wash_benchmark/images/<backend>/*.compare.png" % len(made))
+        made = make_compares(sources=sources, out=out)
+        print("已生成 %d 张并排拼图：%s/images/<backend>/*.compare.png" % (len(made), _rel(out)))
         return 0 if made else 1
 
     if not any((args.caption, args.generate, args.score, args.all)):
