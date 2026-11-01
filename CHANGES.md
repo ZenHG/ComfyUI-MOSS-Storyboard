@@ -1,5 +1,78 @@
 # CHANGES
 
+## 未发布 · 反推护栏：非人物体不再标成 character，重复循环不再无声（2026-11-01）
+
+G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条路径上同时修：
+
+- 🔴 **类型闸**：`coerce_ir` 对 kind=character 但无人物字段（gender/hair/skin/face/expression）
+  却带物体字段（material/color/build/detail）的实体降级 object 并丢弃物体年龄；`Report` 新增
+  `kind_downgrades` / `age_dropped`（`to_dict` 向后兼容）。节点路径 `guard_caption_json` 把
+  物体 subject 挪进 `environment.props`，report 出现「反推类型闸 / 年龄闸」人话。
+- 🔴 **重复循环三层防线**：取证 prompt 规则 15–17（character 仅限人、非人物不给年龄与人物字段、
+  每实体一次且 ≤40）、`EVIDENCE_SCHEMA.maxItems=40` / `TEXT_SCHEMA.maxItems=80`、`coerce_ir`
+  截断兜底，JSON 请求显式保留 `repeat_penalty`（次级防线）。
+- 🆕 **capped 告警**：`maxItems` 在语法层静默截断时 `report.dropped=[]`、用户会拿到 40 个
+  重复实体却以为成功——现在实体数达到上限即出声「疑似截断，请人工确认」，
+  `Report.capped/capped_at` 可机读；节点路径同口径（subjects 12 / props 32 / materials 16 / text 24）。
+- 🆕 节点 `_chat` 结构化四级降级（json_schema → json_object → 无 response_format → 摘
+  chat_template_kwargs），每级 400 逐个降级并出声；`_run_once` / `_run_caption_two_pass`
+  抽出便于桩测，两遍式/pass2 顺序不变。
+- 测试：新增 `test_caption_quality.py` 25 条、`test_node_caption_guard.py` 21 条；
+  确定性输出零变化（freeze 未重冻）；`smoke_nodes` 63/0。docs/42、docs/46、docs/47、docs/51、docs/54。
+
+## 未发布 · G7 第二轮：修完后的前后对比与 60 图扩样（2026-11-01）
+
+- 20 图 × 2 模型同口径复跑（同一 gold set）：**材质绑定 A 40%→96%（18/45→94/98）、
+  B 44%→100%（12/27→46/46）；物体编年龄幻觉 12/1→0/0；跑批失败率 15%/5%→5%/0%；
+  文字两遍互证 24%/62%→50%/71%**。绝对 bound A 5.2×、B 3.8×——不是分母把戏。
+- 🔴 **口径纪律**：这是「管线变更包」前后（SYSTEM sha + 类型闸 + maxItems 同时变），
+  不归因单一因素；A 臂五类全表下降是 3 张 maxItems 截断图灌大分母，非循环 17 图上
+  颜色 88% / 方位 94% / 数量 100%（无回归），归因审计见 docs/G7 第二轮 §4。
+- 🆕 60 图 gold set 冻结（`images60.json` + sha256，旧 20 张 byte-identical）+ 第二轮 60 图
+  跑批与 binding60；耗时不可比（跑批期间 GPU 有外部游戏争用，快照入 `gpu-contention.json`）。
+- 🆕 `tools/g7_round2.py`（17 条单测）+ `g7_binding.py` 的 `--json-root/--out` 支持；
+  `verify_manifest` 改为严格只读（拆 `collect`/`write`，防「证据链自愈」）。
+- 文档：docs/G7-反推质量-第二轮.md、docs/49（前置复核）。
+
+## 未发布 · 双盲判读第一轮：κ<0.6 只能报「样本不足」，自动分 ρ<0.5 不得进 README（2026-11-01）
+
+- 🆕 `tools/g7_adjudicate.py`（packet/merge/calibrate，18 条单测）+ docs/43 协议：双盲包、
+  AI 必须标 `ai_label`、κ≥0.6 才允许下结论、ρ<0.5 明确「该分不应进 README」。
+- 39 个可判单元（A-4B 19 / B-9B 20；1 个跑崩单元单列）× 344 claim，两名独立 AI 判读者：
+  **事实 κ=0.4129、幻觉 κ=0.0377（min<0.6）⇒ 样本不足（判据不足）**，模型间不作比较；
+  原始一致率 85.2% 但被类别不平衡拉低 κ（协议刻意不用一致率%）。
+- 主要分歧源 = 不可判口径差异（A 49 vs B 18；51 条分歧中 39 条为「a 不可判 / b correct」），
+  下一轮协议校准要加判例与小样预校准。
+- 同版三方对比（round2 binding20）与校准：**ρ=0.3162 <0.5 ⇒ 该分不进 README**；旧第一轮
+  binding 表保留为「版本错配示例」（同版后 A 59.1% / B 92.7%，证明口径必须一致）。
+- 证据等级 B（AI 双读、同模型双读），人类判读包 39 份已备好但未做。docs/53。
+
+## 未发布 · ComfyUI 兼容与 CI 第二矩（2026-11-01）
+
+- CI 新增 `host-matrix`（钉 ComfyUI v0.42.0 = 本包最低线 / v0.43.2 = 当时最新稳定 tag）与
+  `windows` job：CPU 可确定判定步骤阻塞，必须 CUDA 的步骤保留 step 级豁免并写明取消判据。
+- 示例即回归：`examples/` 12 个 + 夹具 2 个全部接入 `check_ui_workflow`（**210/0**）；
+  新增**零权重**入门示例 `llm-compile-zero-model.json`（`task=compile`，毫秒级、不加载模型）。
+- `release-preview` 新增 pyproject 元数据纪律、`.comfyignore` 打包面、`make_dist --verify`（16/0）。
+- 🆕 `tools/ci_preflight.py`（16 条单测）：有宿主/GPU/Playwright 就跑真机闸，没有就明确
+  **SKIP（未跑）**；`--require-all` 缺环境退出 2。
+- 复核发现并修掉 3 处「首次推送即红」：workspace 自复制（宿主 clone 到 runner.temp）、
+  示例 title 触发 F4、windows 删 `.git` 后跑卫生闸。GH runner 行为仍未本机验证（如实标注）。
+- 文档：docs/44、docs/50。
+
+## 未发布 · ComfyUI 用户文档与双语同步（2026-11-01）
+
+- 🆕 `tools/check_docs_sync.py`（13 条单测）：README 中英节级同步闸（32/32 节、例外需写理由），
+  接进发布卫生闸（S19，项数 53→54）。
+- README 中英同步补：三种安装路径（Manager / Registry / 手动）、跑第一张图（零权重示例 +
+  真实 caption）、12 示例画廊（演示什么 / 需要什么权重 / 该看到什么）、报错表 11→13 行
+  （源码逐字可查）。
+- 真机验证（活宿主）：零权重示例 `/prompt` 跑通（positive 输出、显存不变、无 llama-server），
+  并据此修正 3 处文档与实物不一致（启动日志锚点、`models/text_encoders/`、llama-server 告警解释）。
+- Registry 状态调研（docs/52）：节点 Active / latest 0.3.3 但**全部历史版本 Flagged**
+  （Pending Security Review）；`comfy node install` 与网页可装，Manager 需 loopback 或 opt-in；
+  处置建议入档，纳入 M4 发布前检查。
+
 ## 未发布 · 洗图基准第一轮：caption → 生成 → triage（2026-11-01）
 
 - 🆕 `tools/wash_benchmark.py` + `tools/workflows/`（3 个后端 API 图 + `_index.json`）+
