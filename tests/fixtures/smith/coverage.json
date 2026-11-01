@@ -1,0 +1,200 @@
+{
+ "rows": {
+  "comic-4panel-lineart-sample|flux1_dev": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 10,
+   "hard_misses": 0
+  },
+  "comic-4panel-lineart-sample|flux3": {
+   "coverage": 0.9167,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 10,
+   "hard_misses": 0
+  },
+  "comic-4panel-lineart-sample|krea2": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 10,
+   "hard_misses": 0
+  },
+  "comic-4panel-lineart-sample|minimax-h3": {
+   "coverage": 0.7705,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 10,
+   "hard_misses": 0
+  },
+  "comic-4panel-lineart-sample|moss-image": {
+   "coverage": 0.8861,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 10,
+   "hard_misses": 0
+  },
+  "comic-4panel-lineart-sample|qwen-image-2_1": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 10,
+   "hard_misses": 0
+  },
+  "comic-4panel-lineart-sample|sdxl": {
+   "coverage": 0.9863,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 10,
+   "hard_misses": 0
+  },
+  "faceswap-demo-ref|flux1_dev": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 4,
+   "hard_misses": 0
+  },
+  "faceswap-demo-ref|flux3": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 4,
+   "hard_misses": 0
+  },
+  "faceswap-demo-ref|krea2": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 4,
+   "hard_misses": 0
+  },
+  "faceswap-demo-ref|minimax-h3": {
+   "coverage": 0.8333,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 4,
+   "hard_misses": 0
+  },
+  "faceswap-demo-ref|moss-image": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 4,
+   "hard_misses": 0
+  },
+  "faceswap-demo-ref|qwen-image-2_1": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 4,
+   "hard_misses": 0
+  },
+  "faceswap-demo-ref|sdxl": {
+   "coverage": 0.9889,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 4,
+   "hard_misses": 0
+  },
+  "hero-storyboard|flux1_dev": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 5,
+   "hard_misses": 0
+  },
+  "hero-storyboard|flux3": {
+   "coverage": 0.9762,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 5,
+   "hard_misses": 0
+  },
+  "hero-storyboard|krea2": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 5,
+   "hard_misses": 0
+  },
+  "hero-storyboard|minimax-h3": {
+   "coverage": 0.8182,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 5,
+   "hard_misses": 0
+  },
+  "hero-storyboard|moss-image": {
+   "coverage": 0.9487,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 5,
+   "hard_misses": 0
+  },
+  "hero-storyboard|qwen-image-2_1": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 5,
+   "hard_misses": 0
+  },
+  "hero-storyboard|sdxl": {
+   "coverage": 0.991,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 5,
+   "hard_misses": 0
+  },
+  "ui-smoke|flux1_dev": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 14,
+   "hard_misses": 0
+  },
+  "ui-smoke|flux3": {
+   "coverage": 0.6875,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 14,
+   "hard_misses": 0
+  },
+  "ui-smoke|krea2": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 14,
+   "hard_misses": 0
+  },
+  "ui-smoke|minimax-h3": {
+   "coverage": 0.5294,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 14,
+   "hard_misses": 0
+  },
+  "ui-smoke|moss-image": {
+   "coverage": 0.75,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 14,
+   "hard_misses": 0
+  },
+  "ui-smoke|qwen-image-2_1": {
+   "coverage": 1.0,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 14,
+   "hard_misses": 0
+  },
+  "ui-smoke|sdxl": {
+   "coverage": 0.9762,
+   "extra_numbers": 0,
+   "extra_quotes": 0,
+   "fixed": 14,
+   "hard_misses": 0
+  }
+ }
+}

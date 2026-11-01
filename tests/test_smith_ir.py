@@ -3415,5 +3415,93 @@ class TestCompileFacade(unittest.TestCase):
             self.assertEqual(set(it), {"level", "code", "message", "fix"})
 
 
+class TestStructuredDialectJudge(unittest.TestCase):
+    """`verify()` 对结构化/时间线方言的判据。
+
+    2026-11-01 实测：4 份夹具 × 5 后端报出 **78 条**「凭空造数 / 凭空造字」，
+    全是 bbox 坐标、JSON 键名、`<silhouette_3>` 把手、以及被换行拆散的引号对。
+    判据拿错对象时，红不是结论 —— 这一组把四种假错逐条钉住，
+    同时保证「真的编了」仍然会红。
+    """
+
+    FIX = ROOT / "tests" / "fixtures" / "smith"
+
+    def _ir(self, name: str) -> IR:
+        return IR.load(self.FIX / name)
+
+    def test_bbox_numbers_are_not_hallucinations(self):
+        from moss_llm.smith.expand import verify
+        ir = self._ir("comic-4panel-lineart-sample.ir.json")
+        out = get_adapter("flux3", REG).realize(ir).positive
+        self.assertEqual(verify(ir, out, "flux3", REG).extra_numbers, [])
+
+    def test_json_keys_are_not_hallucinations(self):
+        from moss_llm.smith.expand import verify
+        ir = self._ir("ui-smoke.ir.json")
+        out = get_adapter("moss-image", REG).realize(ir).positive
+        self.assertTrue(out.lstrip().startswith("{"))
+        self.assertEqual(verify(ir, out, "moss-image", REG).extra_quotes, [])
+
+    def test_h3_multiline_text_is_not_mispaired(self):
+        """图内文字带 `\\n` 时，引号不能跨段配错。"""
+        from moss_llm.smith.expand import verify
+        ir = self._ir("ui-smoke.ir.json")
+        out = get_adapter("minimax-h3", REG).realize(ir).positive
+        self.assertIn("\n", out)
+        rep = verify(ir, out, "minimax-h3", REG)
+        self.assertEqual(rep.extra_quotes, [])
+        self.assertEqual(rep.extra_numbers, [])
+
+    def test_handle_in_angle_brackets_is_not_a_number(self):
+        from moss_llm.smith.expand import verify
+        ir = self._ir("faceswap-demo-ref.ir.json")
+        rep = verify(ir, "Elements: <silhouette_9>, <Picture 7>.", "flux3", REG)
+        self.assertEqual(rep.extra_numbers, [])
+
+    def test_invented_number_is_still_caught(self):
+        from moss_llm.smith.expand import verify
+        ir = self._ir("faceswap-demo-ref.ir.json")
+        rep = verify(ir, "A 3-storey building behind her.", "krea2", REG)
+        self.assertIn("3", rep.extra_numbers)
+
+    def test_invented_quote_is_still_caught(self):
+        from moss_llm.smith.expand import verify
+        ir = self._ir("faceswap-demo-ref.ir.json")
+        rep = verify(ir, 'The text "FORGED" is on the wall.', "krea2", REG)
+        self.assertIn("forged", rep.extra_quotes)
+
+    def test_json_text_field_must_match_verbatim(self):
+        """结构化方言里改一个字的 `text` 字段，必须红。"""
+        from moss_llm.smith.expand import verify
+        ir = self._ir("comic-4panel-lineart-sample.ir.json")
+        out = get_adapter("moss-image", REG).realize(ir).positive
+        bad = out.replace('"text":"', '"text":"X', 1)
+        self.assertNotEqual(bad, out)
+        self.assertTrue(verify(ir, bad, "moss-image", REG).extra_quotes)
+
+    def test_quoted_text_numbers_do_not_become_extra_numbers(self):
+        """`"2x2 · 4 panels …"` 里的 2 是图内文字，不是凭空造数。"""
+        from moss_llm.smith.expand import verify
+        ir = self._ir("ui-smoke.ir.json")
+        txt = next(e.text_content for e in ir.text_entities if "2x2" in (e.text_content or ""))
+        rep = verify(ir, 'The text "%s" is visible.' % txt.replace("\n", " "), "krea2", REG)
+        self.assertEqual(rep.extra_numbers, [])
+        self.assertEqual(rep.extra_quotes, [])
+
+    def test_coverage_gate_has_no_red_fixture(self):
+        """28 个组合（4 夹具 × 7 后端）当前必须全绿，否则闸一接就红。"""
+        from moss_llm.smith.adapters import get_adapter as ga
+        from moss_llm.smith.expand import verify
+        targets = ("moss-image", "qwen-image-2_1", "krea2", "flux3", "sdxl",
+                   "flux1_dev", "minimax-h3")
+        for p in sorted(self.FIX.glob("*.ir.json")):
+            ir = IR.load(p)
+            for t in targets:
+                out = ga(t, REG).realize(ir).positive
+                rep = verify(ir, out, t, REG)
+                self.assertEqual((rep.hard_misses, rep.extra_numbers, rep.extra_quotes),
+                                 ([], [], []), "%s × %s" % (p.name, t))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

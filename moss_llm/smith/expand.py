@@ -30,6 +30,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 
@@ -348,6 +349,75 @@ def length_band(registry, target: str, length: str = "standard") -> tuple | None
 
 # ── 体检 ──────────────────────────────────────────────────────
 
+def _split_structured(text: str) -> tuple:
+    """把「散文 + JSON」拆成 (散文, [解析出来的对象])。
+
+    两种形态都认：整段就是一个 JSON（Layout 方言），或一行提示 + 每行一个 JSON（bbox 方言）。
+    解析不了的片段**原样留在散文里** —— 宁可多扫，不可静默跳过。
+    """
+    s = (text or "").strip()
+    if s.startswith(("{", "[")):
+        try:
+            return "", [json.loads(s)]
+        except Exception:
+            pass
+    prose, blocks = [], []
+    for ln in (text or "").splitlines():
+        st = ln.strip()
+        if st.startswith(("{", "[")):
+            try:
+                blocks.append(json.loads(st))
+                continue
+            except Exception:
+                pass
+        prose.append(ln)
+    return "\n".join(prose), blocks
+
+
+def _string_values(blocks) -> list:
+    """结构化块里的字符串值，**跳过结构字段**（键名、`id`、`text`、数值字段）。
+
+    `id` 是把手（`s1`/`s3`），`text` 是图内文字（走逐字校验），两者都不参与数字扫描：
+    把它们当「凭空造数」是判据拿错对象——实测 2 份夹具的 flux3 因此各报 3–4 条假错。
+    """
+    out = []
+    skip = {"id", "text"}
+
+    def walk(node, key=None):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, k)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, key)
+        elif isinstance(node, str) and key not in skip:
+            out.append(node)
+
+    for b in blocks:
+        walk(b)
+    return out
+
+
+def _text_values(blocks) -> list:
+    """结构化块里 `text` 字段的值：那就是图内文字，必须逐字对得上 IR。"""
+    out = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k == "text" and isinstance(v, str):
+                    out.append(v)
+                else:
+                    walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    for b in blocks:
+        walk(b)
+    return out
+
+
 def verify(ir: IR, text: str, target: str = "", registry=None,
            counter=None, band: tuple | None = None,
            length: str = "standard") -> Report:
@@ -378,14 +448,29 @@ def verify(ir: IR, text: str, target: str = "", registry=None,
     # 时间线方言（H3）里 `At 00:03.500` 是**结构记号**，不是画面内容的数字。
     # 不挖掉会得到两条假错：「凭空出现数字 00」和「比例不该写进散文 00:03」——
     # 两条都是判据拿错了对象，不是 prompt 有问题。
-    scan = text
-    # Layout JSON 是合法交付形态：里面的数字是 bbox、引号是键名，
-    # 不是「画面里编了细节」。拿散文的尺量 JSON 只会得到一屏假错，
-    # 所以数字/引号/比例这三项对它一律不判——只保留固定项与长度带。
-    is_json = text.lstrip().startswith("{")
-    body = "" if is_json else text
-    if is_json:
-        scan = ""
+    # Layout JSON / bbox 行都是合法交付形态：里面的数字是坐标、引号是键名，
+    # 不是「画面里编了细节」。但**不能整段跳过**——flux3 的输出是「一行提示 + 每行
+    # 一个 JSON」，原来只认「整段以 { 开头」，于是 4 份夹具 × 5 后端报出 78 条假错
+    # （bbox 数字当凭空造数、键名当凭空造字）。判据拿错对象时，红不是结论。
+    prose, blocks = _split_structured(text)
+    structured = bool(blocks)
+    # **先把换行压平再配对引号**：H3 把图内文字原样嵌进引号，字里带 `\n`
+    # （`"0.20\n0.15\n0.95"is visible…`）。`_QUOTE` 的字符类排除了换行，于是配不上对，
+    # 会把上一段的收尾引号和下一段的开头引号配成一条「凭空多出来的文字」——
+    # 实测 ui-smoke 上就是这么产生 2 条假错的。压平后按空白无关比较，与 `_norm` 一致。
+    flat = re.sub(r"\s+", " ", prose if structured else text)
+    body = flat
+    scan = flat
+    if structured:
+        # 结构化块里只把**字符串值**当正文再扫一遍数字（`"3 panels"` 里的 3 是真内容）；
+        # 数值字段（bbox 坐标）与 `text` 字段一律不判：前者是几何，后者走逐字校验。
+        scan = (scan + " " + " ".join(_string_values(blocks))).strip()
+    else:
+        # 引号里的字是**图内文字**，它的数字不是描写（`"2x2 · 4 panels"`）。
+        # 它已由 ③ 逐字校验，这里从数字扫描里拿掉，否则会报「凭空出现 2」。
+        scan = _QUOTE.sub(" ", scan)
+    # 结构记号（配合方言的把手）不是画面内容：`<silhouette_3>` / `<Picture 1>` / `[Shot 2]`。
+    scan = re.sub(r"<[^<>]{0,24}?\d+[^<>]{0,8}?>", " ", scan)
     if registry is not None and target:
         caps = (registry.get(target) or {}).get("prompt") or {}
         if str(caps.get("mode") or "") == "timeline":
@@ -406,6 +491,13 @@ def verify(ir: IR, text: str, target: str = "", registry=None,
         q = _norm(next(g for g in m.groups() if g))
         if q and q not in ir_q:
             rep.extra_quotes.append(q)
+    if structured:
+        # JSON 里的 `text` 字段就是图内文字，必须与 IR **逐字一致**（不是「像」就行）。
+        # 结构化方言不能靠引号扫：那些字在值里，没有引号包着。
+        for v in _text_values(blocks):
+            q = _norm(v)
+            if q and q not in ir_q:
+                rep.extra_quotes.append(q)
     rep.extra_quotes = sorted(set(rep.extra_quotes))
 
     # ④ 风格污染

@@ -18,6 +18,7 @@
 #   ·  64/0  tests/test_i18n.mjs              中英切换纯函数（node）
 #   ·  43/0  tests/test_compat.mjs            旧工作流 widgets_values 错位修复（纯函数）
 #   ·  98/0  tests/test_llm_subpackage.py     可选 LLM 子包纯函数：包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 侧车命令 / 图像预处理 / 零模型编译 / 反漂移断言
+#   · 356/0  tests/test_smith_ir.py           IR 编译层：7 后端方言 / 6 条不变式 / 往返 / 分解对账 / 结构化方言判据 / 覆盖率
 #   ·  63/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
 #   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
 #   ·  15/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
@@ -98,6 +99,12 @@ jobs:
         run: python tests/test_sampling_contract.py
       - name: 可选 LLM 子包（纯函数，不碰 GPU 与网络）
         run: python tests/test_llm_subpackage.py
+      - name: IR 编译层（零 GPU 零网络）
+        run: python -m unittest tests.test_smith_ir
+      - name: 覆盖率闸（不丢固定项 / 不编内容）
+        run: python tools/check_coverage.py --check
+      - name: 确定性基线（4 份 IR × 5 后端 sha256）
+        run: python tools/freeze_smith_set.py --check
       - name: 跨语言词表一致性
         run: python tests/test_cross_language.py
       # 前端一致性放在这个 job：它需要 torch（要 import nodes.py 取参数名），

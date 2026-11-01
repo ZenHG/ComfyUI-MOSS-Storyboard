@@ -250,5 +250,5 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 - 设计：`docs/21-smith-ir-架构.md`
 - 路线图与卡点：`docs/22-smith-ir-路线图.md`
 - 合流决策（谁强、留谁、代价）：`docs/25-两份实现的合流.md`
-- 闸：`python tests/test_smith_ir.py`（347）、`python tools/freeze_smith_set.py --check`
+- 闸：`python -m unittest tests.test_smith_ir`（356）、`python tools/check_coverage.py --check`（4 份夹具 × 7 后端：固定项不丢、数字与引号不编、覆盖率不低于基线）、`python tools/freeze_smith_set.py --check`（确定性 sha256）
 
