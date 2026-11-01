@@ -418,6 +418,50 @@ def _text_values(blocks) -> list:
     return out
 
 
+#: 六个欠定槽位：(名字, 判定, 可抄的例子)。
+#:
+#: 判定只看**渲染器真正读的字段**，不看"写了多少字"——IR 里塞了 atmosphere 却全在
+#: 同一个意思上堆词，词数够了但槽位还是空的。这正是"写长"和"降低熵"的分界。
+_SLOTS = (
+    ("主体", lambda ir: any(e.kind in ("character", "object") and e.label
+                        for e in ir.entities),
+     "a 28-year-old woman in a yellow raincoat"),
+    ("动作", lambda ir: bool(ir.relations) or any(
+        set(e.descriptors) & {"pose", "expression", "action", "gesture"} for e in ir.entities),
+     "standing with her weight on one leg, looking up at the sky"),
+    ("场景", lambda ir: bool((ir.canvas or {}).get("background")) or any(
+        e.kind == "background" for e in ir.entities),
+     "a narrow Kyoto backstreet after rain"),
+    ("镜头", lambda ir: bool(ir.camera),
+     "medium shot, low angle, 35mm lens, shallow depth of field"),
+    ("光", lambda ir: bool(ir.lighting),
+     "soft overcast daylight from the left, blue hour"),
+    ("材质", lambda ir: bool(ir.atmosphere) or any(
+        set(e.descriptors) & {"material", "surface", "texture"} for e in ir.entities),
+     "wet asphalt mirroring the shop signs"),
+)
+
+
+def slot_gaps(ir: IR) -> list:
+    """还空着的槽位：[(名字, 例子)]，按七维顺序。"""
+    return [(name, example) for name, ok, example in _SLOTS if not ok(ir)]
+
+
+def slot_advice(ir: IR, words: int = 0) -> str:
+    """短了该补什么——具体到槽位，不是「再加点形容词」。
+
+    只报数（`只有 93 词`）会把人推向堆词，而堆词不缩小出图分布。这里给的是
+    「哪一维还空着 + 一句可以照抄的写法」，补一句就够，不必写满。
+    """
+    gaps = slot_gaps(ir)
+    if not gaps:
+        return ("槽位齐全（%d 词）：缺的不是类目，是每个槽位的**排他细节**——"
+                "加形容词不缩小分布（见 docs/24 扩写判据）" % words)
+    head = "缺槽位 %s" % " / ".join(n for n, _ in gaps[:4])
+    sample = "；".join("%s→「%s」" % (n, ex) for n, ex in gaps[:2])
+    return "%s。补一句就够：%s" % (head, sample)
+
+
 def verify(ir: IR, text: str, target: str = "", registry=None,
            counter=None, band: tuple | None = None,
            length: str = "standard") -> Report:

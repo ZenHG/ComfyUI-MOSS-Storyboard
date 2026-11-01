@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from .. import layout as layout_mod
 from ..clauses import Clause
+from ..expand import slot_advice
 from ..ir import IR
 from .base import Adapter, Realized
 
@@ -50,9 +51,10 @@ class MossImageAdapter(Adapter):
             out.warnings.append("layout 生成失败，退回散文：%s" % layout_error)
         elif out.mode != "llm" and len(out.positive.split()) < 120:
             lo = (self.band() or (150, 300))[0]
+            n = len(out.positive.split())
             out.warnings.append(
-                "确定性模式只有 %d 词，低于 MOSS 的 %d 词下界；需 --mode llm 扩写"
-                % (len(out.positive.split()), lo))
+                "确定性模式只有 %d 词，低于 MOSS 的 %d 词下界；%s"
+                % (n, lo, slot_advice(ir, n)))
         return out
 
     def _render(self, ir: IR, clauses: list[Clause], mode: str) -> str:

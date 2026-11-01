@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from ..clauses import Clause
+from ..expand import slot_advice
 from ..ir import IR
 from .base import Adapter, Realized
 
@@ -32,8 +33,8 @@ class QwenImage21Adapter(Adapter):
                 # 不假装达标：确定性模式不扩写，明确告知需要 LLM
                 lo = (self.band() or (150, 450))[0]
                 self._pending_warning = (
-                    "确定性模式只有 %d 词，低于 Qwen 2.1 的 %d 词下界；"
-                    "需 --mode llm 扩写" % (words, lo))
+                    "确定性模式只有 %d 词，低于 Qwen 2.1 的 %d 词下界；%s"
+                    % (words, lo, slot_advice(ir, words)))
         return text
 
     def realize(self, ir: IR, profile: str | None = None, mode: str = "deterministic") -> Realized:

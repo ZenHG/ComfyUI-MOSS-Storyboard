@@ -3503,5 +3503,65 @@ class TestStructuredDialectJudge(unittest.TestCase):
                                  ([], [], []), "%s × %s" % (p.name, t))
 
 
+class TestSlotGaps(unittest.TestCase):
+    """短了该补什么：报**槽位**，不报「再加点形容词」。
+
+    只报词数会把人推向堆词（`masterpiece, 8k`），而堆词不缩小出图分布。
+    """
+
+    def _ir(self, **kw) -> IR:
+        from moss_llm.smith.ir import Entity
+        base = {"task": "t2i", "entities": [Entity(id="e1", label="a red cup")]}
+        base.update(kw)
+        return IR(**base)
+
+    def test_full_ir_has_no_gaps(self):
+        from moss_llm.smith.expand import slot_gaps
+        self.assertEqual(slot_gaps(load("01-portrait-photoreal.json")), [])
+
+    def test_bare_ir_names_every_missing_slot(self):
+        from moss_llm.smith.expand import slot_gaps
+        names = [n for n, _ in slot_gaps(self._ir())]
+        self.assertEqual(names, ["动作", "场景", "镜头", "光", "材质"])
+
+    def test_relations_count_as_action(self):
+        from moss_llm.smith.expand import slot_gaps
+        ir = self._ir(relations=[{"from": "e1", "kind": "looks_at", "to": "e1"}])
+        self.assertNotIn("动作", [n for n, _ in slot_gaps(ir)])
+
+    def test_atmosphere_counts_as_material(self):
+        from moss_llm.smith.expand import slot_gaps
+        self.assertNotIn("材质", [n for n, _ in slot_gaps(self._ir(atmosphere=["rain"]))])
+
+    def test_canvas_background_counts_as_setting(self):
+        from moss_llm.smith.expand import slot_gaps
+        ir = self._ir(canvas={"aspect_ratio": "1:1", "background": "a wet street"})
+        self.assertNotIn("场景", [n for n, _ in slot_gaps(ir)])
+
+    def test_one_camera_field_is_enough(self):
+        from moss_llm.smith.expand import slot_gaps
+        self.assertNotIn("镜头", [n for n, _ in slot_gaps(self._ir(camera={"shot": "wide"}))])
+
+    def test_advice_gives_a_line_to_copy(self):
+        from moss_llm.smith.expand import slot_advice
+        s = slot_advice(self._ir(), 12)
+        self.assertIn("缺槽位", s)
+        self.assertIn("补一句就够", s)
+        self.assertIn("「", s)                     # 有可抄的例子，不是抽象建议
+
+    def test_advice_without_gaps_points_at_detail_not_words(self):
+        from moss_llm.smith.expand import slot_advice
+        s = slot_advice(load("01-portrait-photoreal.json"), 93)
+        self.assertIn("槽位齐全", s)
+        self.assertIn("排他细节", s)
+
+    def test_short_warning_from_adapter_names_the_slot(self):
+        """接线验证：适配器的短词告警里必须带槽位建议，不是只说「需 --mode llm」。"""
+        out = get_adapter("moss-image", REG).realize(self._ir())
+        text = " ".join(out.warnings)
+        self.assertIn("下界", text)
+        self.assertIn("缺槽位", text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
