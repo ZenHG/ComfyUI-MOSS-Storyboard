@@ -1,0 +1,11 @@
+{
+  "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "Krea2-Turbo-HD-V1-NVFP4.safetensors", "weight_dtype": "default"}},
+  "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": "Qwen3-VL-4B-Instruct-heretic-NVFP4-K2.safetensors", "type": "krea2", "device": "default"}},
+  "3": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 0], "text": ""}},
+  "4": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["3", 0]}},
+  "5": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "seed": 42, "steps": 8, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["6", 0], "denoise": 1.0}},
+  "6": {"class_type": "EmptySD3LatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+  "7": {"class_type": "VAEDecode", "inputs": {"samples": ["5", 0], "vae": ["8", 0]}},
+  "8": {"class_type": "VAELoader", "inputs": {"vae_name": "Krea2-HD-vae-bf16.safetensors"}},
+  "9": {"class_type": "SaveImage", "inputs": {"images": ["7", 0], "filename_prefix": "pitfalls_ab/krea2"}}
+}

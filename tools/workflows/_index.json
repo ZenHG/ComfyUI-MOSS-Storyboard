@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "updated": "2026-11-01",
+  "note": "API 格式的 t2i 图（提交给 POST /prompt）。由真机 UI 工作流的最小可跑子图手抄而来，不是前端 graphToPrompt 的输出；来源与取舍见 README.md。",
+  "backends": {
+    "moss-image": {
+      "display": "MOSS-Image SFT 4steps turbo (merged, bf16)",
+      "file": "moss_image_t2i.api.json",
+      "nodes": {"positive": "3", "negative": "4", "sampler": "5", "latent": "6", "save": "9"},
+      "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0},
+      "wh_step": 16,
+      "max_pixels_hint": 2048,
+      "provenance": "ComfyUI user workflow 'Moss 文生图.json' 的 nodes 96-104 子图：UNETLoader(turbo-merged) + CLIPLoader(qwen3.5_9b_int8_convrot, type=moss_image) + CLIPTextEncode + ConditioningZeroOut + EmptyFlux2LatentImage + KSampler(4 steps, cfg 1, euler/simple) + VAELoader(flux2-vae) + VAEDecode + SaveImage。",
+      "notes": [
+        "4 步档来自真机工作流本身（不是 registry 的 50 步档）；registry.sampling 是通用档，这里用 turbo 蒸馏档做 A/B，速度快且参数少变。",
+        "negative 由 positive 做 ConditioningZeroOut，与真机工作流一致（MOSS 的负向另有 uncond_slg 通道，本图未接 SLG）。"
+      ]
+    },
+    "krea2": {
+      "display": "Krea 2 Turbo HD V1 (NVFP4)",
+      "file": "krea2_t2i.api.json",
+      "nodes": {"positive": "3", "negative": "4", "sampler": "5", "latent": "6", "save": "9"},
+      "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0},
+      "wh_step": 16,
+      "max_pixels_hint": 2048,
+      "provenance": "ComfyUI user workflow '⨝Krea2 turbo 生成4_6_8宫格故事板.json'（UNETLoader NVFP4 + CLIPLoader type=krea2 + KSampler 8 steps/cfg 1.1/euler，取 8 steps/cfg 1）与 'QuadView_krea2_v1.json'（EmptySD3LatentImage + Krea2-Turbo-HD-V1-int4）；latent 节点取 QuadView 的 EmptySD3LatentImage。",
+      "notes": [
+        "latent 选择存疑：'K2白玉AIO' 工作流用 EmptyLatentImage（4 通道），QuadView 用 EmptySD3LatentImage（16 通道）。取后者是因为它与 Krea2-Turbo-HD-V1-int4 同文件验证过；首次真跑会核。",
+        "NVFP4 与 int4_convrot 是同一 Turbo-HD-V1 的两份量化；选 NVFP4 适合本机 5070（Blackwell 原生 FP4）。"
+      ]
+    },
+    "qwen-image-2_1": {
+      "display": "Qwen-Image-Flash Q4_K_M (GGUF)",
+      "file": "qwen_image_flash_t2i.api.json",
+      "nodes": {"positive": "3", "negative": "4", "sampler": "5", "latent": "6", "save": "9", "shift": "10"},
+      "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "shift": 3.0},
+      "wh_step": 16,
+      "max_pixels_hint": 2048,
+      "provenance": "ComfyUI user workflow 'QWEN IMAGE FLASH.json'：UnetLoaderGGUF(Qwen-Image-Flash-Q4_K_M) → ModelSamplingAuraFlow(shift=3) → KSampler(4 steps, cfg 1) + CLIPLoader(qwen_2.5_vl_7b_nvfp4, type=qwen_image) + VAELoader(qwen_image_vae) + EmptySD3LatentImage + SaveImage；原工作流的 SolAttnPatch / 自定义分辨率节点是可选加速件，未接。",
+      "notes": [
+        "本地权重是 Qwen-Image-**Flash**，registry 的 target 名是 qwen-image-2_1（官方 2.1 PE）。同家族不同代：本图只用于洗图 triage，结论不外推到 2.1。",
+        "negative 用空文本 CLIPTextEncode，与真机工作流一致（真机 4 步档 cfg=1）。"
+      ]
+    }
+  },
+  "unavailable": {
+    "flux3": "本机 <ComfyUI>/models/diffusion_models 无 flux3 / flux1 生成权重（只有 metadata.json 与历史产物），不构造假 workflow，也不假装跑过。",
+    "flux1_dev": "同上：无 flux1 权重，跳过。"
+  }
+}
