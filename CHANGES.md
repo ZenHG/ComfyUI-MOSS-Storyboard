@@ -1,5 +1,137 @@
 # CHANGES
 
+## 未发布 · 洗图基准第一轮：caption → 生成 → triage（2026-11-01）
+
+- 🆕 `tools/wash_benchmark.py` + `tools/workflows/`（3 个后端 API 图 + `_index.json`）+
+  `tests/test_wash_benchmark.py`（30 条）：源图入库 → 反推 caption → 编译 → `/prompt` 生成 →
+  收图 → 纯 CPU triage；四段可分步重跑（`--caption/--generate/--score`）。
+- 端到端跑通 **2 个后端**：moss-image（4 步 turbo）与 krea2（NVFP4 turbo）各 4 张源图 =
+  8 张生成图；qwen-image-flash（10.9 GB）在宿主 `--lowvram` 下加载超 5 分钟被看门狗判卡死
+  并重启 ComfyUI（失败证据链在 docs/31 §6，**未冒充跑过**）；flux3 / flux1_dev 本机无生成权重，按缺失登记。
+- triage 用**未校准的代理指标**（`calibrated=false / not_for_gating`）：krea2 mean 0.6982 vs
+  moss-image 0.6379，只报数、不下质量结论；VQAScore 未跑（缺包/权重/校准）。
+- 观察：图内文字漂移最重（UI 截图重绘大量乱码）、身份次之、构图/调色相对稳。见 docs/31。
+- 公开面：工具链的模型/服务端/源图路径改为 CLI → 环境变量 → 常规查找三级解析，
+  不再写死本机路径（单测钉住）。
+
+## 未发布 · pitfalls 第一轮 A/B：3 条断言全部被推翻（2026-11-01）
+
+把 `registry.pitfalls` 里 3 条「物理事实」做成**先注册判据、再出图**的成对实验
+（MOSS-Image 12 张 + Krea2 6 张，同 seed、1024²）：
+
+- P1「相机型号/渲染引擎/画师名单写无效」→ **推翻**：`85mm f/1.2` 与画师名都改变了画面（2/3 对），
+  只有单独 `Unreal Engine 5` 没出现预期 3D 质感 ⇒ 引擎名别当风格开关，改用视觉描述。
+- P2「正文残留写实词会压制开头画风词」→ **推翻**（条件性）：3 对里 1 对整体翻写实、2 对维持动画。
+- P3「Krea 2 >512 token 静默截断」→ **推翻**（本机 ComfyUI 节点）：B 段真实 token **786–797**
+  仍保住尾部 cue 3/3；官方 `inference.py` 的 512 位置截断风险按原说法保留。
+- registry 已按实测改写（保留原说辞 + 标注 2026-11-01 A/B 结论）；`python -m moss_llm.smith targets`
+  与 365 基线仍绿。
+- 🆕 `tools/pitfalls_ab.py` + `tests/test_pitfalls_ab.py`（34 条）：H0/H1、操作化定义、
+  预注册判定规则、成对出图与机械判定。
+- 口径：**AI 目检，不是人类**；每条 3 对、2-of-3 只作方向性证据，不写成统计显著。见 docs/30。
+
+## 未发布 · G7 第一轮：20 图 × 2 模型的 binding 账本（2026-11-01）
+
+第一次按「能说清谁在哪一类上差」去测反推质量（20 图四类 × 2 模型，36/40 次成功）：
+
+- 🆕 工具链：`tools/g7_select.py`（选图冻结）/ `g7_caption.py`（同口径跑批，侧车串行）/
+  `g7_binding.py`（五类绑定零模型机检）/ `g7_inspect.py`（目检包 + 校准统计）。
+- 覆盖率（2 模型 × 5 类，分母逐格给出）：颜色 83% vs 76%（B 分母 54；连字符颜色词判据修复后重算）、材质 40% vs 44%、方位 93% vs 94%、
+  图内文字 88%（23/26） vs 81%、数量 100% vs 100%（分母仅 3/1，该类等于没测到）。两模型覆盖率无统计差异；
+  但 **A 记 101 个实体、B 记 74 个**——「A 更全、B 更省」，分母本身就是结果。
+- 结论：**样本不足**（三档中的第三档）——20 图机检 + 10 图代理目检检不出 10pt 级差异；唯一
+  p<0.05 的「文字两遍互证」（24% vs 62%）在 6 项比较里 Bonferroni 后不显著，只作方向不作结论。
+- 真正有价值的是两类**共同**缺陷（比模型间差异大得多）：① 非人物体被大量标成 `character`
+  （53% 下界）⇒ 材质绑定几乎全灭（材质与反光组 0% / 8%）并给物体编年龄（80 岁磨豆机 / 120 岁剑）；
+  ② JSON 模式无重复惩罚 ⇒ 4/40 次重复循环撞 completion 上限（整次取证归零）。
+- 校准硬要求已执行：10 图机检 vs AI 代理目检 **67/67**；且校准前先修掉 3 处判据定位错误
+  （连字符方向词、实体 id 跨子句、落盘顺序），否则会把假失败当结论。
+- 未验证/限制：代理目检不是人类；无 OCR 交叉；数量类样本不足；未做「反推 → 重绘」闭环。
+  见 docs/G7-反推质量-第一轮.md。
+
+## 未发布 · 扩写三拆：补全 / 翻译 / 改写各自可判、可关、可归因（2026-11-01）
+
+`--mode llm` 原来一次调用同时做三件事，出问题无法归因（是补错了、翻错了、还是改丢了？）。
+现在三步拆开，**默认仍是历史单次调用**（`expand_steps=None`），拆步是显式 opt-in：
+
+- 🆕 `moss_llm/smith/steps.py`：三步各自 system prompt + 纯 Python 判据——补全（填 OPEN 槽位，
+  每一项可追溯到 `DEFAULT_LIBRARY` 的公认默认）、翻译（中文口语 → 方言术语，`GLOSSARY` 命中率）、
+  改写（只重排，事实集合不变，复用 roundtrip 口径）。
+- 🆕 `Adapter.expand_steps` 开关：`None`=历史单次调用；`()`=三步全关（产物=该方言确定性草稿，仍合法）；
+  元组/逗号串=按固定顺序执行子集；未知步名抛 `ValueError`。每步可单独关，关掉后产物过 roundtrip/invariants。
+- 🆕 报告归因：`expand.Report.stage` / `stage_issues` / `steps` / `stage_note`（旧键一个不动）；
+  回炉只回喂出问题的那一步。`to_dict()` 向后兼容。
+- 测试：新增 `tests/test_expand_steps.py` 21 条（每步 4 条含「关掉仍合法」「判据抓典型错误」+ 归因/开关/默认路径）；
+  `tests/test_smith_ir.py` **365 条不变**；4 份夹具 × 5 后端确定性输出 sha256 **0 diff**。
+- 未验证：19 条全是假 LLM；真机守规率、默认值库/术语表闭集误报率、3× 调用成本收益未测（见 docs/26 §6）。
+
+## 未发布 · H3 全参考六段式：与三字段白模并存的新方言（2026-11-01）
+
+产线在用的 H3 提示词还有另一套骨架——参考标签 + 六段固定顺序。本轮把它做成
+`minimax-h3` 的方言 profile，**不动默认三字段路径**：
+
+- 🆕 `moss_llm/smith/h3_six.py`：`render` / `parse` / `check` / `synthesize`；六段
+  （subject_definitions / summary / retention_analysis / detailed_description /
+  overall_soundscape / non_diegetic_music）固定顺序；参考标签 `<Subject N>` / `<Video N>` /
+  `<Audio N>` / `<Picture N>` / `@图片N`、`[Shot N]`、`At MM:SS.mmm`、`<d>[zh]…</d>` 与【项目影像规格】块。
+- 选择器：`--profile six-section`（别名 `six_section` / `h3-six-section`）；**不新增 target**（targets 仍 7 行），
+  理由与代价见 docs/27 §1。
+- 往返口径：3 段产线真稿（逐字夹具，sha256 钉死）`render(parse(t)) == t` **逐字节相等**；
+  17 个独立错误码，含 缺段 `H3S-MISSING-SECTION` / 段序 `H3S-SECTION-ORDER` / 时间戳越界 `H3S-TS-RANGE`。
+- 🔴 顺手修通用 `lint.check` 的 L003 假错：timeline 模式下补剥 `[video continuation]` / `[reference generation]`
+  体裁记号（否则六段式 summary 首行会被当权重语法）。反例仍红：真 `(x:1.2)` 照样报 L003。
+- 测试：新增 `tests/test_h3_six.py` 56 条；`tests/test_smith_ir.py` 365 不变；确定性基线绿。
+- 未验证：六段式 `--mode llm` 真机改写、六段式出片质量（本轮无 GPU）；M6 不变式仍按三字段解析器验（文档已标）。
+
+## 未发布 · `--lang zh`：整句重排，不是词表替换（2026-11-01）
+
+- 🆕 `moss_llm/smith/zh.py`：中文路径独立成句（主体+动作 → 场景 → 镜头 → 光 → 材质/媒介 → 画面文字），
+  按 `adapter.dim_order` 参数化；Krea 2（medium 打头）与 SDXL（tag + BREAK 75/块）各按方言形态。
+- 入口：`compile` / `lint` 加 `--lang zh`；`compile_ir(..., lang=)`；**显式 lang > registry `prompt.language`**，
+  registry 结构未改。默认（en）输出逐字节不变（freeze 基线绿）。
+- 判据：中英事实集合相等（`fact_surface()` 把中文颜色/方位面归一化回规范词再交给既有 roundtrip）；
+  机检 Z01–Z07（英文功能词 / 未译词 / ASCII 标点 / 「的」堆叠 / 句首虚词 / 年龄量词 / 主语起手）+ 反证单测。
+- 人读：10 条中文输出由 Lead 逐条复核签收「无英文语序」（docs/28 §8）。
+- 明确不支持：`--lang zh --mode llm`（显式报错，不静默降级）；Layout JSON / flux3 bbox / edit 指令 / H3 时间线原样英文 + warning。
+- 测试：新增 `tests/test_lang_zh.py` 20 条。
+- 未验证：母语审校、真实模型出图上中文更好、notes 散文机翻质量（docs/28 §9）。
+
+## 未发布 · 跨模型家族：加一份 YAML 就接进新家族（2026-11-01）
+
+- 🆕 registry target `nano-banana`（Google Gemini 原生图像生成/编辑家族）：纯 YAML 新增一块，
+  **零 Python 改动**；4 份真机反推 IR 用 `compile_ir(..., "nano-banana")` 全部编译成功，
+  invariants 6/6、roundtrip 零丢失（固定项分母 10/4/5/14，非空转）、lint 0 error、确定性可重复。
+- 目标数 7 → 8；通用 adapter 走散文/tag + 能力声明，能力边界（`edit.supported` 声明 ≠ 渲染能力）如实记录。
+- 抽象漏的 4 条（字段级置信度 / resolution·sampling 自由文本 / `encoder.max_tokens: null` / 编辑能力分层）
+  写进 docs/29 §6，**本轮不修**。
+- 测试：新增 `tests/test_registry_family.py` 12 条；`targets` 列表与 PyYAML/miniyaml 两种解析逐字段一致。
+- 未验证：无 API key，出图质量/中文 prompt/档位差异未验（docs/29 §7）。
+
+## 未发布 · 覆盖率闸红时点名丢了哪条事实（2026-11-01 补强）
+
+- `tools/check_coverage.py` 红的分支原来只报计数（`hard=1 num=0 quote=0`），人要回去自己猜。
+  现在同时打印具体固定项标签（`[text] …` / `[user] …`）、凭空数字/文字，以及覆盖率跌破时
+  **没落地的内容词**。
+- 新增 `tests/test_coverage_gate.py` 2 条：①当前 28 组合基线绿；②往 IR 塞一条没有渲染路径的用户固定项
+  ⇒ 闸红且报告点名 `[user] …`（防「永远返回绿的闸」）。
+
+## 未发布 · LLM 面板闸：唯一一条 SKIP 转成真机断言（2026-11-01）
+
+- `tools/ui_llm_panel.mjs` 原来 SKIP「接了线的参数不会被藏」，理由是「直接写 `slot.link` 被宿主归零」。
+  实测根因不是宿主禁止接线，而是**写法不合法**：该前端 widget 与输入槽共存，真链要
+  `PrimitiveNode.connect()` 建，`graph.links` 会记账且过 `serialize()/loadGraphData()` 往返。
+- 断言分三层：①面板 `widget.options.hidden` 必须 false（本仓面板负责）；②宿主 `connectionSuppressed`
+  如实记录（宿主行为，不算面板功劳）；③`widgets_values` 39 格逐位不变（接线与折叠都不写存档）。
+- 结果：**43 通过 / 0 失败 / 0 SKIP**（改前 36 绿 + 1 SKIP）。见 docs/32。
+
+## 未发布 · 仓库卫生：旧独立包副本清出工作区（2026-11-01）
+
+- `_superseded/prompt-artisan-2026-10-31/`（134 文件 / 1.4 MB，合流前独立包）已移入 Windows 回收站（可恢复）。
+- 删前逐项复核：代码 30 模块在新包全部有落点（`llm.py` / `vision.py` 变转发、`runtime.py` 有意删除）、
+  7 个 targets 一致、schema / examples / fixtures 已迁入包内、旧 4 份文档已被 docs/21–24 吸收、
+  旧 335 条测试 → 现 365 条（旧独有 4 条 CUDA 运行时用例已由 `test_llm_subpackage` 覆盖）。
+  唯一未搬运：`tools/run_live.py`（旧 namespace 批处理壳，功能由 CLI + 两个闸覆盖）。见 docs/33。
+
 ## 未发布 · 短 IR 报「缺哪一维」，不再只说「词不够」（2026-11-01）
 
 `compile` 的 report 原来只有一句「只有 93 词，低于 150 词下界；需 --mode llm 扩写」。
