@@ -692,13 +692,14 @@ class LlamaServer:
 
     # ── 请求 ────────────────────────────────────────────────
     def chat(self, system, user, temperature=0.3, max_tokens=1200,
-             schema=None, name="scene_record"):
+             schema=None, name="scene_record", seed=None):
         return self._chat([{"role": "system", "content": system},
                            {"role": "user", "content": user}],
-                          temperature, max_tokens, schema, name)
+                          temperature, max_tokens, schema, name, seed=seed)
 
     def chat_vision(self, system, user, data_url, temperature=0.2,
-                    max_tokens=3000, schema=None, name="scene_record"):
+                    max_tokens=3000, schema=None, name="scene_record",
+                    seed=None):
         """带图请求。`data_url` 由 `moss_llm.vision.prepare()` 产出。
 
         温度默认压到 0.2：反推是**取证**不是创作，采样越保守越好。
@@ -715,11 +716,15 @@ class LlamaServer:
                 {"type": "text", "text": user},
                 {"type": "image_url", "image_url": {"url": data_url}},
             ]},
-        ], temperature, max_tokens, schema, name)
+        ], temperature, max_tokens, schema, name, seed=seed)
 
     def build_body(self, messages, temperature, max_tokens,
-                   response_format=None, json_mode=False):
-        """拼请求体。抽出来是为了能离线单测——参数拼错只有真机才炸，代价太高。"""
+                   response_format=None, json_mode=False, seed=None):
+        """拼请求体。抽出来是为了能离线单测——参数拼错只有真机才炸，代价太高。
+
+        `seed` 默认 None（不写进 payload，与旧行为字节级一致）；只有显式给值才写，
+        让重复跑批可复现。
+        """
         body = {
             "messages": messages,
             "temperature": temperature,
@@ -727,6 +732,8 @@ class LlamaServer:
             "max_tokens": max_tokens,
             "stream": False,
         }
+        if seed is not None:
+            body["seed"] = int(seed)
         mid = self.model_name()
         if mid:
             body["model"] = mid
@@ -765,12 +772,12 @@ class LlamaServer:
     _LABEL = {0: "json_schema", 1: "json_object+schema", 2: "json_object", 3: "无约束"}
 
     def _chat(self, messages, temperature, max_tokens,
-              schema=None, name="scene_record"):
+              schema=None, name="scene_record", seed=None):
         formats = self._formats(schema, name)
         detail = ""
         for i, rf in enumerate(formats):
             body = self.build_body(messages, temperature, max_tokens, rf,
-                                   json_mode=bool(schema))
+                                   json_mode=bool(schema), seed=seed)
             try:
                 data = self._post("/v1/chat/completions", body)
             except _BadRequest as e:

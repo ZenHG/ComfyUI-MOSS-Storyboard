@@ -72,28 +72,28 @@
     "targets": {
       "flux3": {
         "negative": "e3b0c44298fc1c14",
-        "positive": "4fc79ba9d565f6d5",
-        "words": 270
+        "positive": "ab495d72378e1547",
+        "words": 274
       },
       "krea2": {
         "negative": "e3b0c44298fc1c14",
-        "positive": "c48823d67fba59cb",
-        "words": 255
+        "positive": "d7d475ea3c10a5ff",
+        "words": 259
       },
       "moss-image": {
         "negative": "8bf51c0e08ebd933",
-        "positive": "69127ce556de69b7",
-        "words": 321
+        "positive": "ca4889c33e1e8870",
+        "words": 325
       },
       "qwen-image-2_1": {
         "negative": "e3b0c44298fc1c14",
-        "positive": "651ad1380f3ae302",
-        "words": 255
+        "positive": "57e9fa2a57f803a2",
+        "words": 259
       },
       "sdxl": {
         "negative": "e3b0c44298fc1c14",
-        "positive": "48dc9843650b3d80",
-        "words": 261
+        "positive": "ad3dcd75f8237500",
+        "words": 265
       }
     },
     "texts": 0

@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .decompose import Facts, scan
-from .expand import _ir_numbers, _norm, fixed_items, hit
+from .expand import _ir_numbers, _norm, fixed_items, hit, is_ir_text
 
 
 @dataclass
@@ -104,9 +104,11 @@ def diff(ir, text: str, target: str = "") -> Diff:
 
     # ② 多：prompt 里的每条事实，问一遍「IR 里有没有」
     ir_f = facts_of(ir)
-    quoted = {_norm(t) for t in ir_f.texts}
+    # 文本比对用 expand.is_ir_text（与 verify ③ / steps._fact_delta 同一 helper）：
+    # 多行块拆成单行引号、内嵌引号换弯引号、相邻两引号被 scan 合串，都不算 extra；
+    # 真正 IR 里没有的新文本仍报 extra（helper 只放宽引用方式，不放宽内容）。
     for q in seen.texts:
-        if _norm(q) not in quoted:
+        if not is_ir_text(q, ir_f.texts):
             d.extra.append(("text", q))
     ages = {str(a) for a in ir_f.ages}
     for a in seen.ages:

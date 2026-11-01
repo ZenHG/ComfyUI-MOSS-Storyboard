@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from .. import layout as layout_mod
-from ..clauses import Clause
+from ..clauses import Clause, quote_text_block
 from ..expand import slot_advice
 from ..ir import IR
 from .base import Adapter, Realized
@@ -59,12 +59,19 @@ class MossImageAdapter(Adapter):
 
     def _render(self, ir: IR, clauses: list[Clause], mode: str) -> str:
         text = super()._render(ir, clauses, mode)
-        # 官方要求：图内文字必须加引号；这里兜底一次（LLM 常忘）
+        # 官方要求：图内文字必须加引号；这里兜底一次（LLM 常忘）。
+        # 确定性文本子句已经由 clauses.quote_text_block 整块包好——这里只处理
+        # **尚未包过**的整块，绝不逐行再包（旧逻辑会把多行块拆成 """a"b"..."）。
         for e in ir.text_entities:
-            for line in (e.text_content or "").split("\n"):
-                line = line.strip()
-                if line and line in text and ('"%s"' % line) not in text:
-                    text = text.replace(line, '"%s"' % line, 1)
+            raw = e.text_content or ""
+            flat = " ".join(raw.split())
+            if not flat:
+                continue
+            block = quote_text_block(raw)
+            if block in text:
+                continue
+            if flat in text:
+                text = text.replace(flat, block, 1)
         return text
 
     def prompt_spec(self, ir: IR) -> str:

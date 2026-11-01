@@ -256,5 +256,52 @@ class TestRealLLMAndReview(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+from moss_llm.server import LlamaServer                      # noqa: E402
+
+
+class TestSeedPlumbing(unittest.TestCase):
+    """seed 默认不传（字节级不变）；显式 --seed 才进 payload 且 summary 记录。"""
+
+    @staticmethod
+    def _body(seed=None):
+        return LlamaServer("dummy.gguf", port=8099).build_body(
+            [{"role": "user", "content": "x"}], 0.4, 16, seed=seed)
+
+    def test_seed_42_reaches_payload_and_summary(self):
+        self.assertEqual(self._body(42)["seed"], 42)
+        tmp = Path(tempfile.mkdtemp(prefix="w9b-seed-"))
+        try:
+            _unit(tmp, "A-4B", "img01")
+            out = tmp / "o"
+            self.assertEqual(ef.main(["--json-root", str(tmp), "--out", str(out),
+                                      "--groups", "all", "--seed", "42", "--quiet"]), 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            payload = json.loads((out / "results.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["seed"], 42)
+            self.assertEqual(summary["temperature"], 0.4)
+            self.assertEqual(payload["seed"], 42)
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_no_seed_keeps_payload_clean_and_summary_null(self):
+        body = self._body()
+        self.assertNotIn("seed", body, "默认不传 seed 时 payload 必须没有 seed 键")
+        tmp = Path(tempfile.mkdtemp(prefix="w9b-noseed-"))
+        try:
+            _unit(tmp, "A-4B", "img01")
+            out = tmp / "o"
+            self.assertEqual(ef.main(["--json-root", str(tmp), "--out", str(out),
+                                      "--groups", "all", "--quiet"]), 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            payload = json.loads((out / "results.json").read_text(encoding="utf-8"))
+            self.assertIsNone(summary["seed"])
+            self.assertEqual(summary["temperature"], 0.4)
+            self.assertIsNone(payload["seed"])
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -36,8 +36,10 @@
 #   ·  35/0  tests/test_g7_binding.py         G7 binding 判据（离线）：五类绑定规则的正例/反例
 #   ·  34/0  tests/test_pitfalls_ab.py        pitfalls A/B 判定函数（离线）：三档结论的机械求值
 #   ·  36/0  tests/test_wash_benchmark.py     洗图基准离线层：workflow 构造 / 编译 / 打分确定性 / 降级路径 / 多 seed 与 moss q4 注入
-#   ·  15/0  tests/test_expand_facts.py       扩写事实保持：桩/真实路径 + fixed-guard + roundtrip 对账（零 GPU 默认桩）
+#   ·  17/0  tests/test_expand_facts.py       扩写事实保持：桩/真实路径 + fixed-guard + roundtrip 对账 + seed 贯通（零 GPU 默认桩）
 #   ·   9/0  tests/test_expand_guard.py       扩写固定项护栏：默认关 / 丢项回退确定性草稿 / 三步路径
+#   ·  13/0  tests/test_draft_render.py       确定性草稿残差：light/content/condition / details / 多行文本块 / 分组首实体方位
+#   ·  10/0  tests/test_text_accounting.py    对账器文本口径：拆行不 extra / 内嵌引号 / 真新增仍报 / 单行不回归 / structured 整块或整行（子串仍报）
 #   ·   8/0  tests/test_wash_roundtrip.py     洗图 roundtrip 事实保全：run.json 映射 / lost-extra / 文字单列
 #   ·  12/0  tests/test_wash_attribution.py   洗图 roundtrip 归因：多模型/多 seed / 三态分类 / 失败重试
 #   ·  63/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
@@ -173,6 +175,10 @@ jobs:
         run: python tests/test_expand_facts.py
       - name: 扩写固定项护栏（默认关；丢项回退确定性草稿）
         run: python tests/test_expand_guard.py
+      - name: 确定性草稿残差（颜色字段 / 多行文本块 / 分组方位 / details）
+        run: python tests/test_draft_render.py
+      - name: 对账器文本口径（多行引文 / 内嵌引号 / 真新增仍报）
+        run: python tests/test_text_accounting.py
       - name: 洗图 roundtrip 事实保全（离线纯函数）
         run: python tests/test_wash_roundtrip.py
       - name: 洗图 roundtrip 归因（多模型/多 seed 三态分类）

@@ -101,6 +101,71 @@ HARD_KINDS = ("text", "age", "keep", "user", "line", "beat")
 DIRECTIONS = {"left", "right", "upper", "lower", "top", "bottom", "centre", "center",
               "middle", "foreground", "background", "third", "half", "corner", "edge"}
 
+#: 引号字符（直引号 / 弯引号 / 书名号）。IR 内嵌直引号，prompt 常见弯引号或转义。
+_QUOTE_CHARS = re.compile(r"[\"'“”‘’「」『』]")
+
+
+def _text_key(s: str) -> str:
+    """图内文字的**宽松归一**：大小写/空白 + 去掉引号。
+
+    为什么去引号：IR 的 `text_content` 可能写 `"De …" sal …`（引号是文字的一部分），
+    模型输出常把整块包成弯引号 `“"De …" sal …”`，或把相邻两行拆成两个引号串。
+    引号属于**引用方式**，不是图里多出来的字；比对时先剥掉再比。
+    """
+    return re.sub(r"\s+", " ", _QUOTE_CHARS.sub("", _norm(s))).strip()
+
+
+def ir_text_blocks(ir) -> list:
+    """IR 里所有图内文字块（整块，保留换行）。"""
+    return [e.text_content for e in ir.entities
+            if e.kind == "text" and e.text_content]
+
+
+def is_ir_text(q: str, blocks) -> bool:
+    """引号里的 q 是否来自 IR 的某个文本块。
+
+    放宽的是**引用方式**，不是内容：
+    - q 与整块等值（旧行为）；
+    - q 是整块的一行 / 连续子串（normalized，允许空白差异）——多行块被拆行；
+    - 去引号后相等或连续子串——内嵌直引号被弯引号包住、相邻两引号被 scan 合串。
+    **IR 里没有的新文本仍返回 False**（不因去引号而放行：q 的字符必须真在块里）。
+    """
+    nq = _norm(q)
+    if not nq:
+        return False
+    kq = _text_key(q)
+    for block in blocks or ():
+        nb = _norm(block)
+        if nq == nb or nq in nb:
+            return True
+        kb = _text_key(block)
+        if kq and (kq == kb or kq in kb):
+            return True
+    return False
+
+
+def is_ir_text_strict(q: str, blocks) -> bool:
+    """结构化方言的**严格**文本匹配：整块等值，或等于整块的某一行。
+
+    允许的放宽只有引用方式：去引号 + 空白/大小写归一后整块相等；多行块被拆成
+    字段时，q 等于其中一行也算命中（那是同一段图内文字的分行）。
+    **不允许** q 只是长块的前缀/中间子串——结构化 JSON 的 `text` 字段是逐字契约，
+    子串口径会让 `text:"alpha beta"` 这种编造短句冒充 IR 长块。
+    """
+    nq = _norm(q)
+    if not nq:
+        return False
+    kq = _text_key(q)
+    for block in blocks or ():
+        if nq == _norm(block) or kq == _text_key(block):
+            return True
+        for line in str(block).splitlines():
+            if not line.strip():
+                continue
+            if nq == _norm(line) or kq == _text_key(line):
+                return True
+    return False
+
 
 def hit(f: Fixed, flat: str) -> bool:
     """一条固定项在被小写化、空白折叠过的文本里是否命中。
@@ -118,7 +183,10 @@ def hit(f: Fixed, flat: str) -> bool:
         return all(w in flat for w in need) if need else True
     if f.kind == "text":
         lines = [ln for ln in f.value.splitlines() if ln.strip()]
-        return all(_norm(ln) in flat for ln in lines) if lines else True
+        if not lines:
+            return True
+        flat_key = _text_key(flat)
+        return all(_norm(ln) in flat or _text_key(ln) in flat_key for ln in lines)
     return _norm(f.value) in flat
 
 
@@ -349,8 +417,7 @@ def _ir_numbers(ir: IR) -> set:
 
 
 def _ir_quotes(ir: IR) -> set:
-    return {_norm(e.text_content) for e in ir.entities
-            if e.kind == "text" and e.text_content}
+    return {_norm(b) for b in ir_text_blocks(ir)}
 
 
 # ── 长度带 ────────────────────────────────────────────────────
@@ -575,17 +642,20 @@ def verify(ir: IR, text: str, target: str = "", registry=None,
     rep.extra_numbers = sorted(set(rep.extra_numbers))
 
     # ③ 凭空造字：引号里的内容必须都是图里真有的
-    ir_q = _ir_quotes(ir)
+    # 与 roundtrip.diff / steps._fact_delta 共用 `is_ir_text`：多行块拆行、内嵌引号、
+    # 相邻引号合串都按「引用方式」放行；IR 里没有的新文本仍报。
+    ir_blocks = ir_text_blocks(ir)
     for m in _QUOTE.finditer(body):
         q = _norm(next(g for g in m.groups() if g))
-        if q and q not in ir_q:
+        if q and not is_ir_text(q, ir_blocks):
             rep.extra_quotes.append(q)
     if structured:
-        # JSON 里的 `text` 字段就是图内文字，必须与 IR **逐字一致**（不是「像」就行）。
-        # 结构化方言不能靠引号扫：那些字在值里，没有引号包着。
+        # JSON 里的 `text` 字段就是图内文字，必须与 IR **整块一致或等于某一行**；
+        # 结构化是最硬的逐字契约，不能用 prose 的「任意子串」口径（否则
+        # `text:"alpha beta"` 会冒充 IR 长块）。允许去引号/空白归一，不允许前缀/中间段。
         for v in _text_values(blocks):
             q = _norm(v)
-            if q and q not in ir_q:
+            if q and not is_ir_text_strict(q, ir_blocks):
                 rep.extra_quotes.append(q)
     rep.extra_quotes = sorted(set(rep.extra_quotes))
 

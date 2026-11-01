@@ -1,5 +1,29 @@
 # CHANGES
 
+## 未发布 · 洗图闭环第二轮修补（确定性草稿残差 / 对账器文本口径 / seed 贯通，2026-11-01）
+
+- 🆕 **确定性草稿补事实出口**：`clauses.describe_entity` 现在渲染 `descriptors.light/content/condition`
+  与 `details`（字符串/列表），`build_clauses` 分组分支补回**首实体 anchor**；图内文字改用
+  `quote_text_block` —— 整块只包一对引号，多行压空格、内嵌直引号改弯引号/「」，adapter 侧改为幂等
+  （不再逐行二次包装）。对 115 个 G7 单元做确定性 diff：6 个 W5b 残差单元 **5 修好 / 1 归为 capped 输入无效**，
+  修后**全 115 单元 lost=0、extra=0**。`tests/test_draft_render.py` 13 条。
+- **冻结基线重冻（有 diff）**：`hero-storyboard.ir.json` 覆盖分组 anchor 分支，5 个 target 各 **+4 词**；
+  其余 3 份零变化；`freeze --check` 绿。
+- 🆕 **对账器文本口径**：`expand._text_key / ir_text_blocks / is_ir_text` 成为唯一口径（verify ③、
+  roundtrip.diff ②、steps delta、wash compare_irs 共用）；prose 允许「一行/连续子串」，
+  **结构化 JSON 的 `text` 用 `is_ir_text_strict`（整块或整行，子串不再放行）**。
+  W3 纯 W9 重算：lost 65→**63**、extra 67→**65**（text 7/6→5/4，非文本不变）；W2 桩（W8+W9 合计）
+  lost=0 **107→112/115**、extra **83→0**。`tests/test_text_accounting.py` 10 条。
+- 🆕 **采样 seed 贯通（可选）**：`server.build_body(seed=...)` 与 `expand_facts --seed/--temperature`；
+  默认不写 seed 键（字节级不变），summary 记录实际值。
+- **真机定稿（seed 42，单次）**：115 可判 / 5 skip / 0 fail，墙钟 607.6 s；
+  **final lost=0 115/115（100.00%）**、extra 29（text22/number4/color3）、fallback 43.48%；
+  前三次未固定 seed 的 fallback 率 42.61/37.39/46.09 是采样方差，**不能当趋势**。
+  口径：**机械对账 ≠ 视觉保真**；seed 只写进请求体、server.log 不回显、无同 seed 复跑 ⇒ **可复现性未验证**。
+- 测试/闸：draft_render 13、text_accounting 10、expand_facts 17；smith_ir 365、expand_steps 21、
+  expand_guard 9、wash_roundtrip 8、wash_attribution 12、smoke 63/0、freeze/coverage、ruff 全绿。
+  docs/68 §11、docs/71（独立复核：发现 5 项文档/口径问题，全部修复并复核 PASS）。
+
 ## 未发布 · 洗图闭环第一轮修补（固定项护栏 / roundtrip 归因，2026-11-01）
 
 - 🆕 **扩写固定项护栏**：`adapters/base.py` 加 opt-in `expand_fixed_guard`（默认关）；mode="llm"

@@ -289,13 +289,36 @@ def _fact_key(fact: dict) -> tuple:
 
 
 def compare_irs(source_ir, reverse_ir, image_id: str = "") -> dict:
-    """两份 IR 的事实集对称差（lost = 源有、再反推没有；extra 反之）。"""
+    """两份 IR 的事实集对称差（lost = 源有、再反推没有；extra 反之）。
+
+    文本事实用 `expand.is_ir_text` 的**同一口径**：反推 IR 的 text_content 若只是
+    源块的一行/连续子串（或被弯引号重新包裹），算同一事实，不因换行/引用方式
+    报 lost+extra。非文本事实仍是严格等值（年龄/颜色/方位不宽容）。
+    """
+    from moss_llm.smith.expand import is_ir_text
+
     src = _facts(source_ir)
     rev = _facts(reverse_ir)
     src_keys = {_fact_key(f): f for f in src}
     rev_keys = {_fact_key(f): f for f in rev}
-    lost = [src_keys[k] for k in sorted(set(src_keys) - set(rev_keys))]
-    extra = [rev_keys[k] for k in sorted(set(rev_keys) - set(src_keys))]
+    lost_raw = [src_keys[k] for k in sorted(set(src_keys) - set(rev_keys))]
+    extra_raw = [rev_keys[k] for k in sorted(set(rev_keys) - set(src_keys))]
+
+    def text_match(a: dict, b: dict) -> bool:
+        if a.get("kind") != "text" or b.get("kind") != "text":
+            return False
+        return is_ir_text(a["value"], [b["value"]]) or is_ir_text(b["value"], [a["value"]])
+
+    def keep_unmatched(items, others):
+        out = []
+        for f in items:
+            if f.get("kind") == "text" and any(text_match(f, o) for o in others):
+                continue
+            out.append(f)
+        return out
+
+    lost = keep_unmatched(lost_raw, rev)
+    extra = keep_unmatched(extra_raw, src)
 
     def by_kind(items) -> dict:
         out: dict = {}

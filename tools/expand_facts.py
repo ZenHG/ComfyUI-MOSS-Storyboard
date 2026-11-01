@@ -125,7 +125,7 @@ class RealLLM:
     name = "real-llama-server"
 
     def __init__(self, model, *, exe="", mmproj="", ctx=8192, ngl="auto", port=8097,
-                 startup_timeout=600.0, lora="", lora_scale=None):
+                 startup_timeout=600.0, lora="", lora_scale=None, seed=None):
         if not model:
             raise SystemExit("--llm real 需要 --model <基座 gguf>（可再给 --mmproj）")
         self.model = str(model)
@@ -133,6 +133,7 @@ class RealLLM:
         self.ctx, self.ngl, self.port = int(ctx), str(ngl), int(port)
         self.startup_timeout = float(startup_timeout)
         self.lora, self.lora_scale = str(lora or ""), lora_scale
+        self.seed = seed
         self.calls: list = []
         self._srv = None
 
@@ -147,7 +148,8 @@ class RealLLM:
 
     def chat(self, system, user, temperature=0.4, max_tokens=1200):
         self.calls.append({"system_head": (system or "")[:80], "user_chars": len(user or "")})
-        return self._srv.chat(system, user, temperature=temperature, max_tokens=max_tokens)
+        return self._srv.chat(system, user, temperature=temperature, max_tokens=max_tokens,
+                              seed=self.seed)
 
     def stop(self):
         if self._srv is not None:
@@ -171,7 +173,8 @@ def make_llm(args) -> tuple:
                       port=getattr(args, "port", 8097) or 8097,
                       startup_timeout=getattr(args, "startup_timeout", 600.0) or 600.0,
                       lora=getattr(args, "lora", "") or "",
-                      lora_scale=getattr(args, "lora_scale", None)).start()
+                      lora_scale=getattr(args, "lora_scale", None),
+                      seed=getattr(args, "seed", None)).start()
         return "real", (lambda: llm), llm
     raise SystemExit("未知 --llm %r（可用：stub / real）" % (mode,))
 
@@ -197,7 +200,7 @@ def load_units(json_root: Path) -> list:
 
 def run_unit(unit: dict, group: str, registry: Registry, *, llm_factory=StubLLM,
              target: str = TARGET, include_prompt: bool = False,
-             fixed_guard: bool = False) -> dict:
+             fixed_guard: bool = False, temperature: float = 0.4) -> dict:
     """跑一个单元的一组开关；返回可直接 JSON 化的记录（不写盘）。
 
     `include_prompt=True` 时额外返回完整 prompt——只给 review 导出的临时重跑用；
@@ -214,6 +217,7 @@ def run_unit(unit: dict, group: str, registry: Registry, *, llm_factory=StubLLM,
         ad.length = "standard"
         ad.gen_candidates = 1          # 抽样/回炉不参与事实保持；一次就够
         ad.gen_retries = 0
+        ad.gen_temperature = float(temperature)
         ad.expand_steps = GROUPS[group]
         ad.expand_fixed_guard = bool(fixed_guard)
         llm = llm_factory()
@@ -457,6 +461,10 @@ def main(argv=None) -> int:
     ap.add_argument("--startup-timeout", type=float, default=600.0)
     ap.add_argument("--fixed-guard", action="store_true",
                     help="打开 adpater 固定项护栏：模型候选丢固定项时回退确定性草稿（默认 off）")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="采样 seed；默认 None=不传（llama-server 随机），显式给值才可复现")
+    ap.add_argument("--temperature", type=float, default=None,
+                    help="采样温度；默认沿用 adapter 默认值 0.4（不改变历史行为）")
     ap.add_argument("--review", action="store_true", help="额外导出人工可审 review.md（会重跑涉及单元取 prompt）")
     ap.add_argument("--review-limit", type=int, default=20)
     ap.add_argument("--quiet", action="store_true")
@@ -481,18 +489,22 @@ def main(argv=None) -> int:
     mode, factory, closer = make_llm(args)
     label = (StubLLM.name + "（桩，不是真模型）" if mode == "stub"
              else RealLLM.name + "（真实模型 spot-check，非默认结论）")
+    temperature = 0.4 if args.temperature is None else float(args.temperature)
     results = []
     try:
         for group in groups:
             for unit in units:
                 results.append(run_unit(unit, group, reg, llm_factory=factory,
-                                        fixed_guard=bool(args.fixed_guard)))
+                                        fixed_guard=bool(args.fixed_guard),
+                                        temperature=temperature))
     finally:
         if closer is not None:
             closer.stop()
     results.sort(key=lambda r: (r["group"], r["arm"], r["image_id"]))
     summary = summarize(results, tuple(groups), llm_label=label)
     summary["fixed_guard"] = bool(args.fixed_guard)
+    summary["seed"] = args.seed
+    summary["temperature"] = temperature
     failures = [r for r in results if r.get("status") in ("failed", "skipped")]
     payload = {
         "schema": "expand-facts/1",
@@ -500,6 +512,8 @@ def main(argv=None) -> int:
         "target": TARGET,
         "llm": label,
         "fixed_guard": bool(args.fixed_guard),
+        "seed": args.seed,
+        "temperature": temperature,
         "groups": groups,
         "inputs": {u["unit"]: u["source_sha256"] for u in units},
         "results": results,

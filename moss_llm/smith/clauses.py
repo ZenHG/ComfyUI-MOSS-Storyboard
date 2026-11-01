@@ -135,6 +135,33 @@ def describe_entity(e: Entity, with_anchor: bool = True, extras: bool = True) ->
         if extras and d.get("detail"):           # 审计补进来的整句描述
             parts.append(str(d["detail"]))
 
+    # 固定项颜色不只藏在 color/material 里：模型还会把「暖黄光」「杯里棕/黄液体」
+    # 写进 light/content/condition。fixed_items 会把 descriptors 的**任意文本**里出现的
+    # 颜色当硬事实，不渲染就必然报假 lost。这里只补事实短语，不做风格改写。
+    for key in ("light", "content", "condition"):
+        value = str(d.get(key) or "").strip()
+        if value and value.lower() not in " ".join(parts).lower():
+            parts.append(value)
+
+    # `details`（复数）是反推产物里的细节目录；`detail`（单数）是审计补充字段。
+    # fixed_items 把 descriptors 任意文本里的颜色当硬事实，而旧渲染只认 detail 单数，
+    # 于是 details 里的颜色必然假 lost（A56 的 gold 只在这里）。字符串出一条短语，
+    # 列表逐项 join；已在 parts 里出现过的项跳过（与上面颜色去重同一口径）。
+    details = d.get("details")
+    if isinstance(details, str):
+        details = [details]
+    elif not isinstance(details, (list, tuple)):
+        details = []
+    seen = " ".join(parts).lower()
+    extra_details = []
+    for item in details:
+        value = str(item).strip()
+        if value and value.lower() not in seen:
+            extra_details.append(value)
+            seen += " " + value.lower()
+    if extra_details:
+        parts.append(_join_list(extra_details))
+
     anchor = (e.spatial or {}).get("anchor")
     if with_anchor and anchor:
         parts.append("in the %s" % anchor)
@@ -186,6 +213,23 @@ def describe_text(e: Entity, with_anchor: bool = True) -> str:
         tails.append("at the %s" % anchor)
     s = head + (", " + ", ".join(tails) if tails else "")
     return s[:1].upper() + s[1:] + "."
+
+
+def quote_text_block(value: str) -> str:
+    """把一块图内文字渲染成**恰好一对**引号。
+
+    多行压成空格，避免 `_QUOTE` / 逐行扫描把整块误读；内容自带直引号时改用
+    curly/「」包裹，避免内层引号提前闭合。调用方（clauses + moss_image）共用
+    这一处，保证幂等、不逐行二次包装。
+    """
+    flat = " ".join((value or "").split())
+    if not flat:
+        return '""'
+    if '"' not in flat:
+        return '"%s"' % flat
+    if "“" not in flat and "”" not in flat:
+        return "“%s”" % flat
+    return "「%s」" % flat
 
 
 def _join_list(items: list) -> str:
@@ -285,7 +329,14 @@ def build_clauses(ir: IR) -> list[Clause]:
             out.append(Clause("subject", describe_entity(group[0]),
                               group[0].importance, group[0].id))
             continue
-        out.append(Clause("subject", key, group[0].importance, group[0].id))
+        # 分组后 key 不含 anchor（with_anchor=False）；首实体的 anchor 必须补回来，
+        # 否则同一 label 重复出现时（G7 反推 IR 很常见）首实体方位会**系统性**丢：
+        # e5 bottom-right + e6 right 同 key → 旧输出只剩 "in the right"。
+        # 措辞与 describe_entity 的 "in the {anchor}" 一致；首实体无 anchor 时
+        # subject 仍是 key，输出与旧版逐字节相同。
+        anchor0 = (group[0].spatial or {}).get("anchor")
+        subject = ", ".join([key, "in the %s" % anchor0]) if anchor0 else key
+        out.append(Clause("subject", subject, group[0].importance, group[0].id))
         rest = [(e.spatial or {}).get("anchor") for e in group[1:]]
         if all(rest):
             out.append(Clause("setting", "the same figure appears again in the %s"
@@ -413,7 +464,7 @@ def build_clauses(ir: IR) -> list[Clause]:
         anchor = (e.spatial or {}).get("anchor")
         if anchor:
             tail.append("at the " + anchor)
-        body = 'the text "%s"' % e.text_content
+        body = "the text %s" % quote_text_block(e.text_content or "")
         out.append(Clause("text", body + (", " + ", ".join(tail) if tail else ""),
                           max(0.95, e.importance), e.id))
 
