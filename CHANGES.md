@@ -1,5 +1,49 @@
 # CHANGES
 
+## 未发布 · 重复循环显式失败 + G7 第三轮复测（2026-11-01）
+
+- 🔴 **不再把「语法层截断」当成功**：`reverse.py::coerce_ir` 在实体数达 `MAX_ENTITIES=40`
+  且重复多出 ≥20 条（重复占比 ≥50%）时抛 `ReverseError`（附 Report），轻度重复则合并 +
+  `report` 出声；SYSTEM 规则 17 强化（label 唯一、同类多实例合并、发现重复立即停止）。
+  节点 caption 路径未改（列为未验证边界）。docs/56。
+- G7 第三轮 20 图 × 2 臂同口径复测：A-4B 17 ok / **3 张重复循环显式失败**、B-9B 19 ok /
+  1 张解析前截断；A 全表颜色 41%→81%、方位 54%→100%——**主要是分母口径修正**（循环图
+  移出 + img16/img13 实体结构变化），干净子集两种口径方向相反、正常图质量变化判
+  **未验证/样本不足**。docs/57（独立复核 docs/66：FAIL 1–3 修复后 PASS）。
+- 🆕 `tests/test_caption_quality.py` 25→29；`docs/56`、`docs/62`、`docs/66`。
+
+## 未发布 · 判读协议 v2 + 60 图双盲判读：事实 κ=0.86 收敛，幻觉维度仍不可用（2026-11-01）
+
+- 🆕 `docs/58` 不可判硬判据 + 8 判例 + 预校准门槛；`g7_adjudicate.py` 新增 `calib-packet`
+  （18→27 条单测），用第一轮 51 条争议 claim 做小样预校准：**事实 κ=0.7766（n=51）→ 过门槛**。
+- 60 图双盲判读（115 单元 / 458 claim，两名 AI 判读者同模型）：**事实 κ=0.8555**
+  （A 1.0000 / B 0.7969）、分歧 2/458、unverifiable 2/4；图级幻觉 κ=0.1722 **未校准** ⇒
+  按协议 min-κ 三档结论仍是 **样本不足**，两臂事实准确率 99.1%/99.2%（p=1.0）只能描述。
+- 同版 `binding60` 校准 **ρ=−0.0301**（n=115；第一轮 0.3162）⇒ **该分不应进 README**。
+  证据等级 B（AI 双读、同模型），人类判读包 115 份未做。docs/59。
+
+## 未发布 · M4 Registry 跟进：可复跑状态工具 + 对外联络操作单（2026-11-01）
+
+- 🆕 `tools/registry_status.py`（43 条离线单测）：`snapshot` 原子落盘（临时目录 + 整体
+  rename，失败无残骸）、`check` 退出码 Active=0 / Flagged|Pending=2 / Banned=3 / 网络·坏
+  JSON=4；`docs/60-Registry跟进操作单.md`：状态复核、决策树、可发送英文联络稿、发布前后
+  24h 清单、不要做清单、需人工账号动作。docs/52 加跟进状态。
+- 实测（2026-11-01）：节点 Active，最新 0.3.3 与 10/10 历史版本 **全部 Flagged**，
+  `status_reason` 键缺失；`downloads` 秒级不稳定（6 次 GET 16–22）不得当热度证据。
+  扫描 issues 公开面查不到，需真人账号向 Registry 团队索取。独立复核：docs/64（FAIL→修复复审 PASS）。
+
+## 未发布 · T12 H3 Rewriter 切 8B 契约并真机跑通（内部验证，2026-11-01）
+
+- 27B 基座放弃，registry `minimax-h3.rewriter` 切 8B 契约（`Qwen/Qwen3-VL-8B-Instruct` +
+  `...-LoRA-8B-Q8_0.gguf`，arch=qwen3vl，rank/alpha=256）；`adapters/h3.py` 切 8B 官方
+  SYSTEM + `format_request()`（27B 常量保留 legacy）；`cli.py` 修基座名标点差异导致的
+  doctor 假红。base 4.68 GiB + LoRA 0.69 GiB 下载 **sha256 全 MATCH**（权重未入库）。
+- 真机（RTX 5070）：doctor 3 OK「与适配器同款」；挂 LoRA 27.1s / 59.7 tok/s（3 候选）、
+  不挂 13.6s / 79.9 tok/s（−25.3%）；**但 docs/35 判据 2「挂 LoRA 出切点时间戳」未复现
+  且方向相反**（不挂才有 `At MM:SS.mmm` 且 h3 check pass），日志无 adapter 加载行 ⇒
+  **只能写「契约+加载+速度可验证，LoRA 语义效果未验证」**。许可未声明 → 仅内部验证。
+  docs/61；独立复核 docs/63。
+
 ## 未发布 · 反推护栏：非人物体不再标成 character，重复循环不再无声（2026-11-01）
 
 G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条路径上同时修：

@@ -22,16 +22,18 @@ python tests/test_init_empty.py         # 18 项：init 两个分支 —— 空 
 node   tests/test_i18n.mjs                # 64 项：中英切换纯函数（含子包 39 个参数标签 / en 提示 / 枚举显示）
 node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
 python tests/test_llm_subpackage.py        # 98 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一 / 侧车启动命令 / 图像预处理 / 零模型编译 / 反漂移断言）
-python tests/test_caption_quality.py       #  25 项：反推护栏（character 类型闸 / 实体上限 / 重复保护；零 GPU 零网络）
+python tests/test_caption_quality.py       #  29 项：反推护栏（character 类型闸 / 实体上限 / 重复循环显式失败与合并；零 GPU 零网络）
 python tests/test_node_caption_guard.py    #  21 项：反推护栏节点路径（类型闸接线 / 实体上限 / 结构化四级降级 / 重复保护；桩服务端）
 python tests/test_docs_sync.py              #  13 项：README 中英节级同步（结构/层级/例外清单；零 GPU 零网络）
-python tests/test_g7_adjudicate.py          #  18 项：G7 双盲判读工具（判读包不泄漏 / 分歧定位 / κ<0.6 必红 / ρ 对拍；离线）
+python tests/test_g7_adjudicate.py          #  27 项：G7 双盲判读工具（判读包不泄漏 / 分歧定位 / 校准包 / κ<0.6 必红 / ρ 对拍；离线）
 python tests/test_g7_round2.py              #  17 项：G7 第二轮两轮对比器（四项指标带分母 / 分母为 0 报 n/a / 参数漂移出声；离线）
 python -m unittest tests.test_smith_ir     # 365 项：IR 编译层（7 后端方言 / 6 条不变式 / 往返 / 分解对账 / 结构化方言判据 / 覆盖率）
 python tests/test_expand_steps.py          # 21 项：扩写三拆（补全/翻译/改写各自的判据、开关、归因；假 LLM）
-python tests/test_h3_six.py                # 56 项：H3 全参考六段式（3 段真稿字节往返 / 17 错误码 / profile 并存 / lint 接线）
+python tests/test_h3_six.py                # 65 项：H3 全参考六段式（3 段真稿字节往返 / 17 错误码 / profile 并存 / lint 接线 / H3-PARAM 误报边界）
+python tests/test_h3_contract.py           #  8 项：H3 Rewriter 契约冻结（repo/base_model/file/arch/rank/alpha/tasks + 改坏必红；离线零权重）
 python tests/test_lang_zh.py               # 20 项：中文整句（中英事实集相等 / 默认 en 逐字节不变 / 语序机检 Z01–Z07）
 python tests/test_registry_family.py       # 12 项：跨家族 registry（新增 target 纯 YAML 可编译，不改一行 Python）
+python tests/test_registry_status.py       # 43 项：Comfy Registry 状态跟进（快照原子落盘 / check 退出码 / 离线注入；零网络）
 python tests/test_ci_preflight.py          # 16 项：本地预检自身（环境探测桩 / SKIP 与 PASS 严格区分 / --require-all 红）
 python tests/test_coverage_gate.py         #  2 项：覆盖率闸自身（基线绿 + 红时点名丢了哪条事实）
 python tests/test_g7_binding.py            # 35 项：G7 binding 判据（五类绑定规则正例/反例，离线不跑模型）
