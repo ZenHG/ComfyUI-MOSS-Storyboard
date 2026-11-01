@@ -1,5 +1,20 @@
 # CHANGES
 
+## 未发布 · 洗图闭环第一轮修补（固定项护栏 / roundtrip 归因，2026-11-01）
+
+- 🆕 **扩写固定项护栏**：`adapters/base.py` 加 opt-in `expand_fixed_guard`（默认关）；mode="llm"
+  候选固定项丢失（text/color/anchor/age 等）→ **回退同 IR 的确定性草稿**并出声；三步路径同样生效；
+  `tests/test_expand_guard.py` 9 条。真实 A-4B 115 单元：fallback **49/115=42.61%**，
+  **final lost=0 109/115**（残余 6 个在确定性草稿本身），extra 110（多为长文本拆行的对账口径）；
+  10 单元对照 lost0 **0/10 → 8/10**（lost 15→4）。
+- **roundtrip 归因拆解**：`wash_roundtrip` 加 `--models/--repeats/--retry-failed/attribution`；
+  同生成图 B-9B×2 + A-4B×1：分母 161 条源事实，**stable_lost 60（37.3%）/ unstable 18（11.2%）/
+  cross_model 15（9.3%）/ never 68（42.2%）**；hard 36 条 stable 14；img16/img11 重试救回，
+  img07 仅 A-4B@45 成功。**stable≠视觉差异**（含两遍漏读），需人工/交叉验证。
+- 测试：expand_guard 9、expand_facts 15、wash_attribution 12、wash_roundtrip 8；
+  过程事故（W6 首次 retry 嵌套布局 bug 导致 20 图重排、约 12 min GPU 浪费）已修 + 如实记录。
+  docs/68 §10、docs/70（独立复核）。
+
 ## 未发布 · 洗图闭环第一轮（MOSS-only，2026-11-01）
 
 - 🆕 **用户指定 MOSS 档真机跑通**：`MOSS-Image-SFT-Q4_K_S` + `8-steps-dmd2-lora` + `moss-te-heretic` TE

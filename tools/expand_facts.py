@@ -196,11 +196,13 @@ def load_units(json_root: Path) -> list:
 
 
 def run_unit(unit: dict, group: str, registry: Registry, *, llm_factory=StubLLM,
-             target: str = TARGET, include_prompt: bool = False) -> dict:
+             target: str = TARGET, include_prompt: bool = False,
+             fixed_guard: bool = False) -> dict:
     """跑一个单元的一组开关；返回可直接 JSON 化的记录（不写盘）。
 
     `include_prompt=True` 时额外返回完整 prompt——只给 review 导出的临时重跑用；
     默认产物里只留 sha/head，避免 results.json 变成半本语料。
+    `fixed_guard=True` 打开 adapter 固定项护栏：丢固定项时回退确定性草稿。
     """
     base = {"arm": unit["arm"], "image_id": unit["image_id"], "unit": unit["unit"],
             "group": group, "source_sha256": unit["source_sha256"]}
@@ -213,6 +215,7 @@ def run_unit(unit: dict, group: str, registry: Registry, *, llm_factory=StubLLM,
         ad.gen_candidates = 1          # 抽样/回炉不参与事实保持；一次就够
         ad.gen_retries = 0
         ad.expand_steps = GROUPS[group]
+        ad.expand_fixed_guard = bool(fixed_guard)
         llm = llm_factory()
         ad.llm = llm
         out = ad.realize(ir, mode="llm", use_layout=False)
@@ -221,6 +224,7 @@ def run_unit(unit: dict, group: str, registry: Registry, *, llm_factory=StubLLM,
         band = length_band(registry, target, ad.length)
         words = d.words
         expand = dict(out.expand or {})
+        guard = expand.get("fixed_guard") if isinstance(expand.get("fixed_guard"), dict) else {}
         return dict(base, status="ok",
                     words=words, chars=len(text), tokens=ad._count(text),
                     band=list(band) if band else None,
@@ -231,6 +235,9 @@ def run_unit(unit: dict, group: str, registry: Registry, *, llm_factory=StubLLM,
                     lost_n=len(d.lost), extra_n=len(d.extra),
                     lost0=not d.lost,
                     applicable=bool(d.applicable),
+                    guard_fallback=bool(guard.get("fallback")),
+                    pre_guard_lost=list(guard.get("pre_guard_misses") or []),
+                    guard_reason=str(guard.get("reason") or ""),
                     prompt_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
                     prompt_head=text[:120],
                     **({"prompt": text} if include_prompt else {}),
@@ -249,6 +256,9 @@ def _group_summary(rows: list) -> dict:
     denom = len(ok)
     lost_kinds = Counter(k for r in ok for k, _ in r["lost"])
     extra_kinds = Counter(k for r in ok for k, _ in r["extra"])
+    pre_guard_kinds = Counter(
+        (re.match(r"^\[([^\]]+)\]", str(m)) or [None, "?"])[1]
+        for r in ok for m in (r.get("pre_guard_lost") or []))
     return {
         "units_total": len(rows),
         "skipped_ok_false": len(skipped),
@@ -260,6 +270,11 @@ def _group_summary(rows: list) -> dict:
         "lost0_ratio": round(sum(1 for r in ok if r["lost0"]) / denom, 4) if denom else None,
         "lost_total": sum(r["lost_n"] for r in ok),
         "extra_total": sum(r["extra_n"] for r in ok),
+        "guard_fallback": sum(1 for r in ok if r.get("guard_fallback")),
+        "guard_fallback_ratio": round(sum(1 for r in ok if r.get("guard_fallback")) / denom, 4) if denom else None,
+        "pre_guard_lost_total": sum(len(r.get("pre_guard_lost") or []) for r in ok),
+        "pre_guard_lost_kinds": dict(sorted(pre_guard_kinds.items(), key=lambda kv: (-kv[1], kv[0]))),
+        "fallback_units": [r["unit"] for r in ok if r.get("guard_fallback")],
         "lost_kinds": dict(sorted(lost_kinds.items(), key=lambda kv: (-kv[1], kv[0]))),
         "extra_kinds": dict(sorted(extra_kinds.items(), key=lambda kv: (-kv[1], kv[0]))),
         "under_band": sum(1 for r in ok if r["under_band"]),
@@ -440,6 +455,8 @@ def main(argv=None) -> int:
     ap.add_argument("--port", type=int, default=8097)
     ap.add_argument("--lora", default="")
     ap.add_argument("--startup-timeout", type=float, default=600.0)
+    ap.add_argument("--fixed-guard", action="store_true",
+                    help="打开 adpater 固定项护栏：模型候选丢固定项时回退确定性草稿（默认 off）")
     ap.add_argument("--review", action="store_true", help="额外导出人工可审 review.md（会重跑涉及单元取 prompt）")
     ap.add_argument("--review-limit", type=int, default=20)
     ap.add_argument("--quiet", action="store_true")
@@ -468,18 +485,21 @@ def main(argv=None) -> int:
     try:
         for group in groups:
             for unit in units:
-                results.append(run_unit(unit, group, reg, llm_factory=factory))
+                results.append(run_unit(unit, group, reg, llm_factory=factory,
+                                        fixed_guard=bool(args.fixed_guard)))
     finally:
         if closer is not None:
             closer.stop()
     results.sort(key=lambda r: (r["group"], r["arm"], r["image_id"]))
     summary = summarize(results, tuple(groups), llm_label=label)
+    summary["fixed_guard"] = bool(args.fixed_guard)
     failures = [r for r in results if r.get("status") in ("failed", "skipped")]
     payload = {
         "schema": "expand-facts/1",
         "tool": TOOL_VERSION,
         "target": TARGET,
         "llm": label,
+        "fixed_guard": bool(args.fixed_guard),
         "groups": groups,
         "inputs": {u["unit"]: u["source_sha256"] for u in units},
         "results": results,

@@ -453,6 +453,295 @@ def format_report(summary: dict) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
+# 3) W6 归因拆解：多臂再反推计划 + 三态分类（纯函数）
+# ─────────────────────────────────────────────────────────────
+
+def parse_models(spec: str, repeats: int = 1) -> list:
+    """``--models "A-4B,B-9B"``（可带 ``:N`` 覆盖该模型的重复次数）→ 归一化臂列表。
+
+    - 默认每个模型跑 ``repeats`` 遍（seed = base_seed, base_seed+1, ...）；
+    - ``B-9B:2`` 表示该模型单独跑 2 遍；没写 ``:N`` 的沿用全局 ``repeats``；
+    - 保持用户给的顺序、去重（重复出现取最后一次的重复次数）。
+    """
+    out, index = [], {}
+    for raw in [s.strip() for s in (spec or "").split(",") if s.strip()]:
+        name, _, cnt = raw.partition(":")
+        name = name.strip()
+        if not name:
+            continue
+        try:
+            n = int(cnt) if cnt else int(repeats)
+        except ValueError as exc:
+            raise SystemExit("--models 里 %r 的重复次数不是整数：%r" % (raw, cnt)) from exc
+        if n < 1:
+            raise SystemExit("--models 里 %r 的重复次数必须 ≥1：%d" % (raw, n))
+        if name in index:
+            out[index[name]] = {"model": name, "repeats": n}
+        else:
+            index[name] = len(out)
+            out.append({"model": name, "repeats": n})
+    if not out:
+        raise SystemExit("--models 为空：至少给一个模型，例如 B-9B 或 A-4B,B-9B")
+    return out
+
+
+def plan_recaption(models: str, repeats: int, base_seed: int,
+                   out_root: str | Path, run_root: str | Path | None = None) -> list:
+    """多臂再反推的确定性计划（纯函数；GPU 执行严格按此顺序）。
+
+    输出目录布局：``<out_root>/<model>/seed<seed>/<img>.json``，
+    run 日志：``<run_root>/<model>/seed<seed>/``（默认 run_root=out_root/run）。
+    """
+    out_root = Path(out_root)
+    run_root = Path(run_root) if run_root else out_root / "run"
+    arms = []
+    for spec in parse_models(models, repeats):
+        for i in range(spec["repeats"]):
+            seed = int(base_seed) + i
+            arms.append({
+                "model": spec["model"],
+                "seed": seed,
+                "repeat_index": i,
+                "json_root": out_root / spec["model"] / ("seed%d" % seed),
+                "run_dir": run_root / spec["model"] / ("seed%d" % seed),
+            })
+    return arms
+
+
+def _payload_dir(json_root, model: str) -> Path:
+    """g7_caption 会再拼一层 ``<model>/``：兼容「根目录直接放 JSON」与「嵌套一层」两种布局。"""
+    root = Path(json_root)
+    nested = root / str(model)
+    return nested if nested.is_dir() else root
+
+
+def scan_arm_payloads(arms: list) -> dict:
+    """读每个臂的落盘 JSON → ``{(model, seed): {img_id: payload}}``（缺失=没跑）。"""
+    runs = {}
+    for arm in arms:
+        root = _payload_dir(arm["json_root"], arm["model"])
+        payloads = {}
+        if root.is_dir():
+            for path in sorted(root.glob("*.json")):
+                try:
+                    payloads[path.stem] = _load_json(path, "再反推记录")
+                except SystemExit:
+                    continue
+        runs[(arm["model"], int(arm["seed"]))] = payloads
+    return runs
+
+
+def discover_arms(reverse_root: str | Path) -> list:
+    """从 ``<reverse_root>/<model>/seed<seed>/`` 目录树反推臂列表。"""
+    root = Path(reverse_root)
+    arms = []
+    if not root.is_dir():
+        return arms
+    for model_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        if model_dir.name in ("retry", "run"):     # 重试/日志不在主归因里
+            continue
+        for seed_dir in sorted(p for p in model_dir.iterdir()
+                               if p.is_dir() and p.name.startswith("seed")):
+            try:
+                seed = int(seed_dir.name[4:])
+            except ValueError:
+                continue
+            arms.append({"model": model_dir.name, "seed": seed,
+                         "json_root": seed_dir,
+                         "run_dir": model_dir / "run" / seed_dir.name})
+    return arms
+
+
+def find_failed(payloads: dict) -> list:
+    """某臂里失败/缺失（ok != true）的图 id；失败单列、不静默。"""
+    return sorted(k for k, v in payloads.items()
+                  if not (isinstance(v, dict) and v.get("ok")))
+
+
+def collect_failed_ids(runs: dict, image_ids: list) -> list:
+    """多臂里「至少一个臂失败/缺记录」的图 id（重试对象；纯函数，可单测）。"""
+    bad = set()
+    for payloads in runs.values():
+        for gid in image_ids:
+            p = payloads.get(gid)
+            if not (isinstance(p, dict) and p.get("ok")):
+                bad.add(str(gid))
+    return sorted(bad)
+
+
+def retry_plan(failed_ids: list, models: str, base_seed: int, repeats: int,
+               seeds: list | None = None, out_root: str | Path = DEFAULT_OUT_DIR,
+               run_root: str | Path | None = None) -> list:
+    """失败图重试计划：每张失败图 × 模型 × seeds；已跑过的 (model,seed) 跳过。
+
+    ``seeds`` 默认从 ``base_seed + repeats`` 起取两档（不重复烧已跑过的 seed）。
+    """
+    seeds = [int(s) for s in seeds] if seeds else [int(base_seed) + int(repeats) + k
+                                                   for k in (0, 1)]
+    model_names = [m["model"] for m in parse_models(models, 1)]
+    out_root = Path(out_root)
+    run_root = Path(run_root) if run_root else out_root / "run"
+    plan = []
+    for img_id in sorted({str(i) for i in failed_ids}):
+        for model in model_names:
+            for seed in seeds:
+                plan.append({
+                    "image_id": img_id, "model": model, "seed": int(seed),
+                    "json_root": out_root / "retry" / model / ("seed%d" % int(seed)),
+                    "run_dir": run_root / "retry" / model / ("seed%d" % int(seed)),
+                })
+    return plan
+
+
+def _facts_by_kind(ir) -> dict:
+    out: dict = {}
+    for f in _facts(ir):
+        out.setdefault(f["kind"], []).append(f)
+    return out
+
+
+def attribute(source_payloads: dict, runs: dict, images: list,
+              b_model: str = MODEL_KEY, a_models: tuple = ("A-4B",)) -> dict:
+    """三态归因：stable_lost / unstable_lost / cross_model_only_lost / never_lost。
+
+    - 只统计「至少有 1 次 B 成功再反推」的图；其余单列 uncovered、不进分母。
+    - 每个源事实在 B 的**成功重复**里看 lost 次数：
+      * 全丢 → ``stable_lost``（更像生成图/视觉差异，不是单次采样方差）
+      * 部分丢 → ``unstable_lost``（反推方差）
+      * 全保留 → 若 A 有成功臂且丢过 → ``cross_model_only_lost``；否则 ``never_lost``
+    - 分母 = 被覆盖图的源事实数；为 0 时率报 ``None``（不写 1.0）。
+    """
+    b_model = str(b_model)
+    a_models = tuple(a_models)
+    b_runs = {seed: payloads for (model, seed), payloads in runs.items()
+              if model == b_model}
+    a_runs = {seed: payloads for (model, seed), payloads in runs.items()
+              if model in a_models}
+    rows, uncovered, covered_images = [], [], []
+    for img in images:
+        gid = str(img["id"])
+        src = source_payloads.get(gid)
+        if not src or not src.get("ok"):
+            uncovered.append({"id": gid, "why": "缺源 IR 或源 IR 失败"})
+            continue
+        b_ok = {seed: p for seed, p in b_runs.items()
+                if isinstance(p.get(gid), dict) and p[gid].get("ok")}
+        if not b_ok:
+            uncovered.append({"id": gid, "why": "B 臂无成功再反推"})
+            continue
+        covered_images.append(gid)
+        source_facts = _facts(_payload_ir(src, "源 IR"))
+        b_sets = {seed: {_fact_key(f) for f in _facts(_payload_ir(p[gid], "B 再反推"))}
+                  for seed, p in b_ok.items()}
+        a_sets = {seed: {_fact_key(f) for f in _facts(_payload_ir(p[gid], "A 再反推"))}
+                  for seed, p in a_runs.items()
+                  if isinstance(p.get(gid), dict) and p[gid].get("ok")}
+        for f in source_facts:
+            key = _fact_key(f)
+            b_lost = [key not in s for s in b_sets.values()]
+            if all(b_lost):
+                klass = "stable_lost"
+            elif any(b_lost):
+                klass = "unstable_lost"
+            else:
+                a_lost = [key not in s for s in a_sets.values()]
+                klass = "cross_model_only_lost" if any(a_lost) else "never_lost"
+            rows.append({"image": gid, "kind": f["kind"], "value": f["value"],
+                         "hard": bool(f.get("hard")), "class": klass,
+                         "b_repeats": len(b_sets), "a_repeats": len(a_sets)})
+
+    classes = ("stable_lost", "unstable_lost", "cross_model_only_lost", "never_lost")
+    counts = dict.fromkeys(classes, 0)
+    by_kind: dict = {}
+    by_image: dict = {}
+    for r in rows:
+        counts[r["class"]] += 1
+        box = by_kind.setdefault(r["kind"], dict.fromkeys(classes, 0))
+        box[r["class"]] += 1
+        ibox = by_image.setdefault(r["image"], {"facts": 0,
+                                                **dict.fromkeys(classes, 0)})
+        ibox["facts"] += 1
+        ibox[r["class"]] += 1
+    denom = len(rows)
+    hard = [r for r in rows if r["hard"]]
+    hard_counts = dict.fromkeys(classes, 0)
+    for r in hard:
+        hard_counts[r["class"]] += 1
+    arm_ok, arm_failed = {}, {}
+    for (model, seed), payloads in sorted(runs.items()):
+        label = "%s@%d" % (model, seed)
+        arm_ok[label] = sum(1 for v in payloads.values()
+                            if isinstance(v, dict) and v.get("ok"))
+        failed = find_failed(payloads)
+        if failed:
+            arm_failed[label] = [{"id": i,
+                                  "error": str((payloads.get(i) or {}).get("error")
+                                               or "缺记录")[:160]}
+                                 for i in failed]
+
+    def examples(klass, limit=15):
+        return [{"id": r["image"], "kind": r["kind"], "value": r["value"]}
+                for r in rows if r["class"] == klass][:limit]
+
+    return {
+        "schema": "wash-roundtrip-attribution/1",
+        "generated_by": "tools/wash_roundtrip.py attribution",
+        "b_model": b_model, "a_models": list(a_models),
+        "arms": {"ok": arm_ok, "failed": arm_failed},
+        "images": {"total": len(images), "covered": len(covered_images),
+                   "uncovered": uncovered},
+        "totals": {
+            "facts": denom,
+            "class_counts": counts,
+            "rates": {k: _rate(counts[k], denom) for k in classes},
+            "hard": {"facts": len(hard), "class_counts": hard_counts,
+                     "rates": {k: _rate(hard_counts[k], len(hard))
+                               for k in classes}},
+        },
+        "by_kind": by_kind,
+        "by_image": [{"id": k, **v} for k, v in sorted(by_image.items())],
+        "examples": {k: examples(k) for k in classes},
+    }
+
+
+def format_attribution(summary: dict) -> str:
+    """三态归因汇总 → 人读表。"""
+    st, tot = summary["arms"], summary["totals"]
+    lines = [
+        "洗图 roundtrip 归因（B=%s × 多重复 | A=%s 交叉）"
+        % (summary["b_model"], ",".join(summary["a_models"])),
+        "臂成功数：%s" % json.dumps(st["ok"], ensure_ascii=False),
+        "图覆盖：%d/%d（uncovered %d）"
+        % (summary["images"]["covered"], summary["images"]["total"],
+           len(summary["images"]["uncovered"])),
+        "事实分母：%d 条" % tot["facts"],
+    ]
+    for k in ("stable_lost", "unstable_lost", "cross_model_only_lost", "never_lost"):
+        rate = tot["rates"][k]
+        lines.append("  %-22s %4d（%s）" % (
+            k, tot["class_counts"][k],
+            "n/a（分母 0）" if rate is None else "%.1f%%" % (100.0 * rate)))
+    lines.append("hard 事实（%d 条）：stable %d / unstable %d / cross-model %d / never %d"
+                 % (tot["hard"]["facts"],
+                    tot["hard"]["class_counts"]["stable_lost"],
+                    tot["hard"]["class_counts"]["unstable_lost"],
+                    tot["hard"]["class_counts"]["cross_model_only_lost"],
+                    tot["hard"]["class_counts"]["never_lost"]))
+    if summary["arms"]["failed"]:
+        lines.append("失败臂/图（单列，不进分母）：")
+        for arm, items in summary["arms"]["failed"].items():
+            lines.append("  - %s：%s" % (arm, ", ".join(
+                "%s（%s）" % (i["id"], i["error"][:50]) for i in items)))
+    for k in ("stable_lost", "unstable_lost", "cross_model_only_lost"):
+        ex = summary["examples"][k]
+        if ex:
+            lines.append("%s 例子（前 %d）：" % (k, len(ex)))
+            for e in ex:
+                lines.append("  - %s [%s] %s" % (e["id"], e["kind"], e["value"]))
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────
 # CLI
 # ─────────────────────────────────────────────────────────────
 
@@ -487,16 +776,104 @@ def cmd_report(args) -> int:
 
 
 def cmd_recaption(args) -> int:
-    """GPU 再反推：转发给 tools/g7_caption.py（同模型 B-9B、同侧车方式）。"""
+    """GPU 再反推：转发给 tools/g7_caption.py。
+
+    - 不给 ``--out-root`` 时保持 W3 的旧行为（单臂 B-9B，沿用 --json-root/--run-dir）；
+    - 给 ``--out-root`` 时按 ``plan_recaption`` 的多臂布局跑
+      ``<out_root>/<model>/seed<seed>/``，可选 ``--retry-failed`` 对失败图换 seed/模型重试。
+    """
     sys.path.insert(0, str(ROOT))
     from tools import g7_caption
-    argv = ["--models", MODEL_KEY, "--images", str(args.images),
-            "--json-root", str(args.json_root), "--run-dir", str(args.run_dir)]
-    if args.overwrite:
-        argv.append("--overwrite")
-    if args.ids:
-        argv += ["--ids", args.ids]
-    return g7_caption.main(argv)
+
+    def call(model: str, seed: int, json_root, run_dir, ids: str = "") -> int:
+        argv = ["--models", model, "--images", str(args.images),
+                "--json-root", str(json_root), "--run-dir", str(run_dir),
+                "--seed", str(int(seed))]
+        if args.overwrite:
+            argv.append("--overwrite")
+        if ids:
+            argv += ["--ids", ids]
+        return g7_caption.main(argv)
+
+    if not args.out_root:                       # 旧默认行为（W3 兼容）
+        argv = ["--models", args.models or MODEL_KEY, "--images", str(args.images),
+                "--json-root", str(args.json_root), "--run-dir", str(args.run_dir)]
+        if args.overwrite:
+            argv.append("--overwrite")
+        if args.ids:
+            argv += ["--ids", args.ids]
+        return g7_caption.main(argv)
+
+    out_root = Path(args.out_root)
+    arms = plan_recaption(args.models or MODEL_KEY, args.repeats, args.base_seed,
+                          out_root, args.run_root)
+    summaries = []
+    for arm in arms:
+        rc = call(arm["model"], arm["seed"], arm["json_root"], arm["run_dir"],
+                  args.ids)
+        summaries.append({"model": arm["model"], "seed": arm["seed"],
+                          "json_root": str(arm["json_root"]), "rc": rc})
+        print("[arm] %s@%d → rc=%d" % (arm["model"], arm["seed"], rc))
+    _dump(out_root / "recaption-summary.json",
+          {"generated_by": "tools/wash_roundtrip.py recaption",
+           "models": args.models, "repeats": args.repeats,
+           "base_seed": args.base_seed, "arms": summaries})
+
+    if args.retry_failed:
+        image_ids = [str(i["id"]) for i in
+                     (_load_json(args.images, "生成图清单").get("images") or [])]
+        failed = collect_failed_ids(scan_arm_payloads(arms), image_ids)
+        if failed:
+            seeds = [int(s) for s in args.retry_seeds.split(",") if s.strip()]
+            plan = retry_plan(failed, args.models or MODEL_KEY, args.base_seed,
+                              args.repeats, seeds or None, out_root=out_root)
+            groups: dict = {}
+            for item in plan:
+                key = (item["model"], item["seed"],
+                       str(item["json_root"]), str(item["run_dir"]))
+                groups.setdefault(key, []).append(item["image_id"])
+            retry_summary = {}
+            for (model, seed, json_root, run_dir), ids in sorted(groups.items()):
+                rc = call(model, seed, json_root, run_dir, ",".join(sorted(set(ids))))
+                retry_summary["%s@%d" % (model, seed)] = {"rc": rc, "images": ids}
+                print("[retry] %s@%d ids=%s → rc=%d" % (model, seed, ids, rc))
+            plan_dump = [{k: (str(v) if isinstance(v, Path) else v)
+                          for k, v in item.items()} for item in plan]
+            _dump(out_root / "retry-summary.json",
+                  {"generated_by": "tools/wash_roundtrip.py recaption --retry-failed",
+                   "failed": failed, "plan": plan_dump,
+                   "results": retry_summary})
+        else:
+            print("[retry] 没有失败图，跳过重试")
+    return 0 if all(s["rc"] == 0 for s in summaries) else 1
+
+
+def cmd_attribution(args) -> int:
+    """扫多臂落盘 → 三态归因（stable/unstable/cross-model/never）+ 失败单列。"""
+    images = _load_json(args.images, "生成图清单").get("images") or []
+    if not images:
+        raise SystemExit("%s 里没有 images（先跑 images 子命令）" % args.images)
+    src_root = Path(args.source_json_root)
+    source_payloads = {}
+    for img in images:
+        gid = str(img["id"])
+        path = src_root / ("%s.json" % gid)
+        if path.is_file():
+            source_payloads[gid] = _load_json(path, "源 IR")
+    arms = discover_arms(args.reverse_root)
+    if not arms:
+        raise SystemExit(
+            "在 %s 下没找到 <model>/seed<seed>/ 再反推目录；\n"
+            "  先跑：wash_roundtrip.py recaption --models B-9B:2,A-4B:1 "
+            "--out-root <reverse_root>" % args.reverse_root)
+    summary = attribute(source_payloads, scan_arm_payloads(arms), images,
+                        b_model=args.b_model,
+                        a_models=tuple(s.strip() for s in args.a_models.split(",")
+                                       if s.strip()))
+    _dump(Path(args.out), summary)
+    print(format_attribution(summary))
+    print("\n已写 %s" % args.out)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -524,13 +901,39 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--summary", default=str(DEFAULT_SUMMARY))
     c.set_defaults(func=cmd_report)
 
-    d = sub.add_parser("recaption", help="GPU 再反推（转发 tools/g7_caption.py，B-9B）")
+    d = sub.add_parser("recaption",
+                       help="GPU 再反推（默认 B-9B 单臂；--out-root 走多臂 W6 布局）")
     d.add_argument("--images", default=str(DEFAULT_IMAGES_OUT))
-    d.add_argument("--json-root", default=str(DEFAULT_OUT_DIR / "reverse"))
+    d.add_argument("--json-root", default=str(DEFAULT_OUT_DIR / "reverse"),
+                   help="旧单臂模式的输出根（不给 --out-root 时生效）")
     d.add_argument("--run-dir", default=str(DEFAULT_RECAPTION_RUN))
+    d.add_argument("--models", default="",
+                   help="逗号分隔；支持 A-4B,B-9B 或 B-9B:2,A-4B:1（:N 覆盖重复次数）")
+    d.add_argument("--repeats", type=int, default=1,
+                   help="每个模型重复几遍（seed = base_seed, base_seed+1, ...）")
+    d.add_argument("--base-seed", dest="base_seed", type=int, default=42)
+    d.add_argument("--out-root", default="",
+                   help="多臂布局根（<root>/<model>/seed<seed>/）；留空=旧单臂行为")
+    d.add_argument("--run-root", default="", help="多臂日志根（默认 <out-root>/run）")
+    d.add_argument("--retry-failed", action="store_true",
+                   help="对失败图换 seed/模型重试（记录成功/仍失败）")
+    d.add_argument("--retry-seeds", default="",
+                   help="重试 seed，逗号分隔；默认 base_seed+repeats 起两档")
     d.add_argument("--ids", default="")
     d.add_argument("--overwrite", action="store_true")
     d.set_defaults(func=cmd_recaption)
+
+    e = sub.add_parser("attribution",
+                       help="W6 三态归因：stable/unstable/cross-model/never lost")
+    e.add_argument("--images", default=str(DEFAULT_IMAGES_OUT))
+    e.add_argument("--source-json-root", default=str(DEFAULT_SOURCE_JSON))
+    e.add_argument("--reverse-root",
+                   default=str(DEFAULT_OUT_DIR / "attribution" / "reverse"))
+    e.add_argument("--b-model", dest="b_model", default=MODEL_KEY)
+    e.add_argument("--a-models", dest="a_models", default="A-4B")
+    e.add_argument("--out",
+                   default=str(DEFAULT_OUT_DIR / "attribution" / "attribution.json"))
+    e.set_defaults(func=cmd_attribution)
     return ap
 
 

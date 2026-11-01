@@ -118,6 +118,27 @@ class TestRunUnit(unittest.TestCase):
         self.assertIn("error", rec)
 
 
+    def test_fixed_guard_default_off_records_no_fallback(self):
+        _unit(self.tmp, "A-4B", "img01")
+        unit = ef.load_units(self.tmp)[0]
+        rec = ef.run_unit(unit, "all", self.reg)
+        self.assertEqual(rec["status"], "ok")
+        self.assertFalse(rec["guard_fallback"])
+        self.assertEqual(rec["pre_guard_lost"], [])
+        self.assertEqual(rec["guard_reason"], "")
+
+    def test_fixed_guard_falls_back_on_drop_stub(self):
+        _unit(self.tmp, "A-4B", "img01")
+        unit = ef.load_units(self.tmp)[0]
+        rec = ef.run_unit(unit, "all", self.reg, llm_factory=ef._DropStub,
+                          fixed_guard=True)
+        self.assertEqual(rec["status"], "ok")
+        self.assertTrue(rec["guard_fallback"], rec)
+        self.assertTrue(rec["pre_guard_lost"], rec)
+        self.assertIn("回退确定性草稿", rec["guard_reason"])
+        self.assertEqual(rec["lost_n"], 0, rec["lost"])
+
+
 class TestSummaryAndRepro(unittest.TestCase):
     def test_summary_denominators_exclude_skipped_and_failed(self):
         rows = [

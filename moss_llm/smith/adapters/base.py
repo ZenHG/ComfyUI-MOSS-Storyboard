@@ -66,6 +66,12 @@ class Adapter:
     #: 空元组 () = 拆步但三步全关（产物 = 该方言的确定性草稿，仍然合法）。
     #: 关掉任一步产物仍合法：管线起点是确定性草稿，最后仍由 expand.verify 兜底。
     expand_steps = None
+    #: 固定项护栏（opt-in，默认 False）。为 True 且走 llm 时：选完候选后再跑一次
+    #: `expand.verify`；只要 `report.misses` 非空（固定文本/年龄/颜色/方位等被改），
+    #: **回退到该方言的确定性草稿**（同一 IR / length / profile，不再调模型），并把
+    #: `fixed_guard={fallback, pre_guard_misses, reason}` 挂到 `Realized.expand`。
+    #: 默认关闭 ⇒ 历史行为/确定性基线逐字节不变。
+    expand_fixed_guard = False
     dim_order = ("subject", "setting", "camera", "lighting", "material", "medium", "text")
     default_profile: str | None = None
     #: 是否走「子句装箱」这条主流水线。图像后端全是；H3 不是——它没有维度顺序，
@@ -133,6 +139,29 @@ class Adapter:
             self._expand_notes = []
             for issue in rep.issues:
                 out.warnings.append("[扩写] " + issue)
+
+        # 固定项护栏（opt-in）：候选即使「分层键最好」，仍可能改了固定文本/颜色/方位。
+        # 这里只在**选完之后**补一道契约：有 miss 就整体回退确定性草稿，不自己编补丁。
+        if (getattr(self, "expand_fixed_guard", False) and mode == "llm"
+                and self.llm is not None):
+            from ..expand import verify
+            guard_rep = verify(ir, out.positive, self.name, self.registry,
+                               counter=self.counter, band=self.band())
+            misses = list(guard_rep.misses)
+            info = {"fallback": False, "pre_guard_misses": misses, "reason": ""}
+            if misses:
+                draft = self._render(ir, kept, "deterministic")
+                draft = self._sanitize(ir, draft, out, from_llm=False)
+                info["fallback"] = True
+                info["reason"] = (
+                    "模型候选丢失 %d 条固定项（%s）；已回退确定性草稿（未调模型）"
+                    % (len(misses), "、".join(misses[:6])))
+                out.positive = draft
+                out.token_count = self._count(draft)
+                out.warnings.append("固定项护栏：" + info["reason"])
+            if not isinstance(out.expand, dict):
+                out.expand = {}
+            out.expand["fixed_guard"] = info
 
         out.negative = self._negative(ir)
         out.params = self.registry.sampling(self.name, profile or self.default_profile)

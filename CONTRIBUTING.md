@@ -39,8 +39,10 @@ python tests/test_coverage_gate.py         #  2 项：覆盖率闸自身（基�
 python tests/test_g7_binding.py            # 35 项：G7 binding 判据（五类绑定规则正例/反例，离线不跑模型）
 python tests/test_pitfalls_ab.py           # 34 项：pitfalls A/B 判定函数（三档结论机械求值，离线不出图）
 python tests/test_wash_benchmark.py        # 36 项：洗图基准离线层（workflow 构造 / 编译 / 打分确定性 / 降级 / 多 seed 与 moss q4 注入）
-python tests/test_expand_facts.py           # 13 项：扩写事实保持（桩/真实路径可选 + roundtrip 对账；默认零 GPU）
+python tests/test_expand_facts.py           # 15 项：扩写事实保持（桩/真实路径 + fixed-guard + roundtrip 对账；默认零 GPU）
+python tests/test_expand_guard.py           #  9 项：扩写固定项护栏（默认关 / 丢项回退确定性草稿 / 三步路径）
 python tests/test_wash_roundtrip.py        #  8 项：洗图 roundtrip 事实保全（run.json 映射 / lost-extra / 文字单列）
+python tests/test_wash_attribution.py      # 12 项：洗图 roundtrip 归因（多模型/多 seed / 三态分类 / 失败重试）
 python tools/check_coverage.py --check     # 覆盖率闸：4 份夹具 × 7 后端，不丢固定项、不编数字与文字、覆盖率不低于基线
 python tools/smoke_nodes.py               # 63 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
