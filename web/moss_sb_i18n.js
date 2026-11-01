@@ -820,8 +820,8 @@ export const TIPS = {
             + "this package's moss_llm/runtime/ > system PATH.",
     },
     "MossPromptSmith.port": {
-        en: "[Local engine] Avoids 8080 used by the Banzhang package. An externally occupied port is reused,\n"
-            + "never killed.",
+        en: "[Local engine] Defaults to 8091, away from the 8080 that llama.cpp servers usually take.\n"
+            + "An externally occupied port is reused, never killed.",
     },
     "MossPromptSmith.release_after_run": {
         en: "[Local engine] On (default): terminate llama-server and free VRAM after the run.\n"

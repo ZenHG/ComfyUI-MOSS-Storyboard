@@ -82,14 +82,14 @@
   `check_ui_workflow.py examples/llm-*.json` 46/0 · `tools/ui_llm_panel.mjs` 36/0 + 1 skip（真机）·
   `check_frontend` 20/0 · `test_i18n.mjs` 64/0 · `ruff` 全绿。
 - 示例三份：`llm-caption-to-moss.json` / `llm-idea-to-storyboard.json` / `llm-wash.json`
-  （由 `tools/make_llm_examples.py` 生成，槽位序与门禁同源，不手抄 38 个 widget）。
+  （由 `tools/make_llm_examples.py` 生成，槽位序与门禁同源，不手抄 widget 槽位）。
 - **参数面板**（`web/moss_llm_panel.js`，随 `WEB_DIRECTORY` 自动加载）：开关条**钉在节点顶部**，
   展开的组都在它下方（控制件坐标不随展开跑）；说明行高度恒定，悬停换 tooltip 不抖。
-  38 个参数默认只露常驻 5 项，一次只看一组（常用调优 / 本地引擎 / 外部 API），折起的组里
+  39 个参数默认只露常驻 5 项，一次只看一组（常用调优 / 本地引擎 / 外部 API），折起的组里
   有改动就在 chip 上点一个蓝点。只改显隐、并按可见内容调节点高度 —— `widgets_values`
   的格数与位置一个字节不动（真机闸 `tools/ui_llm_panel.mjs` 含「存盘→重开逐位一致」）。
-- **子包节点与核心 7 节点共用一套 i18n**：`NODES`（旧显示名进 legacy）/ 38 个 `LABELS` /
-  `LABELS_NODE` / 16 组 `COMBOS` / 38 条英文 `TIPS`；中文仍是后端唯一源。
+- **子包节点与核心 7 节点共用一套 i18n**：`NODES`（旧显示名进 legacy）/ 39 个 `LABELS` /
+  `LABELS_NODE` / 29 组 `COMBOS` / 39 条英文 `TIPS`；中文仍是后端唯一源。
   「中/EN」按钮由核心 i18n 画进面板开关条（`langSlot`），不额外占 DOM 行。
   枚举**存档值一律 ASCII id**（`caption/local/standard`…），中文只在显示层；
   初版写进存档的中文由 `_LEGACY_VALUES` 运行时就地归一并在 report 里出声。

@@ -97,8 +97,8 @@ check("悬停只换说明文字：开关条高度与下面参数的 top 都不�
 // —— (a) 单组视图 ——
 await clickChip("tune");
 r = await visRows(ID);
-check("点「常用调优」⇒ 5 + 11 = 16 行（seed 的控件不单独占行），标题只出现一次",
-    r.shown === 16 && r.heads.length === 1 && r.heads[0] === "常用调优", JSON.stringify(r));
+check("点「常用调优」⇒ 5 + 12 = 17 行（seed 的控件不单独占行；target 只在 compile 时有用，也归这组）",
+    r.shown === 17 && r.heads.length === 1 && r.heads[0] === "常用调优", JSON.stringify(r));
 // 2026-10-30 点名的那条：旧版开关条在底部，点开一组它就往下跑；现在必须原地不动。
 const layout1 = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
@@ -192,8 +192,12 @@ const bad = await page.evaluate(() => {
 });
 check("全展开时值域不红（每个值都合法）", bad.length === 0, JSON.stringify(bad));
 console.log("  全展开标题 =", JSON.stringify(r.heads), " 网格高度 =", r.h[0], "px");
-check("全展开时每组标题按段画（顺序是存档契约：本地引擎出现 3 次是已知代价）",
-    r.heads.length === 6 && r.heads.filter((x) => x === "本地引擎 · llama.cpp").length === 3,
+// `target` 归 tune 组，但为了不挪动既有 widgets_values 的位置，它只能加在**最后一个**
+// 控件位。全展开时它就在「本地引擎」「外部 API」之后，于是末尾多出一段「常用调优」——
+// 7 段 / 本地引擎 3 次是存档契约换来的，不是画错。
+check("全展开时每组标题按段画（顺序是存档契约：7 段、本地引擎 3 次、末尾回到常用调优）",
+    r.heads.length === 7 && r.heads.filter((x) => x === "本地引擎 · llama.cpp").length === 3
+    && r.heads[r.heads.length - 1] === "常用调优",
     JSON.stringify(r.heads));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-5-expanded.png"), { y: 30 });
 await page.evaluate(() => document.querySelector(".mossllm-btn").click());   // 回到分组

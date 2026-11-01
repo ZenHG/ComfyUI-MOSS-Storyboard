@@ -84,7 +84,7 @@ MossPromptSmith
 | 臂 | 模型 | 结果 |
 |---|---|---|
 | 反推·主臂 | `moss-te-heretic-dhq-K-6.6G.gguf` + `mradermacher/Qwen3.5-9B-GGUF` 的 `mmproj-Q8_0`（624 MB，apache-2.0） | ✅ **mmproj 可行**：prompt_tokens 16 → 1047（图真进了）；13.4s；165 词；三处中文「写不下去 / 他还在楼下 / 她还没睡」**逐字保真**；`confidence.overall=0.95` |
-| MTP | 同上 | ✅ 元数据判据生效：`qwen35.nextn_predict_layers=1` 而**文件名不含 `-mtp`**，班长式文件名判据会漏；日志 `MTP=on(d2)`，早场对照 125.8 vs 76.3 tok/s（≈1.65×） |
+| MTP | 同上 | ✅ 元数据判据生效：`qwen35.nextn_predict_layers=1` 而**文件名不含 `-mtp`**，只看文件名的判据会漏；日志 `MTP=on(d2)`，早场对照 125.8 vs 76.3 tok/s（≈1.65×） |
 | 反推·回退臂 | `Qwen3-VL-4B-Instruct-Q4_K_M` + 同目录 `mmproj-F16`（自动匹配） | ✅ 17.0s；133 词；中文逐字；`MTP=off`（无 nextn 元数据，判据双向正确） |
 | 扩写·宫格臂 | MOSS TE，纯文本（无 mmproj） | ✅ 13.1s；`[STYLE]` 全局段声明「一张画布分为 2×2 网格，恰好 4 个面板」+ 4 段各以景别开头；`must_keep`（路上小心 / 关东煮）逐字命中；段数=格数 → 闸不出声 |
 | 外部 API 臂 | 同机侧车当 OpenAI 兼容端点打（不外联网） | ✅ 3.7s；149 词；中文逐字；Key 来源在 report 里写明 |
