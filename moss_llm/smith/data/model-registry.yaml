@@ -3,7 +3,7 @@
 # 最后核验：2026-10-31
 
 version: "0.1"
-updated: "2026-10-31"
+updated: "2026-11-01"
 
 targets:
 
@@ -49,9 +49,11 @@ targets:
         text_dense: { mp: 1.6, steps: 50, cfg: 3.0, slg: 22 }
     resolution: { native_mp: [1, 2], step: 16 }
     pitfalls:
-      - "相机型号/渲染引擎/画师名单写无效（须整句词组化）"
+      # 2026-11-01 本机 A/B 推翻原说法「相机型号/渲染引擎/画师名单写无效」（证据见 docs/30 §4）。
+      - "「相机型号 + 镜头」与「画师名」会改变画面（实测 2/3 对：85mm f/1.2 → 浅景深、宫崎骏 → 动画风）；只有单独写渲染引擎名（Unreal Engine 5）没出现预期 3D 质感 ⇒ 引擎名别当风格开关，改用视觉描述"
       - "SLG 不是画风开关"
-      - "正文残留写实词会压制开头画风词"
+      # 2026-11-01 本机 A/B 推翻原说法「正文残留写实词会压制开头画风词」的普遍性（3 对里 1 对成立）。
+      - "正文尾段的写实词是否压过开头画风词是**条件性**的：3 对里 1 对整体翻成写实、2 对维持动画 ⇒ 要保画风就把写实词从正文清掉，不能指望开头那句画风词兜底"
 
   # ─────────────────────────────────────────────────────────────
   krea2:
@@ -85,7 +87,9 @@ targets:
         turbo: { steps: 8,  cfg: 0.0, mu: 1.15, mp_range: [1, 2] }
     resolution: { align_to: 16, no_preset_aspects: true }
     pitfalls:
-      - ">512 token 静默截断，尾部（光照/媒介/文字）直接丢失"
+      # 2026-11-01：官方 inference.py 的 512 位置截断风险保留；但本机 ComfyUI 节点实测未复现
+      # （真实 token 786–797 仍保住尾部 cue 3/3，见 docs/30 §4），别把本机节点尾部内容当会丢。
+      - ">512 token 静默截断，尾部（光照/媒介/文字）直接丢失（官方 inference.py 行为；本机节点实测未复现，见 docs/30）"
       - "过度指定细节（官方 expansion.txt 明令 Avoid Over-Specification）"
       - "擅自替换用户指定的媒介"
       - "图内文字必须加引号"
@@ -272,9 +276,80 @@ targets:
       lora_alpha: 512
       tasks: ["t2va"]
       note: "只覆盖 T2VA；FL2VA / Ref2VA 官方标为未实现"
+    # ── 六段式方言档（全参考）。不是独立 target：selector 是 profile 名，
+    #    与基础模式三字段并存；格式与判据见 docs/27-H3六段式.md。
+    dialects:
+      six-section:
+        display: "MiniMax-H3 · 全参考六段式"
+        confidence: medium
+        # 字段顺序固定；与 moss_llm/smith/h3_six.py 的 FIELDS 必须一致（单测钉住）
+        fields: [subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music]
+        reference_tags: "<Subject N> / <Video N> / <Audio N> / <Picture N> / @图片N"
+        shot_marker: "[Shot N]"
+        timestamp: "At MM:SS.mmm"
+        dialogue_tag: "<d>[lang]…</d>"
+        project_spec_block: "【项目影像规格】"
+        selector: "--profile six-section"
+        source:
+          - "MiniMax-H3 官方提示词格式规范 · 全参考六段式（参考标签口径）"
+          - "产线六段式真稿 3 段（逐字夹具 tests/fixtures/h3_six/：A01/A03/A06）"
+        note: "同一后端的方言档；profile 不改变 minimax-h3 的默认三字段行为"
+        known_limit: "通用 lint 兼容已在 timeline_mode 剥掉体裁记号（L003 假错已修）；六段式专属体检仍以 h3_six.check 为准"
     pitfalls:
       - "Shot 1 写时间戳会把首帧锁成参考图（实测根因）"
       - "否定式封锁无效：扩散架构没有否定算子，仍会激活被否概念"
       - "数量词不可承诺：同一数字有时中有时不中，是随机遵从"
       - "Geo 方位（东南西北）在画面里不存在，写了只能瞎猜"
       - "非语言人声写进 <d> 外的导演说明，会被读进语音轨（杂字/碎句多包）"
+
+  # ─────────────────────────────────────────────────────────────
+  # 跨家族验证：只靠这份 YAML 接入，**没有一行 Python 专属实现**（走 generic）。
+  # 选它与现有家族对照的理由：prompt 哲学相反——官方要求「描述场景的叙事段落」，
+  # 不是 tag / 关键词罗列。验证记录见 docs/29-跨家族registry验证.md。
+  # 文档级核验（2026-11-01）：官方 prompt 指南 + 官方 API 文档；未在本机实跑。
+  nano-banana:
+    display: "Nano Banana (Gemini Image)"
+    vendor: Google
+    confidence: medium
+    source:
+      - "https://developers.googleblog.com/en/how-to-prompt-gemini-2-5-flash-image-generation-for-the-best-results/"
+      - "https://ai.google.dev/gemini-api/docs/image-generation"
+    encoder:
+      # 原生多模态：prompt 与参考图一起进模型，不存在单独的 text encoder
+      name: "Gemini native multimodal (image out)"
+      max_tokens: null
+      truncation: "unknown"
+      family: gemini
+    prompt:
+      mode: prose               # 官方原则：描述场景的叙事段落，不是关键词表
+      verbosity: 1.0
+      language: en              # 官方示例全英文；其他语言未验证
+      # 官方没给词数带；下面三档由「be hyper-specific」口径**推导**，非官方值
+      length: { brief: [60, 120], standard: [120, 250], detailed: [250, 400] }
+      quality_words: unverified     # 官方模板自己用 "Ultra-realistic"，不封禁
+      weight_syntax: none           # 无权重语法；强调只能靠自然语言
+      structured_output: [caption, edit_instruction]
+      voice: "descriptive narrative paragraph；编辑用 'Using the provided image, ...'"
+    negative:
+      supported: false          # API 无 negative 参数
+      channel: none
+      note: "官方口径是「语义负向」：把「不要 X」改写成正向场景（'an empty, deserted street'）"
+    layout:
+      supported: false
+      note: "无 bbox / 区域提示词；空间关系靠文字与参考图"
+    edit:
+      supported: true
+      ref_syntax: "参考图作为多模态输入，无需占位标签"
+      note: "官方博文含编辑/多图组合/风格迁移；本编译层只渲染散文指令，不生成图片占位符"
+    sampling:
+      note: "API 侧没有 steps/cfg/seed 这类可下发字段，采样由服务端决定"
+    resolution:
+      note: "生成侧支持常见宽高比；编辑侧默认保留输入图宽高比（官方博文）"
+    pitfalls:
+      - "关键词罗列不如叙事段落（官方原则：Describe the scene, don't just list keywords）"
+      - "「不要 X」否定式效果差，要改写成正向场景描述（语义负向）"
+      - "多轮迭代后角色一致性会漂移：官方建议重开对话，用详细描述重建"
+      - "编辑时不写「其余保持不变」会顺手改到别处：保留项要显式点名"
+      - "多图输入采用最后一张的宽高比；需要固定比例就显式指定或给参考图"
+      - "复杂排版与小字需多轮 refine（官方 Limitations 明列 typography）"
+

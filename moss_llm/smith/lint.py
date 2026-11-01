@@ -128,6 +128,11 @@ def check(ir: IR, target: str, caps: dict, realized: dict) -> list[Issue]:
             scan = re.sub(r"\[Shot \d+\]", " ", scan)      # 规定记号
             scan = re.sub(r"<d>.*?</d>", " ", scan, flags=re.S)
             scan = re.sub(r"</?(?:scenetrans|cutoff)>", " ", scan)
+            # 六段式的 summary 首行是**体裁记号**，不是权重语法：
+            # `[video continuation]`（续接）/ `[reference generation]`（全参考生成）。
+            # 不剥掉会被 `\[[^\[\]]{1,80}\]` 匹配，报一条永远修不好的 L003 假错。
+            scan = re.sub(r"\[(?:video continuation|reference generation)\]",
+                          " ", scan, flags=re.I)
         m = WEIGHT_SYNTAX.search(scan)
         if m:
             issues.append(Issue("error", "L003",

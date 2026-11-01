@@ -22,6 +22,10 @@ _META_TAIL = re.compile(
     r"[,\s]+(?:and\s+)?(?:without|with no|free of)\b[^;.!?]{0,160}?"
     r"(?:text|signage|objects|elements|specified|listed|additional)\b[^;.!?]*", re.I)
 
+#: 单次调用模式（历史路径）写进报告的归因说明：说清「为什么这时无法归因」。
+_SINGLE_NOTE = ("单次调用模式（expand_steps=None）：补全/翻译/改写没有拆开，"
+                "问题无法归因到具体子步骤；要归因请把 adapter.expand_steps 设为三步子集")
+
 
 @dataclass
 class Realized:
@@ -56,6 +60,12 @@ class Adapter:
     gen_candidates = 4
     #: 扩写回炉次数。1 次就够——第二遍还改不对，说明是事实层的问题，重跑模型不解决。
     gen_retries = 1
+    #: 扩写拆步开关。**默认 None = 历史单次调用**（补全/翻译/改写一次做完），
+    #: 所以确定性基线与历史 llm 调用次数都不变。
+    #: 设成元组才拆步，元素取自 ("completion", "translation", "rewrite")，按固定顺序执行；
+    #: 空元组 () = 拆步但三步全关（产物 = 该方言的确定性草稿，仍然合法）。
+    #: 关掉任一步产物仍合法：管线起点是确定性草稿，最后仍由 expand.verify 兜底。
+    expand_steps = None
     dim_order = ("subject", "setting", "camera", "lighting", "material", "medium", "text")
     default_profile: str | None = None
     #: 是否走「子句装箱」这条主流水线。图像后端全是；H3 不是——它没有维度顺序，
@@ -162,6 +172,44 @@ class Adapter:
         return render_prose(clauses, self.dim_order)
 
     def _render_llm(self, ir: IR, clauses: list[Clause]) -> str:
+        """扩写入口：默认单次调用（历史路径）；``expand_steps`` 打开后走三步管线。"""
+        steps = self.split_steps()
+        if steps is not None:
+            return self._render_llm_steps(ir, clauses, steps)
+        return self._render_llm_single(ir, clauses)
+
+    def split_steps(self):
+        """规范化 ``expand_steps``。
+
+        - ``None`` / ``False``：不拆（历史单次调用）；
+        - 字符串（逗号分隔）/ 元组 / 列表：拆步，按固定顺序执行；
+        - **其它类型**（如误写 ``True``、数字、dict）：显式 ``ValueError`` 并列出可用步名——
+          开关写错要有人看见，而不是在别处炸一个 TypeError。
+
+        返回 None（不拆）或**按固定顺序**排好的步名元组（可能是空元组 = 三步全关）。
+        """
+        raw = getattr(self, "expand_steps", None)
+        if raw is None or raw is False:
+            return None
+        from ..steps import STEP_ORDER
+
+        if isinstance(raw, str):
+            raw = [s.strip() for s in raw.split(",") if s.strip()]
+        elif isinstance(raw, (tuple, list)):
+            raw = list(raw)
+        else:
+            raise ValueError(
+                "expand_steps 只接受 None/False（不拆）、逗号分隔的字符串、或步名元组/列表；"
+                "收到 %r（%s）。可用步名：%s"
+                % (raw, type(raw).__name__, ", ".join(STEP_ORDER)))
+        known = set(STEP_ORDER)
+        bad = [s for s in raw if s not in known]
+        if bad:
+            raise ValueError("未知的扩写子步骤 %r；可用：%s" % (bad, ", ".join(STEP_ORDER)))
+        picked = set(raw)
+        return tuple(s for s in STEP_ORDER if s in picked)
+
+    def _render_llm_single(self, ir: IR, clauses: list[Clause]) -> str:
         """扩写 = 账本 + **N 次采样** + 体检择优 + 一次回炉。
 
         为什么不是「把事实丢给模型让它写长一点」：
@@ -204,6 +252,8 @@ class Adapter:
             # 模型什么都没给：交空字符串，让上层按失败处理，而不是假装成功
             empty = verify(ir, "", self.name, self.registry,
                            counter=self.counter, band=band)
+            empty.stage = "single"
+            empty.stage_note = _SINGLE_NOTE
             self._expand_report = empty
             self._expand_notes = ["扩写没有拿到任何内容（模型返回空）"]
             return ""
@@ -229,8 +279,103 @@ class Adapter:
                 break
 
         best_rep.candidates = len(pool)
+        best_rep.stage = "single"
+        best_rep.stage_note = _SINGLE_NOTE
         self._expand_report = best_rep
         notes = []
+        if len(pool) > 1:
+            notes.append("扩写采样 %d 份，取其中分层键 %s 最好的一份"
+                         % (len(pool), best_rep.score()))
+        elif self.gen_candidates > 1 and len(seen) == 1:
+            notes.append("扩写采样 %d 次只得到同一份结果（温度太低或服务端缓存），"
+                         "搜索没有收益" % self.gen_candidates)
+        self._expand_notes = notes
+        return best_text
+
+    # ── 拆步模式（opt-in） ──────────────────────────────────
+    def _base_for_steps(self, ir: IR, clauses: list[Clause]) -> str:
+        """拆步管线的起点：该方言的**确定性草稿**（不调模型，必然合法）。
+
+        为什么不从空白开始让模型自由写：关掉任何一步、甚至三步全关时，产物必须仍然
+        是一个合法 prompt。确定性草稿就是那个兜底，三步只在这上面做加法。
+        """
+        return self._render(ir, clauses, "deterministic")
+
+    def _render_llm_steps(self, ir: IR, clauses: list[Clause], steps: tuple) -> str:
+        """扩写三拆：确定性草稿 → 补全 → 翻译 → 改写，每步独立 prompt + 判据。
+
+        与单次调用的差别只在**怎么问模型**：事实约束仍由 `verify` 兜底，所以失败模式
+        不变（改固定项 / 造数 / 造字照样 fail），多出来的是**归因**——
+        `report.stage` / `report.stage_issues` 指认问题来自哪一步。
+
+        成本：每个候选 = 启用的步数次调用（最多 3 × 采样数），所以这是 opt-in，
+        默认路径（`expand_steps=None`）连一次调用都不多。
+        """
+        from ..expand import length_band, rank, verify
+        from ..steps import attach_to_report, run_steps, style_key, summarize
+
+        band = length_band(self.registry, self.name, self.length)
+        spec = self.prompt_spec(ir)
+        style = style_key(ir)
+        base = self._base_for_steps(ir, clauses)
+
+        def once(feedback: str = "", feedback_steps=()) -> tuple:
+            return run_steps(
+                self.llm, ir=ir, base_text=base, clauses=clauses, target=self.name,
+                band=band, spec=spec, dim_order=self.dim_order, style=style,
+                enabled=steps, temperature=self.gen_temperature,
+                max_tokens=self.gen_max_tokens, clean=self._clean,
+                counter=self.counter, feedback=feedback,
+                feedback_steps=feedback_steps)
+
+        pool: list = []          # [(text, Report, [StepResult])]
+        seen: set = set()
+        for _ in range(max(1, int(self.gen_candidates))):
+            text, results = once()
+            key = " ".join(text.lower().split())
+            if not text or key in seen:
+                continue
+            seen.add(key)
+            rep = verify(ir, text, self.name, self.registry,
+                         counter=self.counter, band=band)
+            attach_to_report(rep, results)
+            pool.append((text, rep, results))
+            if rep.score()[0] == 0 and rep.score()[1] == 0:
+                break
+
+        if not pool:
+            empty = verify(ir, "", self.name, self.registry,
+                           counter=self.counter, band=band)
+            empty.stage = "pipeline"
+            empty.stage_note = "拆步模式：模型没有给出任何内容"
+            self._expand_report = empty
+            self._expand_notes = ["扩写没有拿到任何内容（模型返回空）"]
+            return ""
+
+        best_text, best_rep, best_results = pool[rank([r for _, r, _ in pool])]
+
+        # 回炉仍然只做一次，但只把失败项回喂给**出问题的那一步**——
+        # 这正是拆步买到的东西：不再对着整段重写一遍碰运气。
+        for _ in range(max(0, self.gen_retries)):
+            if best_rep.verdict != "fail":
+                break
+            text, results = once(
+                feedback=best_rep.feedback(),
+                feedback_steps=(best_rep.stage,) if best_rep.stage else ())
+            if not text:
+                break
+            cand_rep = verify(ir, text, self.name, self.registry,
+                              counter=self.counter, band=band)
+            attach_to_report(cand_rep, results)
+            if cand_rep.score() < best_rep.score():
+                best_text, best_rep, best_results = text, cand_rep, results
+            if best_rep.verdict != "fail":
+                break
+
+        best_rep.candidates = len(pool)
+        self._expand_report = best_rep
+        notes = ["扩写拆步（%s）：%s"
+                 % ("、".join(steps) if steps else "三步全关", summarize(best_results))]
         if len(pool) > 1:
             notes.append("扩写采样 %d 份，取其中分层键 %s 最好的一份"
                          % (len(pool), best_rep.score()))

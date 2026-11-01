@@ -144,6 +144,16 @@ class Report:
     issues: list = field(default_factory=list)
     #: 这份报告是从几个**不同**的候选里选出来的（1 = 没做搜索）。
     candidates: int = 1
+    # ── 拆步归因（steps.py 写入；不带这三个字段的旧报告照常工作） ──
+    #: 问题来自哪一步：``completion`` / ``translation`` / ``rewrite``；
+    #: ``single`` = 历史单次调用（无法归因）；``""`` = 未知（直接调 verify()）。
+    stage: str = ""
+    #: ``{步名: [问题]}``，只列有问题的步。未拆步为空。
+    stage_issues: dict = field(default_factory=dict)
+    #: 每步的执行摘要（``steps.StepResult.to_dict()``），含「关掉的步」。
+    steps: list = field(default_factory=list)
+    #: 为什么这样归因 / 为什么无法归因。人话，给报告读。
+    stage_note: str = ""
 
     @property
     def fixed_recall(self) -> float:
@@ -162,6 +172,14 @@ class Report:
             return self.words - hi
         return 0
 
+    def step_error_count(self) -> int:
+        """步级判据判死的错误条数（拆步模式）。未拆步恒为 0，排序行为不变。"""
+        return sum(len(s.get("errors") or []) for s in (self.steps or []))
+
+    def failing_stages(self) -> list:
+        """有问题的步，按执行顺序（``stage_issues`` 的插入顺序就是步顺序）。"""
+        return list(self.stage_issues or {})
+
     def score(self) -> tuple:
         """排序键，越小越好。**不是总分**，是分层比较。
 
@@ -172,8 +190,13 @@ class Report:
 
         故意**不加权求和**：这三层代价不同，加成一个数会让「3 条无关警告」
         看起来比「1 处造字」更糟。分层比较不做这种交换。
+
+        第 ① 层额外计入**步级判据的 error**（拆步模式才有；未拆步为 0）：
+        「术语没翻译」不会让固定项命中变差，但它确实是一处硬失败，不能被长度带
+        和软警告淹没。
         """
-        hard = len(self.hard_misses) + len(self.extra_numbers) + len(self.extra_quotes)
+        hard = (len(self.hard_misses) + len(self.extra_numbers) + len(self.extra_quotes)
+                + self.step_error_count())
         return (hard, self.band_distance(), len(self.warns))
 
     def to_dict(self) -> dict:
@@ -188,6 +211,9 @@ class Report:
             "density": round(self.density, 2), "verdict": self.verdict,
             "candidates": self.candidates, "band_distance": self.band_distance(),
             "issues": self.issues,
+            # 下面四个是新增键，旧键一个没动（向后兼容）。
+            "stage": self.stage, "stage_issues": dict(self.stage_issues or {}),
+            "steps": self.steps, "stage_note": self.stage_note,
         }
 
     def feedback(self) -> str:
@@ -422,6 +448,21 @@ def _text_values(blocks) -> list:
 #:
 #: 判定只看**渲染器真正读的字段**，不看"写了多少字"——IR 里塞了 atmosphere 却全在
 #: 同一个意思上堆词，词数够了但槽位还是空的。这正是"写长"和"降低熵"的分界。
+#: 文本维（text）不在这里：画面文字不是"没说的"，是必须逐字的。
+SLOT_DIMS = ("subject", "setting", "camera", "lighting", "material", "medium")
+
+
+def open_slot_dims(clauses) -> list:
+    """clauses 里**没有**的维度：这些才是补全该填的 OPEN 槽位（按 SLOT_DIMS 顺序）。
+
+    抽成公共函数是因为有两处要问同一个问题：``ledger`` 把 OPEN 写给模型，
+    ``steps.check_completion`` 判「模型填的是不是 OPEN 槽位」。两处若各写一份口径，
+    迟早一个认 camera 一个不认，于是账本说没空位、判据说填了不该填的。
+    """
+    have = {c.dim for c in clauses}
+    return [d for d in SLOT_DIMS if d not in have]
+
+
 _SLOTS = (
     ("主体", lambda ir: any(e.kind in ("character", "object") and e.label
                         for e in ir.entities),
@@ -464,9 +505,13 @@ def slot_advice(ir: IR, words: int = 0) -> str:
 
 def verify(ir: IR, text: str, target: str = "", registry=None,
            counter=None, band: tuple | None = None,
-           length: str = "standard") -> Report:
-    """对一段扩写结果做确定性体检。不需要模型，也不需要生成器。"""
-    rep = Report(target=target, words=words(text))
+           length: str = "standard", stage: str = "") -> Report:
+    """对一段扩写结果做确定性体检。不需要模型，也不需要生成器。
+
+    ``stage`` 只是报告标签（由拆步管线写入「问题来自哪一步」），不参与判死；
+    不传时报告里 stage 为空，含义是「来源未知」。
+    """
+    rep = Report(target=target, words=words(text), stage=stage)
     rep.band = band if band is not None else length_band(registry, target, length)
 
     if counter is None:
@@ -646,9 +691,7 @@ def ledger(ir: IR, clauses, band: tuple | None = None) -> str:
     lines = ["FIXED (do not change, do not paraphrase):"]
     lines += ["- " + f.label() for f in fixed] or ["- (none)"]
 
-    have = {c.dim for c in clauses}
-    missing = [d for d in ("subject", "setting", "camera", "lighting", "material", "medium")
-               if d not in have]
+    missing = open_slot_dims(clauses)
     lines.append("\nOPEN SLOTS (nothing stated — you decide, and commit once):")
     lines += ["- %s（%s）" % (d, _DIM_ZH.get(d, d)) for d in missing] or ["- (none)"]
 

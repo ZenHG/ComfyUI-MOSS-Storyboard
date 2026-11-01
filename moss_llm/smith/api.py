@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 from . import invariants as INV
+from . import zh as ZH
 from .adapters import get_adapter
 from .ir import IR
 from .lint import check
@@ -32,6 +33,21 @@ _FENCE = re.compile(r"^```[a-zA-Z]*\s*|\s*```$")
 
 class CompileError(ValueError):
     """IR 读不进来。消息要能直接展示给用户——说清「给的是什么、期望什么」。"""
+
+
+#: `compile_ir(lang=)` 的合法取值。CLI 有 argparse `choices` 挡着，API 没有——
+#: 所以 API 自己校验：非法值必须报错，不能静默回退 registry 语言（否则调用方
+#: 以为中文生效了，实际拿到英文，比报错更糟）。
+_LANGS = ("en", "zh")
+
+
+def _check_lang(lang):
+    """None / 'en' / 'zh' → 归一化后的值；其余抛 ValueError 并说明可选值。"""
+    if lang is None:
+        return None
+    if isinstance(lang, str) and lang.strip().lower() in _LANGS:
+        return lang.strip().lower()
+    raise ValueError("lang 只接受 None / 'en' / 'zh'（给的是 %r）" % (lang,))
 
 
 def parse_ir(source) -> IR:
@@ -86,11 +102,16 @@ def _from_obj(data) -> IR:
 
 
 def compile_ir(source, target="moss-image", registry=None, counter=None,
-               run_invariants=True, profile=None):
+               run_invariants=True, profile=None, lang=None):
     """编译。返回 dict（不是对象）——调用方要直接塞进 report 或 JSON。
+
+    `lang` 是可选参数（默认 None = 按 registry 的 `prompt.language` 决定）：
+    `"zh"` 走中文整句重排（`zh.py`），`"en"` 走英文路径；其余取值抛 `ValueError`
+    （不静默回退，否则调用方会以为中文生效了）。节点接口不用改。
 
     失败一律 raise `CompileError`（能展示给用户的句子），不返回半成品。
     """
+    lang = _check_lang(lang)
     ir = parse_ir(source)
     reg = registry or Registry.load()
     name = target or "moss-image"
@@ -98,12 +119,18 @@ def compile_ir(source, target="moss-image", registry=None, counter=None,
         raise CompileError("没有 %r 这个后端。可选：%s"
                            % (name, "、".join(reg.names())))
     ad = get_adapter(name, reg, counter=counter or HeuristicCounter())
+    use_zh, lang_note = ZH.resolve_language(lang, reg, name)
     try:
-        out = ad.realize(ir, profile=profile, mode="deterministic")
+        if use_zh:
+            out = ZH.realize_zh(ad, ir, profile=profile)
+        else:
+            out = ad.realize(ir, profile=profile, mode="deterministic")
     except ValueError as e:
         # 能力不匹配（把 edit 的 IR 丢给没有编辑通道的后端）是**用户输入问题**，
         # 不是编译器崩了。统一成 CompileError，调用方才能只捕一种异常就给出人话。
         raise CompileError("这个后端渲染不了这份 IR：%s" % e) from e
+    if lang_note:
+        out.warnings.append(lang_note)
     caps = reg.get(name)
     issues = check(ir, name, caps, out.as_dict())
 
@@ -115,7 +142,7 @@ def compile_ir(source, target="moss-image", registry=None, counter=None,
             inv_note = "不适用：%s" % e
     ok, line = INV.summarize(inv) if inv else (True, inv_note or "未跑")
 
-    return {
+    result = {
         "target": name,
         "positive": out.positive,
         "negative": out.negative,
@@ -135,6 +162,10 @@ def compile_ir(source, target="moss-image", registry=None, counter=None,
                "timeline": len(getattr(ir, "timeline", None) or []),
                "canvas": (ir.canvas or {}).get("aspect_ratio", "")},
     }
+    # 默认（en）结果的键集合逐字节不动；只有真走了中文路径才多这一个键。
+    if use_zh and getattr(out, "zh_applied", True):
+        result["lang"] = ZH.LANG_ZH
+    return result
 
 
 def error_count(result) -> int:

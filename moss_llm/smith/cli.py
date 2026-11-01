@@ -17,6 +17,7 @@ from pathlib import Path
 
 from . import __version__
 from . import paths as PATHS
+from . import zh as ZH
 from .adapters import ADAPTERS, get_adapter
 from .ir import IR
 from .lint import check
@@ -52,6 +53,16 @@ def cmd_targets(args) -> int:
 def _run(args):
     reg = _load_registry(args.registry)
     ir = IR.load(args.ir)
+    # 「--lang zh 与 --mode llm 互斥」必须在**起侧车之前**判：这条校验放在 try 里
+    # server.start() 之后时，侧车不可达的用户先看到「连不上」，真正的参数错误被
+    # 盖在下面（交叉复核 2026-11-01 用 stub 复现：started=['start','stop'] 才抛错）。
+    use_zh, lang_note = ZH.resolve_language(getattr(args, "lang", None),
+                                            reg, args.target)
+    if use_zh and args.mode == "llm":
+        raise SystemExit(
+            "--lang zh 目前只支持确定性路径（--mode deterministic）：\n"
+            "  扩写模式由英文扩写提示词驱动，中文整句重排没有对应的扩写实现。\n"
+            "  去掉 --mode llm，或去掉 --lang zh。")
     counter = HeuristicCounter()
     server = None
     try:
@@ -70,7 +81,14 @@ def _run(args):
         adapter.length = getattr(args, "length", "standard")
         if getattr(args, "candidates", None):
             adapter.gen_candidates = int(args.candidates)
-        out = adapter.realize(ir, profile=args.profile, mode=args.mode)
+        if use_zh:
+            out = ZH.realize_zh(adapter, ir, profile=args.profile)
+            if getattr(out, "zh_applied", True):
+                out.lang = ZH.LANG_ZH
+        else:
+            out = adapter.realize(ir, profile=args.profile, mode=args.mode)
+        if lang_note:
+            out.warnings.append(lang_note)
         issues = check(ir, args.target, reg.get(args.target), out.as_dict())
         return out, issues, server
     finally:
@@ -94,6 +112,8 @@ def cmd_compile(args) -> int:
         "expand": out.expand,
         "issues": [i.__dict__ for i in issues],
     }
+    if getattr(out, "lang", ""):
+        payload["lang"] = out.lang
     if args.out:
         Path(args.out).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         print("已写入 %s" % args.out, file=sys.stderr)
@@ -880,6 +900,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--length", choices=["brief", "standard", "detailed"],
                         default="standard",
                         help="篇幅档。长度是方言参数：FLUX 3 要短、Krea 2 要长，带子在 registry")
+        sp.add_argument("--lang", choices=["en", "zh"], default=None,
+                        help="提示词语言。不填 = 按 registry 的 prompt.language；"
+                             "zh = 中文整句重排（主体→动作→场景→镜头→光），"
+                             "只影响确定性路径，编辑/Layout JSON/时间线体裁原样输出")
         sp.add_argument("--candidates", type=int, default=0,
                         help="扩写采样数（llm 模式）。0 = 用适配器默认值（4）；1 = 关掉搜索")
         sp.add_argument("--model", help="llm 模式下的 GGUF 路径")
