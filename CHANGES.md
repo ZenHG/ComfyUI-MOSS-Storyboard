@@ -23,7 +23,12 @@
 - **同 seed 复跑（可复现性）**：同命令重跑（仅输出目录不同）：120 条记录 × 10 字段（含
   `prompt_sha256`/`lost`/`extra`/`fallback`/`words`/`llm_calls` 等）**0 差异**，115 个可判单元逐字节同提示词；
   墙钟 606.1 s vs 607.6 s、tok/s 中位 104.16 vs 104.76（机器噪声）。边界：只验 seed42 / A-4B / 一次复跑；
-  server.log 不回显 seed ⇒ 「服务端如何消费 seed」仍无日志证明。
+  server.log 不回显 seed；**可复现绑定完整请求序列**——只重放 25 个单元的子集时首个单元 sha 即不同
+  （`e8c2a379…` vs `5d951311…`），按定稿顺序重放 115 个 ok 单元才 115/115 全等。
+- **extra 29 审核包（W12，不入库）**：`out/review_extra29/` —— 25 个有 extra 的单元 × 29 条，
+  `<arm>__<img>.<ext>` 一一对应（源图 / prompt 原文 / IR 人读 / 逐条审核卡），含 `index.md`、
+  自包含 `review.html`、`verdicts.csv`（A 口径残留 / B 真编造 / C IR 有图没有，待人工填）。
+  prompt 由 `include_prompt=True` 重放全 115 单元取得，25/25 `prompt_sha256` 与定稿全等。
 - 测试/闸：draft_render 13、text_accounting 10、expand_facts 17；smith_ir 365、expand_steps 21、
   expand_guard 9、wash_roundtrip 8、wash_attribution 12、smoke 63/0、freeze/coverage、ruff 全绿。
   docs/68 §11、docs/71（独立复核：发现 5 项文档/口径问题，全部修复并复核 PASS）。
