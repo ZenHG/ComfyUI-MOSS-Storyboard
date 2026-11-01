@@ -65,7 +65,7 @@
 |---|---|---|
 | ComfyUI **≥ 0.42.0** | ✅ | 更低版本没有 `moss_image` 这个文本编码器类型 |
 | `moss_image_sft_bf16.safetensors` | ✅ | `models/unet/`（或 `models/diffusion_models/`） |
-| `qwen3.5_9b_int8_convrot.safetensors` | ✅ | `models/clip/` |
+| `qwen3.5_9b_int8_convrot.safetensors` | ✅ | `models/text_encoders/`（旧版宿主也兼容 `models/clip/`） |
 | `flux2-vae.safetensors` | ✅ | `models/vae/` |
 | 额外 pip 包 | ❌ | 无（换脸自动蒙版可选 `insightface` + `onnxruntime`） |
 
@@ -78,20 +78,14 @@
 
 ### 1.2 装
 
-**ComfyUI Manager（推荐）**：搜 **MOSS Storyboard** → 安装 → 重启 ComfyUI。
+三条路，结果一样。**不需要 `pip install`，没有额外 Python 依赖** —— 只有换脸的自动蒙版需要可选的
+`insightface` + `onnxruntime`。
 
-**ComfyUI CLI**（安装带 `comfy` 命令时）：
-
-```bash
-comfy node install moss-storyboard
-```
-
-**git**：
-
-```bash
-cd <你的 ComfyUI>/custom_nodes
-git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
-```
+| 路线 | 前提 | 怎么做 | 怎么验证 |
+|---|---|---|---|
+| **ComfyUI Manager**（推荐） | 装了 Manager；宿主 ≥ 0.42.0 | 搜 **MOSS Storyboard** → 安装 → 重启 | 下面那行启动日志 + `moss/storyboard` 下七个节点 |
+| **Registry 页** | 宿主/Manager 能读节点 registry | 打开 `https://registry.comfy.org/nodes/moss-storyboard` → 点 Install（会转给 Manager 或 `comfy` CLI）。**页面 404 = 这版还没发布**，走手动装 | 同上 |
+| **手动（git 或 zip）** | 有 git，或浏览器下载仓库 zip | `cd <你的 ComfyUI>/custom_nodes` → `git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard`（或解压到该目录）→ 重启 | `<ComfyUI>/custom_nodes/ComfyUI-MOSS-Storyboard/__init__.py` 存在；同一行日志 + 节点出现 |
 
 重启后，节点菜单 **`moss/storyboard`** 下出现七个节点，启动日志有一行（`<版本号>` 为实际装的版本）：
 
@@ -100,12 +94,30 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 ```
 
 **没有这一行 = 包没加载。** 这比任何配置检查都直接。
+手动装最常见的坑是**多套了一层目录**（`custom_nodes/ComfyUI-MOSS-Storyboard/ComfyUI-MOSS-Storyboard/`）：
+加载器只看一层。
 要退回旧的 V1 接口：设环境变量 `MOSSSB_NODE_API=v1`。
 
+**`⚠ 未检测到 llama-server` 是首次运行时的正常现象。** 还没装可选 LLM 子包 / llama-server 时，
+同一份启动日志会继续出现 `[MOSS SB] ⚠ 未检测到 llama-server…`。这**不是**包加载失败：
+七个核心节点已经加载，下面的零权重首图也不需要它。只有 `moss/llm` 那几个节点
+（caption / 扩写 / 编辑）才需要 llama-server 或 OpenAI 兼容端点。
+
 **放完模型文件要再重启一次 ComfyUI**，否则节点下拉里看不到新文件。
-查宿主版本：启动日志开头有 `ComfyUI Version:`；`git log -1 --format=%h` 看提交号。
+查宿主版本：启动 stdout 顶部能看到 `** ComfyUI startup time:` 与路径；完整版本号在
+`<ComfyUI>/user/comfyui.log` 里找 `ComfyUI version: <版本号>`。`git log -1 --format=%h` 看本包提交号。
 
 ### 1.3 跑第一张
+
+**第 0 步 —— 零权重、零显存。** 把
+[`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) 拖进 ComfyUI 窗口，点 Queue。
+它让 `MossPromptSmith` 跑 **`task=compile`**：**不加载任何模型**，毫秒级结束，输出是文本
+（编译后的提示词 + `report`）。这一步过了，说明包装对了、节点能跑。
+该看到：`prompt` 预览是编译后的提示词，另一个预览是 `report`。还没有模型文件？到这一步就可以停。
+另一个零模型示例是 [`examples/moss-prompt-compiler.json`](examples/moss-prompt-compiler.json)
+（官方草稿 → 提示词 + 编辑器 state）。
+
+**第 1 步 —— 真正的第一张图（要三个模型文件）。**
 
 1. 装好上面的包与三个模型文件。
 2. 把 [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json)
@@ -119,7 +131,16 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 > `output/moss/storyboard/`：`grid_*.png`（整张）与 `panel_*.png`（逐格）。
 > **没接任何保存节点 = 图只在内存里，跑完就没了。**
 
-**八个示例，各管一件事**
+**第 2 步 —— 从一张照片到提示词（可选 LLM 子包）。**
+[`examples/llm-caption-to-moss.json`](examples/llm-caption-to-moss.json) 把输入图反推成提示词 +
+`report`（取证事实、绑定告警、被忽略的缺陷类）。它需要可选的 `moss_llm/` 子包，以及 llama-server
+（节点里可一键装官方构建）或任意 OpenAI 兼容端点。它产出的是**文本不是图** —— 先用它写提示词，
+再把提示词喂给故事板节点。
+
+**十二份示例，各管一件事**
+
+> 下表与**实际文件**核对：每个 `examples/*.json` 都必须在这里被点名，且带下面三列（发布闸 S18 会查）。
+> 以后新增示例，在同一个 PR 里补一行。
 
 > ⚠ **示例引用的输入图不在 input 里就会报「图片不存在」**。
 > **单图换脸示例**自带两张演示图：`assets/faceswap-demo-src.png`（单人照片）与
@@ -128,26 +149,27 @@ git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
 > **宫格示例与姿态示例**要自备 `moss_faceswap_src.png` / `moss_faceswap_ref.png`。
 > **src 与 ref 必须是不同的人** —— 同一个人换完还是这张脸，看起来就像「没变化」。
 
-| 文件 | 干什么 | 要模型 | 第三方节点 |
+| 文件 | 干什么 | 要模型 | 跑完看到什么 |
 |---|---|---|---|
-| `moss-layout-editor-storyboard.json` | 4 格故事板，带画布内说明（**首选起点**） | ✅ | — |
-| `moss-storyboard-4panels-ui.json` | 4 格故事板，最朴素的接线 | ✅ | — |
-| `moss-layout-editor-poster.json` | 单图海报，编辑器摆框 | ✅ | — |
-| `moss-prompt-compiler.json` | 贴官方草稿 → 提示词 + 编辑器 state | ❌ 零显存 | — |
-| `moss-faceswap-ui.json` | 4 格宫格 → 换第 0 格 → 整张出 | ✅ | 需 DMD2 + 编辑 LoRA |
-| `moss-faceswap-single-ui.json` | **单张照片** → 换脸 → 整张出（不接 `spec`） | ✅ | 需 DMD2 + 编辑 LoRA |
-| `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图（`init=empty`） | ✅ | 无 |
-| `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 | ✅ | 需编辑 LoRA |
-| `llm-caption-to-moss.json` | 🧩 一张图 → 反推出成品提示词 + report | ✅ | 可选子包 `moss_llm` |
-| `llm-idea-to-storyboard.json` | 🧩 一句话 → 4 格宫格稿 → 直接进采样器出图 | ✅ | 可选子包 `moss_llm` |
-| `llm-wash.json` | 🧩 洗图：反推（忽略压缩/水印类缺陷）→ 改词 → 同比例重绘 | ✅ | 可选子包 `moss_llm` |
+| `moss-layout-editor-storyboard.json` | 4 格故事板，带画布内说明（**首选起点**） | ✅ | 1024×576 整张 + 4 张逐格 |
+| `moss-storyboard-4panels-ui.json` | 4 格故事板，最朴素的接线 | ✅ | 同样的整张，依赖最少 |
+| `moss-layout-editor-poster.json` | 单图海报，编辑器摆框 | ✅ | 一张海报尺寸的图 |
+| `moss-prompt-compiler.json` | 贴官方草稿 → 提示词 + 编辑器 state | ❌ 零显存 | 纯文本（一段提示词 + JSON state） |
+| `llm-compile-zero-model.json` | 🧩 `MossPromptSmith` 的 `task=compile`：IR JSON → 编译后提示词 + report | ❌ 零显存 | 纯文本（提示词 + `report`）—— 十秒装机自检 |
+| `moss-faceswap-ui.json` | 4 格宫格 → 换第 0 格 → 整张出 | ✅ | 换掉一格后的整张 |
+| `moss-faceswap-single-ui.json` | **单张照片** → 换脸 → 整张出（不接 `spec`） | ✅ | 一张换脸后的人像 |
+| `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图（`init=empty`） | ✅ | 一张带指定动作的图 |
+| `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 | ✅ | 只重画了一格的整张 |
+| `llm-caption-to-moss.json` | 🧩 一张图 → 反推出成品提示词 + report | ✅ | 提示词 + `report`（不出图） |
+| `llm-idea-to-storyboard.json` | 🧩 一句话 → 4 格宫格稿 → 直接进采样器出图 | ✅ | 一句话变 4 格整张 |
+| `llm-wash.json` | 🧩 洗图：反推（忽略压缩/水印类缺陷）→ 改词 → 同比例重绘 | ✅ | 重绘后的图 + `report` |
 
 > 🧩 标 `moss_llm` 的三份用**可选 LLM 子包**的 `MossPromptSmith`（分类 `moss/llm`）。
 > 它不属于上面那七个核心节点：删掉 `moss_llm/` 整个目录，核心照常工作。
 > 它需要一个 llama-server（节点里把「runtime」选成「更新到最新版」可一键装官方构建），
 > 或改走「外部 API」通道接任何 OpenAI 兼容端点。**这两份能力会联网**，只在你排队时发生一次。
 
-> ⚠ **十一份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
+> ⚠ **十二份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
 > `poster`；换脸与姿态示例没有），夹在 LoRA 与采样器之间。它**不是本包的节点**，是 ComfyUI 自带
 > （`comfy_extras/nodes_easycache.py`，实验性，分类 `advanced/debug`），作用是让采样器复用部分步。
 > **要跟本页的数字对得上，先 `Ctrl+B` 旁路或删掉它** —— 开着它，采样器跑的不是本页数字测的那份活。
@@ -350,6 +372,10 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 > 别读成「12 GB 够用」。数据 [`docs/data/g1-results.json`](docs/data/g1-results.json)，
 > 逐跑记录 [`docs/data/g1-report.md`](docs/data/g1-report.md)。
 
+**档位结论的出处**：机制（为什么峰值在 VAE 解码而不是采样、宿主那个 `× 4.0` 分水岭、复算表）在
+[`docs/06-vae-memory.md`](docs/06-vae-memory.md) §五；**仍未验证**的项在同文件 §七。
+本页只引数字；要下结论请引 §五/§七，而不是引这两张表。
+
 ### 2.5 报错对照表
 
 下表每一行都是从源码里逐字抄的 `ValueError` 文案，`Ctrl+F` 报错里的几个字就能对上。
@@ -368,6 +394,8 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 | `draft 为空：请粘贴官方 prompt-enhancer 的 caption/layout 草稿 JSON。` | 草稿编译输入为空 | 贴的是**草稿**，不是编译后的结果 |
 | `元素 3 没有描述（caption 不能为空）` | 画布上有框没填描述 | 填一句描述，或删掉它 |
 | `label 只能是 object/character/text（收到 'xxx'）` | 手改 state / 草稿时写了别的类型 | 只用这三个值 |
+| `解码尺寸 1024x576 小于布局下限 2048x1152；无法重建裁切几何` | 换脸：输入图比要填的 `spec` 画布小 | 喂一张不小于布局的图，或改接更小的 `spec` |
+| `init=source 需要 image（要换脸的那张图）。` | 换脸节点 `init=source` 但没接线（或接错口） | 接上图像；只是文生图就把 `init` 改成 `empty` |
 
 **没报错但结果不对**：
 
@@ -564,7 +592,7 @@ ComfyUI-MOSS-Storyboard/
 ├── v3/                    V3 接口外壳
 ├── web/                   前端扩展（中英切换 + 布局编辑器）
 ├── tests/ tools/          自动机检与开发脚本
-├── examples/              7 份用户示例（机检夹具在 tests/fixtures/）
+├── examples/              12 份用户示例（机检夹具在 tests/fixtures/）
 ├── docs/                  机理与实测记录
 └── pyproject.toml         元数据 + 宿主版本要求
 ```
@@ -588,7 +616,21 @@ ComfyUI-MOSS-Storyboard/
 
 `docs/`、`CHANGES.md`、`RELEASE-NOTES.md` 不随安装包分发（见 `.comfyignore`）；上面的链接指向 GitHub 仓库。
 
-### 4.4 许可
+### 4.4 维护者：文档、示例、自检
+
+- **文档就是两个文件。** 用户面是 `README.md`（英）与 `README_ZH.md`（中），同一个 PR 里一起改。
+  `tools/check_docs_sync.py`（发布闸 **S19**）在两边标题树漂移时报红（节数 / 层级 / 编号顺序）。
+  设计记录在 `docs/`（中文，不随包分发）。
+- **示例就是回归集。** 在 `examples/` 下新增一个文件要做三件事：在**两份** README 的示例表里补一行
+  （否则 S18 红）；`python tools/check_ui_workflow.py` 跑该文件通过；示例引用的演示图要么在仓库里
+  （`assets/`），要么在表里写明「自备」。
+- **提交前自检：** 按 [`CONTRIBUTING.md`](CONTRIBUTING.md) 的清单跑；最短版本是
+  `python -m ruff check .` → `python tools/check_release_ready.py` → 那里列出的测试文件。
+  **没有哪道闸可以「这次先跳过」。**
+- **`report` 是用户界面。** 参数、检查或报错文案变化时，同步改手册（[`docs/19`](docs/19-node-manual.md)）
+  与报错表（§2.5）**逐字**；S18 会拿每一行去源码里核。
+
+### 4.5 许可
 
 - 本包代码 **MIT**。
 - 思路参考与代码归属见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)（**未复制**任何第三方代码）。

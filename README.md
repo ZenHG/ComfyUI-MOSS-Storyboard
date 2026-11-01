@@ -66,7 +66,7 @@ Full table and finer usage: [manual §0](docs/19-node-manual.md#0-术语一个�
 |---|---|---|
 | ComfyUI **≥ 0.42.0** | ✅ | older versions lack the `moss_image` text-encoder type |
 | `moss_image_sft_bf16.safetensors` | ✅ | `models/unet/` or `models/diffusion_models/` |
-| `qwen3.5_9b_int8_convrot.safetensors` | ✅ | `models/clip/` |
+| `qwen3.5_9b_int8_convrot.safetensors` | ✅ | `models/text_encoders/` (older hosts also accept `models/clip/`) |
 | `flux2-vae.safetensors` | ✅ | `models/vae/` |
 | pip packages | ❌ | none (optional `insightface` + `onnxruntime` for Face Swap's auto mask) |
 
@@ -81,20 +81,14 @@ with it set `steps` to **4** and `cfg` to **1.0** (un-bypass with `Ctrl+B` first
 
 ### 1.2 Install
 
-**ComfyUI Manager (recommended)** — search **MOSS Storyboard** → Install → restart ComfyUI.
+Three routes, same result. **No `pip install` and no extra Python dependencies** — the only optional packages
+are `insightface` + `onnxruntime` for Face Swap's automatic mask.
 
-**ComfyUI CLI** (if your install ships the `comfy` command):
-
-```bash
-comfy node install moss-storyboard
-```
-
-**git**:
-
-```bash
-cd <your ComfyUI>/custom_nodes
-git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard
-```
+| Route | Prerequisite | How | How to verify |
+|---|---|---|---|
+| **ComfyUI Manager** (recommended) | Manager installed, host ≥ 0.42.0 | search **MOSS Storyboard** → Install → restart | the startup log line below + seven nodes under `moss/storyboard` |
+| **Registry page** | a host/Manager that reads the node registry | open `https://registry.comfy.org/nodes/moss-storyboard` → Install (it hands off to Manager or the `comfy` CLI). **If the page 404s, this build is not published yet** — use the manual route | same as above |
+| **Manual (git or zip)** | git, or a browser to download the repo ZIP | `cd <your ComfyUI>/custom_nodes` → `git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard` (or unzip into that folder) → restart | `<ComfyUI>/custom_nodes/ComfyUI-MOSS-Storyboard/__init__.py` exists; same log line + nodes |
 
 After the restart, seven nodes appear under **`moss/storyboard`**, and the startup log shows a line
 (`<version>` is whatever you installed):
@@ -106,12 +100,32 @@ After the restart, seven nodes appear under **`moss/storyboard`**, and the start
 That is Chinese for "v`<version>` loaded | 7 nodes (V3 node API) | 3/4/6/8/9 grids".
 
 **No such line = the pack did not load.** That check beats any settings inspection.
+For a manual install the usual cause is **one folder too deep**
+(`custom_nodes/ComfyUI-MOSS-Storyboard/ComfyUI-MOSS-Storyboard/`): the loader only looks one level down.
 To fall back to the legacy V1 node API, set `MOSSSB_NODE_API=v1`.
 
+**The `⚠ 未检测到 llama-server` line is normal on a first run.** If you have not installed the optional
+LLM subpackage / llama-server yet, the same startup log continues with
+`[MOSS SB] ⚠ 未检测到 llama-server…`. It does **not** mean the pack failed: the seven core nodes are loaded
+and the zero-weight step below works without it. Only the `moss/llm` nodes (caption / expand / edit) need a
+llama-server or an OpenAI-compatible endpoint.
+
 **Restart ComfyUI once more after dropping the model files in** — otherwise the loaders' dropdowns do not list them.
-Host version: the startup log starts with `ComfyUI Version:`; `git log -1 --format=%h` gives the commit.
+Host version: at the top of the startup stdout you will see `** ComfyUI startup time:` and the paths;
+the full version string is in `<ComfyUI>/user/comfyui.log` — look for `ComfyUI version: <version>`.
+`git log -1 --format=%h` gives the pack's commit.
 
 ### 1.3 Run the first one
+
+**Step 0 — zero weights, zero VRAM.** Drag
+[`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) into the ComfyUI window and queue.
+It runs `MossPromptSmith` in **`task=compile`**: no model is loaded, it finishes in milliseconds, and the outputs
+are text (compiled prompt + `report`). If this works, the pack is installed correctly end to end.
+Expected: the `prompt` preview shows the compiled prompt, the second preview shows the `report`.
+No model files yet? You can stop here. [`examples/moss-prompt-compiler.json`](examples/moss-prompt-compiler.json)
+is the other zero-model demo (official draft → prompt + editor state).
+
+**Step 1 — the real first image (needs the three model files).**
 
 1. Install the pack and the three model files above.
 2. **Drag** [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json)
@@ -125,7 +139,18 @@ Outputs: a **1024×576** board and four **496×272** panels.
 > `output/moss/storyboard/` under your ComfyUI root — `grid_*.png` and `panel_*.png`.
 > **With no save node attached, the image only exists in memory and is gone when the run ends.**
 
-**Eight examples, one job each**
+**Step 2 — from a photo to a prompt (optional LLM subpackage).**
+[`examples/llm-caption-to-moss.json`](examples/llm-caption-to-moss.json) reverses an input image into a caption
+prompt plus a `report` (extracted facts, binding warnings, omitted artifacts). It needs the optional `moss_llm/`
+subpackage and either a llama-server (the node can install an official build in one click) or any
+OpenAI-compatible endpoint. It produces **text, not an image** — use it to write the prompt, then feed that
+prompt to the storyboard node.
+
+**Twelve examples, one job each**
+
+> The table below is checked against the actual files: every `examples/*.json` must be named here and must
+> have the columns below (release gate S18). When a new example lands under `examples/`, it gets a row here
+> in the same PR.
 
 > ⚠ **An example whose input image is not in `input/` reports "image not found".**
 > **The single-photo example ships two demo images**: `assets/faceswap-demo-src.png` (one person) and
@@ -134,19 +159,20 @@ Outputs: a **1024×576** board and four **496×272** panels.
 > **The board and pose examples** need your own `moss_faceswap_src.png` / `moss_faceswap_ref.png`.
 > **src and ref must be different people** — swapping one person onto themselves looks like "nothing happened".
 
-| File | What it does | Model | Third-party nodes |
+| File | What it does | Model | What you get |
 |---|---|---|---|
-| `moss-layout-editor-storyboard.json` | 4-panel storyboard with in-graph notes (**the starting point**) | ✅ | — |
-| `moss-storyboard-4panels-ui.json` | 4-panel storyboard, plainest wiring | ✅ | — |
-| `moss-layout-editor-poster.json` | single poster, boxes on the editor canvas | ✅ | — |
-| `moss-prompt-compiler.json` | official draft → prompt + editor state | ❌ no VRAM | — |
-| `moss-faceswap-ui.json` | 4-panel board → swap panel 0 → board out | ✅ | needs DMD2 + edit LoRA |
-| `moss-faceswap-single-ui.json` | **one photo** → face swap → image out (no `spec`) | ✅ | needs DMD2 + edit LoRA |
-| `moss-pose-generate-ui.json` | reference face + prompt → one posed image (`init=empty`) | ✅ | none |
-| `moss-storyboard-4panels-edit.json` | crop one panel → instruction edit → paste back | ✅ | needs edit LoRA |
-| `llm-caption-to-moss.json` | 🧩 one image → reverse-engineered prompt + report | ✅ | optional `moss_llm` subpackage |
-| `llm-idea-to-storyboard.json` | 🧩 one line → 4-panel board script → straight into the sampler | ✅ | optional `moss_llm` subpackage |
-| `llm-wash.json` | 🧩 re-wash: caption (ignoring compression/watermark class defects) → edit → redraw at the same ratio | ✅ | optional `moss_llm` subpackage |
+| `moss-layout-editor-storyboard.json` | 4-panel storyboard with in-graph notes (**the starting point**) | ✅ | 1024×576 board + 4 panel crops |
+| `moss-storyboard-4panels-ui.json` | 4-panel storyboard, plainest wiring | ✅ | same board, minimum graph |
+| `moss-layout-editor-poster.json` | single poster, boxes on the editor canvas | ✅ | one poster-sized image |
+| `moss-prompt-compiler.json` | official draft → prompt + editor state | ❌ no VRAM | text only (a prompt + JSON state) |
+| `llm-compile-zero-model.json` | 🧩 `MossPromptSmith` in `task=compile`: IR JSON → compiled prompt + report | ❌ no VRAM | text only (prompt + `report`) — the 10-second install check |
+| `moss-faceswap-ui.json` | 4-panel board → swap panel 0 → board out | ✅ | board with one panel swapped |
+| `moss-faceswap-single-ui.json` | **one photo** → face swap → image out (no `spec`) | ✅ | one swapped portrait |
+| `moss-pose-generate-ui.json` | reference face + prompt → one posed image (`init=empty`) | ✅ | one posed image |
+| `moss-storyboard-4panels-edit.json` | crop one panel → instruction edit → paste back | ✅ | board with one panel repainted |
+| `llm-caption-to-moss.json` | 🧩 one image → reverse-engineered prompt + report | ✅ | caption prompt + `report` (no image) |
+| `llm-idea-to-storyboard.json` | 🧩 one line → 4-panel board script → straight into the sampler | ✅ | 4-panel board from one line |
+| `llm-wash.json` | 🧩 re-wash: caption (ignoring compression/watermark class defects) → edit → redraw at the same ratio | ✅ | redrawn image + `report` |
 
 > 🧩 The three marked `moss_llm` use `MossPromptSmith` from the **optional LLM subpackage**
 > (category `moss/llm`). They are not among the seven core nodes: delete the whole
@@ -155,7 +181,7 @@ Outputs: a **1024×576** board and four **496×272** panels.
 > or the `外部 API` channel against any OpenAI-compatible endpoint.
 > **Both of those reach the network**, once per queued run.
 
-> ⚠ **Four of the eleven examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
+> ⚠ **Four of the twelve examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
 > `4panels-edit` / `poster`; the face-swap and pose examples have none) between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core
 > (`comfy_extras/nodes_easycache.py`, experimental, filed under `advanced/debug`) and lets the sampler reuse steps.
 > **Bypass it (`Ctrl+B`) or delete it before comparing anything against the numbers on this page** — with it on,
@@ -373,6 +399,11 @@ Do not read this table as a recommended recipe.
 > Do not read this as "12 GB is enough". Data [`docs/data/g1-results.json`](docs/data/g1-results.json),
 > per-run log [`docs/data/g1-report.md`](docs/data/g1-report.md).
 
+**Where the tier conclusions come from**: the mechanism (why VAE decode — not sampling — is the peak, the
+host-side `× 4.0` divider, the recomputation table) is in
+[`docs/06-vae-memory.md`](docs/06-vae-memory.md) §5, and the items still **unverified** are listed in its §7.
+This page only quotes numbers; cite §5/§7 rather than these tables when you need a conclusion.
+
 ### 2.5 Error table
 
 Every row below is copied verbatim from a `ValueError` in the source. **The messages are Chinese** — paste a few
@@ -392,6 +423,8 @@ characters into a search here to find your row.
 | `draft 为空：请粘贴官方 prompt-enhancer 的 caption/layout 草稿 JSON。` | Draft Compiler run with an empty draft | paste the **draft**, not the compiler's own output |
 | `元素 3 没有描述（caption 不能为空）` | a box on the canvas has no caption | give it a caption, or delete it |
 | `label 只能是 object/character/text（收到 'xxx'）` | a hand-edited state or draft used another type | only those three values are allowed |
+| `解码尺寸 1024x576 小于布局下限 2048x1152；无法重建裁切几何` | Face Swap: the input image is smaller than the `spec` canvas it must fill | feed an image at least as large as the layout, or wire a smaller `spec` |
+| `init=source 需要 image（要换脸的那张图）。` | Face Swap with `init=source` but no `image` wired (or the socket is named differently) | wire the image, or set `init=empty` for plain text-to-image |
 
 **No error, wrong result:**
 
@@ -599,7 +632,7 @@ ComfyUI-MOSS-Storyboard/
 ├── v3/                    V3 schema shell
 ├── web/                   frontend extension (zh/en switch + layout editor)
 ├── tests/ tools/          automated checks and dev scripts
-├── examples/              7 user examples (test fixtures live in tests/fixtures/)
+├── examples/              12 user examples (test fixtures live in tests/fixtures/)
 ├── docs/                  mechanisms and measurement records
 └── pyproject.toml         metadata + host version requirement
 ```
@@ -624,7 +657,22 @@ ComfyUI-MOSS-Storyboard/
 `docs/`, `CHANGES.md` and `RELEASE-NOTES.md` are not shipped in the install package (see `.comfyignore`); the links
 above point to the GitHub repo.
 
-### 4.4 License
+### 4.4 For maintainers: docs, examples, checks
+
+- **Docs are two files.** User-facing text lives in `README.md` (EN) and `README_ZH.md` (ZH); edit both in the
+  same PR. `tools/check_docs_sync.py` (release gate **S19**) fails when the two heading trees drift
+  (count / level / numbering order). Design notes live in `docs/` (Chinese; not shipped).
+- **Examples are the regression set.** Adding a new file under `examples/` means: a row in the gallery table of
+  **both** READMEs (S18 fails otherwise), `python tools/check_ui_workflow.py <that file>` green, and no
+  demo image that is missing from the repo — either ship it under `assets/` or say "bring your own" in the row.
+- **Before you push:** run the full list in [`CONTRIBUTING.md`](CONTRIBUTING.md) — the short version is
+  `python -m ruff check .`, then `python tools/check_release_ready.py`, then the test files named there.
+  No gate is "skippable this once".
+- **`report` is user interface.** If an input, check or message changes what `report` prints, update the
+  manual ([`docs/19`](docs/19-node-manual.md)) and the error table (§2.5) **verbatim**; S18 re-checks every
+  error-table row against the source strings.
+
+### 4.5 License
 
 - Pack code: **MIT**.
 - Credits, ideas and provenance: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) — **no third-party code was copied**.

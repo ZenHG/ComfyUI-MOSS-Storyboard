@@ -804,6 +804,30 @@ def s18_doc_facts() -> None:
     check("报错表原文能在源码里逐字找到（%d 行）" % len(rows), len(rows) >= 8 and not broken, detail)
 
 
+def s19_docs_sync() -> None:
+    """README 中英必须节级成对（`tools/check_docs_sync.py`）。
+
+    为什么放进发布卫生闸：两份 README 是**手工维护**的，历史上漂移过——英文加了一节、
+    中文忘了加，用户按语言看到的是两个产品。判据只碰结构（数量/层级/编号顺序），
+    不假装能判译文质量；显式例外必须在 `check_docs_sync.EXCEPTIONS` 里写理由，
+    过期例外会自己报红（防例外清单变成绕过闸的后门）。
+    """
+    say("\nS19 README 中英节级同步")
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    try:
+        import check_docs_sync as cds
+    except ImportError as exc:                       # 缺文件要响，不能静默跳过
+        check("双语同步闸可导入", False, str(exc))
+        return
+    problems, en, zh = cds.compare_docs(os.path.join(ROOT, "README.md"),
+                                        os.path.join(ROOT, "README_ZH.md"))
+    detail = "；".join(problems[:4]) if problems else ("例外 %d 条" % len(cds.EXCEPTIONS))
+    check("中英 README 节级成对（EN %d 节 / ZH %d 节）" % (len(en), len(zh)),
+          not problems, detail)
+
+
 def main() -> int:
     say("MOSS Storyboard · 发布前开源卫生检查")
     say("=" * 64)
@@ -831,6 +855,7 @@ def main() -> int:
     s16_blacklist_travels(files)
     s17_binary_meta(files)
     s18_doc_facts()
+    s19_docs_sync()
 
     say("\n" + "=" * 64)
     say("结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

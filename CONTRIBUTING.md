@@ -22,11 +22,17 @@ python tests/test_init_empty.py         # 18 项：init 两个分支 —— 空 
 node   tests/test_i18n.mjs                # 64 项：中英切换纯函数（含子包 39 个参数标签 / en 提示 / 枚举显示）
 node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
 python tests/test_llm_subpackage.py        # 98 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一 / 侧车启动命令 / 图像预处理 / 零模型编译 / 反漂移断言）
+python tests/test_caption_quality.py       #  25 项：反推护栏（character 类型闸 / 实体上限 / 重复保护；零 GPU 零网络）
+python tests/test_node_caption_guard.py    #  21 项：反推护栏节点路径（类型闸接线 / 实体上限 / 结构化四级降级 / 重复保护；桩服务端）
+python tests/test_docs_sync.py              #  13 项：README 中英节级同步（结构/层级/例外清单；零 GPU 零网络）
+python tests/test_g7_adjudicate.py          #  18 项：G7 双盲判读工具（判读包不泄漏 / 分歧定位 / κ<0.6 必红 / ρ 对拍；离线）
+python tests/test_g7_round2.py              #  17 项：G7 第二轮两轮对比器（四项指标带分母 / 分母为 0 报 n/a / 参数漂移出声；离线）
 python -m unittest tests.test_smith_ir     # 365 项：IR 编译层（7 后端方言 / 6 条不变式 / 往返 / 分解对账 / 结构化方言判据 / 覆盖率）
 python tests/test_expand_steps.py          # 21 项：扩写三拆（补全/翻译/改写各自的判据、开关、归因；假 LLM）
 python tests/test_h3_six.py                # 56 项：H3 全参考六段式（3 段真稿字节往返 / 17 错误码 / profile 并存 / lint 接线）
 python tests/test_lang_zh.py               # 20 项：中文整句（中英事实集相等 / 默认 en 逐字节不变 / 语序机检 Z01–Z07）
 python tests/test_registry_family.py       # 12 项：跨家族 registry（新增 target 纯 YAML 可编译，不改一行 Python）
+python tests/test_ci_preflight.py          # 16 项：本地预检自身（环境探测桩 / SKIP 与 PASS 严格区分 / --require-all 红）
 python tests/test_coverage_gate.py         #  2 项：覆盖率闸自身（基线绿 + 红时点名丢了哪条事实）
 python tests/test_g7_binding.py            # 35 项：G7 binding 判据（五类绑定规则正例/反例，离线不跑模型）
 python tests/test_pitfalls_ab.py           # 34 项：pitfalls A/B 判定函数（三档结论机械求值，离线不出图）
@@ -34,14 +40,16 @@ python tests/test_wash_benchmark.py        # 30 项：洗图基准离线层（wo
 python tools/check_coverage.py --check     # 覆盖率闸：4 份夹具 × 7 后端，不丢固定项、不编数字与文字、覆盖率不低于基线
 python tools/smoke_nodes.py               # 63 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
-python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 共 197 项：连线 + 槽位（不带文件参数只查内建那一份 = 15 项）
+python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 共 210 项（12 个示例 + 2 个夹具）：连线 + 槽位；不带文件参数只查内建那一份 = 17 项
 python tools/check_frontend.py            # 20 项：前端词表/语法/接线/标题可换语言/**汉化完整**（参数标签 / 枚举取值 / 编辑器文案 / 节点显示名 / 中文 tooltip）
 python tools/check_editor_ui.py           # 160 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
-python tools/check_release_ready.py       # 53 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查）
+python tools/check_release_ready.py       # 54 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查 / **中英 README 节级同步**）
 node   tools/ui_smoke.mjs                 # 38 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认 / 删除与分布按钮接线）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）
 node   tools/ui_llm_panel.mjs            # 43 项：**真机** LLM 面板（开关条置顶 / 悬停不抖 / 默认常驻 5 项 / 单组视图 / 已改点 / 已接线参数不被藏（三层分开断言）/ 存档逐位不变 / 只动本节点）
 node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
+python tools/ci_preflight.py               # 本地真机预检：有环境就跑、缺环境输出 SKIP（未跑）；发布前加 --require-all（GPU 项再加 --with-gpu）
+python tools/ci_preflight.py --probe-only  # 只探测宿主/GPU/Playwright 与计划，不跑任何闸
 ```
 
 四个 `ui_*.mjs` 都是**真机**（要跑着的 ComfyUI，默认 `http://127.0.0.1:8188`，`--url` 可改）+ 本机 playwright-core 与 chromium。
@@ -54,10 +62,43 @@ node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（�
 它自带**负对照**：临时摘掉 `.mossed-root` 标记后，同一位置必须变成缩放画布——否则说明"画布没动"只是
 滚轮压根没送到（假绿）。`--engine all` 一把跑三引擎，`--json` 记账。
 
-CI 的 `release-preview` job 会构建干净分发包（`tools/make_dist.py --zip`，只上传 artifact，不发布）；
-`host` job 会从干净副本 `--verify` 独立加载并跑编辑器/宫格/裁格。
+CI 的 `release-preview` job 会跑发布卫生闸（54 项，含 pyproject 元数据纪律与 `.comfyignore`
+打包面断言）、用 `tools/make_dist.py --verify` **在干净副本里独立装载**、再构建干净分发包
+（`--zip`，只上传 artifact，不发布）。
 
-`smoke_nodes.py` / `host_loader_check.py` / `check_ui_workflow.py` 需要宿主：
+CI 的 `host-matrix` job 钉**两个 ComfyUI 版本**（`v0.42.0` = 本包最低支持线、`v0.43.2` =
+撰写时最新稳定 tag；理由与「连续绿后才取消豁免」的判据见 [`docs/44`](docs/44-CI第二矩与兼容矩阵.md)），
+在 CPU runner 上跑**可确定判定**的步骤（纯节点冒烟 / 14 个示例工作流的连线与槽位 / 干净副本装载）；
+`host_loader_check.py` 因 CPU runner 上 ComfyUI 在 import 期断言 CUDA，保留 **step 级豁免**并注明原因。
+`windows` job 跑同样的 CPU 可判定子集（不含前端差分与任何 GPU 步骤），把「Windows 用户装不上」
+这类平台问题提前暴露。
+
+CI 覆盖不到的**真机闸**（宿主装载 / 无头浏览器面板 / GPU 端到端）走本地一键预检：
+
+```bash
+python tools/ci_preflight.py --probe-only      # 先看这台机器有什么
+python tools/ci_preflight.py                   # 有环境就跑；缺的明确 SKIP（未跑）
+python tools/ci_preflight.py --require-all     # 发布前：缺任何环境即非 0
+python tools/ci_preflight.py --require-all --with-gpu   # 发布前全量（会真出图）
+```
+
+**SKIP（未跑）≠ 通过**：脚本缺宿主/缺 GPU/缺 Playwright 时**没跑过**，退出码与文案都区分。
+⚠️ GitHub Actions 的结构与命令**本机（Windows）无法等价复现**，PR 上必须以 runner 实跑为准；
+本机只保证「同一批脚本逐条本地跑过」。
+
+## 一次改动的最小闭环（本地 → CI）
+
+改这一行代码/文档，最少走完这四步再提 PR：
+
+1. **静态**：`python -m ruff check .`
+2. **相关单测**：至少跑你改动所在层的测试文件（列表见上；速度都按秒计，别只跑一个）。
+3. **示例/装载**（碰到 `examples/`、`nodes.py` 参数、打包面时必跑）：
+   `python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json`
+   （210 项）+ `python tools/make_dist.py --out dist/moss --verify`（16/0）。
+4. **发布前**：`python tools/check_release_ready.py`（54 项）+ `ci_preflight.py --require-all`（真机）。
+   只加后端/方言 = 只改 YAML 的改动也要过第 3 步（示例槽位与干净装载是最容易静默坏的地方）。
+
+`smoke_nodes.py` / `host_loader_check.py` / `check_ui_workflow.py` / `ci_preflight.py` 需要宿主：
 设 `COMFYUI_PATH=/path/to/ComfyUI`，或写进仓库根的 `.comfyui_path`（本地文件，已忽略）。
 
 端到端（要 GPU + 权重，不进 CI）：

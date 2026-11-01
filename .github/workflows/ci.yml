@@ -3,7 +3,8 @@
 # 设计口径与 H 仓（ComfyUI-H3-Latent-Relay）一致：
 #   · **每个脚本用自己的退出码表达成败**，不靠解析输出 ⇒ 失败即非零，CI 直接红；
 #   · 期望值写在这里，但**不写行号**（会漂的东西别写）；
-#   · 只跑"能确定判定"的东西：几何、契约、词表、装载。**成片质量不进 CI**（要 GPU + 权重）。
+#   · 只跑"能确定判定"的东西：几何、契约、词表、装载、示例工作流。
+#     **成片质量不进 CI**（要 GPU + 权重）；真机闸走本地 `tools/ci_preflight.py`。
 #
 # 期望值（改动后若数字变了，请同步 CONTRIBUTING.md 与本文件）：
 #   · 313/0  tests/test_core.py               几何 / 提示词 / 像素 / 控制区域图
@@ -18,32 +19,53 @@
 #   ·  64/0  tests/test_i18n.mjs              中英切换纯函数（node）
 #   ·  43/0  tests/test_compat.mjs            旧工作流 widgets_values 错位修复（纯函数）
 #   ·  98/0  tests/test_llm_subpackage.py     可选 LLM 子包纯函数：包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 侧车命令 / 图像预处理 / 零模型编译 / 反漂移断言
+#   ·  25/0  tests/test_caption_quality.py    反推护栏：character 类型闸 / 实体上限 / 重复保护
+#   ·  21/0  tests/test_node_caption_guard.py  反推护栏节点路径：类型闸 / 实体上限 / 结构化四级降级 / 重复保护
+#   ·  13/0  tests/test_docs_sync.py          README 中英节级同步（S19）：层级/顺序/成对存在 + 例外清单
+#   ·  18/0  tests/test_g7_adjudicate.py      G7 双盲判读工具（离线）：判读包不泄漏 / 分歧定位 / κ<0.6 必红 / ρ 对拍
+#   ·  17/0  tests/test_g7_round2.py          G7 第二轮两轮对比器（离线）：四项指标带分母 / 分母为 0 报 n/a / 参数漂移出声
 #   · 365/0  tests/test_smith_ir.py           IR 编译层：7 后端方言 / 6 条不变式 / 往返 / 分解对账 / 结构化方言判据 / 覆盖率
 #   ·  21/0  tests/test_expand_steps.py       扩写三拆：补全/翻译/改写各自的判据、开关、归因（假 LLM，零 GPU）
 #   ·  56/0  tests/test_h3_six.py             H3 全参考六段式：3 段真稿字节往返 / 17 错误码 / profile 并存 / lint 接线
 #   ·  20/0  tests/test_lang_zh.py            中文整句：中英事实集相等 / 默认 en 逐字节不变 / 语序机检 Z01–Z07
 #   ·  12/0  tests/test_registry_family.py    跨家族 registry：新增 target 纯 YAML 可编译（不改一行 Python）
+#   ·  16/0  tests/test_ci_preflight.py       本地预检：环境探测桩 / SKIP 与 PASS 严格区分 / --require-all 红
 #   ·   2/0  tests/test_coverage_gate.py      覆盖率闸自身：基线绿 + 红时必须点名丢了哪条事实
 #   ·  35/0  tests/test_g7_binding.py         G7 binding 判据（离线）：五类绑定规则的正例/反例
 #   ·  34/0  tests/test_pitfalls_ab.py        pitfalls A/B 判定函数（离线）：三档结论的机械求值
 #   ·  30/0  tests/test_wash_benchmark.py     洗图基准离线层：workflow 构造 / 编译 / 打分确定性 / 降级路径
 #   ·  63/0  tools/smoke_nodes.py             自加载 + 纯节点真跑
-#   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node
-#   ·  16/0 每个文件  tools/check_ui_workflow.py   工作流连线 + widget 槽位逐位值域
-#                各文件：10 编辑器海报 · 14 编辑器故事板 · 15 4 格 UI / 8 格 / 0.1.x 20 槽 · 19 4 格编辑
-#                （CI 实际传 10 个文件 ⇒ 共 158 项；不带文件参数只查内建那一份 = 15 项）
+#   ·  19/0  tools/host_loader_check.py       走宿主 load_custom_node（真机；CI 里是 CUDA 豁免步骤）
+#   ·  17/0  tools/check_ui_workflow.py（不带文件参数 = 内建那份 17 项）
+#                14 个文件逐文件实测：layout-editor-poster 12 · layout-editor-storyboard 16 ·
+#                4panels-ui 17 · 8panels-layout 17 · 0.1-20slots 17 · 4panels-edit 21 ·
+#                prompt-compiler 12 · faceswap-ui 15 · faceswap-single 12 · pose-generate 12 ·
+#                llm-caption 13 · llm-idea 20 · llm-wash 13 · llm-compile 13；
+#                **CI 实际传 examples/ 12 个 + fixtures/ 2 个 = 14 个文件 ⇒ 共 210 项**
 #   ·  20/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 标题可换语言 / 汉化完整（标签·枚举·文案·标题·tooltip）
 #   · 160/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 分布与等大 / 滚轮与旧稿错位守卫
 #   ·  95/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
 #   ·  22/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示
-#   · release-preview: check_release_ready + 干净分发包构建（不发布，上传 zip artifact）
+#   · 54/0   tools/check_release_ready.py     发布卫生（凭据 / 公开面 / 元数据 / 打包口径 / 文档清单 / SPDX / 内部称呼 / 双语同步）
+#   · release-preview: 上面这些 + pyproject 元数据纪律 + `.comfyignore` 打包面 + `make_dist --verify`（干净副本独立装载，16/0）
+#
+# 宿主版本矩阵（job `host-matrix`）：两个**钉住**的 ComfyUI tag，理由写在 docs/44：
+#   · v0.42.0 = 本包 `[tool.comfy].requires-comfyui` 的**最低支持线**（MOSS-Image 原生支持首次进入的版本）；
+#   · v0.43.2 = 撰写时（2026-11-01）GitHub 上的**最新稳定 tag**，代表「用户现在新装会拿到的版本」。
+#   两者都不追 latest：上游漂移导致的红必须能归因到「本包不兼容某个明确版本」。
 #
 # ⚠️ **已知覆盖缺口（诚实记录，别当成已覆盖）**：
-#   1. `host` job 需要在 runner 上现装 ComfyUI，**本机（Windows）无法等价复现**
-#      ⇒ 先设为 `continue-on-error`，本地等价闸是 `tools/host_loader_check.py`。
-#      等它在 main 上连续绿过几次再取消这个开关。
-#   2. 只跑 CPU：`bf16` / 显存路径 / VAE 解码全部不在 CI 内。
-#   3. `tools/e2e_matrix.py` 不进 CI（要 GPU + 4GB 权重），靠人工在真机跑。
+#   1. **GitHub Actions 本机不可跑**：CI YAML 的结构/命令未在 GH runner 上实测过
+#      （本机只有 Windows；runner 是 ubuntu/windows 镜像）。**不冒充「CI 已绿」**。
+#      本地等价闸：`tools/ci_preflight.py`（真机）+ 本文件列出的脚本逐条本地跑过。
+#   2. **host-matrix 里 CUDA 豁免**：CPU runner 上 ComfyUI 在 import 期断言 CUDA，
+#      `host_loader_check.py` 必然失败且与本包无关 ⇒ 该步 **step 级 continue-on-error**，
+#      job 结论仍绿、失败详情留在日志。其余步骤在 CPU 上可确定判定 ⇒ 阻塞。
+#      「main 连续绿后再取消豁免」的判据见 docs/44 §4。
+#   3. 只跑 CPU：`bf16` / 显存路径 / VAE 解码 / GPU 端到端全部不在 CI 内；
+#      `tools/e2e_matrix.py` 要 GPU + 权重，走本地 `ci_preflight.py --with-gpu`。
+#   4. Windows job 只跑 **CPU 可判定子集**（纯节点冒烟 + 示例回归 + CPU 单测 + 卫生闸），
+#      不含 node/Python 前端差分（由 ubuntu `frontend` job 覆盖）与任何 GPU 步骤。
 
 name: ci
 
@@ -107,6 +129,16 @@ jobs:
         run: python tests/test_sampling_contract.py
       - name: 可选 LLM 子包（纯函数，不碰 GPU 与网络）
         run: python tests/test_llm_subpackage.py
+      - name: 反推护栏（character 类型闸 / 实体上限 / 重复保护）
+        run: python tests/test_caption_quality.py
+      - name: 反推护栏节点路径（类型闸 / 上限 / 结构化降级 / 重复保护）
+        run: python tests/test_node_caption_guard.py
+      - name: README 中英节级同步（S19：层级 / 顺序 / 成对存在 / 例外清单）
+        run: python tests/test_docs_sync.py
+      - name: G7 双盲判读工具（离线：判读包 / 分歧 / κ / ρ）
+        run: python tests/test_g7_adjudicate.py
+      - name: G7 第二轮两轮对比器（离线：指标分母 / n-a / 参数漂移）
+        run: python tests/test_g7_round2.py
       - name: IR 编译层（零 GPU 零网络）
         run: python -m unittest tests.test_smith_ir
       - name: 扩写三拆（假 LLM，零 GPU）
@@ -117,6 +149,8 @@ jobs:
         run: python tests/test_lang_zh.py
       - name: 跨家族 registry（纯 YAML 接入新 target）
         run: python tests/test_registry_family.py
+      - name: 本地预检自身（环境桩 / SKIP≠PASS / --require-all）
+        run: python tests/test_ci_preflight.py
       - name: 覆盖率闸自身（基线绿 + 红时点名事实）
         run: python tests/test_coverage_gate.py
       - name: G7 binding 判据（离线，不跑模型）
@@ -153,7 +187,7 @@ jobs:
   release-preview:
     name: release preview (build only, no publish)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -165,6 +199,65 @@ jobs:
           python-version: "3.12"
       - name: Release hygiene gate
         run: python tools/check_release_ready.py
+      - name: Registry 元数据纪律（pyproject：node id / license 形式 / 关键词归段）
+        run: |
+          python - <<'PY'
+          import sys, tomllib, pathlib
+          data = tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))
+          proj = data.get("project") or {}
+          urls = proj.get("urls") or {}
+          comfy = (data.get("tool") or {}).get("comfy") or {}
+          fails = []
+          def chk(name, cond, detail=""):
+              print(("  [OK]   " if cond else "  [FAIL] ") + name + (("  " + detail) if detail and not cond else ""))
+              if not cond: fails.append(name)
+          # name = registry 的 node id = 安装 URL；官方规约不带 "ComfyUI"。
+          chk("project.name 是稳定 node id（moss-storyboard，不含 ComfyUI）",
+              proj.get("name") == "moss-storyboard" and "comfyui" not in str(proj.get("name")).lower(),
+              repr(proj.get("name")))
+          lic = proj.get("license")
+          chk("license 是 { file/text } 形式（不收裸 SPDX 字符串）",
+              isinstance(lic, dict) and ("file" in lic or "text" in lic), repr(lic))
+          chk("keywords/classifiers/dependencies 在 [project] 段（不在 urls 里）",
+              isinstance(proj.get("keywords"), list) and bool(proj["keywords"])
+              and isinstance(proj.get("classifiers"), list) and "keywords" not in urls
+              and "classifiers" not in urls)
+          chk("dependencies 显式 []（零额外依赖）", proj.get("dependencies") == [],
+              repr(proj.get("dependencies")))
+          chk("[tool.comfy] 有 PublisherId / DisplayName / requires-comfyui",
+              all(str(comfy.get(k) or "").strip() for k in ("PublisherId", "DisplayName", "requires-comfyui")))
+          req = str(comfy.get("requires-comfyui") or "").replace(" ", "")
+          chk("requires-comfyui 是本包已知下限（>=0.42.0）", req.startswith(">=0.42"), req)
+          sys.exit(1 if fails else 0)
+          PY
+      - name: ".comfyignore 打包面（开发设施排除 / 运行期文件不排除）"
+        run: |
+          python - <<'PY'
+          import sys, pathlib
+          lines = [ln.strip() for ln in pathlib.Path(".comfyignore").read_text(encoding="utf-8").splitlines()]
+          rules = [ln for ln in lines if ln and not ln.startswith("#")]
+          fails = []
+          def chk(name, cond, detail=""):
+              print(("  [OK]   " if cond else "  [FAIL] ") + name + (("  " + detail) if detail and not cond else ""))
+              if not cond: fails.append(name)
+          def excluded(rel):
+              for p in rules:
+                  if "/" not in p:
+                      continue
+                  if rel == p or rel.startswith(p):
+                      return True
+              return False
+          for dev in ("tests/", "tools/", "docs/", ".github/"):
+              chk("排除开发设施 %s" % dev, "/%s" % dev in rules)
+          for keep in ("__init__.py", "nodes.py", "core/", "v3/", "web/", "examples/",
+                       "pyproject.toml", "requirements.txt", "LICENSE", "README.md"):
+              chk("运行期文件不被排除：%s" % keep, not excluded(keep))
+          sys.exit(1 if fails else 0)
+          PY
+      - name: 干净分发包可独立装载（make_dist --verify）
+        run: |
+          pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+          python tools/make_dist.py --out "$RUNNER_TEMP/moss-dist-verify" --verify
       - name: Build clean distribution set (no publish)
         run: python tools/make_dist.py --out "$RUNNER_TEMP/moss-dist" --zip
       - name: Upload preview package
@@ -174,50 +267,128 @@ jobs:
           path: ${{ runner.temp }}/moss-dist/*.zip
           retention-days: 7
 
-  host:
-    name: host load (informational)
+  host-matrix:
+    name: host ComfyUI ${{ matrix.comfy }} (CPU-deterministic blocking)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # 见文件头「已知覆盖缺口 1」：不阻塞整体结论。逐步骤的例外见下。
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # 钉版本矩阵见文件头：最低支持线 + 撰写时最新稳定 tag。别在这里写 latest。
+        comfy: ["v0.42.0", "v0.43.2"]
     env:
-      COMFYUI_PATH: ${{ github.workspace }}/comfyui
-      MOSSSB_PATH: ${{ github.workspace }}
+      # ⚠️ 宿主必须 clone 到 workspace **外**（runner 临时目录）：若把包复制进
+      # `$GITHUB_WORKSPACE/comfyui/custom_nodes/...` 再 `cp -a "$GITHUB_WORKSPACE/."`，
+      # 源目录包含目标目录，GNU cp 会报 "cannot copy a directory into itself" 并以 1 退出。
+      COMFYUI_PATH: ${{ runner.temp }}/comfyui
+      MOSSSB_PATH: ${{ runner.temp }}/comfyui/custom_nodes/ComfyUI-MOSS-Storyboard
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: 取宿主（钉版本，避免上游漂移造成与本包无关的红）
-        run: git clone --depth 1 --branch v0.42.0 https://github.com/comfyanonymous/ComfyUI.git comfyui
+      - name: 取宿主（钉版本；clone 到 runner 临时目录，避免复制自包含）
+        run: git clone --depth 1 --branch ${{ matrix.comfy }} https://github.com/comfyanonymous/ComfyUI.git "$RUNNER_TEMP/comfyui"
       - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install --disable-pip-version-check -r comfyui/requirements.txt
-      - name: 挂进 custom_nodes（真实加载路径）
-        run: ln -s "$GITHUB_WORKSPACE" "$COMFYUI_PATH/custom_nodes/ComfyUI-MOSS-Storyboard"
-      - name: 自加载 + 纯节点真跑
+      - run: pip install --disable-pip-version-check -r "$RUNNER_TEMP/comfyui/requirements.txt"
+      - name: 放真实副本进 custom_nodes（check_ui_workflow 按 __file__ 找 custom_nodes 祖先；软链会 resolve 回 workspace）
+        run: |
+          mkdir -p "$MOSSSB_PATH"
+          cp -a "$GITHUB_WORKSPACE/." "$MOSSSB_PATH/"
+          rm -rf "$MOSSSB_PATH/.git"
+      - name: 占位 GGUF（只让模型下拉在无权重 runner 上可复现；不加载、不出图）
+        run: |
+          mkdir -p "$RUNNER_TEMP/comfyui/models/LLM/GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF"
+          : > "$RUNNER_TEMP/comfyui/models/LLM/GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+      - name: "[阻塞] 自加载 + 纯节点冒烟（CPU 可确定判定）"
+        working-directory: ${{ env.MOSSSB_PATH }}
         run: python tools/smoke_nodes.py
-      - name: Distribution preview (clean copy + independent load)
+      - name: "[阻塞] 示例即回归：examples/ 12 个 + fixtures/ 2 个（共 210 项）"
+        working-directory: ${{ env.MOSSSB_PATH }}
+        run: python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json
+      - name: "[阻塞] 干净副本独立装载（make_dist --verify，16 项）"
         env:
-          COMFYUI_PATH: ${{ github.workspace }}/comfyui
-          PYTHONPATH: ${{ github.workspace }}/comfyui
+          PYTHONPATH: ${{ runner.temp }}/comfyui
         run: python tools/make_dist.py --out "$RUNNER_TEMP/moss-dist-host" --verify
-      # 🔴 CPU runner 上 ComfyUI 在 import 期就会断言 CUDA（`Torch not compiled with CUDA enabled`），
-      #    这一步在 CI 里**必然失败**，且与本包无关。用 **step 级** continue-on-error：
-      #    job 结论为绿，失败详情仍完整留在这一步的日志里。
-      #    本地等价检查（有 GPU 的机器）见维护者本地发布文档 §2。
-      - name: 走宿主 load_custom_node（CPU runner 上预期失败）
+      # 🔴 CUDA 豁免（step 级）：CPU runner 上 ComfyUI 在 import 期就会断言 CUDA
+      #    （`Torch not compiled with CUDA enabled`），这一步**必然失败**且与本包无关。
+      #    job 结论仍绿，失败详情完整留在这一步的日志里；这是**已知豁免**，不是通过。
+      #    取消豁免的判据：main 上该步连续 10 次绿（见 docs/44 §4）。
+      - name: "[CUDA 豁免] 走宿主 load_custom_node（CPU runner 上预期失败；真机请跑 tools/ci_preflight.py）"
         continue-on-error: true
         run: python tools/host_loader_check.py
-      # 同样要 import 宿主节点定义 ⇒ CPU runner 上可能同样触发 CUDA 断言。
-      - name: 工作流连线与槽位（CPU runner 上可能跳过）
-        continue-on-error: true
+
+  windows:
+    name: windows CPU (node smoke + examples)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      # 同 host-matrix：宿主在 workspace 外，`cp -a "$GITHUB_WORKSPACE/."` 才不会自包含。
+      COMFYUI_PATH: ${{ runner.temp }}\comfyui
+      MOSSSB_PATH: ${{ runner.temp }}\comfyui\custom_nodes\ComfyUI-MOSS-Storyboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 取宿主（钉 v0.43.2；Windows 侧只验 CPU 可判定子集）
+        shell: pwsh
+        run: git clone --depth 1 --branch v0.43.2 https://github.com/comfyanonymous/ComfyUI.git "$env:RUNNER_TEMP\comfyui"
+      - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install --disable-pip-version-check -r "$env:RUNNER_TEMP\comfyui\requirements.txt"
+      - name: 放副本 + 占位 GGUF（宿主在 workspace 外，复制不会自包含）
+        shell: pwsh
         run: |
-          python tools/check_ui_workflow.py tests/fixtures/moss-storyboard-8panels-layout.json
-          python tools/check_ui_workflow.py examples/moss-storyboard-4panels-ui.json
-          python tools/check_ui_workflow.py examples/moss-storyboard-4panels-edit.json
-          python tools/check_ui_workflow.py examples/moss-layout-editor-poster.json
-          python tools/check_ui_workflow.py examples/moss-layout-editor-storyboard.json
-          python tools/check_ui_workflow.py examples/moss-prompt-compiler.json
-          python tools/check_ui_workflow.py examples/llm-caption-to-moss.json
-          python tools/check_ui_workflow.py examples/llm-idea-to-storyboard.json
-          python tools/check_ui_workflow.py examples/llm-wash.json
-          python tools/check_ui_workflow.py tests/fixtures/moss-storyboard-0.1-20slots.json
+          New-Item -ItemType Directory -Force -Path "$env:MOSSSB_PATH" | Out-Null
+          Get-ChildItem -Force "$env:GITHUB_WORKSPACE" | Copy-Item -Destination "$env:MOSSSB_PATH" -Recurse -Force
+          Remove-Item -Recurse -Force "$env:MOSSSB_PATH\.git" -ErrorAction SilentlyContinue
+          $m = "$env:RUNNER_TEMP\comfyui\models\LLM\GGUF\Qwen\Qwen3-VL-4B-Instruct-GGUF"
+          New-Item -ItemType Directory -Force -Path $m | Out-Null
+          New-Item -ItemType File -Force -Path "$m\Qwen3VL-4B-Instruct-Q4_K_M.gguf" | Out-Null
+      - name: "[阻塞] 纯节点冒烟"
+        working-directory: ${{ env.MOSSSB_PATH }}
+        run: python tools/smoke_nodes.py
+      - name: "[阻塞] 示例即回归（同 14 文件）"
+        working-directory: ${{ env.MOSSSB_PATH }}
+        shell: bash
+        run: python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json
+      - name: "[阻塞] CPU 单测子集（Windows 可确定判定；在原始工作树跑，需要 .git）"
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          set -e
+          python tests/test_core.py
+          python tests/test_editor.py
+          python tests/test_interop.py
+          python tests/test_extract.py
+          python tests/test_adversarial.py
+          python tests/test_planner.py
+          python tests/test_skill_draft.py
+          python tests/test_panel_assembly.py
+          python tests/test_contract.py --no-host
+          python tests/test_sampling_contract.py
+          python tests/test_llm_subpackage.py
+          python tests/test_caption_quality.py
+          python tests/test_node_caption_guard.py
+          python tests/test_docs_sync.py
+          python tests/test_g7_adjudicate.py
+          python tests/test_g7_round2.py
+          python -m unittest tests.test_smith_ir
+          python tests/test_expand_steps.py
+          python tests/test_h3_six.py
+          python tests/test_lang_zh.py
+          python tests/test_registry_family.py
+          python tests/test_ci_preflight.py
+          python tests/test_coverage_gate.py
+          python tests/test_g7_binding.py
+          python tests/test_pitfalls_ab.py
+          python tests/test_wash_benchmark.py
+          python tools/check_coverage.py --check
+          python tools/freeze_smith_set.py --check
+          python tools/check_frontend.py
+      - name: "[阻塞] 卫生闸（在原始工作树跑：release gate 需要 .git）"
+        working-directory: ${{ github.workspace }}
+        run: python tools/check_release_ready.py
+      - name: "[阻塞] 干净副本独立装载（make_dist --verify）"
+        working-directory: ${{ github.workspace }}
+        run: python tools/make_dist.py --out "$env:RUNNER_TEMP\moss-dist-win" --verify
