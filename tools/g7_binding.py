@@ -701,18 +701,20 @@ def _cross_cell(cp: dict) -> str:
 # 校准：机检 vs 代理目检
 # ─────────────────────────────────────────────────────────────
 
-def _load_image_meta() -> dict:
-    data = json.loads((OUT / "images.json").read_text(encoding="utf-8"))
+def _load_image_meta(path: str | Path | None = None) -> dict:
+    p = Path(path) if path else (OUT / "images.json")
+    data = json.loads(p.read_text(encoding="utf-8"))
     return {i["id"]: i for i in data["images"]}
 
 
 def cmd_measure(args) -> int:
     models = [m.strip() for m in args.models.split(",") if m.strip()]
-    images = _load_image_meta()
+    images = _load_image_meta(args.images)
+    json_root = Path(args.json_root)
     records, missing = [], []
     for model in models:
         for img_id, meta in images.items():
-            path = OUT / "json" / model / ("%s.json" % img_id)
+            path = json_root / model / ("%s.json" % img_id)
             if not path.is_file():
                 missing.append({"model": model, "image_id": img_id, "reason": "缺记录"})
                 continue
@@ -728,6 +730,7 @@ def cmd_measure(args) -> int:
                     if (det.get("distance") or -1) >= 0:
                         dists.append(det["distance"])
     dest = {"generated_by": "tools/g7_binding.py measure",
+            "images": str(args.images), "json_root": str(json_root),
             "distance_n": DISTANCE_N,
             "distance_stats": {"max_observed": max(dists) if dists else None,
                                "tokens_measured": len(dists),
@@ -740,12 +743,16 @@ def cmd_measure(args) -> int:
                 "count": "同 label 组 n≥2（仅单图 canvas）时，组子句/重复子句表达数量",
             },
             "summary": summary, "records": records, "missing": missing}
-    (OUT / "binding.json").write_text(json.dumps(dest, ensure_ascii=False, indent=1),
-                                      encoding="utf-8")
+    out_json = Path(args.out)
+    out_json.parent.mkdir(parents=True, exist_ok=True)
+    out_json.write_text(json.dumps(dest, ensure_ascii=False, indent=1),
+                        encoding="utf-8")
 
     table = format_table(summary)
     aux = format_aux(summary)
-    (OUT / "binding_table.md").write_text(
+    out_table = Path(args.table)
+    out_table.parent.mkdir(parents=True, exist_ok=True)
+    out_table.write_text(
         "# G7 binding 覆盖率（机检）\n\n%s\n\n%s\n" % (table, aux), encoding="utf-8")
     print(table)
     print()
@@ -759,11 +766,12 @@ def cmd_calib_sheet(args) -> int:
     """导出待目检的机检单元：一格 = 模型 × 图 × 类别。"""
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     ids = [s.strip() for s in args.ids.split(",") if s.strip()]
-    images = _load_image_meta()
+    images = _load_image_meta(args.images)
+    json_root = Path(args.json_root)
     cells = []
     for model in models:
         for img_id in ids:
-            path = OUT / "json" / model / ("%s.json" % img_id)
+            path = json_root / model / ("%s.json" % img_id)
             if not path.is_file():
                 continue
             rec = measure_record(json.loads(path.read_text(encoding="utf-8")),
@@ -782,9 +790,11 @@ def cmd_calib_sheet(args) -> int:
                                   "missing": i.get("missing")}
                                  for i in box["instances"]],
                 })
-    dest = OUT / "calib" / "machine_cells.json"
+    dest = Path(args.calib_dir) / "machine_cells.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps({"cells": cells}, ensure_ascii=False, indent=1),
+    dest.write_text(json.dumps({"cells": cells, "images": str(args.images),
+                                "json_root": str(json_root)},
+                               ensure_ascii=False, indent=1),
                     encoding="utf-8")
     print("已写 %s：%d 格（%d 模型 × %d 图 × 5 类中可判的部分）"
           % (dest, len(cells), len(models), len(ids)))
@@ -796,8 +806,9 @@ def cmd_calibrate(args) -> int:
 
     {"cells": [{"model","image_id","class","agent_pass": true/false, "note": "..."}]}
     """
-    machine = json.loads((OUT / "calib" / "machine_cells.json").read_text(encoding="utf-8"))
-    agent_path = OUT / "calib" / "agent_cells.json"
+    calib_dir = Path(args.calib_dir)
+    machine = json.loads((calib_dir / "machine_cells.json").read_text(encoding="utf-8"))
+    agent_path = calib_dir / "agent_cells.json"
     if not agent_path.is_file():
         print("缺 %s：先按 machine_cells.json 逐格目检并填 agent_pass。" % agent_path,
               file=sys.stderr)
@@ -826,7 +837,7 @@ def cmd_calibrate(args) -> int:
     payload = {"cells_compared": total, "agreement": round(rate, 4),
                "verdict": "pass" if rate >= args.threshold else "fail",
                "threshold": args.threshold, "disagreements": disagreements}
-    (OUT / "calib" / "calibration.json").write_text(
+    (calib_dir / "calibration.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     print("机检 vs 目检：%d/%d 格一致 = %.1f%%（阈值 %.0f%%）"
           % (agree, total, rate * 100, args.threshold * 100))
@@ -842,13 +853,24 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     m = sub.add_parser("measure")
     m.add_argument("--models", default="A-4B,B-9B")
+    m.add_argument("--images", default=str(OUT / "images.json"),
+                   help="gold set 清单（默认第一轮；60 图轮可指 images60.json）")
+    m.add_argument("--json-root", dest="json_root", default=str(OUT / "json"),
+                   help="单图 JSON 根目录（默认第一轮；round2 指到 out/g7/round2/json）")
+    m.add_argument("--out", default=str(OUT / "binding.json"),
+                   help="逐实例结果 JSON 输出（round2 用独立路径，不覆盖第一轮）")
+    m.add_argument("--table", default=str(OUT / "binding_table.md"))
     m.set_defaults(func=cmd_measure)
     s = sub.add_parser("calib-sheet")
     s.add_argument("--models", default="A-4B,B-9B")
     s.add_argument("--ids", required=True)
+    s.add_argument("--images", default=str(OUT / "images.json"))
+    s.add_argument("--json-root", dest="json_root", default=str(OUT / "json"))
+    s.add_argument("--calib-dir", dest="calib_dir", default=str(OUT / "calib"))
     s.set_defaults(func=cmd_calib_sheet)
     c = sub.add_parser("calibrate")
     c.add_argument("--threshold", type=float, default=0.80)
+    c.add_argument("--calib-dir", dest="calib_dir", default=str(OUT / "calib"))
     c.set_defaults(func=cmd_calibrate)
     args = ap.parse_args(argv)
     return args.func(args)

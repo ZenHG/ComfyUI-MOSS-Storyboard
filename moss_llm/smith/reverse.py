@@ -110,11 +110,13 @@ Schema (types are mandatory, values are examples):
 }
 
 Note the difference between the two entities above: a text entity carries "text_content" and \
-"typography", a non-text entity carries "descriptors" instead. Emit the fields that fit the kind.
+"typography", a non-text entity carries "descriptors" instead. Emit the fields that fit the kind. \
+"character" means a person (or a character the work explicitly depicts as a person) — a cup, \
+a window, a vehicle or a wall is "object" even when the image is a photo of it.
 
 Rules:
 1. Describe only what is visible or unambiguously implied by what is visible. Never guess brand names, logos, real identities, place names, events, prices, or text you cannot read.
-2. Every character carries an explicit age in whole years. If it is ambiguous, give your single best estimate and set age_confidence accordingly. Never inflate a child's age.
+2. Every person (kind "character") carries an explicit age in whole years. If it is ambiguous, give your single best estimate and set age_confidence accordingly. Never inflate a child's age.
 3. Copy visible text verbatim, including punctuation, capitalisation and line breaks, and keep its original language. Do not translate or romanise. If it is unreadable, set text_content to "" and describe its appearance only.
 4. bbox is in percent of the frame, 0-100, origin at the top-left. It must enclose the whole element, not its centre.
 5. importance: 1.0 is the first thing the eye lands on; 0.3 is background texture.
@@ -127,10 +129,28 @@ Rules:
 12. Every image with visible content yields at least one entity. A record with an empty entities list is wrong for any real photograph, drawing or screenshot.
 13. If the image is a screenshot, poster, slide, comic page or any page layout, treat the text as the subject: read the largest string first, then every label, then every button caption, and give each its own entity. Do not stop at the pictures.
 14. canvas counts separate pictures, not boxes. A screenshot, a slide, a poster or a document page is "single" even when it is full of text and framed panels. Use multi_panel only for comic pages, storyboards and collages built from distinct images.
-15. Output the JSON object only."""
+15. "character" is reserved for a person — a human being, or a character the work itself depicts as a person. A cup, window, lamp, vehicle, food, tool, wall, fabric or a statue of an animal is "object"; a whole environment is "background". If the thing has a surface, put its material in descriptors.material instead of calling it a character.
+16. Never give age_years, age_confidence, gender, hair, skin, face or expression to a non-character. Age is only for a visible person; a non-person with an age is a hallucination.
+17. List each entity exactly once. Never repeat the same label with different anchors: if several identical objects matter, write "two ceramic cups" in one label. entities must not exceed 40 items.
+18. Output the JSON object only."""
 
 USER = ("Analyse this image and return the scene record JSON. "
         "Start with { and end with }. Nothing else.")
+
+#: 取证 JSON 的实体数量上限。G7 第一轮实测：4/40 次跑批整单归零，形态都是
+#: 「同一对 label 左右交替写满几十个实体」最后撞 completion 上限。三重防线：
+#: ① SYSTEM 规则 17 要求每个实体只写一次且 ≤40；② schema `maxItems` 让语法约束层
+#: 直接截住（服务端认 json_schema 时）；③ `coerce_ir` 兜底截断（服务端降级到
+#: json_object / 无约束时 schema 不生效，只能在这里拦）。
+MAX_ENTITIES = 40
+
+#: 文字专线的条目上限（海报/UI 截图可能有很多行，但远达不到这个量）。
+MAX_TEXT_BLOCKS = 80
+
+#: 人物字段 / 物体字段：`coerce_ir` 的类型闸用（G7 第一轮 58/110 = 53% 的非人物
+#: 实体被标成 character，根因是 schema 的 `character` 太容易选中、coercer 不查常识）。
+_PERSON_FIELDS = ("gender", "hair", "skin", "face", "expression")
+_OBJECT_FIELDS = ("material", "color", "build", "detail")
 
 # ─────────────────────────────────────────────────────────────
 # 取证 JSON 的结构约束
@@ -186,6 +206,11 @@ EVIDENCE_SCHEMA = {
         "atmosphere": {"type": "array", "items": {"type": "string"}},
         "entities": {
             "type": "array",
+            # 上限是**重复循环的闸**：G7 第一轮 4/40 次跑批整单归零，都是模型把
+            # 同一对 label 反复写满几十个实体、最后撞 completion 上限。语法约束层
+            # （json_schema 档）会直接按 maxItems 截住；降级档靠 prompt 规则 17 与
+            # coerce_ir 的 MAX_ENTITIES 兜底。
+            "maxItems": MAX_ENTITIES,
             "items": {
                 "type": "object",
                 "properties": {
@@ -291,6 +316,14 @@ class Report:
     entity_count: int = 0
     age_gate: list[str] = field(default_factory=list)
     raw_chars: int = 0
+    #: 类型闸降级的实体（character → object）。G7 第一轮的 53% 误标就落在这里。
+    kind_downgrades: list[str] = field(default_factory=list)
+    #: 从非人物体上丢弃的年龄（模型给物体编年龄 = 幻觉）。
+    age_dropped: list[str] = field(default_factory=list)
+    #: 实体数触及 MAX_ENTITIES（疑似被 json_schema 的 maxItems 在语法层静默截断）。
+    #: 恰好 MAX_ENTITIES 个合法实体也会为 True——所以只能提示「疑似截断，请人工确认」。
+    capped: bool = False
+    capped_at: int | None = None
 
     def warn(self, msg: str) -> None:
         if msg not in self.warnings:
@@ -299,7 +332,11 @@ class Report:
     def to_dict(self) -> dict:
         return {"image": self.image, "size": self.size, "warnings": self.warnings,
                 "dropped": self.dropped, "entity_count": self.entity_count,
-                "age_gate": self.age_gate, "raw_chars": self.raw_chars}
+                "age_gate": self.age_gate, "raw_chars": self.raw_chars,
+                # 新键向后兼容：旧消费方读不到也不会炸。
+                "kind_downgrades": self.kind_downgrades,
+                "age_dropped": self.age_dropped,
+                "capped": self.capped, "capped_at": self.capped_at}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -639,6 +676,35 @@ def _area(box: list[float]) -> float:
     return max(0.0, box[2] - box[0]) * max(0.0, box[3] - box[1])
 
 
+def gate_character_kind(kind: str, desc: dict,
+                        person_fields: tuple = _PERSON_FIELDS,
+                        object_fields: tuple = _OBJECT_FIELDS) -> tuple[str, str]:
+    """类型常识闸：把「没有人物字段、却带物体字段」的 character 降级为 object。
+
+    G7 第一轮实测：36 份成功记录里 58/110 个 character 是杯子/窗/灯/桌这类物体（53%）。
+    后果是**双重的**：人物分支不渲染 material（材质绑定只剩 0–8%），又强制年龄短语
+    （"an 80-year-old coffee grinder"）。判据只用**字段**、不猜语义：有任一人物字段就
+    保留 character；一个都没有、却带物体字段才降级。返回 `(kind, reason)`；不降级时
+    reason 为空串。
+
+    `person_fields` / `object_fields` 可替换字段名：节点 `MossPromptSmith` 的 caption
+    inventory 用的是另一套键（gaze/expression/hands/feet/pose/wardrobe、appearance），
+    但判据逻辑同一份——两处各写一遍迟早漂移。
+    """
+    if kind != "character":
+        return kind, ""
+    persons = [k for k in person_fields if str(desc.get(k) or "").strip()]
+    objects = [k for k in object_fields if str(desc.get(k) or "").strip()]
+    if persons or not objects:
+        return kind, ""
+    return "object", ("标为 character 但无人物字段、却带物体字段（%s）"
+                      % "+".join(objects))
+
+
+#: 兼容旧名：M1a 的单测与内部调用按私有名取；公共名给节点侧 import。
+_gate_character_kind = gate_character_kind
+
+
 def coerce_ir(obs: dict, report: Report | None = None,
               prepared: Prepared | None = None, task: str = "reverse") -> IR:
     """把取证 JSON 修成合法 IR。所有修正都记进 report，不静默。
@@ -671,6 +737,26 @@ def coerce_ir(obs: dict, report: Report | None = None,
                         for k, v in raw_entities.items()]
     if not isinstance(raw_entities, list):
         raw_entities = []
+    # 上限兜底：schema 只在「服务端认 json_schema」那一档生效；降级到
+    # json_object / 无约束后，重复循环只能在这里截断（否则下游把 49 个重复实体
+    # 当 49 个主体写进 prompt）。截断要出声。
+    #
+    # ⚠️ 语法层也可能先静默截断：服务端认 json_schema 时 maxItems 会在 40 条把重复
+    # 循环截停，coerce_ir 看到的已经是 40 条、dropped 为空——用户以为成功，其实拿到
+    # 的是 40 个重复实体（G7 审计发现：分母被灌大且失败不可见）。所以「达到上限」
+    # 本身就要告警，而不只是「超过上限」。恰好 MAX_ENTITIES 个合法实体也可能，
+    # 因此措辞是「疑似截断，请人工确认」，不做断言。
+    if len(raw_entities) >= MAX_ENTITIES:
+        r.capped = True
+        r.capped_at = len(raw_entities)
+        r.warn("实体数达到上限 %d：疑似截断，请人工确认（重复循环可能已被 json_schema "
+               "的 maxItems 静默截断；少于 %d 个的合法画面不会触发本告警）"
+               % (MAX_ENTITIES, MAX_ENTITIES))
+    if len(raw_entities) > MAX_ENTITIES:
+        excess = len(raw_entities) - MAX_ENTITIES
+        r.dropped.append("实体数 %d 超过上限 %d，已丢弃多出的 %d 个（重复循环的典型形态）"
+                         % (len(raw_entities), MAX_ENTITIES, excess))
+        raw_entities = raw_entities[:MAX_ENTITIES]
 
     entities: list[Entity] = []
     used_ids: set[str] = set()
@@ -693,6 +779,14 @@ def coerce_ir(obs: dict, report: Report | None = None,
         for key in ("wardrobe", "props", "tags"):
             if key in desc:
                 desc[key] = _as_list(desc[key])
+
+        # 类型常识闸：必须在 text/age/spatial 分支之前——误标的物体会走人物分支，
+        # 于是年龄短语被强行渲染、material 永远渲染不出来。
+        kind, gate_reason = _gate_character_kind(kind, desc)
+        if gate_reason:
+            line = "实体 %s：%s → object" % (eid, gate_reason)
+            r.kind_downgrades.append(line)
+            r.warn(line + "（否则会编年龄并丢材质）")
 
         text_content = raw.get("text_content")
         if isinstance(text_content, list):
@@ -743,16 +837,26 @@ def coerce_ir(obs: dict, report: Report | None = None,
                 r.warn("实体 %s 的 importance=%r 越界，按面积推算为 %.2f"
                        % (eid, imp, importance))
 
-        age = _as_int(raw.get("age_years")) if kind == "character" else None
+        raw_age = _as_int(raw.get("age_years"))
+        if raw_age is None:
+            raw_age = _as_int(desc.get("age") or desc.get("apparent_age"))
+        if raw_age is None:
+            raw_age = _as_int(raw.get("age") or "")
         if kind == "character":
-            if age is None:
-                age = _as_int(desc.get("age") or desc.get("apparent_age"))
-            if age is None:
-                age = _as_int(raw.get("age") or "")
+            age = raw_age
             if age is None:
                 r.age_gate.append("%s 没有年龄，已留给人工补（MOSS 要求显式岁数）" % eid)
             elif str(raw.get("age_confidence", "")).lower() in ("low", "very low"):
                 r.warn("实体 %s 的年龄 %d 是低置信估计" % (eid, age))
+        else:
+            age = None
+            if raw_age is not None:
+                # G7 实测幻觉：给「80 岁的磨豆机 / 120 岁的剑」编年龄。非人物分支
+                # 本来就不渲染年龄，留在 IR 里只会变成一条永远对不上的固定项。
+                msg = ("实体 %s（%s）的年龄 %r 已丢弃：%s 不渲染年龄，视为幻觉"
+                       % (eid, raw.get("label") or kind, raw_age, kind))
+                r.age_dropped.append(msg)
+                r.warn(msg)
 
         label = str(raw.get("label") or "").strip().lower()
         if not label:
@@ -866,6 +970,8 @@ TEXT_SCHEMA = {
     "properties": {
         "blocks": {
             "type": "array",
+            # 同 EVIDENCE_SCHEMA：重复循环的兜底上限（文字专线也会循环）。
+            "maxItems": MAX_TEXT_BLOCKS,
             "items": {
                 "type": "object",
                 "properties": {

@@ -27,6 +27,7 @@ GPU 纪律：一个模型一个侧车，串行、跑完必停；批次开始/结
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -126,6 +127,11 @@ DEFAULTS = {
     "port": 8096,
 }
 
+#: 每个记录与批次摘要里记哪些设置。显式列出来，避免以后加 CLI 参数时
+#: 悄悄改变记录 schema（第一轮/第二轮的 settings 必须可直接并排比较）。
+SETTING_KEYS = ("ctx", "max_tokens", "max_side", "vision_tokens",
+                "seed", "temperature", "text_pass", "schema")
+
 
 def nvidia_used_mib() -> str:
     try:
@@ -198,7 +204,7 @@ def run_one(server: G7Server, img: dict, cfg: dict, args) -> dict:
         "model_file": Path(cfg["model"]).name, "mmproj_file": Path(cfg["mmproj"]).name,
         "image_id": img["id"], "image_name": img["name"], "image_path": img["path"],
         "image_sha256": img["sha256"], "category": img["category"],
-        "settings": {k: v for k, v in args.__dict__.items() if k not in ("func", "cmd")},
+        "settings": {k: getattr(args, k) for k in SETTING_KEYS},
         "system_prompt": SYSTEM,
         "caption_source": "moss_llm.smith.clauses.render_prose(build_clauses(ir))",
         "confidence": None,
@@ -242,9 +248,9 @@ def run_one(server: G7Server, img: dict, cfg: dict, args) -> dict:
 
 def run_model(key: str, images: list[dict], args) -> dict:
     cfg = resolve_model(key)
-    dest_dir = OUT / "json" / key
+    dest_dir = Path(args.json_root) / key
     dest_dir.mkdir(parents=True, exist_ok=True)
-    log_path = OUT / "run" / ("batch-%s.log" % key)
+    log_path = Path(args.run_dir) / ("batch-%s.log" % key)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_fh = open(log_path, "a", encoding="utf-8")
 
@@ -255,6 +261,7 @@ def run_model(key: str, images: list[dict], args) -> dict:
         log_fh.flush()
 
     log("模型 %s 启动中（%s）" % (cfg["label"], Path(cfg["model"]).name))
+    log("输出 JSON 根：%s" % Path(args.json_root))
     log("显存（启动前）：%s" % nvidia_used_mib())
     server = G7Server(model=cfg["model"], mmproj=cfg["mmproj"], exe=resolve_server(),
                       port=args.port, ctx=args.ctx, ngl="auto", timeout=360.0,
@@ -304,6 +311,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="G7 反推跑批（两模型同口径）")
     ap.add_argument("--models", default="A-4B,B-9B",
                     help="逗号分隔：%s" % ",".join(MODELS))
+    ap.add_argument("--images", default=str(OUT / "images.json"),
+                    help="gold set 清单（默认第一轮 out/g7/images.json；第二轮可指向 images60.json）")
+    ap.add_argument("--json-root", dest="json_root", default=str(OUT / "json"),
+                    help="单图 JSON 输出根目录（默认第一轮 out/g7/json；round2 指到 out/g7/round2/json）")
+    ap.add_argument("--run-dir", dest="run_dir", default=str(OUT / "run"),
+                    help="日志与批次摘要目录（默认 out/g7/run；round2 用独立目录，绝不覆盖第一轮）")
     ap.add_argument("--limit", type=int, default=0, help="只跑前 N 张（冒烟用）")
     ap.add_argument("--ids", default="", help="只跑这些 image_id，如 img01,img12")
     ap.add_argument("--overwrite", action="store_true", help="重跑已存在的记录")
@@ -323,7 +336,7 @@ def main(argv=None) -> int:
                     default=DEFAULTS["schema"])
     args = ap.parse_args(argv)
 
-    images = json.loads((OUT / "images.json").read_text(encoding="utf-8"))["images"]
+    images = json.loads(Path(args.images).read_text(encoding="utf-8"))["images"]
     wanted = {s.strip() for s in args.ids.split(",") if s.strip()}
     if wanted:
         images = [i for i in images if i["id"] in wanted]
@@ -333,7 +346,8 @@ def main(argv=None) -> int:
         print("没有要跑的图（--ids/--limit 过滤后为空）", file=sys.stderr)
         return 2
 
-    (OUT / "run").mkdir(parents=True, exist_ok=True)
+    run_dir = Path(args.run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
     summaries = []
     for key in [k.strip() for k in args.models.split(",") if k.strip()]:
         if key not in MODELS:
@@ -347,15 +361,17 @@ def main(argv=None) -> int:
         summaries.append(run_model(key, images, args))
 
     payload = {"generated_by": "tools/g7_caption.py",
-               "settings": {k: getattr(args, k) for k in
-                            ("ctx", "max_tokens", "max_side", "vision_tokens",
-                             "seed", "temperature", "text_pass", "schema")},
-               "system_prompt_sha256": __import__("hashlib").sha256(
+               "images_file": str(args.images),
+               "json_root": str(args.json_root),
+               "run_dir": str(args.run_dir),
+               "image_count": len(images),
+               "settings": {k: getattr(args, k) for k in SETTING_KEYS},
+               "system_prompt_sha256": hashlib.sha256(
                    SYSTEM.encode("utf-8")).hexdigest(),
                "server_exe": Path(resolve_server()).name,
                "runs": summaries,
                "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-    (OUT / "run" / "batch-summary.json").write_text(
+    (run_dir / "batch-summary.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     print("\n批次完成：%s" % json.dumps(summaries, ensure_ascii=False))
     return 0 if all(s["failed"] == 0 for s in summaries) else 1

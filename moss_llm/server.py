@@ -25,7 +25,7 @@ attached 模式 / JSON 约束三级降级 / 采样纪律）。两边各缺一半
 - 取 B：`--help` 探测（旧版 llama-server 没有 `--jinja` / `--image-max-tokens`，
   直接拼上去是「启动即退出」，报错还和真实原因无关）、日志落盘、attached 模式、
   `build_body` / `build_cmd` 抽成纯函数（参数拼错只有真机才炸，代价太高）、
-  JSON 约束三级降级、JSON 模式下清零重复惩罚。
+  JSON 约束三级降级、JSON 模式下摘 DRY/presence/frequency（但保留 repeat_penalty）。
 - 🔴 **改掉一处**：A 给侧车加过 `--api-key comfyui-local`。合流后 B 的 `ServerCounter`
   要打 `/tokenize`，带口令的服务会回 401，而它**捕获异常后退回估算**——真实 token 数
   被静默降级成 ±15% 的猜测，报告里看不出来。所以服务端口令不再加（进程本来只绑
@@ -36,11 +36,13 @@ attached 模式 / JSON 约束三级降级 / 采样纪律）。两边各缺一半
    只发 `thinking: false` 或顶层 `enable_thinking` 都无效，正文会空。
 2. 服务端拒 `chat_template_kwargs` 时，摘掉重试并**出声**，不静默降级。
 3. 正文为空就报错。绝不把 reasoning_content 当答案端上桌。
-4. **JSON 模式与重复惩罚互斥**（见下）。llama.cpp 官方原话：JSON schema 只锁形状，
-   不注入 prompt，模型看不见 schema ⇒ 结构化输出必须同时在 prompt 里写字段说明。
-   反过来说，一旦上了语法约束，`"label":` 这些键名会合法地重复 N 次，DRY / presence /
-   frequency 全按「重复即病」惩罚，会把键名惩罚成乱码。所以 JSON 调用里这几个参数
-   强制归零，只在散文调用里开。
+4. **JSON 模式只摘「会伤键名」的重复惩罚，保留 `repeat_penalty`**（见下）。
+   llama.cpp 官方原话：JSON schema 只锁形状，不注入 prompt，模型看不见 schema ⇒
+   结构化输出必须同时在 prompt 里写字段说明。反过来说，一旦上了语法约束，`"label":`
+   这些键名会合法地重复 N 次，DRY / presence / frequency 全按「重复即病」惩罚，会把
+   键名惩罚成乱码——所以这几个参数在 JSON 调用里强制摘除/归零。但 **`repeat_penalty`
+   必须留**：它压的是 token 级整段循环（G7 第一轮 4/40 次跑批整单归零就是重复循环
+   撞 completion 上限），键名由语法约束兜住，不会被它惩罚成乱码。
 """
 
 import hashlib
@@ -736,6 +738,11 @@ class LlamaServer:
             # 键名重复是 JSON 的常态，惩罚它就是惩罚正确输出
             body["presence_penalty"] = 0
             body["frequency_penalty"] = 0
+            # 但「整段循环」不是键名重复：G7 第一轮 4/40 次整单归零，形态都是模型把
+            # 同一对 label 左右交替写满几十个实体，直到撞 completion 上限。repeat_penalty
+            # 是按 token 频次压的、不像 DRY 那样按段判重，语法约束下不会伤键名——所以
+            # JSON 模式必须保留它；自定义 sampling 没给时用默认值补上（宁可保守）。
+            body.setdefault("repeat_penalty", DEFAULT_SAMPLING["repeat_penalty"])
         if response_format is not None:
             body["response_format"] = response_format
         if self._thinking_kwargs:

@@ -324,6 +324,8 @@ class MossPromptSmith:
         t0 = time.time()
         report = []
         self._degraded, self._json_unsupported, self._thinking_unsupported = [], False, False
+        #: `_chat` 的结构化/重复保护降级说明（schema→json_object、repeat_penalty 被拒等）。
+        self._chat_notes = []
         #: 图像预处理的降级说明（缩放 / 透明合成 / 没装 Pillow）。不静默。
         self._img_notes = []
 
@@ -430,52 +432,23 @@ class MossPromptSmith:
 
         want_thinking = (thinking == "on")
         try:
-            usage = {}
             if task == "caption" and two_pass:
-                raw1, u1 = self._chat(endpoint, system, user, image, temperature,
-                                      int(max_tokens), int(seed), want_json=True,
-                                      thinking=want_thinking, key=key)
-                usage = u1 or {}
-                inv, err = _loads_lenient(_strip_fences(raw1))
-                if inv is None:
-                    report.append("⚠️ 第一遍盘点不是合法 JSON（%s），已按单遍结果输出。" % err)
-                    obj = None
-                    prompt = _strip_fences(raw1)
-                else:
-                    report.append("双遍：第一遍盘点 %d 个字段" % len(inv))
-                    sys2 = pack["texts"]["caption.pass2.en"]
-                    raw2, u2 = self._chat(endpoint, sys2, json.dumps(inv, ensure_ascii=False),
-                                          None, temperature, int(max_tokens), int(seed),
-                                          want_json=True, thinking=want_thinking, key=key)
-                    usage = u2 or usage
-                    obj, err2 = _loads_lenient(_strip_fences(raw2))
-                    if obj is None:
-                        report.append("⚠️ 第二遍不是合法 JSON（%s），已按纯文本输出。" % err2)
-                        prompt = _strip_fences(raw2)
-                    else:
-                        prompt = _pick_prompt(obj)
+                prompt, obj, usage = self._run_caption_two_pass(
+                    endpoint, pack, system, user, image, temperature,
+                    int(max_tokens), int(seed), want_thinking, key, report)
             else:
-                raw, usage = self._chat(endpoint, system, user, image, temperature,
-                                        int(max_tokens), int(seed), want_json=True,
-                                        thinking=want_thinking, key=key)
-                obj, err = _loads_lenient(_strip_fences(raw))
-                if obj is None:
-                    # 解析失败重试一次：把「只要 JSON」再说一遍，不静默改写内容
-                    report.append("⚠️ 首次返回不是合法 JSON（%s），重试一次。" % err)
-                    raw2, usage = self._chat(endpoint, system + _JSON_RETRY, user, image,
-                                             max(0.0, float(temperature) - 0.1),
-                                             int(max_tokens), int(seed), want_json=True,
-                                             thinking=want_thinking, key=key)
-                    obj, err2 = _loads_lenient(_strip_fences(raw2))
-                    if obj is None:
-                        report.append("⚠️ 重试后仍不是合法 JSON（%s），已按纯文本输出。" % err2)
-                        prompt = _strip_fences(raw2)
-                    else:
-                        prompt = _pick_prompt(obj)
-                else:
-                    prompt = _pick_prompt(obj)
+                schema = CAPTION_ONESHOT_SCHEMA if task == "caption" else None
+                prompt, obj, usage = self._run_once(
+                    endpoint, system, user, image, temperature,
+                    int(max_tokens), int(seed), want_thinking, key, report, schema)
+                if task == "caption" and isinstance(obj, dict):
+                    obj, guard_notes = guard_caption_json(obj)
+                    report.extend(guard_notes)
         finally:
             stop_server()
+        for n in self._chat_notes:          # 结构化/重复保护降级的说明（逐级出声）
+            if n not in report:
+                report.append(n)
 
         checks = self._checks(prompt, obj if isinstance(obj, dict) else None,
                               task, dialect, panels, must_keep)
@@ -495,6 +468,61 @@ class MossPromptSmith:
         if not prompt.strip():
             raise RuntimeError("模型返回空内容。")
         return (prompt, "\n".join(report))
+
+    # ------------------------------------------------------------------ caption 执行
+    def _run_once(self, endpoint, system, user, image, temperature, max_tokens, seed,
+                  want_thinking, key, report, schema=None):
+        """单遍 caption / expand / edit：一次请求 + JSON 容错 + 解析失败重试一次。"""
+        raw, usage = self._chat(endpoint, system, user, image, temperature,
+                                int(max_tokens), int(seed), want_json=True,
+                                thinking=want_thinking, key=key, schema=schema)
+        obj, err = _loads_lenient(_strip_fences(raw))
+        if obj is None:
+            # 解析失败重试一次：把「只要 JSON」再说一遍，不静默改写内容
+            report.append("⚠️ 首次返回不是合法 JSON（%s），重试一次。" % err)
+            raw2, usage2 = self._chat(endpoint, system + _JSON_RETRY, user, image,
+                                      max(0.0, float(temperature) - 0.1),
+                                      int(max_tokens), int(seed), want_json=True,
+                                      thinking=want_thinking, key=key, schema=schema)
+            usage = usage2 or usage
+            obj, err2 = _loads_lenient(_strip_fences(raw2))
+            if obj is None:
+                report.append("⚠️ 重试后仍不是合法 JSON（%s），已按纯文本输出。" % err2)
+                return _strip_fences(raw2), None, usage
+        return _pick_prompt(obj), obj, usage
+
+    def _run_caption_two_pass(self, endpoint, pack, system, user, image, temperature,
+                              max_tokens, seed, want_thinking, key, report):
+        """两遍式 caption：pass1 盘点 → **护栏** → pass2 写稿。
+
+        护栏必须在 pass1 之后、pass2 之前：类型闸把物体从 subjects 挪到 environment.props，
+        否则 pass2 会把「磨豆机」当人写（并给年龄）；实体上限在这里截断，重复循环的
+        几十个 subject 不会灌进 pass2。
+        """
+        raw1, u1 = self._chat(endpoint, system, user, image, temperature,
+                              int(max_tokens), int(seed), want_json=True,
+                              thinking=want_thinking, key=key,
+                              schema=CAPTION_INVENTORY_SCHEMA)
+        usage = u1 or {}
+        inv, err = _loads_lenient(_strip_fences(raw1))
+        if inv is None:
+            report.append("⚠️ 第一遍盘点不是合法 JSON（%s），已按单遍结果输出。" % err)
+            return _strip_fences(raw1), None, usage
+        if isinstance(inv, dict):
+            inv, guard_notes = guard_caption_json(inv)
+            report.extend(guard_notes)
+        report.append("双遍：第一遍盘点 %d 个字段" % len(inv))
+        sys2 = pack["texts"]["caption.pass2.en"]
+        raw2, u2 = self._chat(endpoint, sys2, json.dumps(inv, ensure_ascii=False), None,
+                              temperature, int(max_tokens), int(seed), want_json=True,
+                              thinking=want_thinking, key=key,
+                              schema=CAPTION_PASS2_SCHEMA)
+        usage = u2 or usage
+        obj, err2 = _loads_lenient(_strip_fences(raw2))
+        if obj is None:
+            report.append("⚠️ 第二遍不是合法 JSON（%s），已按纯文本输出。" % err2)
+            return _strip_fences(raw2), None, usage
+        return _pick_prompt(obj), obj, usage
 
     # ------------------------------------------------------------------ 确定性编译
 
@@ -602,7 +630,7 @@ class MossPromptSmith:
     # ------------------------------------------------------------------ llama-server 调用
 
     def _chat(self, endpoint, system, user, image, temperature, max_tokens, seed,
-              want_json=True, thinking=False, key=None):
+              want_json=True, thinking=False, key=None, schema=None):
         content = [{"type": "text", "text": system + "\n\n" + (user or "")}]
         if image is not None:
             # 编码走 `moss_llm.vision`（最长边 1536 + JPEG q95 4:4:4）。
@@ -614,7 +642,7 @@ class MossPromptSmith:
                     self._img_notes.append(n)
             content.append({"type": "image_url",
                             "image_url": {"url": prep.data_url}})
-        payload = {
+        base = {
             "model": self._model_id,
             "messages": [{"role": "user", "content": content}],
             "temperature": float(temperature),
@@ -625,27 +653,76 @@ class MossPromptSmith:
         # 两个可选键都发：`chat_template_kwargs.enable_thinking` 是唯一实测能关掉思考的写法
         # （见 _THINKING 注释），vLLM / 火山方舟 / llama-server 都认它；严格 OpenAI 可能拒。
         # 拒了就**逐级摘掉再试**，并在 report 里说清摘了什么 —— 不静默降级，也不假装成功。
-        payload["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
+        base["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
         if want_json:
-            payload["response_format"] = {"type": "json_object"}
-        obj = None
-        for drop in (None, "response_format", "chat_template_kwargs"):
-            if drop:
-                payload.pop(drop, None)
-                self._degraded.append(drop)
+            # 与 server.py 的 JSON 重复保护同一口径：DRY/presence/frequency 会惩罚
+            # 合法重复的键名，但 repeat_penalty 压的是整段循环（G7 4/40 次整单归零）。
+            base["repeat_penalty"] = _CAPTION_REPEAT_PENALTY
+
+        # 结构化输出四级降级（从强到弱；服务端 400 就往下走，逐级出声）：
+        #   json_schema → json_object → 无 response_format → 再摘 chat_template_kwargs
+        formats = []
+        if want_json:
+            if schema is not None:
+                formats.append(("json_schema",
+                                {"type": "json_schema",
+                                 "json_schema": {"name": "caption", "schema": schema}}))
+            formats.append(("json_object", {"type": "json_object"}))
+            formats.append(("none", None))
+        else:
+            formats.append(("plain", None))
+        # 尝试顺序：每个结构化档位先保留 repeat_penalty、再摘掉它（严格 OpenAI 不认
+        # repeat_penalty，但认 json_schema——先摘参数比先降结构化档少一次语义降级）；
+        # 全部档位都不行，最后才摘 chat_template_kwargs（思考可能关不掉）。
+        attempts = []
+        for name, rf in formats:
+            attempts.append((False, False, name, rf))
+            if want_json:
+                attempts.append((False, True, name, rf))
+        for name, rf in formats:
+            if want_json:
+                attempts.append((True, True, name, rf))
+
+        obj, last, chosen = None, None, None
+        for drop_thinking, drop_repeat, name, rf in attempts:
+            payload = json.loads(json.dumps(base))       # 每次从干净副本拼，互不污染
+            if drop_repeat:
+                payload.pop("repeat_penalty", None)
+            if rf is not None:
+                payload["response_format"] = json.loads(json.dumps(rf))
+            else:
+                payload.pop("response_format", None)
+            if drop_thinking:
+                payload.pop("chat_template_kwargs", None)
             try:
                 obj = _post(endpoint, payload, key)
+                chosen = (drop_thinking, drop_repeat, name)
                 break
             except _Http400 as e:
                 last = e
+                continue
         if obj is None:
-            raise RuntimeError("HTTP 400（去掉 response_format 与 chat_template_kwargs 后仍被拒）：%s"
-                               % last.body) from last
-        for dropped in self._degraded:
-            if dropped == "response_format":
-                self._json_unsupported = True
-            elif dropped == "chat_template_kwargs":
-                self._thinking_unsupported = True
+            raise RuntimeError(
+                "HTTP 400（把结构化输出 / thinking / repeat_penalty 逐级摘掉后仍被拒）：%s"
+                % last.body) from last
+
+        drop_thinking, drop_repeat, name = chosen
+        if drop_thinking:
+            self._thinking_unsupported = True
+            self._degraded.append("chat_template_kwargs")
+        if want_json and name == "none":
+            self._json_unsupported = True
+            self._degraded.append("response_format")
+        elif want_json and name == "json_object" and schema is not None:
+            self._chat_notes.append(
+                "⚠️ 服务端不认 json_schema，已降级为 json_object（实体上限改由 prompt 与"
+                "后处理兜底）")
+        if drop_repeat:
+            self._degraded.append("repeat_penalty")
+            self._chat_notes.append(
+                "⚠️ 服务端拒绝 repeat_penalty（HTTP 400），已去掉重试（重复循环保护降级；"
+                "仍靠 prompt 与后处理兜底）")
+
         try:
             msg = obj["choices"][0]["message"]
             raw = msg["content"]
@@ -695,6 +772,255 @@ class MossPromptSmith:
 #: 解析失败重试时附加的一句话（不重写原提示词，只把输出契约再说一遍）
 _JSON_RETRY = ("\n\n# REMINDER\nReturn exactly one JSON object and nothing else. "
                "No markdown, no code fences, no prose outside the JSON.")
+
+
+# ---------------------------------------------------------------------- caption 护栏
+# M1a 在 smith 反推管线（reverse.py）上修了两类系统性缺陷：非人物体被标成 character、
+# 实体数组无上限导致重复循环。**节点 caption 是另一条路径**（自己的 prompt pack +
+# `_chat`，只发 json_object），所以护栏要在这一侧再接一次；判据逻辑（字段口径的类型闸）
+# 从 `smith.reverse` 复用，字段名在这里映射。
+#
+# 与 smith 路径的差别（docs/46 有完整对照）：
+#   · 数据结构不同：smith 是扁平 `entities[]`；节点 inventory 是
+#     `subjects[]` + `environment.props[]` + `materials[]` + `text[]`；
+#   · 节点 caption 不产出 IR（输出是 caption 文本），所以「降级」= 从 subjects 移到
+#     environment.props，让 pass2 不再把物体当人写；
+#   · 节点有「两遍式」，护栏必须在 pass1 之后、pass2 之前接，才能影响最终 caption。
+
+#: inventory 各数组的上限。subjects 比 props 紧：真实画面里「不同主体」很少超过 12，
+#: 而重复循环的典型形态就是同一对 subject 写满几十条。
+_CAPTION_MAX_SUBJECTS = 12
+_CAPTION_MAX_PROPS = 32
+_CAPTION_MAX_MATERIALS = 16
+_CAPTION_MAX_TEXT = 24
+_CAPTION_MAX_KEEP = 8
+
+#: 节点 inventory 的「人物线索」字段：有任意一个就保留 person（宁可不猜）。
+_CAPTION_PERSON_CUES = ("gaze", "expression", "hands", "feet", "pose", "wardrobe")
+
+#: JSON 请求的重复保护（与 `server.py` 的 JSON 模式同一口径；见 docs/42 §2）。
+_CAPTION_REPEAT_PENALTY = 1.05
+
+#: pass1 inventory 的 JSON schema：只锁形状与数组上限，**不 required 字段**——与 M1a
+#: 取证 schema 同一纪律（全字段 required 会逼模型编值）。服务端不认时逐级降级。
+CAPTION_INVENTORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "format": {"type": "object"},
+        "subjects": {
+            "type": "array",
+            "maxItems": _CAPTION_MAX_SUBJECTS,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["person", "object"]},
+                    "role": {"type": "string"},
+                    "count": {"type": "integer"},
+                    "appearance": {"type": "string"},
+                    "wardrobe": {"type": "string"},
+                    "pose": {"type": "string"},
+                    "gaze": {"type": "string"},
+                    "expression": {"type": "string"},
+                    "hands": {"type": "string"},
+                    "feet": {"type": "string"},
+                    "position": {"type": "string"},
+                },
+            },
+        },
+        "environment": {
+            "type": "object",
+            "properties": {
+                "props": {"type": "array", "maxItems": _CAPTION_MAX_PROPS,
+                          "items": {"type": "string"}},
+            },
+        },
+        "camera": {"type": "object"},
+        "light": {"type": "object"},
+        "palette": {"type": "object"},
+        "materials": {"type": "array", "maxItems": _CAPTION_MAX_MATERIALS,
+                      "items": {"type": "object"}},
+        "text": {"type": "array", "maxItems": _CAPTION_MAX_TEXT,
+                 "items": {"type": "object"}},
+        "style": {"type": "object"},
+        "moment": {"type": "object"},
+        "confidence": {"type": "object"},
+        "uncertainties": {"type": "array", "maxItems": 8,
+                          "items": {"type": "string"}},
+    },
+}
+
+#: 单遍 caption 的 JSON schema（caption.faithful/clean 的输出）。
+CAPTION_ONESHOT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "caption": {"type": "string"},
+        "must_keep": {"type": "array", "maxItems": _CAPTION_MAX_KEEP,
+                      "items": {"type": "string"}},
+        "uncertainties": {"type": "array", "maxItems": 8,
+                          "items": {"type": "string"}},
+        "visible_text": {"type": "array", "maxItems": _CAPTION_MAX_TEXT,
+                         "items": {"type": "object"}},
+        "confidence": {"type": "object"},
+        "omitted_low_confidence": {"type": "array", "maxItems": 12,
+                                   "items": {"type": "string"}},
+        "omitted_artifacts": {"type": "array", "maxItems": 12,
+                              "items": {"type": "string"}},
+        "aspect_ratio": {"type": "string"},
+    },
+    "required": ["caption"],
+}
+
+#: pass2 只回 {"caption": "..."}。
+CAPTION_PASS2_SCHEMA = {"type": "object",
+                        "properties": {"caption": {"type": "string"}},
+                        "required": ["caption"]}
+
+
+def _caption_subject_to_prop(subject: dict) -> str:
+    """降级后的 subject → `environment.props` 的一条字符串（不丢它的可见描述）。
+
+    只保留 role / appearance / position / count(>1)：物体的 wardrobe/pose/gaze/hands/feet
+    多属人物专属字段，挪进 props 没有语义；count 例外——「2 只杯子」是可见事实，
+    count>1 时写进 props 文案（并在 report 点名，见 `guard_caption_json`）。
+    """
+    role = str(subject.get("role") or "").strip()
+    appearance = str(subject.get("appearance") or "").strip()
+    if role and appearance and role.lower() not in appearance.lower():
+        text = "%s — %s" % (role, appearance)
+    else:
+        text = role or appearance or "object"
+    try:
+        count = int(subject.get("count") or 0)
+    except (TypeError, ValueError):
+        count = 0
+    if count > 1:
+        text = "%d × %s" % (count, text)
+    position = str(subject.get("position") or "").strip()
+    if position and position.lower() not in text.lower():
+        text += " (%s)" % position
+    return text
+
+
+def _caption_subject_field_gate(subject: dict) -> tuple:
+    """用 M1a 的同一份字段闸判 subject 像不像人：(是不是物体, 原因)。
+
+    判据只用字段：有任一 person cue → 保留 person；一个都没有、却有 appearance → 物体。
+    """
+    from .smith.reverse import gate_character_kind     # 延迟导入：只有 caption 跑才需要
+
+    desc = {k: subject.get(k) for k in
+            ("role", "appearance", "wardrobe", "pose", "gaze",
+             "expression", "hands", "feet", "position")}
+    kind, reason = gate_character_kind("character", desc,
+                                       person_fields=_CAPTION_PERSON_CUES,
+                                       object_fields=("appearance",))
+    return kind != "character", reason
+
+
+def _caption_subject_is_object(subject: dict) -> tuple:
+    """inventory 的 subject 判成「物体」的判据：(是不是物体, 原因)。
+
+    显式 `kind=object/prop/scene/background` 直接算；person/character/空 kind 走字段闸。
+    **未知 kind 也不能跳过字段闸**：json_schema 档 enum 会挡住 `"animal"`/`"people"` 这类值，
+    但降级到 json_object / 无约束后模型可以自由写 kind——若直接放行，物体就留在 subjects，
+    pass2 仍可能把它写成人，而且 report 没有任何提示。未知 kind 与空 kind 同判：
+    有 person cue 才保留 person，否则按 object 处理进 props，并把「未知 kind」写进原因。
+    """
+    raw_kind = str(subject.get("kind") or "").strip().lower()
+    if raw_kind in ("object", "prop", "scene", "background"):
+        return True, "kind=%s" % raw_kind
+    if raw_kind not in ("person", "character", ""):
+        is_object, why = _caption_subject_field_gate(subject)
+        if is_object:
+            return True, "未知 kind=%r，按字段闸判为物体：%s" % (raw_kind, why)
+        return False, ""
+    return _caption_subject_field_gate(subject)
+
+
+def guard_caption_json(obj) -> tuple:
+    """节点 caption JSON 的护栏：类型闸 + 实体上限。返回 (改过的 obj, report 说明行)。
+
+    非就地黑箱：所有改动都变成人话写进 return 的 notes，节点再把它们拼进 report。
+    """
+    notes = []
+    if not isinstance(obj, dict):
+        return obj, notes
+
+    downgraded, age_dropped = [], []
+    subjects = obj.get("subjects")
+    if isinstance(subjects, list):
+        env = obj.get("environment")
+        if not isinstance(env, dict):
+            env = {}
+            obj["environment"] = env
+        props = env.get("props")
+        if not isinstance(props, list):
+            props = []
+            env["props"] = props
+        kept = []
+        for s in subjects:
+            if not isinstance(s, dict):
+                continue
+            is_object, reason = _caption_subject_is_object(s)
+            if not is_object:
+                kept.append(s)
+                continue
+            age_keys = [k for k in ("age_years", "age", "age_confidence") if k in s]
+            age_desc = ["%s=%r" % (k, s.get(k)) for k in age_keys]
+            for k in ("age_years", "age", "age_confidence", "gender", "hair",
+                      "skin", "face", "expression"):
+                s.pop(k, None)
+            label = str(s.get("role") or s.get("appearance") or "object").strip()[:48]
+            try:
+                count = int(s.get("count") or 0)
+            except (TypeError, ValueError):
+                count = 0
+            count_note = "；count=%d 已保留在 props 文案" % count if count > 1 else ""
+            downgraded.append("subject[%s]：%s%s" % (label, reason, count_note))
+            if age_desc:
+                age_dropped.append("subject[%s]：丢弃 %s" % (label, "、".join(age_desc)))
+            props.append(_caption_subject_to_prop(s))
+        obj["subjects"] = kept
+
+    caps = []
+
+    def _cap(container, key, limit, name):
+        if not isinstance(container, dict):
+            return
+        arr = container.get(key)
+        if not isinstance(arr, list):
+            return
+        # 达到上限就要出声（不只是超过）：json_schema 档的 maxItems 可能在语法层先把
+        # 重复循环静默截停，后处理看到恰好 N 条、以为成功——与「失败必须可见」冲突。
+        # 恰好 N 条也可能是合法画面，所以措辞是「疑似重复/截断，请人工确认」。
+        if len(arr) >= limit:
+            if len(arr) > limit:
+                caps.append("%s %d→%d（丢 %d；疑似重复/截断，请人工确认）"
+                            % (name, len(arr), limit, len(arr) - limit))
+            else:
+                caps.append("%s %d（达到上限 %d；疑似重复/截断，请人工确认）"
+                            % (name, len(arr), limit))
+        if len(arr) > limit:
+            del arr[limit:]
+
+    _cap(obj, "subjects", _CAPTION_MAX_SUBJECTS, "subjects")
+    _cap(obj.get("environment"), "props", _CAPTION_MAX_PROPS, "props")
+    _cap(obj, "materials", _CAPTION_MAX_MATERIALS, "materials")
+    _cap(obj, "text", _CAPTION_MAX_TEXT, "text")
+    _cap(obj, "visible_text", _CAPTION_MAX_TEXT, "visible_text")
+    _cap(obj, "must_keep", _CAPTION_MAX_KEEP, "must_keep")
+    _cap(obj, "uncertainties", 8, "uncertainties")
+
+    if downgraded:
+        notes.append("反推类型闸：%d 个物体被误标为 subject，已降级为 props"
+                     "（否则会被写成人、编年龄）：%s"
+                     % (len(downgraded), "；".join(downgraded[:4])))
+    if age_dropped:
+        notes.append("反推年龄闸：从非人物体上丢弃年龄字段 %d 处：%s"
+                     % (len(age_dropped), "；".join(age_dropped[:4])))
+    if caps:
+        notes.append("反推实体上限（capped）：%s" % "；".join(caps))
+    return obj, notes
 
 
 # ---------------------------------------------------------------------- 纯函数

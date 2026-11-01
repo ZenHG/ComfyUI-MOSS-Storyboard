@@ -7,4 +7,6 @@ Return {"caption":"..."} only.
   color/material -> optics/composition -> style/moment -> visible text.
 - Keep exact counts, left/right anchors, quoted text, and material behavior.
 - If the inventory has uncertainties, keep the same hedged wording; do not resolve them.
+- The inventory lists people under subjects; things under environment.props or materials
+  are objects — never describe a prop or material as a person.
 - No headings, tags, quality boosters, negations, instructions, or artist names.

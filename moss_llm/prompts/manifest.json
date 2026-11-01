@@ -1,7 +1,7 @@
 {
   "pack": "moss-llm-prompts",
   "version": "1.0.0",
-  "updated": "2026-10-30",
+  "updated": "2026-11-01",
   "files": [
     {
       "id": "caption.faithful.en",
@@ -22,7 +22,7 @@
     {
       "id": "caption.pass1.en",
       "path": "caption.pass1.en.txt",
-      "sha256": "de548df945c9b16838cf2ce287b97f96f55442a51fad75d06521fa6e236907cd",
+      "sha256": "b4d22fb5b8c1b5e7678a3ac562cf243bdcd365fe881adf82c702e6f9b89840d7",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -30,7 +30,7 @@
     {
       "id": "caption.pass2.en",
       "path": "caption.pass2.en.txt",
-      "sha256": "928385aa46c7434855216aefa52c1d4845115242b68d7306b587a141352693ce",
+      "sha256": "8bb7114482bf5c9eff19522a1f45387c7c3ea91a9404b3017b72f906d7b74604",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"

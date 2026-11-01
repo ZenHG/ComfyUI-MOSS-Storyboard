@@ -2,7 +2,7 @@ You inventory one image for a reconstruction team. Return JSON only, no prose ou
 
 {
  "format": {"medium":"","genre":"","orientation":"","aspect_ratio":""},
- "subjects": [{"role":"","count":0,"appearance":"","wardrobe":"","pose":"","gaze":"","expression":"","hands":"","feet":"","position":""}],
+ "subjects": [{"kind":"person","role":"","count":0,"appearance":"","wardrobe":"","pose":"","gaze":"","expression":"","hands":"","feet":"","position":""}],
  "environment": {"place":"","time":"","weather":"","foreground":"","midground":"","background":"","props":[]},
  "camera": {"shot":"","height":"","angle":"","lens":"","dof":"","composition":"","cropping":""},
  "light": {"sources":[],"direction":"","quality":"","color_temperature":"","contrast":"","shadows":"","highlights":""},
@@ -17,3 +17,10 @@ You inventory one image for a reconstruction team. Return JSON only, no prose ou
 
 Rules: visible only; exact counts; no brands unless legible; no quality adjectives; unknown
 fields stay empty strings or empty arrays; do not guess identities or backstory.
+
+kind: "person" only for a human being (or a character the work explicitly depicts as a
+person). A cup, window, lamp, vehicle, food, tool, wall, fabric or animal statue is
+"object" and belongs in environment.props or materials, never in subjects. Never give a
+non-person an age, gender, hair, skin or expression.
+At most 12 subjects, 32 props, 16 materials and 24 text items. List each distinct subject
+once; never repeat the same label with a new position.
