@@ -6,6 +6,12 @@
 > 证据分级：**已验证** = 有公开源码 / 官方文档 / 线上 API 实测或本机可复核证据；
 > **未验证** = 缺环境或本轮未执行；**查不到** = 公开面没有答案，不猜。
 
+> **2026-11-01 跟进**：状态复核与操作单见 `docs/60-Registry跟进操作单.md`——当日 14:14
+> 实测快照：节点仍 `NodeStatusActive`、最新版 0.3.3 仍 `NodeVersionStatusFlagged`、
+> 10/10 版本 `Flagged`、`status_reason` 仍空（本次实测响应里该键缺失）、install 端点仍 200；
+> `python tools/registry_status.py check --expect-latest-active` 退出码 **2**（未通过发布闸）。
+> **状态无变化**，本页 §1.1 的状态结论照旧成立；`downloads` 实测不稳定（§1.1 补注）。
+
 ---
 
 ## 0. 结论先行
@@ -44,6 +50,11 @@
 }
 ```
 
+> **旧样例（历史响应）**：上面这份 JSON 是当日早些时候抓取的响应，其中
+> `latest_version.status_reason: null` 是当时的表示。**2026-11-01 14:14 复核实测：node 的
+> `latest_version` 与 install 响应里都没有 `status_reason` 这个键**（见 `docs/60` §0/§1.2）。
+> 状态结论不受影响：`Flagged` 的语义不依赖该字段（本文 §2.2 从源码已解释为何为空）。
+
 `GET https://api.comfy.org/nodes/moss-storyboard/versions`（HTTP 200，**共 10 个版本**）：
 
 | version | status | status_reason |
@@ -61,6 +72,8 @@
 
 > **没有任何一个历史版本是 Active** —— 这点与「只有最新版被 flag」的常见情况不同（见 §1.2 对比）。
 > `downloads` 在调研过程中从 12 → 13 → 16 变动（动态计数，只作参考）。
+> **2026-11-01 14:16 复核**：对同一端点连续 6 次相同请求（间隔 2s、期间不请求其他端点）返回
+> 22/17/16/21/21/16 —— 该字段**秒级不稳定**，不能当安装量/热度证据（原因未验证）。
 
 `GET https://api.comfy.org/nodes/moss-storyboard/install?version=0.3.3`（HTTP 200）——
 **安装端点不按状态拦截**，它仍然返回可下载的版本信息：
@@ -75,6 +88,9 @@
   "deprecated": false
 }
 ```
+
+> 同上：`"status_reason": null` 是**旧样例（历史响应）**的表示；2026-11-01 14:14 复核实测当前
+> install 响应里该键缺失（见上文注）。
 
 CDN 也真的给包：下载 `node.zip` 实测 **2,405,602 bytes / 51 个文件**（落盘 `out/registry_status/node_0.3.3.zip`）。
 
