@@ -16,10 +16,14 @@
   lost=0 **107→112/115**、extra **83→0**。`tests/test_text_accounting.py` 10 条。
 - 🆕 **采样 seed 贯通（可选）**：`server.build_body(seed=...)` 与 `expand_facts --seed/--temperature`；
   默认不写 seed 键（字节级不变），summary 记录实际值。
-- **真机定稿（seed 42，单次）**：115 可判 / 5 skip / 0 fail，墙钟 607.6 s；
+- **真机定稿（seed 42）**：115 可判 / 5 skip / 0 fail，墙钟 607.6 s；
   **final lost=0 115/115（100.00%）**、extra 29（text22/number4/color3）、fallback 43.48%；
   前三次未固定 seed 的 fallback 率 42.61/37.39/46.09 是采样方差，**不能当趋势**。
-  口径：**机械对账 ≠ 视觉保真**；seed 只写进请求体、server.log 不回显、无同 seed 复跑 ⇒ **可复现性未验证**。
+  口径：**机械对账 ≠ 视觉保真**。
+- **同 seed 复跑（可复现性）**：同命令重跑（仅输出目录不同）：120 条记录 × 10 字段（含
+  `prompt_sha256`/`lost`/`extra`/`fallback`/`words`/`llm_calls` 等）**0 差异**，115 个可判单元逐字节同提示词；
+  墙钟 606.1 s vs 607.6 s、tok/s 中位 104.16 vs 104.76（机器噪声）。边界：只验 seed42 / A-4B / 一次复跑；
+  server.log 不回显 seed ⇒ 「服务端如何消费 seed」仍无日志证明。
 - 测试/闸：draft_render 13、text_accounting 10、expand_facts 17；smith_ir 365、expand_steps 21、
   expand_guard 9、wash_roundtrip 8、wash_attribution 12、smoke 63/0、freeze/coverage、ruff 全绿。
   docs/68 §11、docs/71（独立复核：发现 5 项文档/口径问题，全部修复并复核 PASS）。
