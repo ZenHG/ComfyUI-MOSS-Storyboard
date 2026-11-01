@@ -35,6 +35,11 @@ from .vision import Prepared, prepare
 # 取证提示词
 # ─────────────────────────────────────────────────────────────
 
+# 规则 17（2026-11-01 强化）：旧规则「每个实体只列一次」在降级档仍被模型无视——
+# 它会重复写同一批 label 来凑「看起来全面」的输出，然后撞上 json_schema 的 maxItems
+# 被语法层截成 40 条，coerce_ir 看到的是合法 JSON、只当「达到上限」告警。
+# 现在把规则写死成：label 唯一、同类多实例合并成一条带数量、发现重复立即停止、
+# 绝不为凑数重复——与 coerce_ir 的重复循环闸（docs/56）配套。
 SYSTEM = """You are an image analyst. You produce a machine-readable scene record that a \
 prompt compiler will later turn into generation prompts. You are taking evidence, not \
 writing marketing copy.
@@ -131,7 +136,10 @@ Rules:
 14. canvas counts separate pictures, not boxes. A screenshot, a slide, a poster or a document page is "single" even when it is full of text and framed panels. Use multi_panel only for comic pages, storyboards and collages built from distinct images.
 15. "character" is reserved for a person — a human being, or a character the work itself depicts as a person. A cup, window, lamp, vehicle, food, tool, wall, fabric or a statue of an animal is "object"; a whole environment is "background". If the thing has a surface, put its material in descriptors.material instead of calling it a character.
 16. Never give age_years, age_confidence, gender, hair, skin, face or expression to a non-character. Age is only for a visible person; a non-person with an age is a hallucination.
-17. List each entity exactly once. Never repeat the same label with different anchors: if several identical objects matter, write "two ceramic cups" in one label. entities must not exceed 40 items.
+17. Every entity label must be unique. Merge multiple instances of the same thing into ONE
+entity whose label carries the count ("two ceramic cups", not two cup entries). If you notice
+you are repeating the same label or fact, STOP repeating and output the JSON immediately —
+never pad the list to look thorough. entities must not exceed 40 items.
 18. Output the JSON object only."""
 
 USER = ("Analyse this image and return the scene record JSON. "
@@ -304,7 +312,15 @@ _AGE_WORDS = (
 
 
 class ReverseError(RuntimeError):
-    pass
+    """反推失败。
+
+    `report` 可选：失败前已收集的取证 Report（诊断用；例如重复循环被按失败处理时，
+    调用方仍能看到 dropped/warnings/capped 等线索，而不是只拿到一句错误）。
+    """
+
+    def __init__(self, message, report=None):
+        super().__init__(message)
+        self.report = report
 
 
 @dataclass
@@ -705,6 +721,56 @@ def gate_character_kind(kind: str, desc: dict,
 _gate_character_kind = gate_character_kind
 
 
+def _norm_label(raw) -> str:
+    if not isinstance(raw, dict):
+        return ""
+    return str(raw.get("label") or "").strip().casefold()
+
+
+def _norm_kind(raw) -> str:
+    if not isinstance(raw, dict):
+        return ""
+    return str(raw.get("kind") or "").strip().casefold()
+
+
+def _label_duplicate_stats(raw_entities: list) -> tuple[int, dict, int]:
+    """统计 (kind,label) 归一化重复度：返回 (重复多出的条数, 分组计数, 有 label 的条数)。
+
+    只统计**非空 label**：空 label 的实体无法可靠归并，按各自独立处理（不参与重复度，
+    避免把「一批无 label 的实体」误判成循环）。label strip+casefold 后比较，
+    因此 "Cup" / "cup " / "CUP" 视为同一类。
+    """
+    groups: dict = {}
+    labeled = 0
+    for raw in raw_entities:
+        label = _norm_label(raw)
+        if not label:
+            continue
+        labeled += 1
+        key = (_norm_kind(raw), label)
+        groups[key] = groups.get(key, 0) + 1
+    return labeled - len(groups), groups, labeled
+
+
+def _merge_label_duplicates(raw_entities: list) -> tuple[list, list, int]:
+    """相同 (kind,label) 只保留第一条；返回 (合并后列表, 被合并的 label, 合并条数)。"""
+    seen: set = set()
+    kept: list = []
+    merged: list = []
+    for raw in raw_entities:
+        label = _norm_label(raw)
+        if not label:
+            kept.append(raw)
+            continue
+        key = (_norm_kind(raw), label)
+        if key in seen:
+            merged.append(label)
+            continue
+        seen.add(key)
+        kept.append(raw)
+    return kept, merged, len(merged)
+
+
 def coerce_ir(obs: dict, report: Report | None = None,
               prepared: Prepared | None = None, task: str = "reverse") -> IR:
     """把取证 JSON 修成合法 IR。所有修正都记进 report，不静默。
@@ -737,18 +803,32 @@ def coerce_ir(obs: dict, report: Report | None = None,
                         for k, v in raw_entities.items()]
     if not isinstance(raw_entities, list):
         raw_entities = []
-    # 上限兜底：schema 只在「服务端认 json_schema」那一档生效；降级到
-    # json_object / 无约束后，重复循环只能在这里截断（否则下游把 49 个重复实体
-    # 当 49 个主体写进 prompt）。截断要出声。
-    #
-    # ⚠️ 语法层也可能先静默截断：服务端认 json_schema 时 maxItems 会在 40 条把重复
-    # 循环截停，coerce_ir 看到的已经是 40 条、dropped 为空——用户以为成功，其实拿到
-    # 的是 40 个重复实体（G7 审计发现：分母被灌大且失败不可见）。所以「达到上限」
-    # 本身就要告警，而不只是「超过上限」。恰好 MAX_ENTITIES 个合法实体也可能，
-    # 因此措辞是「疑似截断，请人工确认」，不做断言。
-    if len(raw_entities) >= MAX_ENTITIES:
+    # 重复度检测（在「达到上限」处理之前）：G7 第二轮发现 A-4B 在 20 图里 3 张、60 图里
+    # 10 张被 json_schema 的 maxItems 截成「恰好 40 条合法 JSON」——模型重复写同一批
+    # label，JSON 正常闭合、dropped=[]，重复实体进入 IR 后污染 binding 分母。只靠
+    # capped 告警挡不住这种「静默成功」，所以「达到上限且重复多出 ≥ MAX_ENTITIES//2
+    # （占比 ≥50%）」直接按失败处理；阈值是工程判断（见 docs/56），不是统计结论。
+    original_count = len(raw_entities)
+    dup_excess, label_groups, _labeled = _label_duplicate_stats(raw_entities)
+    if original_count >= MAX_ENTITIES and dup_excess >= MAX_ENTITIES // 2:
         r.capped = True
-        r.capped_at = len(raw_entities)
+        r.capped_at = original_count
+        msg = ("疑似重复循环：%d 条实体里只有 %d 个不同 label（重复多出 %d 条，"
+               "≥ 上限 %d 的 50%%）。已按失败处理，避免把 json_schema 的 maxItems "
+               "语法层截断当成成功；建议重试、提高 max_tokens 或换模型。"
+               % (original_count, len(label_groups), dup_excess, MAX_ENTITIES))
+        r.warn(msg)
+        raise ReverseError(msg, report=r)
+    # 轻度重复（未达上限，或达上限但重复占比 <50%）：同 (kind,label) 只保留第一条；
+    # 合并要出声（条数 + label 列表），不静默改数据。
+    if dup_excess > 0:
+        raw_entities, merged_labels, merged_n = _merge_label_duplicates(raw_entities)
+        r.warn("合并 %d 条重复实体（(kind,label) 归一化后相同，只保留第一条）：%s"
+               % (merged_n, "、".join(sorted(set(merged_labels))[:8])))
+    # 上限兜底：capped_at 记「合并/截断前的原始条数」（>上限时消费方应读常量 MAX_ENTITIES）。
+    if original_count >= MAX_ENTITIES:
+        r.capped = True
+        r.capped_at = original_count
         r.warn("实体数达到上限 %d：疑似截断，请人工确认（重复循环可能已被 json_schema "
                "的 maxItems 静默截断；少于 %d 个的合法画面不会触发本告警）"
                % (MAX_ENTITIES, MAX_ENTITIES))

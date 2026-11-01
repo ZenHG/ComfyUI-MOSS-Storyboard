@@ -35,7 +35,8 @@ from moss_llm.smith.ir import IR                                             # n
 from moss_llm.smith.llm import DEFAULT_SAMPLING, LlamaServer                 # noqa: E402
 from moss_llm.smith.reverse import (EVIDENCE_SCHEMA, MAX_ENTITIES,           # noqa: E402
                                     MAX_TEXT_BLOCKS, SYSTEM, TEXT_SCHEMA,
-                                    Report, _gate_character_kind, coerce_ir)
+                                    Report, ReverseError,
+                                    _gate_character_kind, coerce_ir)
 
 PERSON = ("gender", "hair", "skin", "face", "expression")
 OBJECT = ("material", "color", "build", "detail")
@@ -226,22 +227,74 @@ class TestEvidenceSchemaCaps(unittest.TestCase):
         """schema 只锁形状；内容约束必须在 prompt 里逐条可查。"""
         self.assertIn("reserved for a person", SYSTEM)
         self.assertIn("Never give age_years", SYSTEM)
-        self.assertIn("List each entity exactly once", SYSTEM)
+        self.assertIn("Every entity label must be unique", SYSTEM)
+        self.assertIn("STOP repeating", SYSTEM)
         self.assertIn("must not exceed %d items" % MAX_ENTITIES, SYSTEM)
         self.assertIn("Output the JSON object only", SYSTEM)
 
 
 class TestEntityCountCap(unittest.TestCase):
-    def test_runaway_entity_list_is_capped_and_reported(self):
-        """49 个重复实体（G7 实测形态）先被截到上限，并出声；下游不会再当 49 个主体。"""
-        entities = [{"id": "e%d" % i, "kind": "object", "label": "soldier left"}
-                    for i in range(1, 50)]                       # 49 条（G7 实测形态）
+    def test_over_limit_unique_entities_are_truncated_not_failed(self):
+        """49 个**唯一** label（>上限）→ 仍按截断处理（唯一实体是合法路径）。"""
+        entities = [{"id": "e%d" % i, "kind": "object", "label": "object %d" % i}
+                    for i in range(1, 50)]                       # 49 条唯一 label
         rep = Report()
         ir = coerce_ir(obs(*entities), rep)
         self.assertEqual(len(ir.entities), MAX_ENTITIES)
         self.assertTrue(rep.capped)                              # 超过上限也必须 capped
         self.assertEqual(rep.capped_at, 49)                      # >上限时记原始条数
         self.assertTrue(any("超过上限" in d for d in rep.dropped))
+
+    def test_label_repetition_loop_at_limit_fails_loudly(self):
+        """40 条 / 8 个 label 的重复循环 → 显式 ReverseError，不返回 IR、不静默截断。"""
+        labels = ["cup", "window", "lamp", "table", "chair", "wall", "door", "rug"]
+        entities = [{"id": "e%d" % i, "kind": "object",
+                     "label": labels[i % len(labels)]} for i in range(MAX_ENTITIES)]
+        rep = Report()
+        with self.assertRaises(ReverseError) as ctx:
+            coerce_ir(obs(*entities), rep)
+        msg = str(ctx.exception)
+        self.assertIn("疑似重复循环", msg)
+        self.assertIn("不同 label", msg)
+        self.assertIn("已按失败处理", msg)
+        self.assertIn("建议重试", msg)
+        self.assertIsInstance(ctx.exception.report, Report)
+        self.assertTrue(ctx.exception.report.capped)
+        self.assertTrue(any("疑似重复循环" in w
+                            for w in ctx.exception.report.warnings))
+
+    def test_label_normalization_catches_case_and_space_repeats(self):
+        """label 归一化（strip + casefold）：'Cup' / 'cup ' / 'CUP' 视为同一个 label。"""
+        labels = ["Cup", "cup ", "CUP", "Window", "window ", "WINDOW",
+                  "Lamp", "lamp ", "LAMP", "Table"]
+        entities = [{"id": "e%d" % i, "kind": "object",
+                     "label": labels[i % len(labels)]} for i in range(MAX_ENTITIES)]
+        with self.assertRaises(ReverseError):
+            coerce_ir(obs(*entities), Report())
+
+    def test_light_duplicates_at_limit_are_merged_with_warning(self):
+        """40 条里仅 1 条重复（5%）→ 合并保留第一条 + warning，不按循环失败。"""
+        entities = [{"id": "e%d" % i, "kind": "object", "label": "object %d" % i}
+                    for i in range(1, MAX_ENTITIES)]              # 39 个唯一 label
+        entities.append({"id": "e40", "kind": "object", "label": "object 1"})
+        rep = Report()
+        ir = coerce_ir(obs(*entities), rep)                       # 不应抛
+        self.assertEqual(len(ir.entities), MAX_ENTITIES - 1)      # 合并后 39
+        self.assertTrue(rep.capped)                               # 原始 40 触达上限
+        self.assertEqual(rep.capped_at, MAX_ENTITIES)
+        self.assertTrue(any("合并 1 条重复实体" in w and "object 1" in w
+                            for w in rep.warnings))
+
+    def test_light_duplicates_below_limit_are_merged_with_warning(self):
+        """未达上限的轻度重复也要合并出声（'cup'/'cup '/'CUP' → 1 条）。"""
+        entities = [{"id": "e1", "kind": "object", "label": "cup"},
+                    {"id": "e2", "kind": "object", "label": "cup "},
+                    {"id": "e3", "kind": "object", "label": "CUP"}]
+        rep = Report()
+        ir = coerce_ir(obs(*entities), rep)
+        self.assertEqual(len(ir.entities), 1)
+        self.assertFalse(rep.capped)
+        self.assertTrue(any("合并 2 条重复实体" in w for w in rep.warnings))
 
     def test_entity_count_over_limit_records_original_count(self):
         """41（>40 边界）：capped=True、capped_at=原始 41、IR 截到 40 并报丢弃。"""
@@ -295,13 +348,13 @@ class TestEntityCountCap(unittest.TestCase):
         self.assertFalse(any("超过上限" in d for d in rep.dropped))
 
     def test_old_behavior_would_be_red(self):
-        """反证：不截断时 60 个重复实体会全部进 IR —— 这就是「49 个主体」的来历。"""
+        """反证：修复前 60 个重复实体会全进 IR；现在这种循环必须直接失败（不再静默截断）。"""
         entities = [{"id": "e%d" % i, "kind": "object", "label": "tent fabric"}
                     for i in range(60)]
         raw_ir = IR.from_dict({"entities": entities})
         self.assertGreater(len(raw_ir.entities), MAX_ENTITIES)   # 旧行为（未截断）
-        capped, _rep = coerce_ir(obs(*entities), Report()), None
-        self.assertEqual(len(capped.entities), MAX_ENTITIES)     # 修后
+        with self.assertRaises(ReverseError):
+            coerce_ir(obs(*entities), Report())                  # 修后：显式失败
 
 
 # ── 缺陷 2：JSON 重复保护 ────────────────────────────────────
