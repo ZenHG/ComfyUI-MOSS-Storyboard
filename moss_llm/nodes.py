@@ -340,8 +340,8 @@ class MossPromptSmith:
                                "MOSS_LLM_SERVER > 本包 moss_llm/runtime/ > 系统 PATH",
                     "advanced": True}),
                 "port": ("INT", {"default": 8091, "min": 1024, "max": 65535, "step": 1,
-                    "tooltip": "默认 8091（避开 llama.cpp 服务惯用的 8080）。端口已被外部占用时"
-                               "直接复用，不抢", "advanced": True}),
+                    "tooltip": "默认 8091（避开 llama.cpp 服务惯用的 8080）。被占用会自动往后找空闲端口；"
+                               "只有同一个模型实例才复用，不借用别人的模型", "advanced": True}),
                 "release_after_run": ("BOOLEAN", {"default": True,
                     "tooltip": "开启：跑完终止 llama-server 并释放显存（默认）；关闭：保留服务复用，"
                                "连续出词更快但常驻显存——采样前必须再跑一次本节点或重启来释放",

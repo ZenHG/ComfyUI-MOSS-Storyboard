@@ -287,6 +287,14 @@ def port_free(port):
     return not _port_open(port)
 
 
+def pick_free_port(start, limit=20):
+    """从 start 起找第一个空闲端口；找不到返回 None（不静默抢别人的端口）。"""
+    for port in range(int(start), int(start) + int(limit) + 1):
+        if port_free(port):
+            return port
+    return None
+
+
 # ─────────────────────────────────────────────────────────────
 # 采样纪律
 # ─────────────────────────────────────────────────────────────
@@ -578,15 +586,19 @@ class LlamaServer:
             return self
         if self._healthy():
             want, got = self.alias(), self.served_alias()
-            if got and got != want:
+            if not got or got == want:
+                self.notes.append("端口 %d 上正是同一个实例（alias 相符），直接复用" % self.port)
+                return self
+            self.notes.append(
+                "端口 %d 被另一个 llama-server 占用（它在跑 %s），不借用它的模型" % (self.port, got))
+        if not port_free(self.port):
+            new_port = pick_free_port(self.port + 1)
+            if new_port is None:
                 raise RuntimeError(
-                    "端口 %d 上坐着一个 llama-server，但它载的**不是**你要的模型。\n"
-                    "  你要：%s\n  它在跑：%s\n"
-                    "  不静默借用别人的模型。两条出路：\n"
-                    "    ① 让它退出（先确认那是谁，再 taskkill /PID <pid> /F）；\n"
-                    "    ② 换个端口：--port %d" % (self.port, want, got, self.port + 1))
-            self.notes.append("端口 %d 上正是同一个实例（alias 相符），直接复用" % self.port)
-            return self
+                    "端口 %d 起连续 20 个端口都被占用，无法启动侧车。\n"
+                    "  请释放一个端口，或把节点的「端口」改到空闲值。" % self.port)
+            self.notes.append("端口 %d 被占用，自动改用 %d" % (self.port, new_port))
+            self.port = new_port
         if not self.model:
             raise RuntimeError("没有给 --model，也没有给 --base-url：不知道要跑哪个权重。")
 

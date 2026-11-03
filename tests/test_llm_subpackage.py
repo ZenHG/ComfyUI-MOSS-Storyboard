@@ -502,6 +502,17 @@ def main():
             else:
                 os.environ["MOSS_LLM_SERVER"] = old
 
+    print("\n== 14. 端口占用自动顺延 ==")
+    orig_port_free = server.port_free
+    try:
+        server.port_free = lambda p: p not in (8091, 8092)
+        check("被占用的端口顺延到下一个空闲端口", server.pick_free_port(8091) == 8093,
+              str(server.pick_free_port(8091)))
+        server.port_free = lambda p: False
+        check("连续 20 个都占用时明确放弃（不抢）", server.pick_free_port(8091) is None)
+    finally:
+        server.port_free = orig_port_free
+
     print("\n== PE 改写器模式（模型目录自带 system_prompt.txt） ==")
     import tempfile as _tf
     pe_text = ("You are an Image Prompt Rewriting Expert.\\n"
