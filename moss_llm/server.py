@@ -339,7 +339,11 @@ def find_server_exe(explicit=""):
             cands.append(str(Path(home) / sub / _exe_name()))
     here = Path(__file__).resolve()
     # `moss_llm/server.py` → `moss_llm/` 与仓库根；两个位置都认（打包方式不同）
-    for base in (here.parent, here.parent.parent):
+    bases = [here.parent, here.parent.parent]
+    custom_rt = os.environ.get("MOSS_LLM_RUNTIME_DIR", "").strip()
+    if custom_rt:
+        bases.insert(0, Path(custom_rt).expanduser())
+    for base in bases:
         for sub in ("runtime", "bin"):
             d = base / sub
             if d.is_dir():

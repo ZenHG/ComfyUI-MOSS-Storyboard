@@ -281,7 +281,7 @@ class MossPromptSmith:
                                "单遍快、双遍稳（两次调用同一 sidecar）"}),
                 "runtime": (_RUNTIMES, {"default": "current",
                     "tooltip": "用现有=按「服务器程序/环境变量/本包 runtime/PATH」找 llama-server；"
-                               "更新到最新版=先从 GitHub 官方 release 下载并安装最新 llama.cpp "
+                               "更新到最新版=先从 GitHub 官方 release 下载并安装最新 llama.cpp（默认落在 moss_llm/runtime/；可用 MOSS_LLM_RUNTIME_DIR 改到 models 下的持久目录；CPU 约 35MB，CUDA/ROCm 可能数百 MB）"
                                "（自动按本机后端选 CUDA/ROCm/Vulkan/SYCL/Metal/CPU 包；"
                                "国内慢可用 MOSS_LLM_MIRROR 指镜像，选错后端用 MOSS_LLM_BACKEND 覆盖），再用它"}),
                 "api_base": ("STRING", {"default": "",
@@ -337,7 +337,7 @@ class MossPromptSmith:
                     "tooltip": "draft-mtp 的 --spec-draft-n-max。默认 2（d2）", "advanced": True}),
                 "server_exe": ("STRING", {"default": "",
                     "tooltip": "llama-server 可执行文件完整路径。留空=按下面顺序找：环境变量 "
-                               "MOSS_LLM_SERVER > 本包 moss_llm/runtime/ > 系统 PATH",
+                               "MOSS_LLM_SERVER > 本包 moss_llm/runtime/（MOSS_LLM_RUNTIME_DIR 可改）> 系统 PATH",
                     "advanced": True}),
                 "port": ("INT", {"default": 8091, "min": 1024, "max": 65535, "step": 1,
                     "tooltip": "默认 8091（避开 llama.cpp 服务惯用的 8080）。被占用会自动往后找空闲端口；"
@@ -471,16 +471,19 @@ class MossPromptSmith:
         else:
             if runtime == "update":
                 from . import runtime_install      # 只在真要装时才 import（CLI 也用它）
+                dest = runtime_install.RUNTIME_DIR
+                report.append("运行时下载目录：%s（CPU 包约 35MB；CUDA/ROCm 可能数百 MB）" % dest)
                 try:
                     exe, tag, src = runtime_install.install()
                 except Exception as e:
                     raise RuntimeError("更新 llama.cpp 运行时失败：%r\n"
+                                       "    下载目录：%s\n"
                                        "    国内网络可设 MOSS_LLM_MIRROR=<镜像前缀> 或 "
                                        "MOSS_LLM_RUNTIME_URL=<直链>后重试；后端认错可设 "
                                        "MOSS_LLM_BACKEND=cuda|vulkan|rocm|sycl|cpu；"
-                                       "也可手动下载后填「服务器程序」。" % (e,)) from e
-                report.append("llama.cpp 运行时：%s（%s；%s）"
-                              % (Path(exe).name, tag or "未取到版本号", src))
+                                       "也可手动下载后填「服务器程序」。" % (e, dest)) from e
+                report.append("llama.cpp 运行时：%s（%s；%s；目录 %s）"
+                              % (Path(exe).name, tag or "未取到版本号", src, Path(exe).parent))
                 if not server_exe:
                     server_exe = exe
 

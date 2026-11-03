@@ -19,6 +19,32 @@
 
 ---
 
+## 0.4.2 — 2026-11-03
+
+**LLM 运行时的三处易用性修复 + 更短的 README。**
+
+- 本地运行时可以放到持久目录：设 `MOSS_LLM_RUNTIME_DIR`，升级插件不会把它覆盖。
+- 下载 llama.cpp 前会先说明落点与体积；运行后 `report` 里能看到完整运行时目录。
+- 端口被占用会自动往后找空闲端口，不用手改；只有同一个模型实例才复用。
+- 面板里「服务器程序」置顶到本地组第一行，不再藏在参数末尾。
+- README 重写为快速落地页，详细参数与实测边界移入节点手册。
+- 节点入参没有增删；旧工作流照常打开。
+
+**升级动作**：无需改动；从 Manager 更新到 0.4.2 即可。
+
+<!-- EN -->
+
+**Three LLM-runtime usability fixes, plus a shorter README.**
+
+- The local runtime can live in a persistent folder: set `MOSS_LLM_RUNTIME_DIR`, so updating the pack no longer wipes it.
+- Before downloading llama.cpp the node now states the destination and size; the `report` shows the full runtime folder.
+- If the port is occupied, the node picks the next free one automatically; only the same model instance is reused.
+- The panel pins **server_exe** to the top of the Local engine group instead of leaving it at the end.
+- The README is now a quick landing page; full parameters and measured limits moved to the node manual.
+- No node inputs were added or removed; existing workflows open unchanged.
+
+**Action required**: none. Update to 0.4.2 from the Manager.
+
 ## 0.4.1 — 2026-11-03
 
 **元数据与安全披露更新，节点行为不变。**

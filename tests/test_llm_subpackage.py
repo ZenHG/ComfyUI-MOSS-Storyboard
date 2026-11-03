@@ -502,7 +502,19 @@ def main():
             else:
                 os.environ["MOSS_LLM_SERVER"] = old
 
-    print("\n== 14. 端口占用自动顺延 ==")
+    print("\n== 14 · 运行时目录可配（MOSS_LLM_RUNTIME_DIR） ==")
+    old_rt = os.environ.get("MOSS_LLM_RUNTIME_DIR")
+    try:
+        os.environ["MOSS_LLM_RUNTIME_DIR"] = os.path.join(tempfile.gettempdir(), "moss-rt-test")
+        check("运行时目录跟随环境变量",
+              str(ri._runtime_dir()).endswith("moss-rt-test"), str(ri._runtime_dir()))
+    finally:
+        if old_rt is None:
+            os.environ.pop("MOSS_LLM_RUNTIME_DIR", None)
+        else:
+            os.environ["MOSS_LLM_RUNTIME_DIR"] = old_rt
+
+    print("\n== 15. 端口占用自动顺延 ==")
     orig_port_free = server.port_free
     try:
         server.port_free = lambda p: p not in (8091, 8092)

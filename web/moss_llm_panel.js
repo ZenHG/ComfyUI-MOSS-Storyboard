@@ -82,6 +82,10 @@ const DIRTY_SKIP = new Set(["seed", "control_after_generate"]);
 // `flex:0 0 auto` 必须有：宿主给 DOM 组件的单元格套了 `*:flex-1`（flex-grow:1），
 // 不覆盖它，开关条就会被撑到整个剩余高度，线条被 align-content 摊开成一列散字（实测 434px）。
 const CSS = `
+/* server_exe 在参数表尾部：宿主每行包了一层 wrapper，order 要打在 wrapper 上。
+   把它的 wrapper 排到最前（但仍低于开关条），避免用户漏看；只改视觉顺序，不动存档。 */
+[data-widgets-grid-node-id] > div:has([data-widget-name="server_exe"]){order:-1 !important}
+[data-widgets-grid-node-id] > div:has([data-widget-name="mosssb_llm_panel"]){order:-2 !important}
 .mossllm-bar{display:flex;flex-wrap:wrap;align-content:flex-start;flex:0 0 auto;
  align-items:center;gap:2px 4px;
  box-sizing:border-box;width:100%;padding:6px 2px 1px;
@@ -505,20 +509,6 @@ function ensureBarFirst(node, st) {
     return true;
 }
 
-/**
- * 把「服务器程序 / server_exe」行在本地组里置顶。
- * 只改 CSS `order`，不动 `node.widgets` 顺序，也不写存档；宿主重渲染后 apply() 会自愈。
- * 为什么需要：它在参数表里排在尾部，用户展开本地组后仍容易漏看。
- */
-function pinServerExeRow(node) {
-    try {
-        const grid = document.querySelector('[data-widgets-grid-node-id="' + node.id + '"]');
-        if (!grid) return;
-        const row = grid.querySelector('[data-widget-name="server_exe"]');
-        if (row) row.style.order = "-1";
-    } catch (e) { /* 老前端 */ }
-}
-
 function apply(node) {
     const st = stateOf(node);
     ensureBarFirst(node, st);
@@ -532,7 +522,6 @@ function apply(node) {
     }
     const { shown, off } = plan(node, st);
     const changed = syncWidgets(node, shown);
-    pinServerExeRow(node);
     const found = paintHeaders(node, shown);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;

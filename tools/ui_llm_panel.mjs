@@ -136,12 +136,21 @@ check("点「本地引擎」⇒ 5 + 17 = 22 行，标题只出现一次",
     r.shown === 22 && r.heads.length === 1 && r.heads[0] === "本地引擎 · llama.cpp", JSON.stringify(r));
 let cl = await chip("local");
 check("当前通道是本地 ⇒ 本地 chip 不标「通道外」", cl && !/通道外/.test(cl.text), JSON.stringify(cl));
+await page.waitForTimeout(900);
 const pinned = await page.evaluate(() => {
-    const row = document.querySelector('[data-widgets-grid-node-id="' +
-        app.graph.nodes.find((x) => x.type === "MossPromptSmith").id + '"] [data-widget-name="server_exe"]');
-    return row ? getComputedStyle(row).order : "";
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const row = grid && grid.querySelector('[data-widget-name="server_exe"]');
+    const rt = grid && grid.querySelector('[data-widget-name="runtime"]');
+    const bar = grid && grid.querySelector('[data-widget-name="mosssb_llm_panel"]');
+    return row && rt && bar ? {
+        serverTop: Math.round(row.getBoundingClientRect().top),
+        runtimeTop: Math.round(rt.getBoundingClientRect().top),
+        barTop: Math.round(bar.getBoundingClientRect().top),
+    } : {};
 });
-check("服务器程序行在本地组置顶（CSS order=-1，不改存档）", pinned === "-1", pinned);
+check("服务器程序行置顶（在开关条下方、runtime 上方，不改存档）",
+    pinned.barTop < pinned.serverTop && pinned.serverTop < pinned.runtimeTop, JSON.stringify(pinned));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-3-local.png"), { y: 30 });
 
 await clickChip("api");

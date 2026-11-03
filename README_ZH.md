@@ -4,386 +4,116 @@
 
 ![MOSS Storyboard：可视化布局编辑器、一次生成 4 格故事板、逐格精确裁切](assets/hero-storyboard.png)
 
-给 **MOSS-Image** 用的**布局、编辑与 LLM 提示词节点包**。三个用途：
+**给 ComfyUI 用的故事板、局部编辑与 LLM 提示词节点。** 三个用途：
 
 - **故事板** —— 一张画布分成 3 / 4 / 6 / 8 / 9 格，每格一段描述，同时把每格裁出来。
 - **局部编辑** —— 只改一格、或把一张脸换进一格；改完贴回，其它格逐像素不动。
 - **提示词** —— 可选 LLM 节点做反推 / 扩写 / 编辑 / 编译；**不绑定 MOSS**，也支持 Flux、SDXL、Qwen-Image。
 
-**最快上手：** Manager 安装 → 把三个权重文件放进 [1.1](#11-装什么) 的目录 → 把
-[`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json) 拖进 ComfyUI 按 Run。
-不用 `pip install`，不用改配置。（还没有权重？`llm-compile-zero-model.json` 零权重就能跑。）
-
-> 🔴 **先记这一句：画布上的框是参考，不是坐标。**
-> 框会变成一句带坐标的文字进提示词，模型自己决定画在哪——会画偏、画大、把两个框揉在一起，也可能完全不理。
-> 细节与实测见 [1.6](#16-框只是参考能改变什么不能改变什么)。
+> 🔴 **先记这一句：画布上的框是参考，不是坐标。** 框会变成一句带坐标的文字进提示词，模型自己决定画在哪。
+> 会画偏、会揉框、也可能完全不理。细节见[节点手册 §1](docs/19-node-manual.md)。
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.4.1** |
+| 版本 | **0.4.2** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
-| 宿主 | **ComfyUI ≥ 0.42.0**（原生支持 MOSS-Image 自 PR #17095 起） |
-| 依赖 | 核心**零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供）。换脸节点的自动蒙版可选装 `insightface` + `onnxruntime`，不装也能跑 |
+| 宿主 | **ComfyUI ≥ 0.42.0**（原生支持 MOSS-Image） |
+| 依赖 | 核心**零**额外 pip 依赖。换脸自动蒙版可选 `insightface` + `onnxruntime`，不装也能跑 |
 
 **本包保证**：画布尺寸、每格坐标、裁切位置、宫格线位置 —— 算术，逐像素对齐。
 **本包不保证**：画面内容、元素落点、跨格是不是同一张脸 —— 由模型采样决定。
 
 ---
 
-## 四层读者，四条路
+## 1 · 快速开始
 
-| 层 | 你是谁 | 从哪读 | 大概花多久 |
-|---|---|---|---|
-| **1 · 出图** | 只想装好、跑出一张故事板 | [§1](#1--装好出第一张图) | 10 分钟 |
-| **2 · 调参** | 已经能出图，要控制格数、尺寸、画质、显存 | [§2](#2--调参数) | 按需查 |
-| **3 · 接产线** | 要把节点接进自己的流程，或做换脸 / 局部编辑 | [§3](#3--接进自己的流程) | 按需查 |
-| **4 · 改代码** | 要跑机检、提 PR、报 bug | [§4](#4--改代码--报-bug) | — |
+### 1.1 安装
 
-不必从头读。第 2 层之后的每一节都能单独查。
+| 路线 | 怎么做 |
+|---|---|
+| **Manager**（推荐） | 搜 **MOSS Storyboard** → 安装 → 重启 ComfyUI |
+| **Registry** | 打开 `https://registry.comfy.org/nodes/moss-storyboard` → Install |
+| **手动** | `cd <ComfyUI>/custom_nodes` → `git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard` → 重启 |
 
-## 术语（一个概念一个名字）
-
-同一件事在不同地方叫不同名字，是这类文档最常见的误解来源。本包统一如下：
-
-| 术语 | 指什么 | 容易混的 |
-|---|---|---|
-| **画布** | 采样出来的那张完整图（宽高都是 16 的倍数） | 不叫「大图」「画幅」 |
-| **宫格 / 故事板** | 一张画布切成 N 格 | 也叫分镜图、漫画格 |
-| **格 / 单格** | 一格；「单格长边」= 一格的长边像素 | 「每格」只用在分配意义（每格分到多少像素） |
-| **整张** | 生成节点的模式：**一次采样**出全部格子 | ≠ 编辑器的「单图」 |
-| **逐格** | 生成节点的模式：**每格独立采样**再拼版 | 慢 N 倍，但能单格返工 |
-| **单图** | 布局编辑器的模式：**不分格**（海报） | 以前叫过「单张」，容易和「整张」混 |
-| **布局框 / 框** | 画布上摆的矩形，变成**一句带坐标的文字** | 不是遮罩、不是选区 |
-| **spec** | 一串文字，带全部几何（11 个字段） | 不是文件，不是 JSON |
-| **参考图 / 源图** | 换脸：`ref` = 身份来源；`image` = 被改的那张 | 别把两张混着叫「参考图」 |
-| **送词方式** | 生成节点的 `init`：`auto` / `layout` / `plain` | ⚠ 换脸节点也有 `init`，取值 `source` / `empty`，**同名不同义** |
-
-全表与更细的用法见 [节点手册 §0](docs/19-node-manual.md#0-术语一个概念一个名字)。
-
----
-
-## 1 · 装好，出第一张图
-
-### 1.1 装什么
-
-| 依赖 | 必需 | 放哪 |
-|---|---|---|
-| ComfyUI **≥ 0.42.0** | ✅ | 更低版本没有 `moss_image` 这个文本编码器类型 |
-| `moss_image_sft_bf16.safetensors` | ✅ | `models/unet/`（或 `models/diffusion_models/`） |
-| `qwen3.5_9b_int8_convrot.safetensors` | ✅ | `models/text_encoders/`（旧版宿主也兼容 `models/clip/`） |
-| `flux2-vae.safetensors` | ✅ | `models/vae/` |
-| 额外 pip 包 | ❌ | 无（换脸自动蒙版可选 `insightface` + `onnxruntime`） |
-
-权重**不随包分发**。从官方教程下载这三个文件：<https://docs.comfy.org/tutorials/image/moss-image/moss-image>
-（下载链接与文件名都在那一页），按上表的 `放哪` 目录放好，然后**重启 ComfyUI** —— 加载器只认启动时已存在的文件。
-可选的蒸馏 LoRA（任意 `*.safetensors`）放 `<ComfyUI>/models/loras/`；首图不需要它。
-
-**4 步蒸馏 LoRA 是可选的，也不属于本包。** 三份故事板示例里预置了它、默认**旁路**；海报示例没有 LoRA；
-**换脸与姿态示例的两个 LoRA 是生效的** —— 它们本身就是那两条配方的组成部分（[3.5](#35-换脸--蒙版局部编辑)）。
-不叠 LoRA 用 **50 步 / cfg 3 / euler / sgm_uniform**（MOSS-Image-SFT 模型卡）；
-叠了就把 `steps` 改成 **4**、`cfg` 改成 **1.0**（原来是旁路的，先 `Ctrl+B` 取消旁路）。
-
-### 1.2 装
-
-三条路，结果一样。**不需要 `pip install`，没有额外 Python 依赖** —— 只有换脸的自动蒙版需要可选的
-`insightface` + `onnxruntime`。
-
-| 路线 | 前提 | 怎么做 | 怎么验证 |
-|---|---|---|---|
-| **ComfyUI Manager**（推荐） | 装了 Manager；宿主 ≥ 0.42.0 | 搜 **MOSS Storyboard** → 安装 → 重启 | 下面那行启动日志 + `moss/storyboard` 下七个节点 |
-| **Registry 页** | 宿主/Manager 能读节点 registry | 打开 `https://registry.comfy.org/nodes/moss-storyboard` → 点 Install（会转给 Manager 或 `comfy` CLI）。**页面 404 = 这版还没发布**，走手动装 | 同上 |
-| **手动（git 或 zip）** | 有 git，或浏览器下载仓库 zip | `cd <你的 ComfyUI>/custom_nodes` → `git clone https://github.com/ZenHG/ComfyUI-MOSS-Storyboard`（或解压到该目录）→ 重启 | `<ComfyUI>/custom_nodes/ComfyUI-MOSS-Storyboard/__init__.py` 存在；同一行日志 + 节点出现 |
-
-重启后，节点菜单 **`moss/storyboard`** 下出现七个节点，启动日志有一行（`<版本号>` 为实际装的版本）：
+成功的标志是启动日志里这一行：
 
 ```
 [MOSS SB] v<版本号> 已加载｜节点 7 个（出口 v3）｜3/4/6/8/9 宫格
 ```
 
-**没有这一行 = 包没加载。** 这比任何配置检查都直接。
-手动装最常见的坑是**多套了一层目录**（`custom_nodes/ComfyUI-MOSS-Storyboard/ComfyUI-MOSS-Storyboard/`）：
-加载器只看一层。
-要退回旧的 V1 接口：设环境变量 `MOSSSB_NODE_API=v1`。
+没有这一行 = 包没加载。手动装最常见的坑是**多套了一层目录**
+（`custom_nodes/ComfyUI-MOSS-Storyboard/ComfyUI-MOSS-Storyboard/`）。
 
-**`⚠ 未检测到 llama-server` 是首次运行时的正常现象。** 还没装可选 LLM 子包 / llama-server 时，
-同一份启动日志会继续出现 `[MOSS SB] ⚠ 未检测到 llama-server…`。这**不是**包加载失败：
-七个核心节点已经加载，下面的零权重首图也不需要它。只有可选的 LLM 节点
-（caption / 扩写 / 编辑）才需要 llama-server 或 OpenAI 兼容端点。
+### 1.2 权重（不随包分发）
 
-**放完模型文件要再重启一次 ComfyUI**，否则节点下拉里看不到新文件。
-查宿主版本：启动 stdout 顶部能看到 `** ComfyUI startup time:` 与路径；完整版本号在
-`<ComfyUI>/user/comfyui.log` 里找 `ComfyUI version: <版本号>`。`git log -1 --format=%h` 看本包提交号。
+从官方教程下载三个文件：<https://docs.comfy.org/tutorials/image/moss-image/moss-image>，
+按下面目录放好，然后**重启 ComfyUI**：
 
-### 1.3 跑第一张
+| 文件 | 放哪 |
+|---|---|
+| `moss_image_sft_bf16.safetensors` | `<ComfyUI>/models/diffusion_models/`（旧版宿主：`models/unet/`） |
+| `qwen3.5_9b_int8_convrot.safetensors` | `<ComfyUI>/models/text_encoders/` |
+| `flux2-vae.safetensors` | `<ComfyUI>/models/vae/` |
 
-**第 0 步 —— 零权重、零显存。** 把
-[`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) 拖进 ComfyUI 窗口，点 Queue。
-它让 `MossPromptSmith` 跑 **`task=compile`**：**不加载任何模型**，毫秒级结束，输出是文本
-（编译后的提示词 + `report`）。这一步过了，说明包装对了、节点能跑。
-该看到：`prompt` 预览是编译后的提示词，另一个预览是 `report`。还没有模型文件？到这一步就可以停。
-另一个零模型示例是 [`examples/moss-prompt-compiler.json`](examples/moss-prompt-compiler.json)
-（官方草稿 → 提示词 + 编辑器 state）。
+- 可选蒸馏 LoRA：任意 `*.safetensors` → `<ComfyUI>/models/loras/`。不叠它用 **50 步 / cfg 3 / euler / sgm_uniform**；
+  叠 4 步 LoRA 用 **4 步 / cfg 1.0**。
+- **LLM 节点**：`compile` **不需要任何模型**，`api` 通道也不需要本地权重。走 `local` 时，GGUF 放
+  `<ComfyUI>/models/LLM/` 或 `<ComfyUI>/models/text_encoders/` 下任意子目录（两处都会递归扫描）。`caption` / `edit`
+  要视觉模型 **+** 同目录的 `mmproj`；`expand` 只要文本模型。
 
-**第 1 步 —— 真正的第一张图（要三个模型文件）。**
+### 1.3 第一次运行
 
-1. 装好上面的包与三个模型文件。
-2. 把 [`examples/moss-layout-editor-storyboard.json`](examples/moss-layout-editor-storyboard.json)
-   **拖进 ComfyUI 窗口**（或菜单 `Workflow → Open`）。连线已经接好。
-   文件在 `<ComfyUI>/custom_nodes/ComfyUI-MOSS-Storyboard/examples/`，也可以直接在 GitHub 上点开下载。
-3. 点 **Queue**。
+- **最快自检（零权重）**：把 [`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) 拖进 ComfyUI，按 Run。
+  毫秒级把 IR 编译成提示词，能跑通就说明包装对了。
+- **第一张故事板**：拖 [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json)，按 Run。
+  产物在 `output/moss/storyboard/`（`grid_*.png` 与 `panel_*.png`）。
+- **第一段提示词**：拖 [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json)。默认只开反推组，
+  其余组已旁路（`Ctrl+B` 可启用）。
 
-产物：**1024×576** 整张 + 4 张 **496×272** 逐格。
+### 1.4 下一步
 
-> **图存在哪？** 本包自己不存图。示例接了 `SaveImage`，所以落在 ComfyUI 根目录的
-> `output/moss/storyboard/`：`grid_*.png`（整张）与 `panel_*.png`（逐格）。
-> **没接任何保存节点 = 图只在内存里，跑完就没了。**
+- 全部入参 / 输出：[`docs/19-node-manual.md`](docs/19-node-manual.md)。
+- LLM 节点（通道、方言、PE 改写器）：[`docs/20-llm-prompt-nodes.md`](docs/20-llm-prompt-nodes.md)。
+- 更多示例：见下面 3.1。
 
-**第 2 步 —— 从一张照片到提示词（可选 LLM 子包）。**
-[`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json) 一个文件三组（反推 / 洗图 / 通用扩写），
-默认只开反推，其余组 Ctrl+B 旁路；输出提示词 + `report`（取证事实、绑定告警、被忽略的缺陷类）。它需要可选的
-`moss_llm/` 子包，以及 llama-server（节点里可一键装官方构建）或任意 OpenAI 兼容端点。它产出的是**文本不是图**
-—— 先用它写提示词，再把提示词喂给故事板节点。
+### 1.5 怎么接线
 
-这个节点有四件活：`caption` / `expand` / `edit` / `compile`（见 [3.7](#37-llm-节点mossromptsmith)）；
-其中 `compile` **完全不加载模型**，所以它也是零权重的冒烟测试。
-
-**十一份示例，各管一件事**
-
-> 下表与**实际文件**核对：每个 `examples/*.json` 都必须在这里被点名，且带下面三列（发布闸 S18 会查）。
-> 以后新增示例，在同一个 PR 里补一行。
-
-> ⚠ **示例引用的输入图不在 input 里就会报「图片不存在」**。
-> **单图换脸示例**自带两张演示图：`assets/faceswap-demo-src.png`（单人照片）与
-> `assets/faceswap-demo-ref.png`（另一个人的脸部特写）—— **把这两张拖进 ComfyUI 画布**
-> 就会自动复制到 `input/`，或者直接换成自己的图。
-> **宫格示例与姿态示例**要自备 `moss_faceswap_src.png` / `moss_faceswap_ref.png`。
-> **src 与 ref 必须是不同的人** —— 同一个人换完还是这张脸，看起来就像「没变化」。
-
-| 文件 | 干什么 | 要模型 | 跑完看到什么 |
-|---|---|---|---|
-| `moss-layout-editor-storyboard.json` | 4 格故事板，带画布内说明（**首选起点**） | ✅ | 1024×576 整张 + 4 张逐格 |
-| `moss-storyboard-4panels-ui.json` | 4 格故事板，最朴素的接线 | ✅ | 同样的整张，依赖最少 |
-| `moss-layout-editor-poster.json` | 单图海报，编辑器摆框 | ✅ | 一张海报尺寸的图 |
-| `moss-prompt-compiler.json` | 贴官方草稿 → 提示词 + 编辑器 state | ❌ 零显存 | 纯文本（一段提示词 + JSON state） |
-| `llm-compile-zero-model.json` | 🧩 `MossPromptSmith` 的 `task=compile`：IR JSON → 编译后提示词 + report | ❌ 零显存 | 纯文本（提示词 + `report`）—— 十秒装机自检 |
-| `moss-faceswap-ui.json` | 4 格宫格 → 换第 0 格 → 整张出 | ✅ | 换掉一格后的整张 |
-| `moss-faceswap-single-ui.json` | **单张照片** → 换脸 → 整张出（不接 `spec`） | ✅ | 一张换脸后的人像 |
-| `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图（`init=empty`） | ✅ | 一张带指定动作的图 |
-| `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 | ✅ | 只重画了一格的整张 |
-| `llm-prompt-workbench.json` | 🧩 一个文件三组（反推 / 洗图 / 通用扩写），**纯文本、任意模型**；未用组 Ctrl+B 旁路 | ✅ | 提示词 + `report`（不出图） |
-| `llm-idea-to-image.json` | 🧩 一句话 → **单图**（`panels=1`）或 **4 格故事板**，两组按需旁路 | ✅ | 一张单图或 4 格整张 |
-
-> 🧩 标 `moss_llm` 的三份用**可选 LLM 子包**的 `MossPromptSmith`（分类 `LLM`）。
-> 它不属于上面那七个核心节点：删掉 `moss_llm/` 整个目录，核心照常工作。
-> 它需要一个 llama-server（节点里把「runtime」选成「更新到最新版」可一键装官方构建），
-> 或改走「外部 API」通道接任何 OpenAI 兼容端点。**这两份能力会联网**，只在你排队时发生一次。
-
-> ⚠ **十一份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
-> `poster`；换脸与姿态示例没有），夹在 LoRA 与采样器之间。它**不是本包的节点**，是 ComfyUI 自带
-> （`comfy_extras/nodes_easycache.py`，实验性，分类 `advanced/debug`），作用是让采样器复用部分步。
-> **要跟本页的数字对得上，先 `Ctrl+B` 旁路或删掉它** —— 开着它，采样器跑的不是本页数字测的那份活。
-> 宿主太老没有这个节点时，ComfyUI 报缺节点类型，删掉即可。
-> **第一次出图可以先不管它**；只有要和本页的数字对齐时才需要旁路。
-
-### 1.4 从零接线（最少一个节点也能跑）
-
-| 加载节点 | 填哪个文件 | 插到「🎬 故事板 · 生成」的哪个口 |
+| 加载节点 | 填哪个文件 | 插到「故事板 · 生成」的哪个口 |
 |---|---|---|
 | `UNETLoader` | `moss_image_sft_bf16.safetensors` | `model` |
-| `CLIPLoader` | `qwen3.5_9b_int8_convrot.safetensors`，**`type` 必须选 `moss_image`** | `clip` |
+| `CLIPLoader` | `qwen3.5_9b_int8_convrot.safetensors`（`type=moss_image`） | `clip` |
 | `VAELoader` | `flux2-vae.safetensors` | `vae` |
 
-然后在「🎬 故事板 · 生成」的 **正面提示词** 里写：
+## 2 · 常见问题
 
-```
-雨夜咖啡店，单一画布分成严格对称的 4 格，细白线分隔；
-苏晚：黑发低马尾、米白高领针织衫；陈屿：深灰外套、黑衬衫；
-35mm 胶片、真实演员、自然皮肤纹理、浅景深
+### 2.1 权重不在下拉里
 
-[PANEL 1]: 中景，两人对坐，她把柠檬水杯推向正中
-[PANEL 2]: 特写，她的眼睫与玻璃雨痕
-[PANEL 3]: 过肩，他抬眼看向窗外
-[PANEL 4]: 桌面特写，两只手停在杯沿
-```
+文件放错目录，或 ComfyUI 没重启。对照 1.2 的路径检查，然后重启。
 
-> 🔴 **最容易踩的一步：格数和段数必须一致。** 出厂默认 **8** 格，而上面这段只有 4 段 ——
-> **先把节点上的格数改成 4**，否则采样前直接报错
-> （`提示词有 4 段 [PANEL]，但布局是 8 格`）。反过来，写了 8 段却只有 4 格也一样报错。
-> 画布尺寸自动算，**不用手填宽高**。
-> （`moss-layout-editor-storyboard.json` 已经设成 4 格，拖进去不用改；只有自己接线时才要动这个数。）
+### 2.2 「找不到 llama-server 可执行文件」（只影响 LLM 节点）
 
-两个输出都是图，**都要自己接保存节点**：
+核心故事板节点**不需要**它；启动日志那行警告不影响使用。三条路任选：
 
-| 输出口 | 是什么 | 接到哪 |
-|---|---|---|
-| `grid` | 整张宫格 | `SaveImage`（存盘）/ `PreviewImage`（只看） |
-| `panels` | 逐格，数量 = 格数 | `SaveImage` —— 一次存 N 张 |
+1. **一键装**：把节点 `runtime` 选成 **更新到最新版**，再运行。会下载官方 llama.cpp 构建
+   （CPU 约 35MB；CUDA/ROCm 可能数百 MB）到
+   `<custom_nodes>/ComfyUI-MOSS-Storyboard/moss_llm/runtime/`。设 `MOSS_LLM_RUNTIME_DIR` 可改到持久目录。
+2. **已有二进制**：点节点里的 **本地引擎** 组，在 `server_exe` 填路径；或设 `MOSS_LLM_SERVER`。
+3. **已有 OpenAI 兼容服务**（LM Studio / Ollama / llama-swap / 远端）：`channel` 选 `api`，
+   填 `api_base`（要带 `/v1`）和 `api_model`。
 
-> 想先看宫格形状再花时间采样：从「🎬 故事板 · 宫格几何」的 `template` 接一个预览，
-> 那是一张纯色格 + 缝的图，看得见每格在哪、缝多宽。
+端口只是首选值：被占用会自动往后找空闲端口。只有同一模型实例才复用；端口上是别的模型时不会借用。
 
-### 1.5 五个最常见的坑
+### 2.3 显存与速度
 
-（`spec` 的细节在 [3.2](#32-spec-是唯一几何真相)；`init` 三档在 [手册 §1](docs/19-node-manual.md#1--生成节点)。这里只要知道有这两个旋钮。）
+12GB 卡跑得动实测的 0.64–1.42MP 画布，但峰值 11.2–11.4GB，余量很小，别读成「12GB 够用」。
+峰值在 VAE 解码，不在采样。数字与宿主版本分水岭见 [`docs/06-vae-memory.md`](docs/06-vae-memory.md)。
 
-| 坑 | 表现 | 怎么办 |
-|---|---|---|
-| 格数 ≠ 段数 | 采样前就报错 | 改格数，或把稿子补到同样段数，或 `init` 改 `plain` |
-| 接了 `spec` 却改节点上的格数 | 画布形状没变 | **接了 `spec` 就以 `spec` 为准**，节点上的格数/长边/缝/边距不生效（`report` 第一行会写明） |
-| 没接保存节点 | 跑完什么都没有 | 接 `SaveImage` |
-| 配方混搭 | 一片黑 | 见 [2.3](#23-配方两档别混) |
-| 链路里有 `LazyCache` | 与本页数字不可比 | `Ctrl+B` 旁路或删掉 |
+### 2.4 已知边界
 
-### 1.6 框只是参考——能改变什么，不能改变什么
-
-这是本包最容易被高估的地方。**要「框住哪里就精确画在哪里」，本包做不到，任何基于 MOSS 这套机制的节点也做不到。**
-
-**框是怎么进模型的**：你画一个框，本包把它写成一句带坐标的文字，和别的描述一起进 `CLIPTextEncode`，
-变成普通的文本条件。没有遮罩、没有区域条件、没有独立布局通道，采样时没有任何东西按坐标裁注意力。
-MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
-
-**所以实际会看到**：元素画大/画小一圈、位置偏一点；两个框里的东西揉在一起；模型完全无视框、把内容全塞进一格；
-框越小越容易被忽略（小字、小物体最先消失）；换 seed，遵循程度也会变。
-
-**框能买到什么**：能改变「大致在哪、大致多大」，不能决定「精确落在哪」。
-有一组只换框、不换字的对照：同一句描述，把框从画面外挪到左下角，自行车从「被裁掉」变成「完整在左下角」，
-3 个 seed 都复现（共 36 张）。
-
-**别拿框做这些**：
-
-| 做不到 | 为什么 |
-|---|---|
-| 精确框住眼睛、手指、某个小物件 | 框只是文本里的坐标，模型不按坐标裁注意力 |
-| 保证文字框边缘一个像素都不超出 | 框高不控字号：43px 高的框里字高约 130px，会溢出（见 [2.6](#26-已知边界)） |
-| 保证两个元素不重叠 | 框之间没有互斥约束 |
-| 保证跨格是同一张脸 | 身份不归框管，本包不承诺（见 [2.6](#26-已知边界)） |
-
-**宫格模式下每格的框和裁切坐标出自同一份计算** —— 那是**几何上的精确**（裁出来的格子逐像素对齐），
-不是**画面上的精确**。这两件事经常被混为一谈。
-
-要像素级控制，得换带遮罩或区域条件的模型 / ControlNet，那不在本包范围内。
-本包负责的是：把文字写对、把画布算准、把格子裁准、把改好的格子贴回去。
-
----
-
-## 2 · 调参数
-
-### 2.1 提示词怎么写
-
-**三条规则**
-
-1. 第一个 `[PANEL …]` **之前**的内容全部算**全局描述**（角色长相、场景、画风、相机）。
-   写不写 `[STYLE]:` 都行——它只是便于阅读的标签，程序按位置算。
-2. `[PANEL n]` 后面跟**这一格**的描述：景别 + 主体 + 动作。
-3. **编号是排序键，不是格位。** 按编号升序排序，再依次与前 K 格配对：第 1 段配第 1 格，第 2 段配第 2 格……
-   可以缺号、可以乱序（会先排序）；编号本身不选格（只写一个 `[PANEL 6]`，它仍然落在第 1 格）。
-
-| 你写的 | 结果 |
-|---|---|
-| `[PANEL 1]: …` `[PANEL 2]: …` | 2 段描述 → 前 2 格有描述 |
-| `[画面 1]: …` `[分镜 1]: …` | 一样有效（中英文标记都认） |
-| 不写任何 `[PANEL]` + `init=plain` | 整段当普通提示词，**不生成布局框**（`report` 会说明）；画布仍是宫格画布 |
-| 8 格只写 4 段 | **默认直接报错**，采样前就停。三条出路：补到 8 段 / 格数改 4 / `init` 改 `plain` |
-| 一格写了好几行 | 合并成一段，不影响 |
-
-**两条经验**
-
-- 角色在不同格里不一致，**先改全局描述那一段**——它的权重最大。
-- 一格只写一个镜头。写「中景 + 特写」这种复合描述，模型会自己挑一个。
-
-### 2.2 格数 → 画布
-
-下表是**单格 16:9、单格长边 496、缝 8、外边距 8** —— 交付示例的设置
-（4 格正好 1024 宽，所以这一档有时叫「1024 档」）。
-**出厂默认是单格长边 512**，比这个大一级（496 → 512），画布也跟着大。全文两套数都会标明属于哪一档。
-
-| 格数 | 排列形状 | 画布 | 百万像素 | 每格 |
-|---|---|---|---|---|
-| 3 | **竖条**（上下 3 格） | 512 × 848 | 0.43 | 496 × 272 |
-| 4 | **田字**（2 × 2） | **1024 × 576** | 0.59 | 496 × 272 |
-| 6 | **横条**（2 行 × 3 列） | 1520 × 576 | 0.88 | 496 × 272 |
-| 8 | **横条**（2 行 × 4 列） | 2032 × 576 | 1.17 | 496 × 272 |
-| 9 | **九宫格**（3 × 3） | 1520 × 848 | 1.29 | 496 × 272 |
-
-**每格大小不随格数变**，变的是画布。8/9 格落在 MOSS 的 1–2 百万像素训练区间；
-3/4/6 格低于该区间（仍能出图，但属于外推）。
-
-**竖构图（单格 9:16）**：整体转 90° —— 3 格变横条（848 × 512），6 格变 2 列 × 3 行（576 × 1520），
-8 格变 2 列 × 4 行（576 × 2032），4 格与 9 格不变。
-
-| 想改什么 | 调哪个 | 说明 |
-|---|---|---|
-| 每格大一点 | **单格长边** `panel_edge` | 128–2048，步进 16。画布自动跟着变 |
-| 强行换排法 | **列数** `columns` | 填列数，`rows` 留 0 自动补齐；两者相乘必须等于格数 |
-| 只要横排 3 格 | `columns = 3` | 3 格默认竖条：横排 3 个 16:9 会让画布变成 1520 × 288（约 5.3:1），超出包内 4:1 的容忍线 |
-
-**为什么尺寸都能被 16 整除**：MOSS 的 VAE 把图缩小 16 倍，宽高不是 16 的倍数就会错位。
-节点自动对齐；多出来的 0–15 像素**只加在右边和下边的外边距**（与宫格线同色，看不出来），
-**绝不改动单格尺寸** —— 否则每格坐标会漂。
-
-### 2.3 配方：两档，别混
-
-| 你装了什么 | 步数 / cfg | 采样器 / 调度器 |
-|---|---|---|
-| **只用底模**（示例默认） | **50 / 3.0** | `euler` / `sgm_uniform` |
-| **叠了 4 步蒸馏 LoRA** | **4–8 / 1.0** | 同上 |
-
-- 两档**不能混**：装了 LoRA 却用 50 步 / cfg 3，或没装却用 4 步 / cfg 1.0，不报错但会变差（有时整张发黑）。
-- 蒸馏 LoRA 是按 cfg 1 蒸的，调高会破坏蒸馏效果。
-- `euler` 是模型卡采样器；`sgm_uniform` 来自 OpenMOSS 官方 ComfyUI 插件工作流（模型卡未指定调度器）。
-  调度器清单直接读宿主 `comfy.samplers.SCHEDULER_NAMES`，宿主装了新档位这里自动出现。
-- **`denoise` 留 1.0**：生成节点没有图像输入，调低不会参考任何图，只会让宿主按 `int(步数/降噪)`
-  截断 sigma（等于少跑几步）；`report` 打印「名义 / 实际」，以实际值为准。
-- 模型卡另写 shift 5（原生 ComfyUI 模型已内置）与 SLG 负分支层 22（需接宿主
-  `SkipLayerGuidanceDiTSimple`，`single_layers` 填 `22`；本包示例未接）。ComfyUI 原生模板用
-  25 步 / cfg 2.5 / er_sde（Comfy-Org 的选择），**不是**模型卡配方。
-
-### 2.4 显存要多少
-
-这条链路里最吃显存的一步是 **VAE 解码**，不是采样。同一个画布，宿主版本不同，解码申请的显存能差 **4 倍**。
-
-| 画布 | 格数 | 新版宿主 | 旧版宿主 |
-|---|---|---|---|
-| 1024 × 576 | 4 | 约 0.6 GB | 约 2.4 GB |
-| 2032 × 576 | 8 | 约 1.2 GB | 约 4.8 GB |
-| 1520 × 848 | 9 | 约 1.3 GB | 约 5.2 GB |
-| 2096 × 608 | 8（出厂 512 档） | 约 1.3 GB | 约 5.2 GB |
-
-前三行是交付示例的 496 档，最后一行是出厂默认的 512 档。
-**你属于哪一列**：修正提交是 `d07dff4`（2026-10-23），包含它的按「新版」，否则按「旧版」；
-桌面版 / 便携包 / pip 取决于版本，**不确定按旧版留余量**。
-
-**显存不够会怎样**：宿主先按整图解码试一次，失败后自动退回**分块解码**，分块边界会留下接缝，
-位置不固定，可能正好穿过你的格子。日志里出现 `retrying with tiled VAE decoding` 就是这件事。
-
-**怎么办**（代价从低到高）：① `git pull` 更新宿主（旧版把解码显存算成了实际的 4 倍）；
-② 把 `panel_edge` 调小（边长减半 → 解码显存降到 1/4）；③ 少用几格（8 换 4，画布面积减半）。
-
-> ⚠ 省显存那条路径要求 VAE 跑在 fp16 或 bf16。加了 `--fp32-vae`，或宿主因故把 VAE 跑成 fp32，
-> 它会**静默失效**（不报错，只是变回旧版）。
-
-**12 GB 单卡 · 整张模式实测档位**（50 步 / cfg 3.0 / euler + sgm_uniform / 16:9；
-⚠ 这组**带着 4 步蒸馏 LoRA** 跑，与上面 50/3 无 LoRA 的口径不同源，只看趋势与余量。
-原始数据只记了峰值显存与是否 OOM，**没有判图**；而且「4 步 LoRA + 50 步」正是易黑配法之一，
-别当推荐配方。）
-
-| 格数 × `panel_edge` | 画布 | MP | 峰值 MB |
-|---|---|---|---|
-| 4 × 512 | 1056×608 | 0.64 | 11359 |
-| 4 × 544 | 1120×640 | 0.72 | 11176 |
-| 6 × 512 | 1568×608 | 0.95 | 11250 |
-| 6 × 544 | 1664×640 | 1.07 | 11267 |
-| 8 × 512 | 2096×608 | 1.27 | 11269 |
-| 8 × 544 | 2224×640 | 1.42 | 11298 |
-
-> 0.64–1.42 MP 之间峰值都贴着 11.2–11.4 GB（**整张余量约 0.9 GB**）；全轮最差点是**逐格 8×544**，
-> 余量 0.7–0.8 GB。所以 12 GB 能跑这些档，**但桌面已经占着显存时仍可能 OOM**（峰值本身带约 ±200 MB 噪声）。
-> 别读成「12 GB 够用」。数据 [`docs/data/g1-results.json`](docs/data/g1-results.json)，
-> 逐跑记录 [`docs/data/g1-report.md`](docs/data/g1-report.md)。
-
-**档位结论的出处**：机制（为什么峰值在 VAE 解码而不是采样、宿主那个 `× 4.0` 分水岭、复算表）在
-[`docs/06-vae-memory.md`](docs/06-vae-memory.md) §五；**仍未验证**的项在同文件 §七。
-本页只引数字；要下结论请引 §五/§七，而不是引这两张表。
+- 框只是提示，布局遵循度不做数量承诺；MOSS 官方把布局能力标为 *experimental*。
+- 不承诺跨格是同一张脸。换脸是工具，不是保证。
+- 生成节点没有图像输入，从空 latent 开始；要改已有图，走裁 → 改 → 贴回，或用换脸节点（蒙版图生图）。
+- 8/9 格每格像素少，小字和细纹最先糊 —— 这是分辨率账，不是节点 bug。
 
 ### 2.5 报错对照表
 
@@ -406,277 +136,55 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 | `解码尺寸 1024x576 小于布局下限 2048x1152；无法重建裁切几何` | 换脸：输入图比要填的 `spec` 画布小 | 喂一张不小于布局的图，或改接更小的 `spec` |
 | `init=source 需要 image（要换脸的那张图）。` | 换脸节点 `init=source` 但没接线（或接错口） | 接上图像；只是文生图就把 `init` 改成 `empty` |
 
-**没报错但结果不对**：
+### 2.6 没报错但结果不对
 
 | 现象 | 先看哪 |
 |---|---|
-| 一片黑 | 配方混搭（[2.3](#23-配方两档别混)） |
-| 格数对，内容全挤在一格 | 框只是参考（[1.6](#16-框只是参考能改变什么不能改变什么)）；把每格描述写短写具体 |
-| 画布形状和预览不一样 | 是不是接了 `spec`？接了就以 `spec` 为准 |
-| 找不到节点 | 分类在 `moss/storyboard`；搜 `故事板` / `storyboard` / `宫格` 都行 |
-| VAE 解码 OOM，或出图有淡淡横向接缝 | 显存不够 → 分块解码（[2.4](#24-显存要多少)） |
-| 没有「中 / EN」按钮 | 刷新浏览器（F5）；控制台看有没有 `[MOSS SB] i18n: 就绪` |
+| 一片黑 | 配方混搭（50/3 与 4 步 LoRA 混用） |
+| 格数对，内容全挤在一格 | 框只是参考；把每格描述写短写具体 |
+| 画布形状和预览不一样 | 接了 `spec` 就以 `spec` 为准 |
+| 找不到节点 | 分类 `moss/storyboard`；搜 `storyboard` / `宫格` |
+| VAE 解码 OOM，或出图有淡淡接缝 | 分块解码 / 调小 `panel_edge` |
+| 没有「中 / EN」按钮 | 刷新浏览器（F5）；控制台看 `[MOSS SB] i18n: 就绪` |
 
-### 2.6 已知边界
+### 2.7 还是不通
 
-**四句话说完**：
+把三样东西贴出来：`[MOSS SB]` 启动日志那行、节点 `report`（几何来源 / 实际步数 / 蒙版覆盖率）、ComfyUI 版本。
+安装或工作流问题按这个开 issue；安全问题走 [`SECURITY.md`](SECURITY.md) 的私下渠道。
 
-| 项 | 结论 |
+## 3 · 示例与文档
+
+### 3.1 示例
+
+示例都是 UI 格式（直接拖进画布）。换脸示例要自备 `moss_faceswap_src.png` 与 `moss_faceswap_ref.png`；
+单图换脸示例自带 `assets/` 下两张演示图；其余示例不需要图。
+
+| 文件 | 干什么 |
 |---|---|
-| 尺寸与裁切 | 算术全对，逐像素；3/4/6/8/9 格、横竖、无缝/粗缝都验过 |
-| 文字 | 四字中文标题在 1024×576 就全对；2048 只是笔画更锐。**框高不控字号**，43px 的框出 130px 字 |
-| 框 | 只决定「大致在哪、大致多大」，不决定精确落点 |
-| 身份 | 不承诺跨格同一张脸。给的是换脸工具，不是保证 |
+| `moss-storyboard-4panels-ui.json` | 4 格故事板，最朴素的接线 |
+| `moss-layout-editor-storyboard.json` | 4 格故事板，带画布内说明（首选起点） |
+| `moss-layout-editor-poster.json` | 单图海报，编辑器摆框 |
+| `moss-prompt-compiler.json` | 官方草稿 → 提示词 + 编辑器 state（零模型） |
+| `moss-faceswap-ui.json` | 4 格宫格 → 换第 0 格 |
+| `moss-faceswap-single-ui.json` | 单张照片 → 换脸 → 整张出 |
+| `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图 |
+| `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 |
+| `llm-compile-zero-model.json` | IR → 提示词，零模型（装机自检） |
+| `llm-prompt-workbench.json` | 反推 / 洗图 / 通用扩写三组，按需旁路 |
+| `llm-idea-to-image.json` | 一句话 → 单图或 4 格故事板 |
 
-每组实测的**配置、样本量与例外**（哪组只有 2 个 seed、哪组只有红色验证过）在
-[手册 §8](docs/19-node-manual.md#8--实测与边界) —— 要拿这些数下结论，先看那里的样本量。
+### 3.2 文档
 
-#### 这一版做不到的
+- 全部参数、术语与实测边界：[`docs/19-node-manual.md`](docs/19-node-manual.md)。
+- LLM 节点（方言 / PE / 39 个参数）：[`docs/20-llm-prompt-nodes.md`](docs/20-llm-prompt-nodes.md)。
+- 文档索引：[`docs/README.md`](docs/README.md)。
 
-- **生成节点没有图像输入，所以它不做图生图。** 起点恒为空 latent，`denoise` 留 1.0。
-  实测过「拿模板 latent 当起点」：35 步 / 降噪 0.85 → 纯黑；12 步 / 0.6 与 4 步 / 0.5 → 模板残影。
-  **要改一张已有图**，走 [3.4 改一格](#34-改一格裁--改--贴回)，
-  或直接用 [3.5 换脸节点](#35-换脸--蒙版局部编辑)（它是蒙版图生图，只重画蒙版内）。
-- **不承诺跨格是同一张脸。** 身份由采样决定。本包给的是**工具**：
-  「🎬 故事板 · 换脸」把参考图的脸换进**一格**——一次一格、靠参考图驱动，
-  **不等于**「先定一张角色卡、再逐格派生」那条链（那条链要额外的独立节点包，不在本包）。
-- **每格画什么只是「大体照办」。** 框是文字建议，不是选区（[1.6](#16-框只是参考能改变什么不能改变什么)）。
-  MOSS 的布局能力官方标 *experimental*，本包没做成片评分。
-- **8/9 格每格偏小**：交付示例 496 档约 496×272，出厂 512 档约 512×288。小字、细纹理最先糊 ——
-  这是分辨率账，不是节点 bug。
+### 3.3 贡献
 
-#### 硬约束
+- 自检、本地 CI 与 PR 规则：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
+- 变更记录：[`CHANGES.md`](CHANGES.md)。
+- 报 bug：附 `[MOSS SB]` 启动行、节点 `report`、ComfyUI 版本。
 
-- 画布与单格的宽高必须是 **16 的倍数**。节点自己算的几何一律对齐 16；
-  `spec` 是外部输入，会被逐项校验：缺字段、数值越界、`pw`/`ph`/`w`/`h` 不是 16 的倍数、
-  以及「字段算出的画布与 `w`、`h` 不一致」，都会报错。
-  ⇒ **别手写 `spec`**，用节点生成的那根线。
-- 整图超过 2 百万像素会提示，超过 4 百万像素会强提示：MOSS 训练在 1–2 百万像素，官方外推约 4 百万。
-- **VAE 解码精度由 ComfyUI 决定，不由权重文件决定。** 宿主加载 VAE 时会统一转到 `fp16`
-  （GPU 不支持时退 `bf16` / `fp32`），所以 `flux2-vae.safetensors`（F32）与
-  `flux2-vae_BF16.safetensors`（BF16）**跑起来是同一精度**（速度没单独测）—— 文件里的 dtype
-  在加载时就被归一化了，只剩磁盘占用和加载内存的差别。要真正的 fp32 解码，用宿主启动参数
-  `--fp32-vae`，本包不做第二套精度逻辑（那会和宿主的 `VAEDecode` 分叉）。
-  另一个绕法：「生成」节点有 `latent` 输出，接你自己的 `VAEDecode`，用什么 VAE、什么精度都随你。
+## 4 · 许可
 
----
-
-## 3 · 接进自己的流程
-
-### 3.1 七个节点
-
-| 节点（中文界面） | 代码名 | 必需？ | 作用 | 全表 |
-|---|---|---|---|---|
-| 🎬 故事板 · 生成 | `MossStoryboardSampler` | **必需**（故事板） | 模型 + 编码器 + VAE + 提示词 → 整图 + 逐格 | [§1](docs/19-node-manual.md#1--生成节点) |
-| 🎬 故事板 · 宫格几何 | `MossStoryboardLayout` | 可选（推荐） | 算尺寸与每格坐标，出 `spec`、布局 JSON、模板图。**不加载模型** | [§2](docs/19-node-manual.md#2--宫格几何) |
-| 🎬 故事板 · 裁格 | `MossStoryboardCrop` | 可选 | 只裁格；接 `spec` 就与生成时逐像素一致 | [§3](docs/19-node-manual.md#3--裁格--改--贴回) |
-| 🎬 故事板 · 贴回 | `MossStoryboardPaste` | 可选 | 把改好的单格按 `spec` 贴回整图 | [§3](docs/19-node-manual.md#3--裁格--改--贴回) |
-| 🎬 布局编辑器 | `MossLayoutEditor` | 可选（海报 / 自由布局） | 画布上摆元素 → 布局提示词 + 采样尺寸。**不加载模型** | [§4](docs/19-node-manual.md#4--布局编辑器) |
-| 🎬 提示词 · 草稿编译 | `MossPromptCompiler` | 可选（官方 skill 桥） | 贴官方草稿 → MOSS 提示词 + 编辑器 state。**不加载模型** | [§5](docs/19-node-manual.md#5--草稿编译) |
-| 🎬 故事板 · 换脸 | `MossStoryboardFaceSwap` | 可选 | 参考图的脸 → 一格（或单图）。**要加载模型** | [§6](docs/19-node-manual.md#6--换脸--蒙版局部编辑) |
-
-**最小可用只有「生成」一个** —— 它自带全套几何参数。其余六个都是可选：
-「宫格几何」用来先把几何固化成一根 `spec` 给多个下游；「裁格 / 贴回」用来改单格；
-「布局编辑器」做海报；「草稿编译」接官方提示词 skill；「换脸」做身份或局部重画。
-
-**可选的 LLM 节点**（`MossPromptSmith`，分类 `LLM`）不属于这七个——它把文字或图片变成提示词，
-见 [3.7](#37-llm-节点mossromptsmith)。
-
-> **示例都是 UI 格式**（拖进画布用）。走 `/prompt` API 时要先转成 API 格式
-> （ComfyUI 菜单里的 Export (API) / Save (API Format)，名字随前端版本不同）。
-> 转换脚本不随包 —— `tools/` 只在仓库里，安装包里没有。
-
-### 3.2 `spec` 是唯一几何真相
-
-`spec` 是一串文字，把几何全带上 —— 共 11 个字段：
-`panels` `w` `h` `cols` `rows` `pw` `ph` `gutter` `margin` `padx` `pady`
-（`pw`/`ph` 是单格尺寸，`padx`/`pady` 是把画布补齐到 16 倍数的那点余量）。
-
-它是 **forceInput**：只能接线，**不能在面板上打字**。被解析时会逐项校验：缺字段、数值越界、
-`pw`/`ph`/`w`/`h` 不是 16 的倍数、以及「字段算出来的画布和 `w`、`h` 对不上」都会报错 ——
-所以手抄一条 `spec` 极容易报错，别手抄。
-
-| 谁产出 | 谁消费 |
-|---|---|
-| 宫格几何 · `spec` | 生成 · `spec`（只吃几何，不吃提示词） |
-| 生成 · `spec` | 裁格 · `spec`、贴回 · `spec` |
-| 布局编辑器 · `spec`（单图模式 = 1 格） | 生成 / 裁格 / 贴回 |
-
-**规则只有一条：接了 `spec` 就以 `spec` 为准。** 生成节点上的格数、单格长边、缝宽、外边距还在，
-但**不生效**，`report` 里会写「几何来源：spec 接线」（第二行；首行是配方档位提示）。这是最常踩的坑。
-
-不接 `spec` 时，裁格 / 贴回必须手填 `columns` / `rows`（填 0 直接报错，不会瞎猜）。
-
-### 3.3 三个旋钮就够
-
-日常只动三个：**格数** `panels`、**单格长边** `panel_edge`、**步数 / cfg**。
-其余九个都有默认值，出厂值见 [手册 §1](docs/19-node-manual.md#1--生成节点)。
-
-| 想改什么 | 动哪个 | 记住 |
-|---|---|---|
-| 几格 | `panels` | **必须等于稿子的 `[PANEL n]` 段数**，否则采样前报错 |
-| 每格多大 | `panel_edge` | 画布自动跟着变，不用手填宽高 |
-| 出图质感 | `steps` / `cfg` | 两档，别混：无 LoRA **50 / 3**；有蒸馏 LoRA **4–8 / 1.0**（[2.3](#23-配方两档别混)） |
-| 要不要逐格返工 | `mode` | `整张` 快、同一张脸更稳；`逐格` 慢、每格像素更多、能单格重做 |
-
-输出 7 个口，日常只用两个：`grid`（整图）与 `panels`（逐格）。
-`report` 是自检文本 —— 几何来源、实际降噪、蒙版覆盖率都在里面，出问题先读它。
-
-### 3.4 改一格：裁 → 改 → 贴回
-
-某一格不对时**别重跑整张**（重跑会动掉所有格的种子）。正确做法：裁出来 → 改 → 贴回去。
-
-```
-裁格（index 填要改的那格）─panel─→ 你的编辑流程 ─→ 贴回
-裁格 ──index─────────────────────────────────────→ 贴回
-生成 ──grid──────────────────────────────────────→ 贴回
-生成 ──spec──────────────────────────────────────→ 贴回 / 裁格
-```
-
-三条要点：
-
-- **格号不用手打**：接上裁格的 `index` 输出，贴回就跟着走（0 起、行主序）。
-- **`shave` 必须与裁格时一致**，不一致会走 bicubic 重采样（内容被缩放），`report` 会写明。
-- **改多格就串联多个「贴回」**：前一个的 `grid` 接后一个的 `grid`。
-
-中间那一步**随你**：别的节点包、外部修图、手改后重新载入都行。想用 MOSS 自己的指令编辑，
-宿主官方节点就够（需要 `Moss-Image-Edit` LoRA）—— 接线与参数见
-[手册 §3](docs/19-node-manual.md#3--裁格--改--贴回)。
-
-### 3.5 换脸 / 蒙版局部编辑
-
-参考图的脸 → **一格**（或一张单图）。四个要点：
-
-| | |
-|---|---|
-| `ref` 给**脸部特写** | 它是「像谁」。给整张场景会把新物体压掉（实测加椅子：场景 14% vs 特写 51%） |
-| `init` 两档 | `source`（默认）吃源图，有蒙版就只重画蒙版内；`empty` 从空 latent 生成 —— 参考图 + 提示词 → 一张新图 |
-| **蒙版白 = 重画** | 接 `ImageToMask(red)`，**别用** `LoadImage` 的 `MASK` 口（那是 alpha，会静默全零） |
-| 自动蒙版要 insightface | `pip install insightface onnxruntime` + `det_10g.onnx`；缺了**直接报错**，不静默降级 |
-
-`report` 会给出「蒙版覆盖多少、**蒙版内**改了多少、蒙版外改了多少」—— 不用另跑脚本就知道改干净了没。
-**蒙版内改动接近 0 就是「跑完看起来没变」**：要么 ref 与源图是同一人，要么蒙版太小 / 挑错了脸。
-
-**单图（不接 `spec`）能做什么** —— 这张表是本节最该记的：
-
-| 想要 | 可行 | 怎么做 |
-|---|---|---|
-| **换脸** | ✅ | 不接 `spec`（整张当一格），`ref` 给脸部特写。示例 `moss-faceswap-single-ui.json` |
-| **改一块**（衣服 / 表情 / 背景） | ✅ | `ref` **接源图本身**（`ref` 必填），关 `auto_mask`，手接 `ImageToMask(red)`。实测改衣服：蒙版内 97% 改动、蒙版外可见 0.01%；**换背景不成** |
-| **改整套肢体动作** | ❌ 没有可靠路径 | 实测：蒙版盖住下巴以下 56% 画幅、提示词写「arms crossed」、30 步 / denoise 0.6 → 改动率 51% 但**姿势没变**。动作是全局结构，蒙版只表达「改哪里」，没有姿态条件就没有几何约束 |
-
-> 姿态与肢体动作那两组实测（七档 / 九档）走的是**生成**路径：参考图 + 提示词 → 一张新图，
-> **不是**改已有照片。要「这张照片的人换个姿势」，只能重新生成再对结果换脸。
-
-⚠ 接了 `spec` 就必须喂同一张宫格，否则直接报「源图 W×H 与 spec 画布不一致」。
-参数全表、蒙版几何、姿态/肢体动作的实测、适用范围（衣服成、背景不成）见
-[手册 §6](docs/19-node-manual.md#6--换脸--蒙版局部编辑)。
-
-> **要更高的「像」**：`insightface` 除了检测器还自带换脸模型 `inswapper_128.onnx`（0.30 秒、**不需要蒙版**、
-> 自带对齐方框贴回）。它比本节点更「像」，但许可仅限非商业研究，本包不能打包 ——
-> 实测对比与取舍见 [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) §十一。
-
-### 3.6 中英切换
-
-每个本包节点标题栏上有「**中 / EN**」按钮，只改显示、不改存档（`name` / 值从不改）。
-
-- **升级后必须刷新浏览器（F5）** —— 重启进程不算，前端是单页应用。
-- **不用前端也能跑**：JS 加载失败只丢按钮和编辑器，节点仍按默认值运行。
-- 看不到按钮：控制台看有没有 `[MOSS SB] i18n: 就绪`。
-
-### 3.7 LLM 节点（`MossPromptSmith`）
-
-可选的 `moss_llm/` 子包多给一个节点（分类 `LLM`）：把文字或图片变成**提示词**，不出图。
-**它不绑定 MOSS**：输出方言覆盖 Flux / Krea / SDXL / 中文模型，`compile` 也能选任意已注册后端。用 `task` 选活：
-
-| `task` | 输入 | 输出 |
-|---|---|---|
-| `caption`（反推） | 一张图（文字可选） | 反推出的提示词 + `report` |
-| `expand`（扩写） | 一句话想法（图片可选作参考） | 成品提示词 |
-| `edit`（编辑指令） | 一张图 + 要改什么 | 编辑指令 |
-| `compile`（编译） | 一段 IR（JSON/YAML） | 编译后提示词 + 编辑器 state —— **不加载模型，毫秒级** |
-
-- **通道**：`local` 起 llama-server 侧车，用你选的 GGUF；`api` 走任意 OpenAI 兼容端点——该通道会把文字与图片
-  **联网外发**。
-- **权重（只对 local）**：`compile` **不需要**权重，`api` 也不需要。GGUF 放 `<ComfyUI>/models/LLM/` 或
-  `<ComfyUI>/models/text_encoders/` 下任意子目录（两处都会递归扫描）。`caption` / `edit` 要视觉模型 **+** 它的
-  `mmproj` 文件（放同一目录，在 `mmproj` 下拉里选它）；`expand` 只要文本模型。节点可一键装 llama-server
-  （`runtime` → 更新到最新版），或用 `server_exe` 指现有程序。
-- **还没有 llama-server？** 三条路：① `runtime` 选「更新到最新版」一键装官方构建；② `server_exe` 指向已有
-  `llama-server`，或设 `MOSS_LLM_SERVER`；③ `channel` 选「外部 API」，填 `api_base`（LM Studio / Ollama /
-  任意 OpenAI 兼容端点）。启动日志里那行警告不影响七个核心节点。
-- **方言**：`moss_image`、`moss_storyboard`、通用 Flux / Krea / SDXL 目标，以及中文原生模型用的 `cn_natural`；
-  `compile` 按目标后端渲染 IR。
-- **PE 改写器（实验）**：把 Qwen-Image 2.1 PE-T2I / PE-I2I 的 GGUF 与它自带的 `system_prompt.txt` 放在扫描根下
-  的**同一目录**，节点在 `expand` / `edit` 时改用该原生 prompt。PE 权重是 `qwen-research`（**非商用、仅内部**，不随包分发）。
-- **`report`** 列取证事实、绑定告警、`must_keep` 缺失与被忽略的伪影；模型没给出可用提示词时，节点抛可操作错误，
-  不再把 JSON 当提示词往下传。
-- **示例**：`llm-compile-zero-model.json`（零模型）、`llm-prompt-workbench.json`
-  （反推 / 洗图 / 通用扩写三组）、`llm-idea-to-image.json`（单图或 4 格故事板）。
-- 参数与边界见 [docs/20](docs/20-llm-prompt-nodes.md)；PE 细节见 [手册 §9](docs/19-node-manual.md#9--pe-改写器qwen-image-21实验)。
-
-## 4 · 改代码 / 报 bug
-
-### 4.1 报 bug 前先确认三件事
-
-1. 启动日志有 `[MOSS SB]` 那行（包加载了）。
-2. `report` 说了什么（几何来源、实际降噪、蒙版覆盖率都在里面）。
-3. 报错原文在 [2.5](#25-报错对照表) 里有没有。
-
-机检清单与提交前必须过的项：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
-
-### 4.2 仓库结构（安装包只含运行期文件）
-
-```
-ComfyUI-MOSS-Storyboard/
-├── __init__.py            加载入口（V3 默认，V1 一行回退）
-├── nodes.py               节点定义（参数表的唯一来源）
-├── core/                  纯 Python 内核：几何 / 提示词 / 像素 / 采样
-├── v3/                    V3 接口外壳
-├── web/                   前端扩展（中英切换 + 布局编辑器）
-├── tests/ tools/          自动机检与开发脚本
-├── examples/              11 份用户示例（机检夹具在 tests/fixtures/）
-├── docs/                  机理与实测记录
-└── pyproject.toml         元数据 + 宿主版本要求
-```
-
-### 4.3 文档索引
-
-| 文档 | 内容 |
-|---|---|
-| [`docs/06`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/06-vae-memory.md) | VAE 解码显存账：公式、宿主版本分水岭、各档画布复算表 |
-| [`docs/07`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/07-consistency.md) | 跨格一致性：三条机理、实测矩阵、提示词纪律、旋钮边界 |
-| [`docs/10`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/10-contract.md) | state v3 冻结契约 |
-| [`docs/12`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/12-interop.md) | 互操作：elements-v1 ⇄ state v3、命令行校验器 |
-| [`docs/13`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/13-prompt-enhancer.md) | 官方提示词 skill 的草稿格式、编译规则、未测项 |
-| [`docs/14`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/14-top-level-design.md) | 顶层设计：七个节点各管什么、三种语义、提示词透明与占位守卫 |
-| [`docs/15`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/15-recipe-contract.md) | 配方契约：验证过的配方里哪些项是必需的 |
-| [`docs/16`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/16-faceswap-refactor.md) | 换脸节点重构前后：变了什么、什么故意不变 |
-| [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) | 换脸配方：哪条路真的成过、蒙版怎么算、判据是什么 |
-| [`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md) | 蒙版潜空间编辑：官方范式缺了什么、四条条件正交、到哪一步不成立 |
-| [`docs/19`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md) | **节点手册**：七个节点的全部入参/输出/口径、术语表、实测与边界 |
-| [`docs/20`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md) | LLM 子包：一个节点四种任务（`caption` / `expand` / `edit` / `compile`）、通道与方言 |
-| [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
-
-`docs/`、`CHANGES.md`、`RELEASE-NOTES.md` 不随安装包分发（见 `.comfyignore`）；上面的链接指向 GitHub 仓库。
-
-### 4.4 维护者：文档、示例、自检
-
-- **文档就是两个文件。** 用户面是 `README.md`（英）与 `README_ZH.md`（中），同一个 PR 里一起改。
-  `tools/check_docs_sync.py`（发布闸 **S19**）在两边标题树漂移时报红（节数 / 层级 / 编号顺序）。
-  设计记录在 `docs/`（中文，不随包分发）。
-- **示例就是回归集。** 在 `examples/` 下新增一个文件要做三件事：在**两份** README 的示例表里补一行
-  （否则 S18 红）；`python tools/check_ui_workflow.py` 跑该文件通过；示例引用的演示图要么在仓库里
-  （`assets/`），要么在表里写明「自备」。
-- **提交前自检：** 按 [`CONTRIBUTING.md`](CONTRIBUTING.md) 的清单跑；最短版本是
-  `python -m ruff check .` → `python tools/check_release_ready.py` → 那里列出的测试文件。
-  **没有哪道闸可以「这次先跳过」。**
-- **`report` 是用户界面。** 参数、检查或报错文案变化时，同步改手册（[`docs/19`](docs/19-node-manual.md)）
-  与报错表（§2.5）**逐字**；S18 会拿每一行去源码里核。
-
-### 4.5 许可
-
-- 本包代码 **MIT**。
-- 思路参考与代码归属见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)（**未复制**任何第三方代码）。
-- 模型权重（MOSS-Image / Qwen3.5 / FLUX.2 VAE）不随包分发，请遵守各自许可。
-- 宿主 ComfyUI 为 GPL-3.0，本包只在进程内 `import`，不复制其源码。
+MIT。第三方出处与上游许可：[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)。

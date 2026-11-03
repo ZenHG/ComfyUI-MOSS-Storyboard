@@ -40,7 +40,15 @@ from pathlib import Path
 
 REPO = "ggml-org/llama.cpp"
 API = "https://api.github.com/repos/" + REPO
-RUNTIME_DIR = Path(__file__).resolve().parent / "runtime"
+def _runtime_dir():
+    """默认在包内 `moss_llm/runtime/`；`MOSS_LLM_RUNTIME_DIR` 可改到持久目录。"""
+    env = os.environ.get("MOSS_LLM_RUNTIME_DIR", "").strip()
+    if env:
+        return Path(env).expanduser()
+    return Path(__file__).resolve().parent / "runtime"
+
+
+RUNTIME_DIR = _runtime_dir()
 VERSION_FILE = "VERSION"
 UA = {"User-Agent": "moss-llm-runtime-installer"}
 
