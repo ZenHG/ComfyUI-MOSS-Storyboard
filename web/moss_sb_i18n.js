@@ -83,8 +83,8 @@ export const NODES = {
         zh: "🎬 故事板 · 换脸", en: "🎬 Storyboard · Face Swap",
         legacy: "MOSS Storyboard Face Swap",
     },
-    //: 可选 LLM 子包（分类 `moss/llm`）的唯一节点。后端显示名仍是英文
-    //: （`MOSS LLM Prompt`；更早叫 `MOSS Prompt Smith`）⇒ 老工作流的英文标题收进 legacy。
+    //: 可选 LLM 子包（分类 `LLM`）的唯一节点。后端显示名仍是英文
+    //: （`LLM Prompt`；更早叫 `MOSS Prompt Smith`）⇒ 老工作流的英文标题收进 legacy。
     MossPromptSmith: {
         zh: "🧠 LLM 提示词", en: "🧠 LLM Prompt",
         legacy: "MOSS Prompt Smith",

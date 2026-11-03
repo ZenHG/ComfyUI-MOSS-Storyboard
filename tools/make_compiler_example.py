@@ -92,7 +92,7 @@ NOTE = """## 草稿编译（`MossPromptCompiler`）
 """
 
 #: 零权重入门示例的说明卡。⚠ 不要用反引号（ComfyUI 的 MarkdownNote 渲染不支持嵌套）。
-NOTE_ZERO = """## 第一次打开：零模型编译（MOSS LLM Prompt · task=compile）
+NOTE_ZERO = """## 第一次打开：零模型编译（LLM Prompt · task=compile）
 
 **不用下模型、不占显存、按 Run 就有输出。** 这是最快的「装好了吗」自检：
 

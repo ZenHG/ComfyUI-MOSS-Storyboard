@@ -107,7 +107,7 @@ To fall back to the legacy V1 node API, set `MOSSSB_NODE_API=v1`.
 **The `⚠ 未检测到 llama-server` line is normal on a first run.** If you have not installed the optional
 LLM subpackage / llama-server yet, the same startup log continues with
 `[MOSS SB] ⚠ 未检测到 llama-server…`. It does **not** mean the pack failed: the seven core nodes are loaded
-and the zero-weight step below works without it. Only the `moss/llm` nodes (caption / expand / edit) need a
+and the zero-weight step below works without it. Only the optional LLM node (caption / expand / edit) needs a
 llama-server or an OpenAI-compatible endpoint.
 
 **Restart ComfyUI once more after dropping the model files in** — otherwise the loaders' dropdowns do not list them.
@@ -177,7 +177,7 @@ This node has four jobs — `caption` / `expand` / `edit` / `compile` (see [3.7]
 | `llm-idea-to-image.json` | 🧩 one line → one image (`panels=1`) **or** a 4-panel board; bypass the group you do not need | ✅ | one image or a 4-panel board |
 
 > 🧩 The three marked `moss_llm` use `MossPromptSmith` from the **optional LLM subpackage**
-> (category `moss/llm`). They are not among the seven core nodes: delete the whole
+> (category `LLM`). They are not among the seven core nodes: delete the whole
 > `moss_llm/` directory and the core keeps working. It needs a llama-server
 > (set the node's `runtime` to the update option to install an official build in one click),
 > or the `外部 API` channel against any OpenAI-compatible endpoint.
@@ -506,7 +506,7 @@ Grid Layout freezes geometry into one `spec` for several downstream nodes; Crop 
 the Layout Editor makes posters; the Draft Compiler bridges the official prompt skill; Face Swap handles identity
 or a masked redraw.
 
-The **optional LLM node** (`MossPromptSmith`, category `moss/llm`) is not one of these seven — it turns text or
+The **optional LLM node** (`MossPromptSmith`, category `LLM`) is not one of these seven — it turns text or
 an image into a prompt. See [3.7](#37-the-llm-node-mossromptsmith).
 
 > **Every example is UI format** (drag it into the canvas). To drive `/prompt` you must convert to API format first
@@ -619,8 +619,9 @@ Every node of ours has a **中 / EN** button on its title bar. Display only — 
 
 ### 3.7 The LLM node (`MossPromptSmith`)
 
-The optional `moss_llm/` subpackage adds one more node (category `moss/llm`). It turns text or an image into a
-**prompt** — never an image. Pick the job with `task`:
+The optional `moss_llm/` subpackage adds one more node (category `LLM`). It turns text or an image into a
+**prompt** — never an image. **It is not MOSS-only**: the output dialects cover Flux / Krea / SDXL /
+Chinese-native models, and `compile` can target any registered backend. Pick the job with `task`:
 
 | `task` | Input | Output |
 |---|---|---|
