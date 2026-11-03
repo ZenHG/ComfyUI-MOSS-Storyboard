@@ -181,8 +181,11 @@
 1. **不要给闸命令接管道**：`… | tail` / `… | Select-Object -First 5` 会让退出码失去可见性，你会看到"通过"其实拿到 0。
    PowerShell 里显式收尾：`& $cmd; exit $LASTEXITCODE`。
 2. **一次性逻辑不写内联 `python -c`**：任何会被跑第二次的东西落到 `tools/` 并配一条测试。
-3. **等待用阻塞，不用轮询**：等 GPU / 等产物目录出齐时，写一个阻塞脚本（条件成立才退出），或用后台作业 + 一次性等待。
-   **一次调用换十次调用。**
+3. **等待用阻塞，不用轮询**：用 `tools/wait_for.py`——条件不成立就不返回，**一次调用换十次调用**。
+   `python tools/wait_for.py --until file-absent:out/gpu.lock --timeout 1800`
+   `python tools/wait_for.py --until dir-min-count:out/g7/round2/json --min 40 --pattern '*.json'`
+   `python tools/wait_for.py --until gpu-free --min-mb 2048`
+   退出码：`0` 成立 / `1` 超时（不是失败，是没结论）/ `2` 无法判定。别写成每秒一次 `Test-Path`。
 4. **按阶段切会话**：长会话里每一步都在为前面所有内容重复付费；一个 phase 结束就换会话，大输出先落盘再按需读片段。
 5. **先 `grep` 再 `read`**：docs 与 tools 都够多，通读是纯浪费。
 
