@@ -10,12 +10,12 @@
 [project]
 name = "moss-storyboard"
 version = "0.4.0"
-description = "Storyboard, comic and poster layout nodes for MOSS-Image: 3, 4, 6, 8 or 9 panels in one generation, per-panel captions, exact crops, and a visual bbox editor. No extra dependencies."
+description = "ComfyUI nodes for MOSS-Image: storyboard grids (3/4/6/8/9), visual layout editor, face swap, and a generic LLM prompt node (caption / expand / edit / compile) that also targets Flux, SDXL and Qwen-Image. Zero extra dependencies, MIT."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [{ name = "ComfyUI-MOSS-Storyboard contributors" }]
-keywords = ["comfyui", "moss", "moss-image", "storyboard", "comic", "manga", "poster", "layout", "grid", "panels", "text-to-image", "prompt-enhancer", "bounding-box"]
+keywords = ["comfyui", "moss", "moss-image", "storyboard", "comic", "manga", "poster", "layout", "grid", "panels", "text-to-image", "prompt", "llm", "llm-prompt", "caption", "image-to-prompt", "prompt-expansion", "qwen-image", "flux", "sdxl", "faceswap", "inpainting"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",

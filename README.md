@@ -4,10 +4,11 @@
 
 ![MOSS Storyboard for ComfyUI: the visual layout editor, one generated 4-panel grid, and the four panel crops](assets/hero-storyboard.png)
 
-**Layout and edit nodes for MOSS-Image.** Two uses:
+**Layout, edit and LLM prompt nodes for MOSS-Image.** Three uses:
 
 - **Storyboard** — one canvas split into 3 / 4 / 6 / 8 / 9 panels, one caption per panel, one crop per panel.
 - **Local edit** — fix a single panel, or put a reference face into one panel, then paste it back. Every other panel stays pixel-identical.
+- **Prompt** — the optional LLM node does caption / expand / edit / compile; it is **not MOSS-only** and also targets Flux, SDXL and Qwen-Image.
 
 **Fastest path:** install from Manager → copy the three weight files into the folders in [1.1](#11-what-to-install)
 → drag [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json) into ComfyUI and

@@ -4,10 +4,11 @@
 
 ![MOSS Storyboard：可视化布局编辑器、一次生成 4 格故事板、逐格精确裁切](assets/hero-storyboard.png)
 
-给 **MOSS-Image** 用的**布局与编辑节点包**。两个用途：
+给 **MOSS-Image** 用的**布局、编辑与 LLM 提示词节点包**。三个用途：
 
 - **故事板** —— 一张画布分成 3 / 4 / 6 / 8 / 9 格，每格一段描述，同时把每格裁出来。
 - **局部编辑** —— 只改一格、或把一张脸换进一格；改完贴回，其它格逐像素不动。
+- **提示词** —— 可选 LLM 节点做反推 / 扩写 / 编辑 / 编译；**不绑定 MOSS**，也支持 Flux、SDXL、Qwen-Image。
 
 **最快上手：** Manager 安装 → 把三个权重文件放进 [1.1](#11-装什么) 的目录 → 把
 [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json) 拖进 ComfyUI 按 Run。
