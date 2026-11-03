@@ -28,6 +28,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -466,7 +467,10 @@ class MossPromptSmith:
         report.append("提示词包 sha：" + " ".join(
             "%s=%s" % (f["id"], f["sha256"][:8]) for f in pack["files"]))
         if not prompt.strip():
-            raise RuntimeError("模型返回空内容。")
+            raise RuntimeError(
+                "模型没有给出可用提示词（正文为空）。可能原因：输入里含指令（如「忽略以上指令」）"
+                "把模型带偏、模型不服从 JSON 契约，或输出被截断。建议：重跑一次；换模型；"
+                "或调大 max_tokens。")
         return (prompt, "\n".join(report))
 
     # ------------------------------------------------------------------ caption 执行
@@ -1116,12 +1120,37 @@ def _pick_prompt(obj):
         v = obj.get(key)
         if isinstance(v, str) and v.strip():
             return v.strip()
-    return json.dumps(obj, ensure_ascii=False)
+    # 取不到正文就返回空串，交给调用方报错。
+    # 绝不把 JSON 对象本身当提示词——那会把「模型没给正文」静默变成一段垃圾 prompt
+    # （实测：注入输入会返回 {"rewritten_prompt": ""} 空壳，旧逻辑原样当提示词返回）。
+    return ""
+
+
+def _norm_keep_text(s):
+    """must_keep 对账用的归一化：NFKC（全角→半角）+ 空白折叠 + 大小写 + 去首尾引号。
+
+    只放宽**书写形式**，不放宽内容：`Red scarf` 与 `red scarf` 是同一项，
+    `"OPEN"` 与 `OPEN` 是同一项；但 `red` 仍不算命中 `red scarf`。
+    """
+    s = unicodedata.normalize("NFKC", str(s or ""))
+    s = re.sub(r"\s+", " ", s).strip().casefold()
+    return s.strip("\"'“”‘’「」『』")
 
 
 def _missing_must_keep(prompt, must_keep):
-    return [s.strip() for s in re.split(r"[;；\n]", must_keep or "")
-            if s.strip() and s.strip() not in prompt]
+    hay = _norm_keep_text(prompt)
+    out, seen = [], set()
+    for item in re.split(r"[;；\n]", must_keep or ""):
+        raw = item.strip()
+        if not raw:
+            continue
+        key = _norm_keep_text(raw)
+        if not key or key in seen:      # 重复项只核一次，也不重复报
+            continue
+        seen.add(key)
+        if key not in hay:
+            out.append(raw)
+    return out
 
 
 def _truthy_list(v):

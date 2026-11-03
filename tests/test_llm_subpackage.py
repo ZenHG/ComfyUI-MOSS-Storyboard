@@ -10,7 +10,6 @@
 import hashlib
 import importlib.machinery
 import importlib.util
-import json
 import os
 import struct
 import sys
@@ -109,10 +108,31 @@ def main():
           nodes._pick_prompt({"caption": "A", "rewritten_prompt": "B"}) == "B")
     check("反推取 caption", nodes._pick_prompt({"caption": "A"}) == "A")
     check("编辑指令取 instruction", nodes._pick_prompt({"instruction": "I"}) == "I")
-    check("已知键全缺时不静默丢内容",
-          json.loads(nodes._pick_prompt({"x": 1})) == {"x": 1})
+    check("已知键全缺时返回空串（不把 JSON 对象当提示词）",
+          nodes._pick_prompt({"x": 1}) == "")
+    check("正文只有空白也算没有正文",
+          nodes._pick_prompt({"rewritten_prompt": "   ", "notes": ["n"]}) == "")
     miss = nodes._missing_must_keep("画面里有一个白瓷杯", "白瓷杯；路上小心")
     check("must_keep 逐项对账只报没命中的", miss == ["路上小心"], str(miss))
+    check("大小写/空白/引号归一后不误报",
+          nodes._missing_must_keep('A red scarf on the chair, sign reads OPEN',
+                                   'red scarf；"OPEN"；RED  SCARF') == [])
+    check("重复项只核一次、不重复计数",
+          nodes._missing_must_keep("甲", "甲；甲；甲") == [] and
+          nodes._missing_must_keep("甲", "乙；乙；乙") == ["乙"])
+
+    # 回归：模型返回 JSON 空壳（注入实测形态）时，绝不能把 JSON 本身当提示词。
+    smith0 = nodes.MossPromptSmith()
+    orig_chat = smith0._chat
+    smith0._chat = lambda *a, **k: ('{"rewritten_prompt": "", "wh_ratio": "", '
+                                    '"must_keep": [], "open_choices": [], "notes": []}',
+                                    {"total_tokens": 1})
+    try:
+        prompt0, _obj0, _u0 = smith0._run_once("http://x", "s", "u", None, 0.7, 1024, 42,
+                                               False, "k", [])
+    finally:
+        smith0._chat = orig_chat
+    check("空 rewritten_prompt 不再被兜底成 JSON 字符串", prompt0 == "", repr(prompt0[:60]))
     check("分号两种写法都认",
           nodes._missing_must_keep("甲 乙", "甲；乙") == [] and
           nodes._missing_must_keep("甲", "甲;乙") == ["乙"])
