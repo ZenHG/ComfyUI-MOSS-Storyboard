@@ -564,20 +564,33 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 
 ## 9 · PE 改写器（Qwen-Image 2.1，实验）
 
-`MossPromptSmith` 的 `task=expand` 支持「PE 改写器模式」：如果所选 GGUF 的**同目录**有
-`system_prompt.txt`（或 `<模型文件名去扩展>.system_prompt.txt`），且内容像 Qwen-Image 2.1
-PE 的原生 system prompt（含 `Image Prompt Rewriting Expert`，或同时含 `rewritten_prompt` 与
-`wh_ratio`），节点就使用**它自己的 system prompt**，而不是本包的扩写提示词。
+`MossPromptSmith` 支持「PE 改写器模式」：所选 GGUF 的**同目录**放着该类模型原生的
+`system_prompt.txt` 时，节点用**它自己的** system prompt，而不是本包的提示词。
 
-- **只对 `task=expand` 生效**；`caption` / `edit` / `compile` 不启用（PE-I2I 是另一套）。
-- 不新增 widget，不改默认行为；没有这个文件的模型仍走原来的扩写提示词。
-- 该模式下 report 会写一行 `PE 改写器模式：…；长度带与 must_keep 判据不适用`；长度预设与
-  `must_keep` 对账不参与判定（仍可读 report 的原始输出）。
-- 输出契约由 PE 自己的 JSON（`rewritten_prompt` / `wh_ratio`）决定：节点从 JSON 取正文，
-  **不解析 `wh_ratio`、不把它写进提示词**；画幅由采样器设置。
-- **许可**：PE 权重来自 `qwen-research`，**非商用、仅内部使用**；不要提交权重或 `system_prompt.txt`，
-  不要随包分发。
-- PE-T2I 是**纯文本改写器**；反推（caption）需要另配视觉模型与 mmproj。
+**按任务分两种，不许交叉：**
 
-实测（2 条，节点 `expand` + 本地 GGUF）：report 均出现 PE 模式、输出为英文散文且无 JSON 残渣；
-其中一条 4 个固定项保留 3 个（`85mm` 未保留），所以不能把「固定项全保留」当保证。
+| 任务 | 认哪种 PE | 识别特征 |
+|---|---|---|
+| `expand` | PE-T2I（一句话 → 生图提示词） | 含 `Image Prompt Rewriting Expert`，或同时含 `rewritten_prompt` + `wh_ratio`，且**不含** `ratio_follow` |
+| `edit` | PE-I2I（图 + 编辑指令 → 精确编辑提示词） | 含 `ratio_follow` 或 `rewritten editing instruction` |
+
+候选文件按顺序找：`system_prompt.txt`、`<模型文件名去扩展>.system_prompt.txt`、
+`*.system_prompt.txt`；内容对不上当前任务就跳过。`caption` / `compile` 不启用。
+不新增 widget，不改默认行为；没有这些文件的模型完全走原路径。
+
+- 命中后 report 写 `PE 改写器模式…` / `PE 改写器模式（编辑）…`；该模式下**跳过**本包的长度带与
+  `must_keep` 对账（PE 的 JSON 没有这些字段）。
+- 输出按 PE 自己的 JSON 取正文（`rewritten_prompt`）；`wh_ratio` / `ratio_follow` **不解析、不写进提示词**，
+  画幅仍由采样器/上游决定。
+- PE-I2I 需要 **mmproj**（视觉塔）；中文编辑指令按 PE 契约输出**中文描述**（不是英文）。
+
+**实测（本地 GGUF，llama.cpp）**：
+
+- PE-T2I（`expand`，2 条）：英文散文 373 / 308 词；4 个固定项保留 3 个（`85mm` 未保留），
+  **不能把「固定项全保留」当保证**。
+- PE-I2I（`edit`，1 条，中文指令「把背景换成雪夜，人物不变」）：17.6 s / 5785 tokens，
+  中文描述 339 字，report 出现「PE 改写器模式（编辑）」，无 JSON 残渣。
+
+**许可与边界**：PE 权重（含官方 `Qwen/Qwen-Image-2.1-PE-T2I` / `-PE-I2I` 与社区 GGUF）是
+`qwen-research`，**非商用、仅内部使用**；不要提交权重或 `system_prompt.txt`，不要随包分发。
+PE-T2I 是纯文本改写器；做「反推」需要另配视觉模型与 mmproj。

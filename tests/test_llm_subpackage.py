@@ -539,6 +539,34 @@ def main():
     got_pick = nodes._pick_prompt({"rewritten_prompt": "x", "wh_ratio": "3:2"})
     check("PE JSON：_pick_prompt 取到 rewritten_prompt", got_pick == "x", got_pick)
 
+    # PE-I2I：T2I 与 I2I 的 system prompt 必须按任务分开，不许交叉误用。
+    i2i_text = ("Rewrite the user's image-edit instruction. Return JSON with fields "
+                "rewritten_prompt, wh_ratio and ratio_follow. Set ratio_follow to "
+                "\"<image1>\" when the output follows an input image.")
+    with _tf.TemporaryDirectory() as td:
+        gguf = Path(td) / "pe_i2i_heretic-Q4_K_M.gguf"
+        gguf.write_bytes(b"x")
+        (Path(td) / "pe_i2i.system_prompt.txt").write_text(i2i_text, encoding="utf-8")
+        g_edit, p_edit = nodes._pe_system_for("edit", str(gguf))
+        g_exp, _ = nodes._pe_system_for("expand", str(gguf))
+        check("PE-I2I：edit 命中 I2I 提示词", g_edit == i2i_text and p_edit.endswith("pe_i2i.system_prompt.txt"))
+        check("PE-I2I：expand 不会误用 I2I 提示词", g_exp == "", g_exp[:40])
+
+        (Path(td) / "pe_t2i.system_prompt.txt").write_text(pe_text, encoding="utf-8")
+        g_edit2, p_edit2 = nodes._pe_system_for("edit", str(gguf))
+        g_exp2, p_exp2 = nodes._pe_system_for("expand", str(gguf))
+        check("PE：同目录两份提示词时 edit 取 I2I", g_edit2 == i2i_text and p_edit2.endswith("pe_i2i.system_prompt.txt"))
+        check("PE：同目录两份提示词时 expand 取 T2I", g_exp2 == pe_text and p_exp2.endswith("pe_t2i.system_prompt.txt"))
+
+        (Path(td) / "pe_i2i.system_prompt.txt").unlink()
+        (Path(td) / "pe_t2i.system_prompt.txt").unlink()
+        g_edit3, _ = nodes._pe_system_for("edit", str(gguf))
+        check("PE：没有提示词时 edit 走原路径", g_edit3 == "")
+
+    check("PE：I2I 特征（ratio_follow）只被 I2I 判定认",
+          nodes._looks_like_pe_i2i(i2i_text) and not nodes._looks_like_pe_t2i(i2i_text))
+
+
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     for f in FAIL:
         print("  - " + f)

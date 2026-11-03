@@ -133,44 +133,68 @@ def _scan_gguf():
     return models, mmprojs
 
 
-def _looks_like_pe_system(text: str) -> bool:
-    """内容像不像 Qwen-Image 2.1 PE 改写器的原生 system prompt。
+def _pe_candidates(model_path):
+    """模型目录里所有可能的 PE system prompt 候选（去重，保持优先级）。"""
+    p = Path(model_path)
+    out = [p.parent / "system_prompt.txt", p.parent / (p.stem + ".system_prompt.txt")]
+    out += sorted(p.parent.glob("*.system_prompt.txt"))
+    seen, uniq = set(), []
+    for c in out:
+        key = str(c.resolve()) if c.exists() else str(c)
+        if key not in seen:
+            seen.add(key)
+            uniq.append(c)
+    return uniq
 
-    只认两个强特征，避免把同目录随便一个 txt 当 system prompt：
-    `Image Prompt Rewriting Expert`，或同时出现 `rewritten_prompt` 与 `wh_ratio`。
-    """
+
+def _looks_like_pe_t2i(text: str) -> bool:
+    """T2I 改写器的原生 prompt：含 expert 或 rewritten_prompt+wh_ratio，且不是 I2I。"""
     low = (text or "").casefold()
+    if "ratio_follow" in low:          # I2I 契约，绝不能被 expand 误用
+        return False
     return ("image prompt rewriting expert" in low
             or ("rewritten_prompt" in low and "wh_ratio" in low))
 
 
-def _pe_system_prompt(model_path):
+def _looks_like_pe_i2i(text: str) -> bool:
+    """I2I 编辑改写器的原生 prompt：含 ratio_follow 或 rewritten editing instruction。"""
+    low = (text or "").casefold()
+    return "ratio_follow" in low or "rewritten editing instruction" in low
+
+
+def _looks_like_pe_system(text: str) -> bool:
+    """兼容旧名：默认按 T2I 判。"""
+    return _looks_like_pe_t2i(text)
+
+
+def _pe_system_prompt(model_path, kind: str = "t2i"):
     """找模型目录里自带的 PE 原生 system prompt。
 
-    顺序：`<dir>/system_prompt.txt`、`<dir>/<stem>.system_prompt.txt`。
-    找到文件但内容不像 PE 时继续看下一个候选；没有命中返回 ("", "")。
+    kind=t2i 只认 T2I 契约，kind=i2i 只认 I2I 契约；两种不许交叉。
+    顺序：system_prompt.txt、<stem>.system_prompt.txt、*.system_prompt.txt；
+    内容不匹配当前任务时继续看下一个候选；没有命中返回 ("", "")。
     """
     if not model_path:
         return "", ""
-    p = Path(model_path)
-    for cand in (p.parent / "system_prompt.txt",
-                 p.parent / (p.stem + ".system_prompt.txt")):
+    pred = _looks_like_pe_i2i if kind == "i2i" else _looks_like_pe_t2i
+    for cand in _pe_candidates(model_path):
         if not cand.is_file():
             continue
         try:
             text = cand.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        if _looks_like_pe_system(text):
+        if pred(text):
             return text, str(cand)
     return "", ""
 
 
 def _pe_system_for(task, model_path):
-    """PE 模式只在 expand 任务启用；caption/edit/compile 一律不启用。"""
-    if task != "expand":
+    """PE 模式：expand 只认 T2I，edit 只认 I2I；caption/compile 不启用。"""
+    kind = {"expand": "t2i", "edit": "i2i"}.get(task)
+    if not kind:
         return "", ""
-    return _pe_system_prompt(model_path)
+    return _pe_system_prompt(model_path, kind)
 
 
 #: mmproj 配对与 GGUF 头部读取都在 `server.py` —— 侧车启动时要用同一套判据，
@@ -422,11 +446,15 @@ class MossPromptSmith:
         pack = load_pack(_PROMPTS_DIR)
         report.append("提示词包 %s v%s（%s，%d 个文件）"
                       % (pack["pack"], pack["version"], pack["updated"], len(pack["files"])))
-        pe_mode = bool(task == "expand" and pe_text)
+        pe_mode = bool(task in ("expand", "edit") and pe_text)
         if pe_mode:
             system = pe_text
-            report.append("PE 改写器模式：system prompt 来自 %s（Qwen-Image 2.1 PE）；"
-                          "长度带与 must_keep 判据不适用" % pe_path)
+            if task == "edit":
+                report.append("PE 改写器模式（编辑）：system prompt 来自 %s"
+                              "（Qwen-Image 2.1 PE-I2I）" % pe_path)
+            else:
+                report.append("PE 改写器模式：system prompt 来自 %s（Qwen-Image 2.1 PE）；"
+                              "长度带与 must_keep 判据不适用" % pe_path)
         else:
             system = self._build_system(pack, task, dialect, length, panels, style_lock,
                                         must_keep, wash, two_pass, language)

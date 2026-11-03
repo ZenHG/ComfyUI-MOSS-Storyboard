@@ -6,6 +6,11 @@
   system prompt（不调用 `_build_system`），report 明说「PE 改写器模式…长度带与 must_keep 判据不适用」；
   `caption`/`edit`/`compile` 不启用，默认行为不变。PE 权重为 `qwen-research` **非商用、仅内部使用**，
   权重与 system prompt 均不提交/不分发。
+- 🆕 **PE-I2I 编辑模式**：`task=edit` 同目录存在 I2I 原生 prompt（含 `ratio_follow` 或
+  `rewritten editing instruction`）时使用它；T2I 与 I2I 提示词按任务分开、不许交叉误用。
+  实测（中文指令「把背景换成雪夜，人物不变」）：17.6 s / 5785 tokens，中文描述 339 字，
+  report 出现「PE 改写器模式（编辑）」，无 JSON 残渣。`wh_ratio` / `ratio_follow` 不解析、不写进提示词。
+  `tests/test_llm_subpackage.py` 109→115。
 
 
 - 🆕 **扩写空输出不再静默**：实测注入输入会得到 `{"rewritten_prompt": ""}` 空壳，旧逻辑在取不到正文时
