@@ -34,6 +34,7 @@ python tests/test_h3_contract.py           #  8 项：H3 Rewriter 契约冻结�
 python tests/test_lang_zh.py               # 20 项：中文整句（中英事实集相等 / 默认 en 逐字节不变 / 语序机检 Z01–Z07）
 python tests/test_registry_family.py       # 12 项：跨家族 registry（新增 target 纯 YAML 可编译，不改一行 Python）
 python tests/test_registry_status.py       # 43 项：Comfy Registry 状态跟进（快照原子落盘 / check 退出码 / 离线注入；零网络）
+python tests/test_release_verify.py         # 5 项：发布器 registry 判定（只有 Active 算发布完成；Pending/Flagged 不算）
 python tests/test_ci_preflight.py          # 16 项：本地预检自身（环境探测桩 / SKIP 与 PASS 严格区分 / --require-all 红）
 python tests/test_coverage_gate.py         #  2 项：覆盖率闸自身（基线绿 + 红时点名丢了哪条事实）
 python tests/test_g7_binding.py            # 35 项：G7 binding 判据（五类绑定规则正例/反例，离线不跑模型）

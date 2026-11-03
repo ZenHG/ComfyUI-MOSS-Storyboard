@@ -25,6 +25,7 @@
 #   ·  27/0  tests/test_g7_adjudicate.py      G7 双盲判读工具（离线）：判读包不泄漏 / 分歧定位 / 校准包 / κ<0.6 必红 / ρ 对拍
 #   ·  17/0  tests/test_g7_round2.py          G7 第二轮两轮对比器（离线）：四项指标带分母 / 分母为 0 报 n/a / 参数漂移出声
 #   ·  43/0  tests/test_registry_status.py    Comfy Registry 状态跟进（离线注入）：快照原子落盘 / check 退出码 / 坏 JSON
+#   ·   5/0  tests/test_release_verify.py     发布器 registry 判定：只有 Active 算发布完成，Pending/Flagged 不算
 #   · 365/0  tests/test_smith_ir.py           IR 编译层：7 后端方言 / 6 条不变式 / 往返 / 分解对账 / 结构化方言判据 / 覆盖率
 #   ·  21/0  tests/test_expand_steps.py       扩写三拆：补全/翻译/改写各自的判据、开关、归因（假 LLM，零 GPU）
 #   ·  65/0  tests/test_h3_six.py             H3 全参考六段式：3 段真稿字节往返 / 17 错误码 / profile 并存 / lint 接线 / H3-PARAM 误报边界
@@ -166,6 +167,8 @@ jobs:
         run: python tests/test_registry_family.py
       - name: Registry 状态跟进（离线注入：快照 / 断言退出码 / 原子落盘）
         run: python tests/test_registry_status.py
+      - name: 发布器 registry 判定（Active / Pending / Flagged / 缺失）
+        run: python tests/test_release_verify.py
       - name: 本地预检自身（环境桩 / SKIP≠PASS / --require-all）
         run: python tests/test_ci_preflight.py
       - name: 覆盖率闸自身（基线绿 + 红时点名事实）

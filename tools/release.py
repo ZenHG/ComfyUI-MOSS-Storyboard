@@ -562,6 +562,21 @@ def github_release(f: dict, slug: str) -> None:
         % (tag, f["head"][:10], body.count("\n### ") + 1))
 
 
+def registry_verdict(versions, version: str) -> tuple[bool, str]:
+    """registry 版本列表里找本版，返回 (是否存在, status)。
+
+    ⚠️ **存在 ≠ 发布完成**：新版本上传后是 `NodeVersionStatusPending`
+    （等安全复核），只有 `NodeVersionStatusActive` 才算用户可用的发布态；
+    `Flagged` 是「扫描有发现、等复核」，同样不算。
+    """
+    if not isinstance(versions, list):
+        return False, ""
+    for v in versions:
+        if isinstance(v, dict) and v.get("version") == version:
+            return True, str(v.get("status") or "")
+    return False, ""
+
+
 def verify(f: dict, slug: str) -> None:
     """🔴 这一步是「不遗漏」的关键：**回头查**两边是不是真的这一版，而不是信命令的退出码。"""
     say("\n⑥ 交叉验证（两个渠道 + 本机）")
@@ -576,19 +591,33 @@ def verify(f: dict, slug: str) -> None:
         % ("OK" if anc else "FAIL", remote[:10] or "?", f["head"][:10],
            "" if anc else "（本地 HEAD 不是 origin/main 的祖先 ⇒ 渠道一没跟上）"))
     ok &= anc
-    # 5.2 Registry：这个版本真的在线上了
+    # 5.2 Registry：本版不仅在列表里，还得是 Active（Pending/Flagged 只是"已提交"）
     try:
         vers = http_json("%s/nodes/%s/versions" % (REGISTRY_API, f["name"]))
         got = [v.get("version") for v in vers] if isinstance(vers, list) else []
     except Exception as e:
-        got = []
+        vers, got = [], []
         say("  [FAIL] 读 registry 失败：%s: %s" % (type(e).__name__, e))
         ok = False
-    on = f["version"] in got
-    say("  [%s] registry 上的版本：%s%s" % ("OK" if on else "FAIL", got or "（空）",
-                                          "（含本版 %s）" % f["version"] if on else
+    found, status = registry_verdict(vers, f["version"])
+    active = found and status == "NodeVersionStatusActive"
+    say("  [%s] registry 上的版本：%s%s" % ("OK" if active else "FAIL", got or "（空）",
+                                          "（本版 %s = %s）" % (f["version"], status) if found else
                                           "（**缺本版 %s**）" % f["version"]))
-    ok &= on
+    if found and not active:
+        say("        ↳ 已上传但未生效：status=%s；用户看到的 latest 不会切到本版（待安全复核）" % status)
+    ok &= active
+    # 5.2b 节点元数据里的 latest_version 也必须切到本版
+    try:
+        node = http_json("%s/nodes/%s" % (REGISTRY_API, f["name"]))
+        latest = str(((node.get("latest_version") or {}).get("version")) or "")
+    except Exception as e:
+        latest = ""
+        say("  [FAIL] 读 registry 节点元数据失败：%s: %s" % (type(e).__name__, e))
+    say("  [%s] registry latest_version = %s%s"
+        % ("OK" if latest == f["version"] else "FAIL", latest or "（空）",
+           "" if latest == f["version"] else "（%s）" % f["version"]))
+    ok &= latest == f["version"]
     # 5.3 GitHub Release（渠道一的**第二个**发布物）：本版得有一个 —— 否则用户从 Releases 页面上
     #     看不到这一版（仓库页右侧的 "Latest" 也还停在上一次）。tag 指向本版提交这件事由
     #     第 ④ 步的 `--target <HEAD>` 保证，这里只查"在不在"。
