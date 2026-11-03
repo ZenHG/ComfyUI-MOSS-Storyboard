@@ -92,15 +92,28 @@ python tools/ci_preflight.py --require-all --with-gpu   # 发布前全量（会�
 ```
 
 **SKIP（未跑）≠ 通过**：脚本缺宿主/缺 GPU/缺 Playwright 时**没跑过**，退出码与文案都区分。
-⚠️ GitHub Actions 的结构与命令**本机（Windows）无法等价复现**，PR 上必须以 runner 实跑为准；
-本机只保证「同一批脚本逐条本地跑过」。
+⚠️ runner 的 OS / Python 多版本矩阵**本机无法完整复现**，矩阵结论以 runner 实跑为准；
+**但 job 里的命令必须本地逐条跑过**，不能拿「本机自选几项」代替。
+
+## 本地 CI 等价（推送前必跑）
+
+1. **依赖按 unit job 装齐**：`pip install torch --index-url https://download.pytorch.org/whl/cpu`
+   + `pip install pillow numpy`。缺一个就会在 `test_wash_benchmark` / 像素测试上假红或假绿。
+2. **命令按 `ci.yml` 的 unit job 逐条执行**，不挑：至少包含 `python -m unittest tests.test_smith_ir`
+   与 `python tests/test_wash_benchmark.py`（这两类最容易在改动文案/图片路径时静默坏）。
+3. **Windows 编码**：本机用 `PYTHONIOENCODING=cp1252` 复现 runner；修复用全局
+   `PYTHONIOENCODING=utf-8` + `PYTHONUTF8=1`。包启动日志与测试输出都不许假设控制台是 UTF-8。
+4. **workflow 本身**：改 `.github/workflows/` 先用 `actionlint` 过一遍；job 级 `env` 不能用
+   `${{ runner.temp }}`（GitHub 判 invalid），宿主路径统一走 `COMFYUI_PATH`。
+5. **推后必须看 run**：`gh run watch <id> --exit-status`；9 个 job 全绿才算过。
+   本地绿 ≠ CI 绿，单 OS / 单 Python ≠ 多端矩阵。
 
 ## 一次改动的最小闭环（本地 → CI）
 
 改这一行代码/文档，最少走完这四步再提 PR：
 
 1. **静态**：`python -m ruff check .`
-2. **相关单测**：至少跑你改动所在层的测试文件（列表见上；速度都按秒计，别只跑一个）。
+2. **单测（推送前）**：按上节「本地 CI 等价」把 unit job 的命令全部跑完；调试时可先跑所在层，但推送前不能只跑子集。
    提交前确认 `git config user.email` 是 GitHub noreply（`<id>+<login>@users.noreply.github.com`），
    个人邮箱不得进入提交；`git log --format='%ae' | sort -u` 自查。
 3. **示例/装载**（碰到 `examples/`、`nodes.py` 参数、打包面时必跑）：
@@ -182,3 +195,7 @@ python tools/e2e_matrix.py     # 16 用例真跑（含逐格 layout / plain）
 
 维护者发布走 `tools/release.py`（GitHub + Comfy Registry 双渠道，带交叉验证）。
 步骤、凭据纪律与失败处置见 [`RELEASING.md`](RELEASING.md)。
+
+**「已发布」的判据**：GitHub Release 在位 **且** registry `status=NodeVersionStatusActive`
+**且** `latest_version=本版`。`Pending`/`Flagged` 只写「已提交，待安全复核」；
+`release.py --verify-only` 会以非 0 退出。registry 上传后有数秒索引延迟，发布器会先轮询再判定。

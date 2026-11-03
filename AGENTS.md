@@ -15,6 +15,9 @@
 4. **交 PR 前必须绿**：ruff + 本层测试 + `tools/check_ui_workflow.py`（带文件参数）+ `python tools/make_dist.py --out dist/moss --verify` + `python tools/check_release_ready.py`。
 5. **三条禁令**：别给闸接管道（`| tail` 会吃掉退出码）；别把「SKIP / 没跑」写成「通过」；别在仓库里留未跟踪文件。
 
+> **推送前另有一条硬闸**：按 `ci.yml` 的 unit / host / windows job 命令逐条本地跑（见 §2）；
+> 缺 `numpy`/`Pillow`、没模拟 Windows 编码、没跑 `test_smith_ir` 的「本地绿」不算绿。
+
 ---
 
 ## 1 · 三档检查（三个"通过"互不相等）
@@ -52,6 +55,10 @@
 | 报错文案（`raise` 的中文原文） | 三处同步 + `python tools/check_release_ready.py` | README_ZH §2.5 报错表**逐字**核 |
 | 文档 / README | `tests/test_docs_sync.py` + `tools/check_release_ready.py` | 中英节级同步 + 文档清单与实物一致 |
 | 发布相关 | `python tools/check_release_ready.py` + `python tools/ci_preflight.py --require-all` | 开源卫生 + 打包面 |
+| **推送前（任意改动）** | `ci.yml` 的 unit job 全部 `run:` 命令 + `host-matrix` 三项 + windows 子集；缺依赖按 job 装（`torch(cpu)` / `numpy` / `Pillow`） | 单 OS / 单 Python 的自选测试 ≠ CI；矩阵结论以 runner 为准 |
+| **workflow 改动** | `actionlint .github/workflows/ci.yml` + 本地 YAML 解析 | job 级 `env` 不能用 `${{ runner.temp }}`；宿主路径统一 `COMFYUI_PATH` |
+| **`pyproject.toml` 的 description / keywords** | 两份 README 首屏 + GitHub About/topics 同步；registry 元数据随**新版本发布**才生效 | 搜索词漂移；`description` 要覆盖实际能力（含 LLM/Flux/SDXL 等） |
+| **`SECURITY.md` / 新增联网、下载、子进程、可选依赖** | 按「核心 / 可选 LLM / 换脸」分段如实披露，并与代码逐项对照 | 披露与代码不符 = 复核风险，比不写更糟 |
 
 **改 YAML（新增家族/方言）也算改代码**：示例槽位与干净装载必跑。
 
@@ -74,6 +81,10 @@
 | **宿主下限 `requires-comfyui`** | `pyproject.toml` · `ci.yml` 的 `host-matrix` 矩阵 · `ci.yml` 里那条写死宿主版本前缀的内联断言 | 机检 |
 | **断言数** | `CONTRIBUTING.md` 命令注释 + `ci.yml` 文件头 | **人**（没有第三条闸，所以才容易漂） |
 | **pyproject 元数据** | `keywords`/`classifiers`/`dependencies` 必须在 `[project.urls]` **之前**，否则会被 TOML 归成 urls 表 ⇒ 宿主读不到、**静默失效** | 机检（CI 有一步）+ 本地看不出 |
+| **About / 搜索词** | `pyproject.toml` 的 `description`/`keywords` · README 首屏 · GitHub About/topics；registry 页面要等**下一个版本** | 半机检（S6 元数据）+ 人核搜索词 |
+| **归档文档** | 先 `grep` 代码/测试/README 的引用；代码注释与测试断言里的 `docs/NN` 可先改成「历史记录见 git 历史」再归档；README 链着的契约文档保留 | 无闸；漏改 = 死指针 |
+| **新增测试文件** | `ci.yml` unit job 加一步；跨平台行为同时加进 windows 子集；`CONTRIBUTING.md` 命令清单加一行 | S10 比对两处清单 |
+| **示例合并/删除** | 生成器 · 两份 README 表与计数 · `ci.yml`/`CONTRIBUTING` 项数 · **加载该示例的 UI 测试**（如 `ui_llm_panel.mjs`） | 半机检（S18 只认中文 README）+ 真机 UI |
 | **新增图片** | 正式图进 `assets/`（根目录 `_*.png` 被 gitignore）；截图用 Playwright 生成 | **机检**（S17：ComfyUI 存的 PNG 带 `tEXt` 元数据，直接判红） |
 
 ---
@@ -110,7 +121,7 @@
 
 ---
 
-## 6 · 五类假绿（看起来通过了，其实没验）
+## 6 · 七类假绿（看起来通过了，其实没验）
 
 1. **卫生闸扫的是 `git ls-files`，不是磁盘**。新写的、还没 `git add` 的文件**根本不在扫描范围**。本地全绿 ≠ 提交后全绿。
 2. **S18 只读 `README_ZH.md`**：英文 README 的漏行没有任何闸能抓。
@@ -118,6 +129,10 @@
 4. **真机断言要读 `widget.value`**（界面真正显示的值），不是 `widgets_values`（存档数组）——两者可能一个对一个错。
    另：载工作流前必须等 `app.graph` **和** `app.canvas` 都就绪，早载会被随后自动恢复冲成空图。
 5. **SKIP ≠ PASS**，且退出码 2 的含义按脚本不同（见 §1）。
+6. **自选测试 + 缺依赖的「本地绿」**：只跑改动相邻的几个文件、本机又恰好装了 `numpy`/`Pillow`，
+   CI 会在 `test_smith_ir` / `test_wash_benchmark` / Windows 编码上翻红。推送前按 `ci.yml` 逐条跑。
+7. **registry「版本历史可见」当「已发布」**：页面能看到 `0.4.x` 不等于 latest 已切换；
+   只有 `status=Active` 且 `latest_version=本版` 才算。`Pending`/`Flagged` 只是已提交待复核。
 
 ---
 
@@ -162,6 +177,10 @@
 - 已推送的历史默认不改；唯一例外是隐私清理（个人邮箱等），改写后必须 force-push，并明确告知影响。
 - 两个公开面口径不同：**仓库**（含 `docs/`）与 **registry 发布包**（`.comfyignore` 之后的部分）。改文件前先问：这行会不会被发出去？
 - **运行期文件别用中文名**：registry 打包按 latin-1 解路径，中文名会被**静默丢弃**——不报错，用户装完找不到。
+- **SECURITY.md 是公开承诺**：新增联网/下载/子进程/可选依赖时必须同步改；核心与可选子包分开写，
+  不要让「核心不联网」被读成「整个包不联网」。
+- **About/搜索词与能力同步**：新增节点能力（如 LLM 提示词）时更新 `description`/`keywords` 与 GitHub About；
+  但 registry 页面的 About 绑定发布版本，改完要发新版本才生效。
 
 ---
 
@@ -198,6 +217,8 @@
 
 - **每条结论带一条可复跑的命令**，不写"我试过可以"。
 - **没跑的档点名**：`真机未跑` / `GPU 未跑` / `Windows 未跑`。
+- **「已发布」只用于 registry `Active` + `latest_version=本版` + GitHub Release 在位**；
+  `Pending`/`Flagged` 一律写「已提交，待安全复核」。
 - 提交信息写**为什么**（哪条判据错了、什么现象），不只写改了什么。
 
 > 本文件非规范源。若与 `CONTRIBUTING.md` 冲突，**以 `CONTRIBUTING.md` 为准**并回来修本文件。

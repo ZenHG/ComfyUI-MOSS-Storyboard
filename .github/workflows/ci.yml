@@ -85,6 +85,7 @@ on:
   workflow_dispatch:
 
 env:
+  # Windows runner 的控制台是 cp1252：中文测试标题与包启动日志会 UnicodeEncodeError
   PYTHONIOENCODING: utf-8
   PYTHONUTF8: "1"
 

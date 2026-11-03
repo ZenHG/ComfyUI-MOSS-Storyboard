@@ -577,6 +577,25 @@ def registry_verdict(versions, version: str) -> tuple[bool, str]:
     return False, ""
 
 
+def wait_registry_version(name: str, version: str, timeout: int = 60) -> list:
+    """发布后等 registry 索引可见（最终一致，实测约 10 秒）。
+
+    立即查会得到「缺本版」的假红；这里每 3 秒重试，直到版本出现或超时。
+    超时仍返回最后一次结果，由调用方按 status 判定（Pending 仍然不算发布完成）。
+    """
+    deadline = time.time() + timeout
+    vers = []
+    while True:
+        try:
+            vers = http_json("%s/nodes/%s/versions" % (REGISTRY_API, name))
+        except Exception:
+            vers = []
+        found, _ = registry_verdict(vers, version)
+        if found or time.time() >= deadline:
+            return vers
+        time.sleep(3)
+
+
 def verify(f: dict, slug: str) -> None:
     """🔴 这一步是「不遗漏」的关键：**回头查**两边是不是真的这一版，而不是信命令的退出码。"""
     say("\n⑥ 交叉验证（两个渠道 + 本机）")
@@ -592,12 +611,10 @@ def verify(f: dict, slug: str) -> None:
            "" if anc else "（本地 HEAD 不是 origin/main 的祖先 ⇒ 渠道一没跟上）"))
     ok &= anc
     # 5.2 Registry：本版不仅在列表里，还得是 Active（Pending/Flagged 只是"已提交"）
-    try:
-        vers = http_json("%s/nodes/%s/versions" % (REGISTRY_API, f["name"]))
-        got = [v.get("version") for v in vers] if isinstance(vers, list) else []
-    except Exception as e:
-        vers, got = [], []
-        say("  [FAIL] 读 registry 失败：%s: %s" % (type(e).__name__, e))
+    vers = wait_registry_version(f["name"], f["version"])
+    got = [v.get("version") for v in vers] if isinstance(vers, list) else []
+    if not got:
+        say("  [FAIL] 读 registry 失败或超时（60s 内没有版本列表）")
         ok = False
     found, status = registry_verdict(vers, f["version"])
     active = found and status == "NodeVersionStatusActive"
