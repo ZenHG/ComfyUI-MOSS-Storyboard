@@ -48,7 +48,7 @@ python tests/test_wash_attribution.py      # 12 项：洗图 roundtrip 归因（
 python tools/check_coverage.py --check     # 覆盖率闸：4 份夹具 × 7 后端，不丢固定项、不编数字与文字、覆盖率不低于基线
 python tools/smoke_nodes.py               # 63 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
-python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 共 210 项（12 个示例 + 2 个夹具）：连线 + 槽位；不带文件参数只查内建那一份 = 17 项
+python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 共 223 项（13 个示例 + 2 个夹具）：连线 + 槽位；不带文件参数只查内建那一份 = 17 项
 python tools/check_frontend.py            # 20 项：前端词表/语法/接线/标题可换语言/**汉化完整**（参数标签 / 枚举取值 / 编辑器文案 / 节点显示名 / 中文 tooltip）
 python tools/check_editor_ui.py           # 160 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 54 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查 / **中英 README 节级同步**）
@@ -76,7 +76,7 @@ CI 的 `release-preview` job 会跑发布卫生闸（54 项，含 pyproject 元�
 
 CI 的 `host-matrix` job 钉**两个 ComfyUI 版本**（`v0.42.0` = 本包最低支持线、`v0.43.2` =
 撰写时最新稳定 tag；理由与「连续绿后才取消豁免」的判据见 [`docs/44`](docs/44-CI第二矩与兼容矩阵.md)），
-在 CPU runner 上跑**可确定判定**的步骤（纯节点冒烟 / 14 个示例工作流的连线与槽位 / 干净副本装载）；
+在 CPU runner 上跑**可确定判定**的步骤（纯节点冒烟 / 15 个示例工作流的连线与槽位 / 干净副本装载）；
 `host_loader_check.py` 因 CPU runner 上 ComfyUI 在 import 期断言 CUDA，保留 **step 级豁免**并注明原因。
 `windows` job 跑同样的 CPU 可判定子集（不含前端差分与任何 GPU 步骤），把「Windows 用户装不上」
 这类平台问题提前暴露。
@@ -102,7 +102,7 @@ python tools/ci_preflight.py --require-all --with-gpu   # 发布前全量（会�
 2. **相关单测**：至少跑你改动所在层的测试文件（列表见上；速度都按秒计，别只跑一个）。
 3. **示例/装载**（碰到 `examples/`、`nodes.py` 参数、打包面时必跑）：
    `python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json`
-   （210 项）+ `python tools/make_dist.py --out dist/moss --verify`（16/0）。
+   （223 项）+ `python tools/make_dist.py --out dist/moss --verify`（16/0）。
 4. **发布前**：`python tools/check_release_ready.py`（54 项）+ `ci_preflight.py --require-all`（真机）。
    只加后端/方言 = 只改 YAML 的改动也要过第 3 步（示例槽位与干净装载是最容易静默坏的地方）。
 

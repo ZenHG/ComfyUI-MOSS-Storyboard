@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
-"""生成 `moss_llm` 的三个示例工作流（UI 格式，可直接在 ComfyUI 打开）。
+"""生成 `moss_llm` 的四个示例工作流（UI 格式，可直接在 ComfyUI 打开）。
 
 为什么用脚本而不是手写 JSON：`MossPromptSmith` 有几十个 widget 槽（数量随参数表变），`widgets_values`
 **按位置存** —— 手抄必错一次，而且错得静默（参数串位不报错）。这里先按
@@ -8,7 +8,8 @@
 `tools/check_ui_workflow.py` 同一份判据。
 
 跑法：`python tools/make_llm_examples.py`
-产物：`examples/llm-caption-to-moss.json` / `llm-idea-to-storyboard.json` / `llm-wash.json`
+产物：`examples/llm-caption-to-moss.json` / `llm-idea-to-storyboard.json` / `llm-wash.json` /
+`llm-idea-to-generic-prompt.json`
 """
 
 import importlib.machinery
@@ -300,6 +301,42 @@ def ex_wash():
     return finish(nodes + [n, img, sm, p1, p2], links, groups, "llm-wash")
 
 
+# ───────────────────────────────────────────── 例 4：想法 → 通用提示词（不接 MOSS、不出图）
+def ex_generic_prompt():
+    nodes, links = [], []
+    n = note(1, (-720, -280), (620, 640),
+             "## 一句话 → 通用提示词（不绑定 MOSS，也不绑定故事板）\n\n"
+             "**给「只想拿一段提示词」的用户**：这个示例只输出文本，不接采样器，也不需要 MOSS 模型。\n\n"
+             "**① 写想法**：填 「text」；必须逐字保留的字 / 数 / 色 / 位置写进 「must_keep」"
+             "（用 ； 分隔，节点会逐项对账）。\n"
+             "**② 选方言**（只影响文风，不改变本包其他节点）：\n"
+             "- 「generic_natural」= Flux / Krea / 通用自然语言模型；\n"
+             "- 「generic_tags」= SDXL / Pony / Illustrious 这类标签模型；\n"
+             "- 「cn_natural」= 国内中文模型；\n"
+             "- 「moss_image」= MOSS-Image 英文散文（要走本包采样器时选它）。\n"
+             "**③ 跑**：prompt 就是成品，接任意文生图节点（如 CLIPTextEncode）；report 是这一跑的证据。\n\n"
+             "### 通道\n"
+             "本地 GGUF（节点里可一键装 llama-server）或「外部 API」接任意 OpenAI 兼容端点；"
+             "两条都会联网一次，或起一个侧车，跑完可释放。\n\n"
+             "### 边界\n"
+             "它只写提示词，不保证出图效果；固定项没守住时看 report 的 must_keep 行。")
+    sm = smith_node(2, (0, -280), (430, 371), "🖊 提示词工匠 · 通用扩写",
+                    {"task": "expand", "dialect": "generic_natural", "length": "standard",
+                     "temperature": 0.7,
+                     "text": "雨夜便利店门口，一个刚下班的年轻女人端着关东煮，"
+                             "暖黄灯光与街上的冷蓝霓虹形成对比",
+                     "must_keep": "关东煮；雨夜"})
+    p1 = preview(3, (500, -280), (460, 420), "prompt（成品提示词，接任意文生图节点）")
+    p2 = preview(4, (500, 180), (460, 300), "report（事实对账 / must_keep / tokens）")
+    lid = wire(1, sm, 0, p1, 0, "STRING", links)
+    lid += 1
+    wire(lid, sm, 1, p2, 0, "STRING", links)
+    groups = [{"id": 1, "title": "想法 → 通用提示词（不接生成）",
+               "bounding": [-720, -340, 1760, 900],
+               "color": "NO_COLOR", "font_size": 24, "flags": {}}]
+    return finish(nodes + [n, sm, p1, p2], links, groups, "llm-idea-to-generic-prompt")
+
+
 def main():
     if COMFY not in sys.path:
         sys.path.insert(0, COMFY)
@@ -307,7 +344,8 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     for name, fn in (("llm-caption-to-moss", ex_caption),
                      ("llm-idea-to-storyboard", ex_storyboard),
-                     ("llm-wash", ex_wash)):
+                     ("llm-wash", ex_wash),
+                     ("llm-idea-to-generic-prompt", ex_generic_prompt)):
         wf = fn()
         path = os.path.join(OUT_DIR, name + ".json")
         with open(path, "w", encoding="utf-8") as fh:
