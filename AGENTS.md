@@ -85,7 +85,7 @@
 | 契约 / 互操作 / 参数 | `docs/10-contract.md` · `docs/12-interop.md` · `docs/15-recipe-contract.md` · `docs/19-node-manual.md` | `10` 是 state v3 冻结契约；`19` 是参数全表 |
 | 几何 / 跨格一致 / 顶层 | `docs/14-top-level-design.md` · `docs/07-consistency.md` · `docs/06-vae-memory.md` | `14` 讲七个节点各自对什么负责 |
 | 编辑器 / 前端 / 双语 | 已归档（历史记录见 git 历史） | — |
-| LLM 子包 / 提示词工匠 | `docs/20-llm-prompt-nodes.md` | — |
+| LLM 子包 / LLM 提示词 | `docs/20-llm-prompt-nodes.md` | — |
 | H3 六段式 / LoRA | 已归档（历史记录见 git 历史）；现行契约见 `CHANGES.md` | — |
 | 换脸 / 局部编辑 | `docs/16-faceswap-refactor.md` · `docs/17-faceswap-recipe.md` · `docs/18-masked-latent-edit.md` | 配方只有 `17` 里那几条真成过 |
 | G7 / 评分 / 双盲 | 已归档（历史记录见 git 历史） | — |
@@ -153,10 +153,13 @@
 
 - 不写**内部沟通**：谁提的要求、什么时候讨论的——要溯源就写「条件 + 结论」。
 - 不写**本机环境**：盘符、用户名、家目录。举例用 `<ComfyUI>` / `/path/to/...`。
+- **提交身份**：维护者提交必须用 GitHub noreply（`<id>+<login>@users.noreply.github.com`），
+  个人邮箱不得进入任何提交；远端历史若含个人邮箱，先整体改写再继续推送。
+  检查：`git log --format='%ae' | sort -u` 只应出现 noreply 地址。
 - **本文件也在扫描面上**：`check_release_ready.py` 的 S2/S15 会遍历**全部 git 跟踪的文本文件**，所以这里不许出现盘符路径与本机用户名。
 - **新文件要先 `git add`**：卫生闸扫的是 `git ls-files`，未跟踪的新文件既不被核对、又会让 S16 判红。
 - **提交信息本身进闸**：subject 形如 `type(scope): 描述`、长度有限制；不许出现盘符路径、主机名、协作者代号，以及转述谁提了什么要求的会话措辞。
-- 已推送的历史改不动，闸也不假装能改。
+- 已推送的历史默认不改；唯一例外是隐私清理（个人邮箱等），改写后必须 force-push，并明确告知影响。
 - 两个公开面口径不同：**仓库**（含 `docs/`）与 **registry 发布包**（`.comfyignore` 之后的部分）。改文件前先问：这行会不会被发出去？
 - **运行期文件别用中文名**：registry 打包按 latin-1 解路径，中文名会被**静默丢弃**——不报错，用户装完找不到。
 

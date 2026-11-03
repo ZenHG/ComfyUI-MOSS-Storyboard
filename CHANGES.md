@@ -3,6 +3,10 @@
 > 本文是历史记录：文中提到的 `docs/NN` 若已不在仓库，内容见 git 历史。
 
 ## 未发布 · 口径更正与反推占位符修复（2026-11-03）
+- 🆕 **LLM 节点显示名**：MOSS Prompt Smith / 「提示词工匠」→ MOSS LLM Prompt / 「LLM 提示词」；
+  类型 id 仍为 MossPromptSmith（旧工作流不受影响），搜索别名补 llm / 提示词生成 等。
+- 🔒 **提交身份规范**：维护者提交统一用 GitHub noreply；个人邮箱不得进入提交；
+  已推送历史若含个人邮箱，按隐私清理流程改写后 force-push（见 AGENTS §9）。
 - 🆕 **PE 改写器模式（实验）**：`MossPromptSmith` 的 `task=expand` 在模型同目录发现
   `system_prompt.txt` / `<stem>.system_prompt.txt` 且内容像 Qwen-Image 2.1 PE 时，改用原生
   system prompt（不调用 `_build_system`），report 明说「PE 改写器模式…长度带与 must_keep 判据不适用」；

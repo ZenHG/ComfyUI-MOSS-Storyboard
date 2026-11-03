@@ -100,6 +100,8 @@ python tools/ci_preflight.py --require-all --with-gpu   # 发布前全量（会�
 
 1. **静态**：`python -m ruff check .`
 2. **相关单测**：至少跑你改动所在层的测试文件（列表见上；速度都按秒计，别只跑一个）。
+   提交前确认 `git config user.email` 是 GitHub noreply（`<id>+<login>@users.noreply.github.com`），
+   个人邮箱不得进入提交；`git log --format='%ae' | sort -u` 自查。
 3. **示例/装载**（碰到 `examples/`、`nodes.py` 参数、打包面时必跑）：
    `python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json`
    （210 项）+ `python tools/make_dist.py --out dist/moss --verify`（16/0）。
