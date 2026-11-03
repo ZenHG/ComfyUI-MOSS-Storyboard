@@ -25,6 +25,14 @@
 """
 
 import os as _os
+import sys as _sys
+
+# Windows 控制台可能是 cp1252：启动日志含中文与 emoji，编码不了会抛异常。
+for _stream in (_sys.stdout, _sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # ============================================================================
 # 节点 API 出口：v3（默认）｜v1（一行回退）
