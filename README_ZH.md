@@ -602,6 +602,9 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
   `<ComfyUI>/models/text_encoders/` 下任意子目录（两处都会递归扫描）。`caption` / `edit` 要视觉模型 **+** 它的
   `mmproj` 文件（放同一目录，在 `mmproj` 下拉里选它）；`expand` 只要文本模型。节点可一键装 llama-server
   （`runtime` → 更新到最新版），或用 `server_exe` 指现有程序。
+- **还没有 llama-server？** 三条路：① `runtime` 选「更新到最新版」一键装官方构建；② `server_exe` 指向已有
+  `llama-server`，或设 `MOSS_LLM_SERVER`；③ `channel` 选「外部 API」，填 `api_base`（LM Studio / Ollama /
+  任意 OpenAI 兼容端点）。启动日志里那行警告不影响七个核心节点。
 - **方言**：`moss_image`、`moss_storyboard`、通用 Flux / Krea / SDXL 目标，以及中文原生模型用的 `cn_natural`；
   `compile` 按目标后端渲染 IR。
 - **PE 改写器（实验）**：把 Qwen-Image 2.1 PE-T2I / PE-I2I 的 GGUF 与它自带的 `system_prompt.txt` 放在扫描根下

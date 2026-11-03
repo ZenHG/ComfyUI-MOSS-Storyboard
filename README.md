@@ -644,6 +644,10 @@ Chinese-native models, and `compile` can target any registered backend. Pick the
   need a vision model **plus** its `mmproj` file — keep the `mmproj` in the same folder and pick it in the `mmproj`
   widget; `expand` needs a text model only. The node can install llama-server in one click (`runtime` → update)
   or use an existing binary (`server_exe`).
+- **No llama-server yet?** Three routes: (1) set `runtime` to the update option (one-click official build);
+  (2) point `server_exe` at an existing `llama-server`, or set `MOSS_LLM_SERVER`; (3) switch `channel` to
+  `api` and fill `api_base` (LM Studio / Ollama / any OpenAI-compatible endpoint). The startup warning alone
+  does not affect the seven core nodes.
 - **Dialects**: `moss_image`, `moss_storyboard`, the generic Flux / Krea / SDXL targets, and `cn_natural`
   for Chinese-native models; `compile` renders an IR for the selected backend.
 - **PE rewriters (experimental)**: Qwen-Image 2.1 PE-T2I / PE-I2I GGUF with the model's own

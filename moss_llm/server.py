@@ -348,17 +348,17 @@ def find_server_exe(explicit=""):
 
 
 def missing_exe_error():
-    """找不到 llama-server 时说什么。必须把「连已有服务」放在第一条。"""
+    """找不到 llama-server 时说什么：按「最省事 → 已有 → 不用本机」排序。"""
     return (
-        "找不到 llama-server 可执行文件。五条路，任选一条：\n"
-        "  ① 已经有一个服务在跑？直接连它，不需要可执行文件：\n"
-        "       --base-url http://127.0.0.1:8080\n"
-        "     （LM Studio / llama-swap / Ollama / 另一台机器都行，只要兼容 /v1）\n"
-        "  ② 让本工具自己装一个（约 35MB，走官方 release）：\n"
-        "       python -m moss_llm.smith setup\n"
-        "  ③ --server <llama-server 的完整路径>，或节点里填「服务器程序」\n"
-        "  ④ 环境变量 %s=<同上>（旧名 PROMPT_ARTISAN_SERVER 也认）\n"
-        "  ⑤ 放进 PATH，或设 LLAMA_CPP_HOME=<llama.cpp 解压目录>\n"
+        "找不到 llama-server 可执行文件。三条路，任选一条：\n"
+        "  ① 节点内一键装（推荐）：把「运行时 / runtime」设为「更新到最新版」，再运行。\n"
+        "     自动按本机后端选 CUDA/ROCm/Vulkan/SYCL/Metal/CPU；国内慢设 MOSS_LLM_MIRROR=<前缀>，\n"
+        "     选错后端设 MOSS_LLM_BACKEND=cuda|vulkan|rocm|sycl|metal|cpu。\n"
+        "  ② 已有 llama.cpp：节点「服务器程序 / server_exe」填完整路径；\n"
+        "     或设环境变量 %s=<路径>；也可以设 LLAMA_CPP_HOME=<解压目录>，或放进 PATH。\n"
+        "  ③ 已有 OpenAI 兼容服务（LM Studio / Ollama / llama-swap / 远端）：\n"
+        "     节点「通道 / channel」选「外部 API」，填 api_base（要带 /v1）与模型名；不需要本机二进制。\n"
+        "  命令行等价：python -m moss_llm.smith setup --backend auto\n"
         "  官方构建：https://github.com/ggml-org/llama.cpp/releases" % SERVER_EXE_ENV)
 
 
