@@ -505,6 +505,20 @@ function ensureBarFirst(node, st) {
     return true;
 }
 
+/**
+ * 把「服务器程序 / server_exe」行在本地组里置顶。
+ * 只改 CSS `order`，不动 `node.widgets` 顺序，也不写存档；宿主重渲染后 apply() 会自愈。
+ * 为什么需要：它在参数表里排在尾部，用户展开本地组后仍容易漏看。
+ */
+function pinServerExeRow(node) {
+    try {
+        const grid = document.querySelector('[data-widgets-grid-node-id="' + node.id + '"]');
+        if (!grid) return;
+        const row = grid.querySelector('[data-widget-name="server_exe"]');
+        if (row) row.style.order = "-1";
+    } catch (e) { /* 老前端 */ }
+}
+
 function apply(node) {
     const st = stateOf(node);
     ensureBarFirst(node, st);
@@ -518,6 +532,7 @@ function apply(node) {
     }
     const { shown, off } = plan(node, st);
     const changed = syncWidgets(node, shown);
+    pinServerExeRow(node);
     const found = paintHeaders(node, shown);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;

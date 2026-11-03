@@ -136,6 +136,12 @@ check("点「本地引擎」⇒ 5 + 17 = 22 行，标题只出现一次",
     r.shown === 22 && r.heads.length === 1 && r.heads[0] === "本地引擎 · llama.cpp", JSON.stringify(r));
 let cl = await chip("local");
 check("当前通道是本地 ⇒ 本地 chip 不标「通道外」", cl && !/通道外/.test(cl.text), JSON.stringify(cl));
+const pinned = await page.evaluate(() => {
+    const row = document.querySelector('[data-widgets-grid-node-id="' +
+        app.graph.nodes.find((x) => x.type === "MossPromptSmith").id + '"] [data-widget-name="server_exe"]');
+    return row ? getComputedStyle(row).order : "";
+});
+check("服务器程序行在本地组置顶（CSS order=-1，不改存档）", pinned === "-1", pinned);
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-3-local.png"), { y: 30 });
 
 await clickChip("api");
