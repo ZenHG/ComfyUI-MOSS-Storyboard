@@ -336,6 +336,9 @@ class Report:
     kind_downgrades: list[str] = field(default_factory=list)
     #: 从非人物体上丢弃的年龄（模型给物体编年龄 = 幻觉）。
     age_dropped: list[str] = field(default_factory=list)
+    #: text 实体写成占位符（"the string exactly as printed" / "NO TEXT" 等）被丢弃的原值。
+    #: 这些不是图内文字；保留会让用户以为图上真有这段字，且无法反查。
+    placeholder_texts: list[str] = field(default_factory=list)
     #: 实体数触及 MAX_ENTITIES（疑似被 json_schema 的 maxItems 在语法层静默截断）。
     #: 恰好 MAX_ENTITIES 个合法实体也会为 True——所以只能提示「疑似截断，请人工确认」。
     capped: bool = False
@@ -352,6 +355,7 @@ class Report:
                 # 新键向后兼容：旧消费方读不到也不会炸。
                 "kind_downgrades": self.kind_downgrades,
                 "age_dropped": self.age_dropped,
+                "placeholder_texts": self.placeholder_texts,
                 "capped": self.capped, "capped_at": self.capped_at}
 
 
@@ -771,6 +775,38 @@ def _merge_label_duplicates(raw_entities: list) -> tuple[list, list, int]:
     return kept, merged, len(merged)
 
 
+#: 这些整串值不是图内文字，而是模型把「怎么填这个字段」的说明或「没有文字」写进了
+#: text_content。只做整串等值（归一化大小写/空白/句末句点），**绝不做包含匹配**：
+#: 真实招牌可能写着 "The string exactly as printed on the label"，包含匹配会误杀它。
+_PLACEHOLDER_TEXTS = frozenset({
+    "the string exactly as printed",
+    "string exactly as printed",
+    "text exactly as printed",
+    "no text",
+    "n/a",
+    "tbd",
+    "xxx",
+    "???",
+})
+
+
+def _is_placeholder_text(value) -> bool:
+    """text_content 是否是占位符（整串等值；不是包含匹配）。
+
+    归一化：大小写、首尾/连续空白、句末英文句点/中文句号。省略号单独判，
+    避免 `rstrip('.')` 把 "..." 抹成空串。
+    """
+    if not isinstance(value, str):
+        return False
+    s = re.sub(r"\s+", " ", value).strip().casefold()
+    if not s:
+        return False
+    if s in ("...", "…"):
+        return True
+    s = s.rstrip(" .。")
+    return s in _PLACEHOLDER_TEXTS
+
+
 def coerce_ir(obs: dict, report: Report | None = None,
               prepared: Prepared | None = None, task: str = "reverse") -> IR:
     """把取证 JSON 修成合法 IR。所有修正都记进 report，不静默。
@@ -840,6 +876,7 @@ def coerce_ir(obs: dict, report: Report | None = None,
 
     entities: list[Entity] = []
     used_ids: set[str] = set()
+    dropped_placeholder_ids: set[str] = set()
     for i, raw in enumerate(raw_entities, start=1):
         if not isinstance(raw, dict):
             r.dropped.append("非对象实体 #%d" % i)
@@ -880,6 +917,19 @@ def coerce_ir(obs: dict, report: Report | None = None,
                 r.dropped.append("实体 %s 标为 text 但没有文字" % eid)
                 continue
             text_content = text_content.replace("\r\n", "\n").strip()
+            if _is_placeholder_text(text_content):
+                raw_label = str(raw.get("label") or "").strip() or "（无 label）"
+                if _is_placeholder_text(text_content) and (
+                        text_content.strip().casefold().rstrip(" .。") == "no text"):
+                    hint = "原文声称无字；应删实体而不是写 NO TEXT"
+                else:
+                    hint = "这是模板占位符，不是图内文字；应删实体而不是写占位符"
+                msg = ("实体 %s（label=%r）的 text_content=%r 是占位符：%s；已丢弃，"
+                       "不猜真实文字" % (eid, raw_label, text_content, hint))
+                r.placeholder_texts.append(text_content)
+                r.warn(msg)
+                dropped_placeholder_ids.add(eid)
+                continue
 
         spatial = _as_dict(raw.get("spatial"))
         box = None
@@ -959,7 +1009,8 @@ def coerce_ir(obs: dict, report: Report | None = None,
         if not isinstance(rel, dict):
             continue
         s, o = str(rel.get("subject") or ""), str(rel.get("object") or "")
-        if s in used_ids and o in used_ids and s != o:
+        if (s in used_ids and o in used_ids and s != o
+                and s not in dropped_placeholder_ids and o not in dropped_placeholder_ids):
             if s in text_ids or o in text_ids:
                 r.dropped.append("指向文字块的关系 %s→%s" % (s, o))
                 continue

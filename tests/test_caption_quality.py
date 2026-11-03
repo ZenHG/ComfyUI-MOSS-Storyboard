@@ -36,7 +36,8 @@ from moss_llm.smith.llm import DEFAULT_SAMPLING, LlamaServer                 # n
 from moss_llm.smith.reverse import (EVIDENCE_SCHEMA, MAX_ENTITIES,           # noqa: E402
                                     MAX_TEXT_BLOCKS, SYSTEM, TEXT_SCHEMA,
                                     Report, ReverseError,
-                                    _gate_character_kind, coerce_ir)
+                                    _gate_character_kind, _is_placeholder_text,
+                                    coerce_ir)
 
 PERSON = ("gender", "hair", "skin", "face", "expression")
 OBJECT = ("material", "color", "build", "detail")
@@ -429,6 +430,78 @@ class TestJSONRepetitionProtection(unittest.TestCase):
         self.assertEqual(len(ladder), 4)
         self.assertEqual(ladder[0]["type"], "json_schema")
         self.assertIsNone(ladder[-1])                        # 仍有「无约束」末档
+
+
+class TestPlaceholderText(unittest.TestCase):
+    """A1：占位符式 text_content 不能当图内文字静默传下去。"""
+
+    def test_placeholder_text_entity_is_dropped_and_reported(self):
+        rep = Report()
+        ir = coerce_ir(obs({"id": "t1", "kind": "text", "label": "sign",
+                            "text_content": "the string exactly as printed"}), rep)
+        self.assertEqual(ir.entities, [])
+        self.assertEqual(rep.placeholder_texts, ["the string exactly as printed"])
+        self.assertTrue(any("占位符" in w and "the string exactly as printed" in w
+                            and "sign" in w for w in rep.warnings))
+        self.assertEqual(rep.to_dict()["placeholder_texts"], rep.placeholder_texts)
+
+    def test_placeholder_substring_in_real_text_is_not_killed(self):
+        """包含匹配会误杀这块正常招牌：整串不等值 ⇒ 保留。"""
+        text = "The string exactly as printed on the label"
+        rep = Report()
+        ir = coerce_ir(obs({"id": "t1", "kind": "text", "label": "label",
+                            "text_content": text}), rep)
+        self.assertEqual(len(ir.entities), 1)
+        self.assertEqual(ir.entities[0].text_content, text)
+        self.assertEqual(rep.placeholder_texts, [])
+        self.assertFalse(any("占位符" in w for w in rep.warnings))
+
+    def test_no_text_is_dropped_with_delete_entity_guidance(self):
+        rep = Report()
+        ir = coerce_ir(obs({"id": "t1", "kind": "text", "label": "sign",
+                            "text_content": "NO TEXT"}), rep)
+        self.assertEqual(ir.entities, [])
+        self.assertEqual(rep.placeholder_texts, ["NO TEXT"])
+        self.assertTrue(any("应删实体而不是写 NO TEXT" in w for w in rep.warnings),
+                        rep.warnings)
+
+    def test_relation_to_placeholder_is_dropped(self):
+        """占位符 text 实体被丢弃后，指向它的关系不能留下悬空指针。"""
+        rep = Report()
+        ir = coerce_ir(obs(
+            {"id": "e1", "kind": "object", "label": "cup"},
+            {"id": "t1", "kind": "text", "label": "sign",
+             "text_content": "NO TEXT"},
+            relations=[{"subject": "e1", "predicate": "touching", "object": "t1"}],
+        ), rep)
+        self.assertEqual([e.id for e in ir.entities], ["e1"])
+        self.assertEqual(ir.relations, [])
+        self.assertEqual(rep.placeholder_texts, ["NO TEXT"])
+
+    def test_real_text_is_preserved_and_to_dict_has_old_keys(self):
+        real = ["MANOR AVIE", "仙山", "QZOTERAN", "COMING 2026.12"]
+        ents = [{"id": "t%d" % i, "kind": "text", "label": "sign%d" % i,
+                 "text_content": value} for i, value in enumerate(real, 1)]
+        rep = Report()
+        ir = coerce_ir(obs(*ents), rep)
+        self.assertEqual([e.text_content for e in ir.entities], real)
+        self.assertEqual(rep.placeholder_texts, [])
+        d = rep.to_dict()
+        old_keys = {"image", "size", "warnings", "dropped", "entity_count",
+                    "age_gate", "raw_chars", "kind_downgrades", "age_dropped",
+                    "capped", "capped_at"}
+        self.assertTrue(old_keys <= set(d), "旧键必须保留")
+        self.assertIn("placeholder_texts", d)
+
+    def test_placeholder_detector_normalizes_whole_string_only(self):
+        for value in ("the string exactly as printed",
+                      "The String Exactly As Printed.",
+                      "string exactly as printed", "text exactly as printed",
+                      "NO TEXT", "n/a", "TBD", "...", "…", "xxx", "???"):
+            self.assertTrue(_is_placeholder_text(value), value)
+        for value in ("The string exactly as printed on the label",
+                      "MANOR AVIE", "COMING 2026.12", "xxx mark"):
+            self.assertFalse(_is_placeholder_text(value), value)
 
 
 if __name__ == "__main__":

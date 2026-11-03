@@ -4,7 +4,7 @@
 """阻塞式等待：把「每隔几秒发一次工具调用」换成「一次调用等到条件成立」。
 
 为什么有它：本机 8 个 DSH 会话里，2,152 个 pwsh 作业有 464 个（21.6%）是在轮询
-（`Test-Path out\gpu.lock`、`nvidia-smi`、`Get-ChildItem out\g7\round2\json`）。
+（`Test-Path out\\gpu.lock`、`nvidia-smi`、`Get-ChildItem out\\g7\round2\\json`）。
 每次轮询都是一次完整的模型回调，而每次回调重发的上下文中位数是 43 万 token。
 
 用法（条件在满足前不返回，因此一次调用替代十次）：
@@ -72,7 +72,7 @@ def probe(kind: str, target: str, opts: argparse.Namespace) -> tuple[bool | None
     if kind == "gpu-free":
         try:
             free = _gpu_free_mb()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return None, str(e)
         return (free >= opts.min_mb), "GPU 空闲 %d MB（要求 ≥ %d）" % (free, opts.min_mb)
 

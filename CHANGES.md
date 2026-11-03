@@ -1,5 +1,20 @@
 # CHANGES
 
+## 未发布 · 口径更正与反推占位符修复（2026-11-03）
+
+- **反推与扩写是两条并列任务**（`caption` 必接图 / `expand` 必填文字 / `compile` 零模型吃 IR，见
+  `nodes.py` 的 `_TASKS`；`examples/llm-wash.json` 只有 caption、`llm-idea-to-storyboard.json` 只有 expand）。
+  洗图产品路径是 **caption → prompt → MOSS**；此前 W2/W5b 的「反推 IR → LLM 重写」是**合成链**，
+  不能当洗图质量结论（`docs/68` §11 已加口径说明、§12 重划口径）。
+- **extra 29 人工判读**：逐条审完 **29/29 为编造**（0 条对账口径残留）；其中 26 条所在单元的反推 IR
+  **没有 text 实体** ⇒ 造字发生在合成链的重写步，不在反推。该合成链不再用于洗图口径。
+- 🆕 **反推占位符文字修复**：115 个 ok 单元里 38 个（33%）声称有 text（95 条），其中 4 个是占位符
+  （`A-4B/img09/56/59` = `the string exactly as printed`，`B-9B/img49` = `NO TEXT`）。
+  新增 `reverse._is_placeholder_text()`（整串等值，不做包含匹配）、`coerce_ir` 丢弃并写
+  `report.placeholder_texts` + warning（不猜真实文字，清理悬空关系）；`test_caption_quality` **29→35**。
+- **lint**：`tools/wait_for.py` docstring 里 3 处 `\g` 非法转义与 1 处多余 noqa 由 `ruff --fix` 修正，
+  全仓 `ruff check .` 恢复全绿（行为未变，仅注释转义）。
+
 ## 未发布 · 洗图闭环第二轮修补（确定性草稿残差 / 对账器文本口径 / seed 贯通，2026-11-01）
 
 - 🆕 **确定性草稿补事实出口**：`clauses.describe_entity` 现在渲染 `descriptors.light/content/condition`
