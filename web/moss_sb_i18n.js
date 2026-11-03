@@ -84,9 +84,9 @@ export const NODES = {
         legacy: "MOSS Storyboard Face Swap",
     },
     //: 可选 LLM 子包（分类 `moss/llm`）的唯一节点。后端显示名仍是英文
-    //: （`MOSS Prompt Smith`），老工作流里的标题就是它 ⇒ legacy 必须收进来。
+    //: （`MOSS LLM Prompt`；更早叫 `MOSS Prompt Smith`）⇒ 老工作流的英文标题收进 legacy。
     MossPromptSmith: {
-        zh: "🖊 提示词工匠", en: "🖊 Prompt Smith",
+        zh: "🧠 LLM 提示词", en: "🧠 LLM Prompt",
         legacy: "MOSS Prompt Smith",
     },
 };
@@ -657,7 +657,7 @@ export const TIPS = {
         en: "[Optional] Negative prompt. At cfg = 1.0 the host skips the negative branch, so this does nothing.",
     },
 
-    // ===== LLM 子包 · 提示词工匠 =====
+    // ===== LLM 子包 · LLM 提示词 =====
     // 中文唯一源 = `moss_llm/nodes.py` 的 tooltip；这里只写 en，按键逐条对齐。
     "MossPromptSmith.task": {
         en: "[What to run] caption = look at the image and write the prompt (image required);\n"

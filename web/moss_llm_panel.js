@@ -2,7 +2,7 @@
 // Copyright (c) 2026 ComfyUI-MOSS-Storyboard contributors
 // 第三方出处与许可见 THIRD-PARTY-NOTICES.md
 //
-// MOSS Prompt Smith · 参数面板 —— 38 个参数的信息架构层
+// MOSS LLM Prompt · 参数面板 —— 38 个参数的信息架构层
 //
 // 设计口径（美学 / 高频用户两条视角，2026-10-30）：
 //   1. **默认只露常驻 5 项**（task/channel/dialect/model/text）。这个节点的日常动作是

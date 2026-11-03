@@ -488,7 +488,7 @@
     true,
     "moss-image"
    ],
-   "title": "🖊 反推"
+   "title": "🧠 LLM Prompt · caption"
   },
   {
    "id": 4,
@@ -885,7 +885,7 @@
     true,
     "moss-image"
    ],
-   "title": "🖊 洗图（默认旁路）"
+   "title": "🧠 LLM Prompt · wash (bypassed)"
   },
   {
    "id": 5,
@@ -1282,7 +1282,7 @@
     true,
     "moss-image"
    ],
-   "title": "🖊 通用扩写（默认旁路）"
+   "title": "🧠 LLM Prompt · expand (bypassed)"
   },
   {
    "id": 6,

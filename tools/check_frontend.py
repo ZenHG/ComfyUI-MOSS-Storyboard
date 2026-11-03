@@ -175,7 +175,7 @@ def f5b_llm_tips(tips, param_names):
     keys = set(re.findall(r'"MossPromptSmith\.(\w+)":', tips))
     params = {p for t, p in param_names if t == "MossPromptSmith"}
     missing = sorted(params - keys)
-    check("F5b 提示词工匠每个入参都有英文提示（%d 个）" % len(params), bool(params) and not missing,
+    check("F5b LLM 提示词每个入参都有英文提示（%d 个）" % len(params), bool(params) and not missing,
           ", ".join(missing[:6]))
 
 

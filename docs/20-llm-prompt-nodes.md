@@ -9,7 +9,7 @@
 > 本子包是作者**主动伸手要一次词**的工具：一次排队、一次调用、一份可读报告，
 > 不自动改写编辑器 state、不自动排队、不替作者决定节奏。
 
-## 一、节点：`MossPromptSmith`（`MOSS Prompt Smith`）
+## 一、节点：`MossPromptSmith`（界面名 `MOSS LLM Prompt` / **LLM 提示词**）
 
 提案里是 `MossLLMConfig` + `MossPromptSmith`（+ 可选 `MossPromptCheck`）三个。
 落地按 2026-10-30 的设计决定收成**一个全功能节点，对外只出完整提示词**：
@@ -133,7 +133,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 `tools/check_release_ready.py` 在提交后应全绿（未提交时唯一红项是「未跟踪文件」）。
 
 ✅ **子包节点已与核心 7 节点共用同一套 i18n 表**（`web/moss_sb_i18n.js`）：
-`NODES`（后端旧显示名 `MOSS Prompt Smith` 收进 legacy，老工作流标题也能换）、
+`NODES`（后端当前显示名 `MOSS LLM Prompt`；更早的 `MOSS Prompt Smith` 收进 legacy，老工作流标题也能换）、
 `LABELS`（39 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
 `COMBOS`（任务/通道/方言/编译目标/篇幅/语言/思考/运行时/mmproj/KV 精度/开关，共 17 组）、
 `TIPS`（39 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。

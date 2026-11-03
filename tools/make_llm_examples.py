@@ -191,12 +191,12 @@ def ex_prompt_workbench():
              "### 边界\n"
              "三组共用同一张输入图（②也用 ① 的图）；换图后三组一起变。报告里的 must_keep 行是硬约束对账。")
     img = load_image(2, (-160, -440), (340, 320), "comic-4panel-lineart-sample.png", "① 共用输入图")
-    cap = smith_node(3, (260, -440), (430, 371), "🖊 反推",
+    cap = smith_node(3, (260, -440), (430, 371), "🧠 LLM Prompt · caption",
                      {"task": "caption", "dialect": "moss_image", "length": "standard"})
-    wash = smith_node(4, (260, 80), (430, 371), "🖊 洗图（默认旁路）",
+    wash = smith_node(4, (260, 80), (430, 371), "🧠 LLM Prompt · wash (bypassed)",
                       {"task": "caption", "dialect": "moss_image", "wash": True,
                        "two_pass": True, "length": "standard"})
-    gen = smith_node(5, (260, 600), (430, 371), "🖊 通用扩写（默认旁路）",
+    gen = smith_node(5, (260, 600), (430, 371), "🧠 LLM Prompt · expand (bypassed)",
                      {"task": "expand", "dialect": "generic_natural", "length": "standard",
                       "temperature": 0.7,
                       "text": "雨夜便利店门口，一个刚下班的年轻女人端着关东煮，"
@@ -255,13 +255,13 @@ def ex_idea_to_image():
     vae.decl_inputs([("vae_name", "COMBO", True, VAE[0])])
     vae.decl_outputs([("VAE", "VAE")])
 
-    sm_single = smith_node(5, (0, -440), (430, 371), "🖊 单图扩写",
+    sm_single = smith_node(5, (0, -440), (430, 371), "🧠 LLM Prompt · single image",
                            {"task": "expand", "dialect": "moss_image", "length": "standard",
                             "temperature": 0.7,
                             "text": "雨夜便利店门口，一个刚下班的年轻女人端着关东煮，"
                                     "暖黄灯光与街上的冷蓝霓虹形成对比",
                             "must_keep": "关东煮；雨夜"})
-    smp_single = NodeBuilder(6, "MossStoryboardSampler", (520, -440), (420, 900), "② 单图采样")
+    smp_single = NodeBuilder(6, "MossStoryboardSampler", (520, -440), (420, 900), "🎬 Storyboard · Generate · single image")
     smp_single.decl_inputs([("model", "MODEL", False, None), ("clip", "CLIP", False, None),
                             ("vae", "VAE", False, None)] + _sampler_decl(panels=1))
     smp_single.decl_outputs([("grid", "IMAGE"), ("panels", "IMAGE"), ("latent", "LATENT"),
@@ -271,18 +271,18 @@ def ex_idea_to_image():
     save_single.decl_inputs([("images", "IMAGE", False, None),
                              ("filename_prefix", "COMBO", True, "MOSS_single")])
 
-    sm_board = smith_node(8, (0, 900), (430, 371), "🖊 故事板扩写（默认旁路）",
+    sm_board = smith_node(8, (0, 900), (430, 371), "🧠 LLM Prompt · storyboard (bypassed)",
                           {"task": "expand", "dialect": "moss_storyboard", "panels": 4,
                            "length": "standard", "temperature": 0.7,
                            "text": "雨夜便利店，一个加班的女人买关东煮，店员递袋子时说了句「路上小心」，"
                                    "店里的灯把水汽照得很亮",
                            "must_keep": "路上小心；关东煮"})
-    lay = NodeBuilder(9, "MossStoryboardLayout", (520, 900), (380, 420), "② 宫格几何（默认旁路）")
+    lay = NodeBuilder(9, "MossStoryboardLayout", (520, 900), (380, 420), "🎬 Storyboard · Grid Layout · 4 panels (bypassed)")
     lay.decl_inputs(LAYOUT_DECL)
     lay.decl_outputs([("width", "INT"), ("height", "INT"), ("columns", "INT"), ("rows", "INT"),
                       ("spec", "STRING"), ("layout_json", "STRING"), ("template", "IMAGE"),
                       ("report", "STRING")])
-    smp_board = NodeBuilder(10, "MossStoryboardSampler", (1000, 900), (420, 900), "③ 宫格采样（默认旁路）")
+    smp_board = NodeBuilder(10, "MossStoryboardSampler", (1000, 900), (420, 900), "🎬 Storyboard · Generate · 4 panels (bypassed)")
     smp_board.decl_inputs([("model", "MODEL", False, None), ("clip", "CLIP", False, None),
                            ("vae", "VAE", False, None)] + _sampler_decl(panels=4))
     smp_board.decl_outputs([("grid", "IMAGE"), ("panels", "IMAGE"), ("latent", "LATENT"),

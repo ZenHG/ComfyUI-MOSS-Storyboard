@@ -583,7 +583,7 @@
     true,
     "moss-image"
    ],
-   "title": "🖊 单图扩写"
+   "title": "🧠 LLM Prompt · single image"
   },
   {
    "id": 6,
@@ -865,7 +865,7 @@
     "整张",
     1024
    ],
-   "title": "② 单图采样"
+   "title": "🎬 Storyboard · Generate · single image"
   },
   {
    "id": 7,
@@ -1298,7 +1298,7 @@
     true,
     "moss-image"
    ],
-   "title": "🖊 故事板扩写（默认旁路）"
+   "title": "🧠 LLM Prompt · storyboard (bypassed)"
   },
   {
    "id": 9,
@@ -1484,7 +1484,7 @@
     "object",
     ""
    ],
-   "title": "② 宫格几何（默认旁路）"
+   "title": "🎬 Storyboard · Grid Layout · 4 panels (bypassed)"
   },
   {
    "id": 10,
@@ -1766,7 +1766,7 @@
     "整张",
     1024
    ],
-   "title": "③ 宫格采样（默认旁路）"
+   "title": "🎬 Storyboard · Generate · 4 panels (bypassed)"
   },
   {
    "id": 11,

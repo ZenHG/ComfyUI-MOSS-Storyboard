@@ -204,7 +204,7 @@ def _pe_system_for(task, model_path):
 
 
 class MossPromptSmith:
-    """提示词工匠：反推 / 扩写 / 编辑指令，一个 llama-server sidecar 跑完即还显存。"""
+    """LLM 提示词节点：反推 / 扩写 / 编辑指令 / 编译，一个 llama-server sidecar 跑完即还显存。"""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -360,7 +360,7 @@ class MossPromptSmith:
     RETURN_NAMES = ("提示词", "report")
     FUNCTION = "smith"
     CATEGORY = CATEGORY
-    DISPLAY_NAME = "MOSS Prompt Smith"
+    DISPLAY_NAME = "MOSS LLM Prompt"
     #: 该 runtime 拒绝 `response_format` 时置真，report 里出声（不静默降级）
     _json_unsupported = False
     #: 请求体里的 model 字段：本地=侧车的 --alias；外部 API=用户填的模型 id
@@ -368,12 +368,13 @@ class MossPromptSmith:
     #: 被服务端 400 逼着摘掉的可选键（report 里逐项出声）
     _degraded = []
     _thinking_unsupported = False
-    DESCRIPTION = ("提示词工匠：反推（看图写提示词）/ 扩写（想法→完整画面描述）/ "
+    DESCRIPTION = ("LLM 提示词：反推（看图写提示词）/ 扩写（想法→完整画面描述）/ "
                    "编辑指令（图生图一条改法）/ 编译（IR→7 个后端方言，零模型）。"
                    "前三个走 llama-server sidecar，跑完释放显存；编译是确定性 Python，"
                    "毫秒级可复现。输出可直接接 CLIPTextEncode 或采样器 positive。")
-    SEARCH_ALIASES = ["prompt smith", "reverse prompt", "caption", "expand", "prompt enhance",
-                      "反推", "扩写", "caption", "expand", "洗图", "提示词工匠",
+    SEARCH_ALIASES = ["llm", "llm prompt", "prompt llm", "prompt generator",
+                      "prompt smith", "reverse prompt", "caption", "expand", "prompt enhance",
+                      "反推", "扩写", "caption", "expand", "洗图", "提示词生成", "提示词节点",
                       "本地LLM", "gguf", "compile", "ir", "编译", "确定性"]
 
     # ------------------------------------------------------------------ 主流程
@@ -1252,6 +1253,6 @@ def _truthy_list(v):
 
 #: 子包自己的注册表：父包 `__init__.py` 把它并进节点集，核心 7 节点的表不动。
 NODE_CLASS_MAPPINGS = {"MossPromptSmith": MossPromptSmith}
-NODE_DISPLAY_NAME_MAPPINGS = {"MossPromptSmith": "MOSS Prompt Smith"}
+NODE_DISPLAY_NAME_MAPPINGS = {"MossPromptSmith": "MOSS LLM Prompt"}
 
 __all__ = ["MossPromptSmith", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "CATEGORY"]
