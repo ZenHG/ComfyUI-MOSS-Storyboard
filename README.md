@@ -146,6 +146,9 @@ subpackage and either a llama-server (the node can install an official build in 
 OpenAI-compatible endpoint. It produces **text, not an image** — use it to write the prompt, then feed that
 prompt to the storyboard node.
 
+This node has four jobs — `caption` / `expand` / `edit` / `compile` (see [3.7](#37-the-llm-node-mossromptsmith));
+`compile` runs with **no model at all**, so it also works as the zero-weight smoke test.
+
 **Twelve examples, one job each**
 
 > The table below is checked against the actual files: every `examples/*.json` must be named here and must
@@ -504,6 +507,9 @@ Grid Layout freezes geometry into one `spec` for several downstream nodes; Crop 
 the Layout Editor makes posters; the Draft Compiler bridges the official prompt skill; Face Swap handles identity
 or a masked redraw.
 
+The **optional LLM node** (`MossPromptSmith`, category `moss/llm`) is not one of these seven — it turns text or
+an image into a prompt. See [3.7](#37-the-llm-node-mossromptsmith).
+
 > **Every example is UI format** (drag it into the canvas). To drive `/prompt` you must convert to API format first
 > (ComfyUI's Export (API) / Save (API Format) — the menu name depends on the frontend version).
 > No converter ships with the pack: `tools/` exists only in the repo, not in the installed package.
@@ -612,6 +618,32 @@ Every node of ours has a **中 / EN** button on its title bar. Display only — 
 - **It runs without the frontend**: if the JS fails to load you lose the button and the editor, nothing else.
 - No button? Check the console for `[MOSS SB] i18n: 就绪`.
 
+### 3.7 The LLM node (`MossPromptSmith`)
+
+The optional `moss_llm/` subpackage adds one more node (category `moss/llm`). It turns text or an image into a
+**prompt** — never an image. Pick the job with `task`:
+
+| `task` | Input | Output |
+|---|---|---|
+| `caption` | an image (text optional) | a reverse-engineered prompt + `report` |
+| `expand` | one line of idea (image optional as reference) | a finished prompt |
+| `edit` | an image + what to change | an editing instruction |
+| `compile` | an IR (JSON/YAML) | compiled prompt + editor state — **no model, milliseconds** |
+
+- **Channel**: `local` starts a llama-server sidecar for a GGUF you pick (scanned recursively from
+  `models/LLM` and `models/text_encoders`; the node can install the official runtime) or `api` calls any
+  OpenAI-compatible endpoint — that route sends your text and image over the network.
+- **Dialects**: `moss_image`, `moss_storyboard`, the generic Flux / Krea / SDXL targets, and `cn_natural`
+  for Chinese-native models; `compile` renders an IR for the selected backend.
+- **PE rewriters (experimental)**: Qwen-Image 2.1 PE-T2I / PE-I2I GGUF with the model's own
+  `system_prompt.txt` in the same folder — the node then uses that native prompt for `expand` / `edit`.
+  PE weights are `qwen-research` (non-commercial, internal use only; never bundled).
+- **`report`** lists extracted facts, binding warnings, `must_keep` misses and omitted artifacts. If the model
+  returns no usable prompt, the node raises an actionable error instead of passing a JSON blob downstream.
+- **Examples**: `llm-compile-zero-model.json` (no model), `llm-caption-to-moss.json`,
+  `llm-idea-to-storyboard.json`, `llm-wash.json`.
+- Parameters and limits: [docs/20](docs/20-llm-prompt-nodes.md); PE details: [manual §9](docs/19-node-manual.md#9--pe-改写器qwen-image-21实验)。
+
 ## 4 · Code / bugs
 
 ### 4.1 Before filing a bug
@@ -652,6 +684,22 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) | face-swap recipe: which path actually worked, how the mask is computed, pass criteria |
 | [`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md) | masked latent edit: what the official format does *not* do, the four orthogonal conditions, where it stops |
 | [`docs/19`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md) | **node manual**: every input / output / caliber for all seven nodes, the glossary, and the measured limits |
+| [`docs/20`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md) | LLM subpackage: one node, four tasks (`caption` / `expand` / `edit` / `compile`), channels and dialects |
+| [`docs/21`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/21-smith-ir-架构.md) | Smith IR architecture: IR, adapters, registry, deterministic render |
+| [`docs/24`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/24-smith-ir-扩写判据.md) | expansion criteria: why "write longer" is the wrong goal |
+| [`docs/26`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/26-扩写三拆.md) | expand in three steps: completion / translation / rewrite, each switchable |
+| [`docs/27`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/27-H3六段式.md) | H3 six-section dialect: render / parse / error codes |
+| [`docs/29`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/29-跨家族registry验证.md) | cross-family registry: adding an image family with YAML only |
+| [`docs/32`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/32-面板闸SKIP转真机.md) | panel gate: turning a SKIP into a real-host assertion |
+| [`docs/35`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/35-H3-LoRA基座决策备忘.md) | H3 LoRA base decision memo |
+| [`docs/43`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/43-双盲判读与评分校准.md) | double-blind adjudication and score calibration |
+| [`docs/44`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/44-CI第二矩与兼容矩阵.md) | CI second matrix and host compatibility |
+| [`docs/45`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/45-用户文档与双语同步.md) | user docs and bilingual sync rules |
+| [`docs/48`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/48-用户路径真机验证.md) | user-path real-host validation |
+| [`docs/53`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/53-双盲判读-第一轮.md) | double-blind adjudication, round 1 |
+| [`docs/58`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/58-不可判判例与预校准.md) | unverifiable cases and pre-calibration (rubric v2) |
+| [`docs/60`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/60-Registry跟进操作单.md) | Registry follow-up playbook |
+| [`docs/61`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/61-T12-8B契约验证.md) | T12 8B contract validation |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | release history |
 
 `docs/`, `CHANGES.md` and `RELEASE-NOTES.md` are not shipped in the install package (see `.comfyignore`); the links

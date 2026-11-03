@@ -137,6 +137,9 @@
 （节点里可一键装官方构建）或任意 OpenAI 兼容端点。它产出的是**文本不是图** —— 先用它写提示词，
 再把提示词喂给故事板节点。
 
+这个节点有四件活：`caption` / `expand` / `edit` / `compile`（见 [3.7](#37-llm-节点mossromptsmith)）；
+其中 `compile` **完全不加载模型**，所以它也是零权重的冒烟测试。
+
 **十二份示例，各管一件事**
 
 > 下表与**实际文件**核对：每个 `examples/*.json` 都必须在这里被点名，且带下面三列（发布闸 S18 会查）。
@@ -470,6 +473,9 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 「宫格几何」用来先把几何固化成一根 `spec` 给多个下游；「裁格 / 贴回」用来改单格；
 「布局编辑器」做海报；「草稿编译」接官方提示词 skill；「换脸」做身份或局部重画。
 
+**可选的 LLM 节点**（`MossPromptSmith`，分类 `moss/llm`）不属于这七个——它把文字或图片变成提示词，
+见 [3.7](#37-llm-节点mossromptsmith)。
+
 > **示例都是 UI 格式**（拖进画布用）。走 `/prompt` API 时要先转成 API 格式
 > （ComfyUI 菜单里的 Export (API) / Save (API Format)，名字随前端版本不同）。
 > 转换脚本不随包 —— `tools/` 只在仓库里，安装包里没有。
@@ -572,6 +578,29 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 - **不用前端也能跑**：JS 加载失败只丢按钮和编辑器，节点仍按默认值运行。
 - 看不到按钮：控制台看有没有 `[MOSS SB] i18n: 就绪`。
 
+### 3.7 LLM 节点（`MossPromptSmith`）
+
+可选的 `moss_llm/` 子包多给一个节点（分类 `moss/llm`）：把文字或图片变成**提示词**，不出图。用 `task` 选活：
+
+| `task` | 输入 | 输出 |
+|---|---|---|
+| `caption`（反推） | 一张图（文字可选） | 反推出的提示词 + `report` |
+| `expand`（扩写） | 一句话想法（图片可选作参考） | 成品提示词 |
+| `edit`（编辑指令） | 一张图 + 要改什么 | 编辑指令 |
+| `compile`（编译） | 一段 IR（JSON/YAML） | 编译后提示词 + 编辑器 state —— **不加载模型，毫秒级** |
+
+- **通道**：`local` 起 llama-server 侧车，用你选的 GGUF（递归扫描 `models/LLM` 与 `models/text_encoders`；
+  节点可一键装官方运行时）；`api` 走任意 OpenAI 兼容端点——该通道会把文字与图片**联网外发**。
+- **方言**：`moss_image`、`moss_storyboard`、通用 Flux / Krea / SDXL 目标，以及中文原生模型用的 `cn_natural`；
+  `compile` 按目标后端渲染 IR。
+- **PE 改写器（实验）**：把 Qwen-Image 2.1 PE-T2I / PE-I2I 的 GGUF 与它自带的 `system_prompt.txt` 放同一目录，
+  节点在 `expand` / `edit` 时改用该原生 prompt。PE 权重是 `qwen-research`（**非商用、仅内部**，不随包分发）。
+- **`report`** 列取证事实、绑定告警、`must_keep` 缺失与被忽略的伪影；模型没给出可用提示词时，节点抛可操作错误，
+  不再把 JSON 当提示词往下传。
+- **示例**：`llm-compile-zero-model.json`（零模型）、`llm-caption-to-moss.json`、`llm-idea-to-storyboard.json`、
+  `llm-wash.json`。
+- 参数与边界见 [docs/20](docs/20-llm-prompt-nodes.md)；PE 细节见 [手册 §9](docs/19-node-manual.md#9--pe-改写器qwen-image-21实验)。
+
 ## 4 · 改代码 / 报 bug
 
 ### 4.1 报 bug 前先确认三件事
@@ -612,6 +641,22 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/17`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/17-faceswap-recipe.md) | 换脸配方：哪条路真的成过、蒙版怎么算、判据是什么 |
 | [`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md) | 蒙版潜空间编辑：官方范式缺了什么、四条条件正交、到哪一步不成立 |
 | [`docs/19`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md) | **节点手册**：七个节点的全部入参/输出/口径、术语表、实测与边界 |
+| [`docs/20`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md) | LLM 子包：一个节点四种任务（`caption` / `expand` / `edit` / `compile`）、通道与方言 |
+| [`docs/21`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/21-smith-ir-架构.md) | Smith IR 架构：IR、适配器、registry、确定性渲染 |
+| [`docs/24`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/24-smith-ir-扩写判据.md) | 扩写判据：为什么「写长点」是错的目标 |
+| [`docs/26`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/26-扩写三拆.md) | 扩写三拆：补全 / 翻译 / 改写，各自可开关 |
+| [`docs/27`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/27-H3六段式.md) | H3 六段式方言：render / parse / 错误码 |
+| [`docs/29`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/29-跨家族registry验证.md) | 跨家族 registry：只加 YAML 接入新图像家族 |
+| [`docs/32`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/32-面板闸SKIP转真机.md) | 面板闸：把 SKIP 变成真机断言 |
+| [`docs/35`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/35-H3-LoRA基座决策备忘.md) | H3 LoRA 基座决策备忘 |
+| [`docs/43`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/43-双盲判读与评分校准.md) | 双盲判读与评分校准 |
+| [`docs/44`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/44-CI第二矩与兼容矩阵.md) | CI 第二矩与宿主兼容矩阵 |
+| [`docs/45`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/45-用户文档与双语同步.md) | 用户文档与双语同步规则 |
+| [`docs/48`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/48-用户路径真机验证.md) | 用户路径真机验证 |
+| [`docs/53`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/53-双盲判读-第一轮.md) | 双盲判读第一轮 |
+| [`docs/58`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/58-不可判判例与预校准.md) | 不可判判例与预校准（判据 v2） |
+| [`docs/60`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/60-Registry跟进操作单.md) | Registry 跟进操作单 |
+| [`docs/61`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/61-T12-8B契约验证.md) | T12 8B 契约验证 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
 
 `docs/`、`CHANGES.md`、`RELEASE-NOTES.md` 不随安装包分发（见 `.comfyignore`）；上面的链接指向 GitHub 仓库。
