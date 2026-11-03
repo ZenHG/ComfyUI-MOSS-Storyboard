@@ -30,6 +30,12 @@ _spec.loader.exec_module(wb)
 
 FIXTURE_IR = ROOT / "tests" / "fixtures" / "smith" / "comic-4panel-lineart-sample.ir.json"
 
+try:
+    import PIL  # noqa: F401
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+
 
 def _make_png(path: Path, mode: str = "gradient", size: tuple[int, int] = (640, 480)):
     from PIL import Image, ImageDraw
@@ -59,6 +65,9 @@ def _make_png(path: Path, mode: str = "gradient", size: tuple[int, int] = (640, 
 
 class TestDesignAndBackends(unittest.TestCase):
     def test_check_design_is_green(self):
+        srcs = wb.resolve_sources()
+        if not all(s["exists"] for s in srcs):
+            self.skipTest("源图不在本机（CI 没有个人源图）")
         self.assertEqual(wb.check_design(), [])
 
     def test_four_backends_available(self):
@@ -201,6 +210,7 @@ class TestCompileStep(unittest.TestCase):
             self.assertIn("error", r)
 
 
+@unittest.skipUnless(HAS_PIL, "Pillow 不在环境里")
 class TestProxyMetrics(unittest.TestCase):
     def test_identical_images_score_near_one(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -286,6 +296,7 @@ class _FakeLlama:
                 '"evidence": ["visible"]}]}')
 
 
+@unittest.skipUnless(HAS_PIL, "Pillow 不在环境里")
 class TestCaptionOffline(unittest.TestCase):
     def setUp(self):
         import moss_llm.server as server_mod
@@ -322,6 +333,7 @@ class TestCaptionOffline(unittest.TestCase):
             self.assertEqual(sorted(s["id"] for s in sources_doc["sources"]), ["a", "b"])
 
 
+@unittest.skipUnless(HAS_PIL, "Pillow 不在环境里")
 class TestDegradationPaths(unittest.TestCase):
     def test_generate_dry_writes_workflow_without_network(self):
         env = _TmpEnv()
@@ -385,6 +397,7 @@ class TestDegradationPaths(unittest.TestCase):
             env.close()
 
 
+@unittest.skipUnless(HAS_PIL, "Pillow 不在环境里")
 class TestMultiSeedAndSources(unittest.TestCase):
     """W1：`--seeds` / `--sources-file` / `--ir-root` / moss-image-q4 的离线判据。"""
 

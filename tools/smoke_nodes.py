@@ -18,6 +18,12 @@ import re
 import sys
 from _paths import host_root
 
+try:  # Windows CI 的控制台是 cp1252：包启动日志里有 ⚠，先切到 UTF-8
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COMFY = host_root()
 PASS, FAIL = [], []

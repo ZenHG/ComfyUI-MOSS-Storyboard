@@ -115,6 +115,7 @@ jobs:
           python-version: ${{ matrix.python }}
       # CPU 轮子：本包的像素/采样测试只用 torch 的张量算子，不需要 CUDA
       - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install --disable-pip-version-check pillow
       - name: 几何 / 提示词 / 像素
         run: python tests/test_core.py
       - name: 编辑器 state v3 编译层
@@ -359,6 +360,7 @@ jobs:
         shell: pwsh
         run: git clone --depth 1 --branch v0.43.2 https://github.com/comfyanonymous/ComfyUI.git "$env:COMFYUI_PATH"
       - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install --disable-pip-version-check pillow
       - run: pip install --disable-pip-version-check -r "$env:COMFYUI_PATH\requirements.txt"
       - name: 放副本 + 占位 GGUF（宿主在 workspace 外，复制不会自包含）
         shell: pwsh
