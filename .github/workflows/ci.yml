@@ -304,8 +304,8 @@ jobs:
       # ⚠️ 宿主必须 clone 到 workspace **外**（runner 临时目录）：若把包复制进
       # `$GITHUB_WORKSPACE/comfyui/custom_nodes/...` 再 `cp -a "$GITHUB_WORKSPACE/."`，
       # 源目录包含目标目录，GNU cp 会报 "cannot copy a directory into itself" 并以 1 退出。
-      COMFYUI_PATH: ${{ runner.temp }}/comfyui
-      MOSSSB_PATH: ${{ runner.temp }}/comfyui/custom_nodes/ComfyUI-MOSS-Storyboard
+      COMFYUI_PATH: ${{ github.workspace }}/../comfyui
+      MOSSSB_PATH: ${{ github.workspace }}/../comfyui/custom_nodes/ComfyUI-MOSS-Storyboard
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -348,8 +348,8 @@ jobs:
     timeout-minutes: 40
     env:
       # 同 host-matrix：宿主在 workspace 外，`cp -a "$GITHUB_WORKSPACE/."` 才不会自包含。
-      COMFYUI_PATH: ${{ runner.temp }}\comfyui
-      MOSSSB_PATH: ${{ runner.temp }}\comfyui\custom_nodes\ComfyUI-MOSS-Storyboard
+      COMFYUI_PATH: ${{ github.workspace }}/../comfyui
+      MOSSSB_PATH: ${{ github.workspace }}/../comfyui/custom_nodes/ComfyUI-MOSS-Storyboard
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
