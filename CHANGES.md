@@ -14,6 +14,11 @@
   `report.placeholder_texts` + warning（不猜真实文字，清理悬空关系）；`test_caption_quality` **29→35**。
 - **lint**：`tools/wait_for.py` docstring 里 3 处 `\g` 非法转义与 1 处多余 noqa 由 `ruff --fix` 修正，
   全仓 `ruff check .` 恢复全绿（行为未变，仅注释转义）。
+- 🆕 **真机闸语义修正（发布前）**：`tools/ui_*.mjs` 在宿主没起时原先以 **exit 1（失败）** 退出，
+  且 `ui_smoke` 会吞掉异常、以「通过 0 / 失败 0」判 **PASS**（假绿）。现在：
+  `boot()` 先探测宿主，连不上或 `app.graph`/`app.canvas` 未就绪 → **exit 2（没跑成）** 并打印原因；
+  `checks.done()` 在「一项断言都没执行」时返回 **2**；`ui_smoke` 的异常不再被吞。
+  本地实测：`ci_preflight` 由「2 通过 / 2 跳过 / 1 失败」变为「1 通过 / 4 跳过 / 0 失败」——失败是假红，已消除。
 
 ## 未发布 · 洗图闭环第二轮修补（确定性草稿残差 / 对账器文本口径 / seed 贯通，2026-11-01）
 

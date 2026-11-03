@@ -123,11 +123,33 @@ export async function waitCanvas(page, timeout = 60000) {
     await page.waitForFunction(() => !!globalThis.app?.canvas, null, { timeout });
 }
 
-/** 打开页面并等"真能用"：graph + canvas 都就绪。 */
+/** 打开页面并等"真能用"：graph + canvas 都就绪。
+ *
+ * 宿主连不上 = **没跑**（exit 2），不是断言失败（exit 1）。理由：`ci_preflight.py` 与发布判断
+ * 都要把「环境没就绪」和「代码坏了」分开；把 ERR_CONNECTION_REFUSED 当失败，会让发布闸出现假红。
+ */
 export async function boot(page, url, { settle = 1500 } = {}) {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await waitApp(page);
-    await waitCanvas(page);
+    const pf = await preflight(url);
+    if (!pf.ok) {
+        console.error("[ui_kit] 宿主不可用：" + url + "（" + pf.why + "）");
+        console.error("[ui_kit] 这是「没跑」不是「失败」——先把 ComfyUI 起起来，或用 --url 指到活宿主。");
+        process.exit(2);
+    }
+    try {
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    } catch (e) {
+        console.error("[ui_kit] 打开页面失败：" + String(e).slice(0, 160));
+        console.error("[ui_kit] 判为环境未就绪（exit 2），不是用例失败。");
+        process.exit(2);
+    }
+    try {
+        await waitApp(page);
+        await waitCanvas(page);
+    } catch (e) {
+        console.error("[ui_kit] 页面加载但 app.graph/app.canvas 未就绪：" + String(e).slice(0, 160));
+        console.error("[ui_kit] 判为环境未就绪（exit 2）：宿主版本不对或前端没起来。");
+        process.exit(2);
+    }
     await page.waitForTimeout(settle);
 }
 
@@ -242,6 +264,10 @@ export function checks(title, { prefix = "" } = {}) {
         done() {
             console.log(`\n结果：通过 ${pass.length} / 失败 ${fails.length}`);
             if (fails.length) { for (const f of fails) console.log("  - " + f); }
+            if (!pass.length && !fails.length) {
+                console.log("  !! 一项断言都没有执行 = 没跑成（不是通过）。");
+                return 2;
+            }
             return fails.length ? 1 : 0;
         },
     };

@@ -26,7 +26,7 @@
 | **真机** | `python tools/ci_preflight.py`（有环境跑、缺环境 SKIP）<br>四个 `tools/ui_*.mjs`（活宿主 + playwright）<br>GPU 端到端 `tools/e2e_matrix.py` | 宿主装载、无头浏览器、滚轮归属、成片 | **点名说没跑**，不许算通过 |
 
 🔴 **退出码 2 = "没跑全"，但含义按脚本不同**：`ci_preflight.py` 缺环境**默认 exit 0 并输出 SKIP**，只有加 `--require-all` 才把 SKIP 判 2；
-`ui_*.mjs` 是缺依赖 2 / 断言失败 1；`make_dist.py --verify` 是缺宿主 2（构建本身可能已成功）；`check_editor_ui.py` 是缺 node 2（词表/语法跳过，**接线仍然查了**）。
+`ui_*.mjs` 是缺依赖 2 / **宿主连不上 2** / **`app.graph` 或 `app.canvas` 未就绪 2** / **一项断言都没跑成 2** / 断言失败 1；`make_dist.py --verify` 是缺宿主 2（构建本身可能已成功）；`check_editor_ui.py` 是缺 node 2（词表/语法跳过，**接线仍然查了**）。
 报"未覆盖"时要写清是哪一部分。
 🔴 **发布前**：`python tools/ci_preflight.py --require-all`（全量再加 `--with-gpu`）。
 

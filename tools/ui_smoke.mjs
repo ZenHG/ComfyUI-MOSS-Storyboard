@@ -358,7 +358,9 @@ try {
     check("截图已保存", existsSync(OUT), OUT);
     check("页面无未捕获异常", errors.length === 0, errors.slice(0, 2).join(" | "));
 } catch (e) {
+    // 不吞异常：宿主断了/页面炸了必须让退出码变红，否则会出现「通过 0 / 失败 0」的假绿。
     console.log("  !! " + String(e).slice(0, 200));
+    c.check("用例执行完成（无中断异常）", false, String(e).slice(0, 200));
 } finally {
     await browser.close();
 }
