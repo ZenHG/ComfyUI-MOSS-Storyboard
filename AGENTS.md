@@ -84,12 +84,12 @@
 |---|---|---|
 | 契约 / 互操作 / 参数 | `docs/10-contract.md` · `docs/12-interop.md` · `docs/15-recipe-contract.md` · `docs/19-node-manual.md` | `10` 是 state v3 冻结契约；`19` 是参数全表 |
 | 几何 / 跨格一致 / 顶层 | `docs/14-top-level-design.md` · `docs/07-consistency.md` · `docs/06-vae-memory.md` | `14` 讲七个节点各自对什么负责 |
-| 编辑器 / 前端 / 双语 | `docs/32-面板闸SKIP转真机.md` · `docs/45-用户文档与双语同步.md` · `docs/48-用户路径真机验证.md` | `48` 是用户路径真机验证口径 |
-| LLM 子包 / 提示词工匠 | `docs/20-llm-prompt-nodes.md` · `docs/21-smith-ir-架构.md` · `docs/24-smith-ir-扩写判据.md` · `docs/26-扩写三拆.md` | `24` 讲"为什么写长点是错的" |
-| H3 六段式 / LoRA | `docs/27-H3六段式.md` · `docs/35-H3-LoRA基座决策备忘.md` · `docs/61-T12-8B契约验证.md` | |
+| 编辑器 / 前端 / 双语 | 已归档（历史记录见 git 历史） | — |
+| LLM 子包 / 提示词工匠 | `docs/20-llm-prompt-nodes.md` | — |
+| H3 六段式 / LoRA | 已归档（历史记录见 git 历史）；现行契约见 `CHANGES.md` | — |
 | 换脸 / 局部编辑 | `docs/16-faceswap-refactor.md` · `docs/17-faceswap-recipe.md` · `docs/18-masked-latent-edit.md` | 配方只有 `17` 里那几条真成过 |
-| G7 / 评分 / 双盲 | `docs/43-双盲判读与评分校准.md` · `docs/53-双盲判读-第一轮.md` · `docs/58-不可判判例与预校准.md` | 判据 v2 在 `58` |
-| CI / 兼容矩阵 / 发布 | `docs/44-CI第二矩与兼容矩阵.md` · `docs/29-跨家族registry验证.md` · `docs/60-Registry跟进操作单.md` | `44` 解释 host-matrix 为什么钉两个 tag |
+| G7 / 评分 / 双盲 | 已归档（历史记录见 git 历史） | — |
+| CI / 兼容矩阵 / 发布 | `CONTRIBUTING.md` + `.github/workflows/ci.yml` 注释 | — |
 | 路线图 / 验收 | 已归档（历史记录见 git 历史）；现行验收见 `CHANGES.md` | — |
 | 交叉复核系列 | 已归档（历史记录见 git 历史） | **历史证据，不是规范**；别拿它当契约 |
 
@@ -168,7 +168,7 @@
 |---|---|---|
 | 宿主 ComfyUI 根 | `COMFYUI_PATH`，或仓库根 `.comfyui_path` | 已 gitignore |
 | 活宿主地址 | 默认 `http://127.0.0.1:8188`，`--url` 或 `COMFY_API` 覆盖 | 四个 `ui_*.mjs` 共用 |
-| 节点 API 出口 | 默认 v3；`MOSSSB_NODE_API=v1` 回退（**回退路径无机检**，`docs/48` 记为未验证） | 改 `__init__` 或 `v3/` 时两个出口都要手验 |
+| 节点 API 出口 | 默认 v3；`MOSSSB_NODE_API=v1` 回退（**回退路径无机检**，历史记录见 git 历史） | 改 `__init__` 或 `v3/` 时两个出口都要手验 |
 | 一次性产物 | `out/` | 判读包、中间 JSON（已 gitignore） |
 | 打包产物 | `dist/` | `make_dist.py` 生成；`.comfyignore` 决定分发面 |
 | 审计报告 | `审计报告/` · `docs/_local/` | **不在仓库里**（被 gitignore）。README/docs 引用它 = 死链，S11 判红 |

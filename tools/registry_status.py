@@ -4,7 +4,7 @@
 
 ## 为什么需要它
 
-`docs/52` 已把 `NodeVersionStatusFlagged` 的语义查清：它是**自动扫描有发现、等待安全
+历史记录（git 历史）已把 `NodeVersionStatusFlagged` 的语义查清：它是**自动扫描有发现、等待安全
 复核**的中间态（Registry 网页徽章文案就是 "Pending Security Review"），**既不等于
 「已证明安全」，也不等于「已判定有问题」**。具体 issues 只进 Registry 团队的私有频道，
 公开 API 的 `status_reason` 为空（或干脆没有这个键），所以跟进只能靠两件事：
@@ -42,10 +42,10 @@
 - 不静默吞错：网络错误按 `--retries` / `--backoff` 重试；重试后仍失败就以退出码 4 +
   人读原因结束；坏 JSON 不会被当成空数据。
 - 状态措辞：Flagged / Pending 只描述为「待安全复核」，不写成「已通过」或「有问题」；
-  工具**不推荐**给用户常开 `allow_flagged_nodepack_install`（`docs/52` §4）。
+  工具**不推荐**给用户常开 `allow_flagged_nodepack_install`（`CHANGES`）。
 
-参考：`docs/52-Registry版本状态-flagged.md`（语义与三条安装路径）、
-`docs/60-Registry跟进操作单.md`（决策树、英文联络稿、发布前后 24h 清单）。
+参考：`CHANGES.md`（语义与三条安装路径）、
+`CHANGES.md`（决策树、英文联络稿、发布前后 24h 清单）。
 
 ## 用法
 
@@ -467,22 +467,22 @@ def _counts_text(counts: dict[str, int]) -> str:
 
 
 def next_steps(status: str | None) -> list[str]:
-    """按当前状态给「下一步」，全部指向 `docs/52` §4 / `docs/60` 的既定流程。"""
+    """按当前状态给「下一步」，全部指向 `CHANGES` / git 历史 的既定流程。"""
     if status == STATUS_ACTIVE:
         return [
-            "最新版本已是 Active：无需跟进动作；发布闸可放行，但仍按 docs/60 的发布前后 24h 清单复验。",
+            "最新版本已是 Active：无需跟进动作；发布闸可放行，但仍按 CHANGES 里的发布前后 24h 清单复验。",
             "历史版本状态仍可能不同，复核用 snapshot 的 versions.json。",
         ]
     if status in (STATUS_FLAGGED, STATUS_PENDING):
         return [
-            "按 docs/60 §3 的英文联络稿，向 Registry 团队 / Comfy support 索取 moss-storyboard "
+            "按 CHANGES 里的英文联络稿，向 Registry 团队 / Comfy support 索取 moss-storyboard "
             "各版本的扫描 issues 清单（公开 API 不提供）。",
             "拿到清单后再二分：确认误报 → 请 Registry 走人工复核（Approve → Active）；"
             "确认代码/打包问题 → 修代码并发新的 patch 版本（新版本默认 Pending，等扫描）。",
             "不要重发同一版本号、不要伪造 status；不要用 git 直装对外宣称安装问题已解决。",
             "对外只写「待安全复核」：Flagged 是「扫描有发现、等复核」，不是安全证明，也不是恶意判定。",
             "用户侧不推荐常开 allow_flagged_nodepack_install；只如实说明 loopback 桌面/便携版按 "
-            "Manager 指引可安装（语义见 docs/52 §3）。",
+            "Manager 指引可安装（语义见 CHANGES）。",
         ]
     if status == STATUS_BANNED:
         return [
@@ -494,7 +494,7 @@ def next_steps(status: str | None) -> list[str]:
     return [
         "状态不在预期集合内（如 Deleted）：到 https://registry.comfy.org/nodes/moss-storyboard "
         "人工核对，**不要**自动放行。",
-        "复核后按 docs/60 的决策树处理；把本次 snapshot 目录作为证据保留。",
+        "复核后按 CHANGES 的决策树处理；把本次 snapshot 目录作为证据保留。",
     ]
 
 
@@ -542,7 +542,7 @@ def render_check(facts: Facts, *, expect_latest_active: bool, exit_code: int) ->
         lines.extend([
             "",
             "结论：取数成功（本模式**不判定发布门槛**）。",
-            "下一步：发布闸请运行 check --expect-latest-active；日常跟进可看 docs/60。",
+            "下一步：发布闸请运行 check --expect-latest-active；日常跟进可看 CHANGES。",
         ])
         return "\n".join(lines)
 
@@ -552,7 +552,7 @@ def render_check(facts: Facts, *, expect_latest_active: bool, exit_code: int) ->
         EXIT_BANNED: "未通过：版本或节点被 Banned。",
         EXIT_ERROR: "无法判定：取数成功但状态不可判定（见上方警告/状态值）。",
     }[exit_code]
-    lines.extend(["", "结论：" + conclusion, "下一步（docs/52 §4 / docs/60）："])
+    lines.extend(["", "结论：" + conclusion, "下一步（CHANGES / git 历史）："])
     for index, step in enumerate(next_steps(facts.latest_status), 1):
         lines.append("  %d. %s" % (index, step))
     lines.append("")
@@ -569,7 +569,7 @@ def render_summary(facts: Facts) -> str:
         "",
         "> 采集时间：%s（UTC %s）" % (_fmt_local(facts.captured_at), _fmt_utc(facts.captured_at)),
         "> 数据来源：%s（公开只读 API，本次采集实测）" % facts.api_base,
-        "> 工具：`tools/registry_status.py`（标准库，零第三方依赖）；语义依据见 `docs/52`。",
+        "> 工具：`tools/registry_status.py`（标准库，零第三方依赖）；语义依据见 `CHANGES`。",
         "",
         "## 1. 节点",
         "",
@@ -624,7 +624,7 @@ def render_summary(facts: Facts) -> str:
             "- 响应：HTTP 200；`downloadUrl` = %s" % _cell(facts.install.get("downloadUrl")),
             "- `dependencies` = %s；`deprecated` = %s"
             % (_cell(facts.install.get("dependencies")), _cell(facts.install.get("deprecated"))),
-            "- 说明：安装端点**不按版本状态拦截**（依据见 `docs/52` §1.1 与 §3，已验证：公开源码 + "
+            "- 说明：安装端点**不按版本状态拦截**（依据见 `CHANGES`，已验证：公开源码 + "
             "API 实测）。本快照只记录回包事实，**不**据此推断「该版本安全」或「安装一定成功」。",
         ])
     lines.extend(["", "## 6. 警告", ""])
@@ -632,7 +632,7 @@ def render_summary(facts: Facts) -> str:
         lines.extend("- %s" % warning for warning in facts.warnings)
     else:
         lines.append("- 无（三个端点均取到预期结构）。")
-    lines.extend(["", "## 7. 下一步（`docs/52` §4 / `docs/60`）", ""])
+    lines.extend(["", "## 7. 下一步（`CHANGES` / git 历史）", ""])
     lines.extend("%d. %s" % (index, step) for index, step in enumerate(next_steps(facts.latest_status), 1))
     lines.extend([
         "",

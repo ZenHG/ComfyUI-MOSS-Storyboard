@@ -267,7 +267,7 @@ targets:
       steps: 8
       note: "采样参数由工作流决定；这里只记常见档位，不作为默认值下发"
     rewriter:
-      # 8B 契约（2026-11-01 拍板 C 档；决策与证据见 docs/61-T12-8B契约验证.md）。
+      # 8B 契约（2026-11-01 拍板 C 档；决策与证据见 git 历史）。
       repo: "lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA-8B"
       base_model: "Qwen/Qwen3-VL-8B-Instruct"
       # 只记文件名，不记路径：放哪儿是用户的事（见 paths.py 的查找规则）。
@@ -278,13 +278,13 @@ targets:
       tasks: ["t2va"]
       # 注意：这是「本仓库实现子集」的理由，不是官方能力清单。8B 官方支持
       # T2VA/T2AV、I2VA/I2AV、L2VA/L2AV、FL2VA/FL2AV/FLF2V，仅 Ref2VA 不支持
-      # （docs/61 §2）。本包的 h3 rewrite 目前只实现 T2VA 文本路径。
-      note: "本仓库已实现子集：只覆盖 T2VA（官方能力清单见 docs/61 §2；仅 Ref2VA 官方不支持）"
+      # （历史记录见 git 历史）。本包的 h3 rewrite 目前只实现 T2VA 文本路径。
+      note: "本仓库已实现子集：只覆盖 T2VA（T12 契约见 git 历史；仅 Ref2VA 官方不支持）"
       # 历史（已弃用）：27B 契约 repo=lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA、
       # base_model=Qwen/Qwen3.6-27B、file=MiniMax-H3-Prompt-Rewriter-LoRA-Q8_0.gguf、
       # arch=qwen35、lora_rank=256、lora_alpha=512；12GB 卡边界，2026-11-01 放弃。
     # ── 六段式方言档（全参考）。不是独立 target：selector 是 profile 名，
-    #    与基础模式三字段并存；格式与判据见 docs/27-H3六段式.md。
+    #    与基础模式三字段并存；格式与判据见 docs/19 与 CHANGES。
     dialects:
       six-section:
         display: "MiniMax-H3 · 全参考六段式"
@@ -312,7 +312,7 @@ targets:
   # ─────────────────────────────────────────────────────────────
   # 跨家族验证：只靠这份 YAML 接入，**没有一行 Python 专属实现**（走 generic）。
   # 选它与现有家族对照的理由：prompt 哲学相反——官方要求「描述场景的叙事段落」，
-  # 不是 tag / 关键词罗列。验证记录见 docs/29-跨家族registry验证.md。
+  # 不是 tag / 关键词罗列。验证记录见 CHANGES。
   # 文档级核验（2026-11-01）：官方 prompt 指南 + 官方 API 文档；未在本机实跑。
   nano-banana:
     display: "Nano Banana (Gemini Image)"

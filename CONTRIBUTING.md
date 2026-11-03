@@ -75,7 +75,7 @@ CI 的 `release-preview` job 会跑发布卫生闸（54 项，含 pyproject 元�
 （`--zip`，只上传 artifact，不发布）。
 
 CI 的 `host-matrix` job 钉**两个 ComfyUI 版本**（`v0.42.0` = 本包最低支持线、`v0.43.2` =
-撰写时最新稳定 tag；理由与「连续绿后才取消豁免」的判据见 [`docs/44`](docs/44-CI第二矩与兼容矩阵.md)），
+撰写时最新稳定 tag；理由与「连续绿后才取消豁免」的判据见 git 历史），
 在 CPU runner 上跑**可确定判定**的步骤（纯节点冒烟 / 15 个示例工作流的连线与槽位 / 干净副本装载）；
 `host_loader_check.py` 因 CPU runner 上 ComfyUI 在 import 期断言 CUDA，保留 **step 级豁免**并注明原因。
 `windows` job 跑同样的 CPU 可判定子集（不含前端差分与任何 GPU 步骤），把「Windows 用户装不上」

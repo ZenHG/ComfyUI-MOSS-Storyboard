@@ -643,21 +643,6 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md) | 蒙版潜空间编辑：官方范式缺了什么、四条条件正交、到哪一步不成立 |
 | [`docs/19`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md) | **节点手册**：七个节点的全部入参/输出/口径、术语表、实测与边界 |
 | [`docs/20`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md) | LLM 子包：一个节点四种任务（`caption` / `expand` / `edit` / `compile`）、通道与方言 |
-| [`docs/21`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/21-smith-ir-架构.md) | Smith IR 架构：IR、适配器、registry、确定性渲染 |
-| [`docs/24`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/24-smith-ir-扩写判据.md) | 扩写判据：为什么「写长点」是错的目标 |
-| [`docs/26`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/26-扩写三拆.md) | 扩写三拆：补全 / 翻译 / 改写，各自可开关 |
-| [`docs/27`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/27-H3六段式.md) | H3 六段式方言：render / parse / 错误码 |
-| [`docs/29`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/29-跨家族registry验证.md) | 跨家族 registry：只加 YAML 接入新图像家族 |
-| [`docs/32`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/32-面板闸SKIP转真机.md) | 面板闸：把 SKIP 变成真机断言 |
-| [`docs/35`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/35-H3-LoRA基座决策备忘.md) | H3 LoRA 基座决策备忘 |
-| [`docs/43`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/43-双盲判读与评分校准.md) | 双盲判读与评分校准 |
-| [`docs/44`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/44-CI第二矩与兼容矩阵.md) | CI 第二矩与宿主兼容矩阵 |
-| [`docs/45`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/45-用户文档与双语同步.md) | 用户文档与双语同步规则 |
-| [`docs/48`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/48-用户路径真机验证.md) | 用户路径真机验证 |
-| [`docs/53`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/53-双盲判读-第一轮.md) | 双盲判读第一轮 |
-| [`docs/58`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/58-不可判判例与预校准.md) | 不可判判例与预校准（判据 v2） |
-| [`docs/60`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/60-Registry跟进操作单.md) | Registry 跟进操作单 |
-| [`docs/61`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/61-T12-8B契约验证.md) | T12 8B 契约验证 |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | 变更记录 |
 
 `docs/`、`CHANGES.md`、`RELEASE-NOTES.md` 不随安装包分发（见 `.comfyignore`）；上面的链接指向 GitHub 仓库。

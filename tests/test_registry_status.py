@@ -454,8 +454,8 @@ class TestSnapshot(unittest.TestCase):
             "不是安全证明",
             "Flagged=3",
             "https://cdn.comfy.org/zenhg/moss-storyboard/0.3.3/node.zip",
-            "docs/52",
-            "docs/60",
+            "CHANGES",
+            "git 历史",
         ):
             self.assertIn(needle, summary, "summary.md 缺少 %r" % needle)
         self.assertNotIn("已通过安全审核", summary)

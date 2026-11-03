@@ -1,5 +1,7 @@
 # CHANGES
 
+> 本文是历史记录：文中提到的 `docs/NN` 若已不在仓库，内容见 git 历史。
+
 ## 未发布 · 口径更正与反推占位符修复（2026-11-03）
 - 🆕 **PE 改写器模式（实验）**：`MossPromptSmith` 的 `task=expand` 在模型同目录发现
   `system_prompt.txt` / `<stem>.system_prompt.txt` 且内容像 Qwen-Image 2.1 PE 时，改用原生

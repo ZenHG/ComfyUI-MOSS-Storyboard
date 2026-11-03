@@ -247,7 +247,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 反过来，节点的 `_checks` 也不裁决「好不好看」。两边都不越界。
 
 - 用法：`moss_llm/smith/README.md`
-- 设计：`docs/21-smith-ir-架构.md`
+- 设计：历史记录见 git 历史
 - 路线图与卡点：历史记录（git 历史）
 - 合流决策（谁强、留谁、代价）：历史记录（git 历史）
 - 闸：`python -m unittest tests.test_smith_ir`（365）、`python tools/check_coverage.py --check`（4 份夹具 × 7 后端：固定项不丢、数字与引号不编、覆盖率不低于基线）、`python tools/freeze_smith_set.py --check`（确定性 sha256）

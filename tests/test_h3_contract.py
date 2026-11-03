@@ -7,7 +7,7 @@
 `h3 doctor` 仍 rc=0、既有测试全绿——**契约没有测试看住**。这里把六字段的值钉死：
 改任何一项都会红，且报错写清期望值与实际值。
 
-值的来源（docs/61 §2）：repo/base_model/file 来自 HF 元数据；`arch` 来自下载后
+值的来源（历史记录见 git 历史）：repo/base_model/file 来自 HF 元数据；`arch` 来自下载后
 GGUF 头实际值；`lora_rank/lora_alpha` 来自官方 adapter_config + GGUF
 `adapter.lora.alpha`。本文件**不读权重**，只读 registry，因此 CI 零权重可跑。
 
@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from moss_llm.smith.registry import Registry     # noqa: E402
 
-#: 冻结值（2026-11-01 8B 契约）。任何一项变化都必须同时：改本表 + docs/61 + 迁移说明。
+#: 冻结值（2026-11-01 8B 契约）。任何一项变化都必须同时：改本表 + CHANGES + 迁移说明。
 FROZEN = {
     "repo": "lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA-8B",
     "base_model": "Qwen/Qwen3-VL-8B-Instruct",
@@ -46,7 +46,7 @@ class TestRewriterContract(unittest.TestCase):
         for key, want in FROZEN.items():
             self.assertEqual(
                 rw.get(key), want,
-                "rewriter.%s 被改了：期望 %r，实际 %r（docs/61 §2 是冻结依据）"
+                "rewriter.%s 被改了：期望 %r，实际 %r（历史记录见 git 历史）"
                 % (key, want, rw.get(key)))
 
     # ── 六个字段逐个钉（失败信息能直接指出是哪一项被改）──
@@ -73,7 +73,7 @@ class TestRewriterContract(unittest.TestCase):
         self.assertEqual(self.rewriter.get("tasks"), ["t2va"])
         note = str(self.rewriter.get("note") or "")
         self.assertIn("本仓库", note, "tasks 的理由必须说明是「本仓库实现子集」：%r" % note)
-        self.assertIn("docs/61", note, "tasks 的理由必须指向官方能力清单 docs/61 §2：%r" % note)
+        self.assertIn("T12", note, "tasks 的理由必须指向 T12 契约（历史记录见 git 历史）：%r" % note)
         for word in ("官方不支持 FL2VA", "FL2VA / Ref2VA 官方标为未实现"):
             self.assertNotIn(word, note, "不得把官方能力写成「不支持 FL2VA」：%r" % note)
 

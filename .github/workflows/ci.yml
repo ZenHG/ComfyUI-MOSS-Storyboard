@@ -57,7 +57,7 @@
 #   · 54/0   tools/check_release_ready.py     发布卫生（凭据 / 公开面 / 元数据 / 打包口径 / 文档清单 / SPDX / 内部称呼 / 双语同步）
 #   · release-preview: 上面这些 + pyproject 元数据纪律 + `.comfyignore` 打包面 + `make_dist --verify`（干净副本独立装载，16/0）
 #
-# 宿主版本矩阵（job `host-matrix`）：两个**钉住**的 ComfyUI tag，理由写在 docs/44：
+# 宿主版本矩阵（job `host-matrix`）：两个**钉住**的 ComfyUI tag，理由见 git 历史：
 #   · v0.42.0 = 本包 `[tool.comfy].requires-comfyui` 的**最低支持线**（MOSS-Image 原生支持首次进入的版本）；
 #   · v0.43.2 = 撰写时（2026-11-01）GitHub 上的**最新稳定 tag**，代表「用户现在新装会拿到的版本」。
 #   两者都不追 latest：上游漂移导致的红必须能归因到「本包不兼容某个明确版本」。
@@ -69,7 +69,7 @@
 #   2. **host-matrix 里 CUDA 豁免**：CPU runner 上 ComfyUI 在 import 期断言 CUDA，
 #      `host_loader_check.py` 必然失败且与本包无关 ⇒ 该步 **step 级 continue-on-error**，
 #      job 结论仍绿、失败详情留在日志。其余步骤在 CPU 上可确定判定 ⇒ 阻塞。
-#      「main 连续绿后再取消豁免」的判据见 docs/44 §4。
+#      「main 连续绿后再取消豁免」的判据见 git 历史。
 #   3. 只跑 CPU：`bf16` / 显存路径 / VAE 解码 / GPU 端到端全部不在 CI 内；
 #      `tools/e2e_matrix.py` 要 GPU + 权重，走本地 `ci_preflight.py --with-gpu`。
 #   4. Windows job 只跑 **CPU 可判定子集**（纯节点冒烟 + 示例回归 + CPU 单测 + 卫生闸），
@@ -337,7 +337,7 @@ jobs:
       # 🔴 CUDA 豁免（step 级）：CPU runner 上 ComfyUI 在 import 期就会断言 CUDA
       #    （`Torch not compiled with CUDA enabled`），这一步**必然失败**且与本包无关。
       #    job 结论仍绿，失败详情完整留在这一步的日志里；这是**已知豁免**，不是通过。
-      #    取消豁免的判据：main 上该步连续 10 次绿（见 docs/44 §4）。
+      #    取消豁免的判据：main 上该步连续 10 次绿（见 git 历史）。
       - name: "[CUDA 豁免] 走宿主 load_custom_node（CPU runner 上预期失败；真机请跑 tools/ci_preflight.py）"
         continue-on-error: true
         run: python tools/host_loader_check.py

@@ -501,7 +501,7 @@ class TestH3SixAdapterProfile(unittest.TestCase):
         self.assertFalse([w for w in out.warnings if w.startswith("[H3S] ERROR")])
 
     def test_six_profile_does_not_create_a_target(self):
-        """设计决策：六段式是 profile，不是新 target（见 docs/27）。"""
+        """设计决策：六段式是 profile，不是新 target（历史记录见 git 历史）。"""
         self.assertNotIn("h3-six-section", REG.names())
         caps = REG.get("minimax-h3")
         self.assertIn("dialects", caps)

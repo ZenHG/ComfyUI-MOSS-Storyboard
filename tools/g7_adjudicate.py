@@ -676,7 +676,7 @@ def cmd_calib_packet(args) -> int:
                                    "note": "claim id 与 A 相同；只改顺序，防顺序锚定"}},
         "split": variant_for_judge,
         "instruction": "判读者不得查看机检产物，也不得查看两轮旧判读结果；"
-                       "AI 判读结果必须带 ai_label=%r；按 docs/58 的判例逐条重判"
+                       "AI 判读结果必须带 ai_label=%r；按 CHANGES 中的判例口径逐条重判"
                        % AI_LABEL,
         "units": [{"model": u["model"], "image_id": u["image_id"],
                    "category": u["category"], "image_sha256": u["image_sha256"],

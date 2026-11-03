@@ -55,7 +55,7 @@ Requirements:
 
 #: 8B 契约：逐字照抄 `lightx2v/MiniMax-H3-Prompt-Rewriter-LoRA-8B/prompt_template.py`
 #: 的 SYSTEM_PROMPT。⚠ 该仓库未声明许可 ⇒ 仅内部契约对齐用，随包发行前需确认许可
-#: （见 docs/61 §许可风险）。换字会离开 LoRA 训练分布。
+#: （许可风险见 CHANGES）。换字会离开 LoRA 训练分布。
 SYSTEM_PROMPT = """You are a professional MiniMax-H3 prompt rewriter for joint video-and-audio generation.
 
 Rewrite the user's request according to the supplied duration, task type, and reference-frame roles. Return only the final production-ready prompt. Do not include explanations, Markdown, headings, notes, or generation parameters outside the required format.

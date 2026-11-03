@@ -564,7 +564,7 @@ def slot_advice(ir: IR, words: int = 0) -> str:
     gaps = slot_gaps(ir)
     if not gaps:
         return ("槽位齐全（%d 词）：缺的不是类目，是每个槽位的**排他细节**——"
-                "加形容词不缩小分布（见 docs/24 扩写判据）" % words)
+                "加形容词不缩小分布（历史记录见 git 历史）" % words)
     head = "缺槽位 %s" % " / ".join(n for n, _ in gaps[:4])
     sample = "；".join("%s→「%s」" % (n, ex) for n, ex in gaps[:2])
     return "%s。补一句就够：%s" % (head, sample)

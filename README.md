@@ -686,21 +686,6 @@ ComfyUI-MOSS-Storyboard/
 | [`docs/18`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/18-masked-latent-edit.md) | masked latent edit: what the official format does *not* do, the four orthogonal conditions, where it stops |
 | [`docs/19`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md) | **node manual**: every input / output / caliber for all seven nodes, the glossary, and the measured limits |
 | [`docs/20`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md) | LLM subpackage: one node, four tasks (`caption` / `expand` / `edit` / `compile`), channels and dialects |
-| [`docs/21`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/21-smith-ir-架构.md) | Smith IR architecture: IR, adapters, registry, deterministic render |
-| [`docs/24`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/24-smith-ir-扩写判据.md) | expansion criteria: why "write longer" is the wrong goal |
-| [`docs/26`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/26-扩写三拆.md) | expand in three steps: completion / translation / rewrite, each switchable |
-| [`docs/27`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/27-H3六段式.md) | H3 six-section dialect: render / parse / error codes |
-| [`docs/29`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/29-跨家族registry验证.md) | cross-family registry: adding an image family with YAML only |
-| [`docs/32`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/32-面板闸SKIP转真机.md) | panel gate: turning a SKIP into a real-host assertion |
-| [`docs/35`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/35-H3-LoRA基座决策备忘.md) | H3 LoRA base decision memo |
-| [`docs/43`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/43-双盲判读与评分校准.md) | double-blind adjudication and score calibration |
-| [`docs/44`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/44-CI第二矩与兼容矩阵.md) | CI second matrix and host compatibility |
-| [`docs/45`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/45-用户文档与双语同步.md) | user docs and bilingual sync rules |
-| [`docs/48`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/48-用户路径真机验证.md) | user-path real-host validation |
-| [`docs/53`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/53-双盲判读-第一轮.md) | double-blind adjudication, round 1 |
-| [`docs/58`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/58-不可判判例与预校准.md) | unverifiable cases and pre-calibration (rubric v2) |
-| [`docs/60`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/60-Registry跟进操作单.md) | Registry follow-up playbook |
-| [`docs/61`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/61-T12-8B契约验证.md) | T12 8B contract validation |
 | [`CHANGES.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/CHANGES.md) | release history |
 
 `docs/`, `CHANGES.md` and `RELEASE-NOTES.md` are not shipped in the install package (see `.comfyignore`); the links
