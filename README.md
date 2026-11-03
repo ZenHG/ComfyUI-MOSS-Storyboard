@@ -21,7 +21,7 @@ press Run. No `pip install`, no config files. (No weights yet? `llm-compile-zero
 
 | Item | Value |
 |---|---|
-| Version | **0.4.0** |
+| Version | **0.4.1** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **Zero** extra pip dependencies beyond the host-provided `torch` / `comfy*`. Face Swap's auto mask optionally uses `insightface` + `onnxruntime` — the pack runs without them |

@@ -2,6 +2,15 @@
 
 > 本文是历史记录：文中提到的 `docs/NN` 若已不在仓库，内容见 git 历史。
 
+## 0.4.1 — 2026-11-03
+- 🔒 `SECURITY.md` 按实际能力重写：核心节点不联网；可选 LLM 子包的 llama.cpp 运行时下载（sha256 校验）与
+  `subprocess` 启动、API 通道 base64 外发、换脸权重的来源与放置方式分别披露。
+- 🔎 `pyproject.toml` description/keywords 与 README 首屏补 LLM / caption / image-to-prompt / Flux / SDXL /
+  Qwen-Image 等搜索词；GitHub About/topics 同步更新。
+- 🧪 `release.py` 交叉验证改为「registry status=Active 且 latest_version=本版」才算发布完成，
+  Pending / Flagged 明确报未生效；新增 `tests/test_release_verify.py`（5 项）。
+- 节点入参与行为不变。
+
 ## 0.4.0 — 2026-11-03
 - 🆕 **LLM 节点显示名**：MOSS Prompt Smith / 「提示词工匠」→ MOSS LLM Prompt / 「LLM 提示词」；
   类型 id 仍为 MossPromptSmith（旧工作流不受影响），搜索别名补 llm / 提示词生成 等。

@@ -19,6 +19,28 @@
 
 ---
 
+## 0.4.1 — 2026-11-03
+
+**元数据与安全披露更新，节点行为不变。**
+
+- Registry 页面描述与搜索词更新：明确包含 LLM 提示词节点（反推 / 扩写 / 编辑 / 编译），以及 Flux、SDXL、Qwen-Image 目标。
+- SECURITY.md 按实际能力重写：核心节点不联网；可选 LLM 子包的本地运行时下载 / 校验 / 启动、API 外发，以及换脸权重的来源与放置方式都单独说明。
+- 发布器的 registry 校验改为「只有 Active 才算发布完成」，Pending / Flagged 不再被当成成功（工具行为，不影响节点）。
+- 没有新增 / 删除节点入参，旧工作流照常打开。
+
+**升级动作**：无需改动；从 Manager 更新到 0.4.1 即可。
+
+<!-- EN -->
+
+**Metadata and security-disclosure update — no node behaviour changed.**
+
+- The Registry description and search keywords now cover the LLM prompt node (caption / expand / edit / compile) as well as Flux, SDXL and Qwen-Image targets.
+- SECURITY.md now reflects actual behaviour: the core nodes stay offline; the optional LLM subpackage's runtime download / checksum / launch and API egress, plus the source and placement of the face-mask weights, are disclosed separately.
+- The release verifier now treats only an Active Registry version as published; Pending / Flagged is reported as not live (tooling only, node behaviour unchanged).
+- No node inputs were added or removed; existing workflows open unchanged.
+
+**Action required**: none. Update to 0.4.1 from the Manager.
+
 ## 0.4.0 — 2026-11-03
 
 **新增可选 LLM 提示词节点（`LLM Prompt`），故事板包不再只做故事板。**
