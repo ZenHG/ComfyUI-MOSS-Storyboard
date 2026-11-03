@@ -109,7 +109,7 @@ registry 要的 GGUF 来自第三方转换仓 `pytraveler/MiniMax-H3-Prompt-Rewr
 llama.cpp 的 LoRA 加载器**不会报错**——它会把 3.6 训出来的增量加到 3.8 的权重上，输出一段
 语法正确、语义无效的提示词。这条静默失败不是推测，是已记录的**实测**结论：
 
-- `docs/22-smith-ir-路线图.md` §4 P4⑮：「同架构的 Qwen3.8-27B 会被 llama.cpp 静默加载成功
+- 历史记录（git 历史） §4 P4⑮：「同架构的 Qwen3.8-27B 会被 llama.cpp 静默加载成功
   （实测张量名全部同名）——已写进 doctor 当红旗」。
 - 代码侧：`moss_llm/smith/cli.py` 的 `_name_matches()` / `cmd_h3_doctor()` 注释（“同架构 ≠ 同权重”），
   判据取模型名里的每个版本号片段，要求全部出现在文件名里。

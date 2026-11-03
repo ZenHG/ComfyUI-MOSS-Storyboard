@@ -229,7 +229,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 父包**只在 `task=compile` 时懒加载** `smith.api`。所以删掉 `moss_llm/smith/`
 不影响另外三个任务、也不影响核心 7 节点（`moss_llm.smith_available()` 用
 `find_spec` 探测，平时不付加载成本）。哪一半归谁、为什么这么切，见
-`docs/25-两份实现的合流.md`。
+历史记录（git 历史）。
 
 | | `MossPromptSmith` 节点 | `moss_llm.smith` |
 |---|---|---|
@@ -248,7 +248,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 - 用法：`moss_llm/smith/README.md`
 - 设计：`docs/21-smith-ir-架构.md`
-- 路线图与卡点：`docs/22-smith-ir-路线图.md`
-- 合流决策（谁强、留谁、代价）：`docs/25-两份实现的合流.md`
+- 路线图与卡点：历史记录（git 历史）
+- 合流决策（谁强、留谁、代价）：历史记录（git 历史）
 - 闸：`python -m unittest tests.test_smith_ir`（365）、`python tools/check_coverage.py --check`（4 份夹具 × 7 后端：固定项不丢、数字与引号不编、覆盖率不低于基线）、`python tools/freeze_smith_set.py --check`（确定性 sha256）
 

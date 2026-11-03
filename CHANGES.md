@@ -2,10 +2,16 @@
 
 ## 未发布 · 口径更正与反推占位符修复（2026-11-03）
 
+- 🆕 **扩写空输出不再静默**：实测注入输入会得到 `{"rewritten_prompt": ""}` 空壳，旧逻辑在取不到正文时
+  用 `json.dumps(obj)` 兜底，节点「成功」返回一串 JSON 当提示词。现在 `_pick_prompt()` 返回空串，
+  节点抛出可操作错误（「模型没有给出可用提示词（正文为空）…重跑/换模型/调大 max_tokens」）。
+  `must_keep` 对账同时改为 NFKC + 空白折叠 + 大小写 + 去首尾引号归一，并对重复项去重
+  （`Red scarf` / `"OPEN"` 这类书写差异不再误报）。探针与数字见 历史记录（git 历史）。
+
 - **反推与扩写是两条并列任务**（`caption` 必接图 / `expand` 必填文字 / `compile` 零模型吃 IR，见
   `nodes.py` 的 `_TASKS`；`examples/llm-wash.json` 只有 caption、`llm-idea-to-storyboard.json` 只有 expand）。
   洗图产品路径是 **caption → prompt → MOSS**；此前 W2/W5b 的「反推 IR → LLM 重写」是**合成链**，
-  不能当洗图质量结论（`docs/68` §11 已加口径说明、§12 重划口径）。
+  不能当洗图质量结论（历史记录（git 历史） §11 已加口径说明、§12 重划口径）。
 - **extra 29 人工判读**：逐条审完 **29/29 为编造**（0 条对账口径残留）；其中 26 条所在单元的反推 IR
   **没有 text 实体** ⇒ 造字发生在合成链的重写步，不在反推。该合成链不再用于洗图口径。
 - 🆕 **反推占位符文字修复**：115 个 ok 单元里 38 个（33%）声称有 text（95 条），其中 4 个是占位符
@@ -51,7 +57,7 @@
   prompt 由 `include_prompt=True` 重放全 115 单元取得，25/25 `prompt_sha256` 与定稿全等。
 - 测试/闸：draft_render 13、text_accounting 10、expand_facts 17；smith_ir 365、expand_steps 21、
   expand_guard 9、wash_roundtrip 8、wash_attribution 12、smoke 63/0、freeze/coverage、ruff 全绿。
-  docs/68 §11、docs/71（独立复核：发现 5 项文档/口径问题，全部修复并复核 PASS）。
+  历史记录（git 历史） §11、历史记录（git 历史）（独立复核：发现 5 项文档/口径问题，全部修复并复核 PASS）。
 
 ## 未发布 · 洗图闭环第一轮修补（固定项护栏 / roundtrip 归因，2026-11-01）
 
@@ -66,7 +72,7 @@
   img07 仅 A-4B@45 成功。**stable≠视觉差异**（含两遍漏读），需人工/交叉验证。
 - 测试：expand_guard 9、expand_facts 15、wash_attribution 12、wash_roundtrip 8；
   过程事故（W6 首次 retry 嵌套布局 bug 导致 20 图重排、约 12 min GPU 浪费）已修 + 如实记录。
-  docs/68 §10、docs/70（独立复核）。
+  历史记录（git 历史） §10、历史记录（git 历史）（独立复核）。
 
 ## 未发布 · 洗图闭环第一轮（MOSS-only，2026-11-01）
 
@@ -81,8 +87,8 @@
   **真实 A-4B 10 单元 spot-check：lost=0 0/10（桩同子集 8/10）、lost 15、extra 21（含真编造）**；
   n=10 / 单次 / 4B / all 组，**不能外推成模型结论**，但足以说明扩写固定文本契约需先修。
 - 🆕 工具：`wash_benchmark` 加 `--sources-file/--ir-root/--seeds/--out`；新增 `tools/expand_facts.py`
-  与 `tools/wash_roundtrip.py`；测试 36 + 13 + 8 条；docs/67（计划）、docs/68（结果）、
-  docs/69（独立复核）。
+  与 `tools/wash_roundtrip.py`；测试 36 + 13 + 8 条；历史记录（git 历史）（计划）、历史记录（git 历史）（结果）、
+  历史记录（git 历史）（独立复核）。
 - 边界：代理分未校准、尺寸按源图比例 ≈1MP（非固定 1024²）、无 OCR/人类判读、单后端；
   Qwen-Image 2.1 未参与（等用户下载），H3 冻结。
 
@@ -91,12 +97,12 @@
 - 🔴 **不再把「语法层截断」当成功**：`reverse.py::coerce_ir` 在实体数达 `MAX_ENTITIES=40`
   且重复多出 ≥20 条（重复占比 ≥50%）时抛 `ReverseError`（附 Report），轻度重复则合并 +
   `report` 出声；SYSTEM 规则 17 强化（label 唯一、同类多实例合并、发现重复立即停止）。
-  节点 caption 路径未改（列为未验证边界）。docs/56。
+  节点 caption 路径未改（列为未验证边界）。历史记录（git 历史）。
 - G7 第三轮 20 图 × 2 臂同口径复测：A-4B 17 ok / **3 张重复循环显式失败**、B-9B 19 ok /
   1 张解析前截断；A 全表颜色 41%→81%、方位 54%→100%——**主要是分母口径修正**（循环图
   移出 + img16/img13 实体结构变化），干净子集两种口径方向相反、正常图质量变化判
-  **未验证/样本不足**。docs/57（独立复核 docs/66：FAIL 1–3 修复后 PASS）。
-- 🆕 `tests/test_caption_quality.py` 25→29；`docs/56`、`docs/62`、`docs/66`。
+  **未验证/样本不足**。历史记录（git 历史）（独立复核 历史记录（git 历史）：FAIL 1–3 修复后 PASS）。
+- 🆕 `tests/test_caption_quality.py` 25→29；历史记录（git 历史）、历史记录（git 历史）、历史记录（git 历史）。
 
 ## 未发布 · 判读协议 v2 + 60 图双盲判读：事实 κ=0.86 收敛，幻觉维度仍不可用（2026-11-01）
 
@@ -106,17 +112,17 @@
   （A 1.0000 / B 0.7969）、分歧 2/458、unverifiable 2/4；图级幻觉 κ=0.1722 **未校准** ⇒
   按协议 min-κ 三档结论仍是 **样本不足**，两臂事实准确率 99.1%/99.2%（p=1.0）只能描述。
 - 同版 `binding60` 校准 **ρ=−0.0301**（n=115；第一轮 0.3162）⇒ **该分不应进 README**。
-  证据等级 B（AI 双读、同模型），人类判读包 115 份未做。docs/59。
+  证据等级 B（AI 双读、同模型），人类判读包 115 份未做。历史记录（git 历史）。
 
 ## 未发布 · M4 Registry 跟进：可复跑状态工具 + 对外联络操作单（2026-11-01）
 
 - 🆕 `tools/registry_status.py`（43 条离线单测）：`snapshot` 原子落盘（临时目录 + 整体
   rename，失败无残骸）、`check` 退出码 Active=0 / Flagged|Pending=2 / Banned=3 / 网络·坏
   JSON=4；`docs/60-Registry跟进操作单.md`：状态复核、决策树、可发送英文联络稿、发布前后
-  24h 清单、不要做清单、需人工账号动作。docs/52 加跟进状态。
+  24h 清单、不要做清单、需人工账号动作。历史记录（git 历史） 加跟进状态。
 - 实测（2026-11-01）：节点 Active，最新 0.3.3 与 10/10 历史版本 **全部 Flagged**，
   `status_reason` 键缺失；`downloads` 秒级不稳定（6 次 GET 16–22）不得当热度证据。
-  扫描 issues 公开面查不到，需真人账号向 Registry 团队索取。独立复核：docs/64（FAIL→修复复审 PASS）。
+  扫描 issues 公开面查不到，需真人账号向 Registry 团队索取。独立复核：历史记录（git 历史）（FAIL→修复复审 PASS）。
 
 ## 未发布 · T12 H3 Rewriter 切 8B 契约并真机跑通（内部验证，2026-11-01）
 
@@ -128,7 +134,7 @@
   不挂 13.6s / 79.9 tok/s（−25.3%）；**但 docs/35 判据 2「挂 LoRA 出切点时间戳」未复现
   且方向相反**（不挂才有 `At MM:SS.mmm` 且 h3 check pass），日志无 adapter 加载行 ⇒
   **只能写「契约+加载+速度可验证，LoRA 语义效果未验证」**。许可未声明 → 仅内部验证。
-  docs/61；独立复核 docs/63。
+  docs/61；独立复核 历史记录（git 历史）。
 
 ## 未发布 · 反推护栏：非人物体不再标成 character，重复循环不再无声（2026-11-01）
 
@@ -148,7 +154,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
   chat_template_kwargs），每级 400 逐个降级并出声；`_run_once` / `_run_caption_two_pass`
   抽出便于桩测，两遍式/pass2 顺序不变。
 - 测试：新增 `test_caption_quality.py` 25 条、`test_node_caption_guard.py` 21 条；
-  确定性输出零变化（freeze 未重冻）；`smoke_nodes` 63/0。docs/42、docs/46、docs/47、docs/51、docs/54。
+  确定性输出零变化（freeze 未重冻）；`smoke_nodes` 63/0。历史记录（git 历史）、历史记录（git 历史）、历史记录（git 历史）、历史记录（git 历史）、历史记录（git 历史）。
 
 ## 未发布 · G7 第二轮：修完后的前后对比与 60 图扩样（2026-11-01）
 
@@ -162,7 +168,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
   跑批与 binding60；耗时不可比（跑批期间 GPU 有外部游戏争用，快照入 `gpu-contention.json`）。
 - 🆕 `tools/g7_round2.py`（17 条单测）+ `g7_binding.py` 的 `--json-root/--out` 支持；
   `verify_manifest` 改为严格只读（拆 `collect`/`write`，防「证据链自愈」）。
-- 文档：docs/G7-反推质量-第二轮.md、docs/49（前置复核）。
+- 文档：历史记录（git 历史）、历史记录（git 历史）（前置复核）。
 
 ## 未发布 · 双盲判读第一轮：κ<0.6 只能报「样本不足」，自动分 ρ<0.5 不得进 README（2026-11-01）
 
@@ -188,7 +194,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
   **SKIP（未跑）**；`--require-all` 缺环境退出 2。
 - 复核发现并修掉 3 处「首次推送即红」：workspace 自复制（宿主 clone 到 runner.temp）、
   示例 title 触发 F4、windows 删 `.git` 后跑卫生闸。GH runner 行为仍未本机验证（如实标注）。
-- 文档：docs/44、docs/50。
+- 文档：docs/44、历史记录（git 历史）。
 
 ## 未发布 · ComfyUI 用户文档与双语同步（2026-11-01）
 
@@ -199,7 +205,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
   （源码逐字可查）。
 - 真机验证（活宿主）：零权重示例 `/prompt` 跑通（positive 输出、显存不变、无 llama-server），
   并据此修正 3 处文档与实物不一致（启动日志锚点、`models/text_encoders/`、llama-server 告警解释）。
-- Registry 状态调研（docs/52）：节点 Active / latest 0.3.3 但**全部历史版本 Flagged**
+- Registry 状态调研（历史记录（git 历史））：节点 Active / latest 0.3.3 但**全部历史版本 Flagged**
   （Pending Security Review）；`comfy node install` 与网页可装，Manager 需 loopback 或 opt-in；
   处置建议入档，纳入 M4 发布前检查。
 
@@ -210,10 +216,10 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
   收图 → 纯 CPU triage；四段可分步重跑（`--caption/--generate/--score`）。
 - 端到端跑通 **2 个后端**：moss-image（4 步 turbo）与 krea2（NVFP4 turbo）各 4 张源图 =
   8 张生成图；qwen-image-flash（10.9 GB）在宿主 `--lowvram` 下加载超 5 分钟被看门狗判卡死
-  并重启 ComfyUI（失败证据链在 docs/31 §6，**未冒充跑过**）；flux3 / flux1_dev 本机无生成权重，按缺失登记。
+  并重启 ComfyUI（失败证据链在 历史记录（git 历史） §6，**未冒充跑过**）；flux3 / flux1_dev 本机无生成权重，按缺失登记。
 - triage 用**未校准的代理指标**（`calibrated=false / not_for_gating`）：krea2 mean 0.6982 vs
   moss-image 0.6379，只报数、不下质量结论；VQAScore 未跑（缺包/权重/校准）。
-- 观察：图内文字漂移最重（UI 截图重绘大量乱码）、身份次之、构图/调色相对稳。见 docs/31。
+- 观察：图内文字漂移最重（UI 截图重绘大量乱码）、身份次之、构图/调色相对稳。见 历史记录（git 历史）。
 - 公开面：工具链的模型/服务端/源图路径改为 CLI → 环境变量 → 常规查找三级解析，
   不再写死本机路径（单测钉住）。
 
@@ -231,7 +237,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
   与 365 基线仍绿。
 - 🆕 `tools/pitfalls_ab.py` + `tests/test_pitfalls_ab.py`（34 条）：H0/H1、操作化定义、
   预注册判定规则、成对出图与机械判定。
-- 口径：**AI 目检，不是人类**；每条 3 对、2-of-3 只作方向性证据，不写成统计显著。见 docs/30。
+- 口径：**AI 目检，不是人类**；每条 3 对、2-of-3 只作方向性证据，不写成统计显著。见 历史记录（git 历史）。
 
 ## 未发布 · G7 第一轮：20 图 × 2 模型的 binding 账本（2026-11-01）
 
@@ -250,7 +256,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
 - 校准硬要求已执行：10 图机检 vs AI 代理目检 **67/67**；且校准前先修掉 3 处判据定位错误
   （连字符方向词、实体 id 跨子句、落盘顺序），否则会把假失败当结论。
 - 未验证/限制：代理目检不是人类；无 OCR 交叉；数量类样本不足；未做「反推 → 重绘」闭环。
-  见 docs/G7-反推质量-第一轮.md。
+  见 历史记录（git 历史）。
 
 ## 未发布 · 扩写三拆：补全 / 翻译 / 改写各自可判、可关、可归因（2026-11-01）
 
@@ -294,10 +300,10 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
   registry 结构未改。默认（en）输出逐字节不变（freeze 基线绿）。
 - 判据：中英事实集合相等（`fact_surface()` 把中文颜色/方位面归一化回规范词再交给既有 roundtrip）；
   机检 Z01–Z07（英文功能词 / 未译词 / ASCII 标点 / 「的」堆叠 / 句首虚词 / 年龄量词 / 主语起手）+ 反证单测。
-- 人读：10 条中文输出由 Lead 逐条复核签收「无英文语序」（docs/28 §8）。
+- 人读：10 条中文输出由 Lead 逐条复核签收「无英文语序」（历史记录（git 历史） §8）。
 - 明确不支持：`--lang zh --mode llm`（显式报错，不静默降级）；Layout JSON / flux3 bbox / edit 指令 / H3 时间线原样英文 + warning。
 - 测试：新增 `tests/test_lang_zh.py` 20 条。
-- 未验证：母语审校、真实模型出图上中文更好、notes 散文机翻质量（docs/28 §9）。
+- 未验证：母语审校、真实模型出图上中文更好、notes 散文机翻质量（历史记录（git 历史） §9）。
 
 ## 未发布 · 跨模型家族：加一份 YAML 就接进新家族（2026-11-01）
 
@@ -333,7 +339,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
 - 删前逐项复核：代码 30 模块在新包全部有落点（`llm.py` / `vision.py` 变转发、`runtime.py` 有意删除）、
   7 个 targets 一致、schema / examples / fixtures 已迁入包内、旧 4 份文档已被 docs/21–24 吸收、
   旧 335 条测试 → 现 365 条（旧独有 4 条 CUDA 运行时用例已由 `test_llm_subpackage` 覆盖）。
-  唯一未搬运：`tools/run_live.py`（旧 namespace 批处理壳，功能由 CLI + 两个闸覆盖）。见 docs/33。
+  唯一未搬运：`tools/run_live.py`（旧 namespace 批处理壳，功能由 CLI + 两个闸覆盖）。见 历史记录（git 历史）。
 
 ## 未发布 · 短 IR 报「缺哪一维」，不再只说「词不够」（2026-11-01）
 
@@ -369,7 +375,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
 ## 未发布 · 两份实现合流：一个能力一份实现（**节点数仍是 7**）
 
 `moss_llm/smith/` 落地时与父包有五处功能重叠，docstring 里各挂着一句「本版并存，
-下一版二选一」。这一版收敛掉，并把取舍写成可复查的账：`docs/25-两份实现的合流.md`。
+下一版二选一」。这一版收敛掉，并把取舍写成可复查的账：历史记录（git 历史）。
 
 - **侧车只剩一个类**（`moss_llm/server.py:LlamaServer`）。取 A 的 fit / KV 量化 /
   ubatch / parallel / MTP 元数据判定与回退 / mmproj 投影宽度配对；取 B 的 `--help` 探测 /
@@ -411,7 +417,7 @@ G7 第一轮实测的两类系统性缺陷，在 smith 与 ComfyUI 节点两条�
 - **零依赖**：只用标准库（registry 走内置 YAML 子集解析器，图片元数据用标准库读）。
   `moss_llm/__init__.py` 用 `find_spec` 探测，不 import 就不会付 8000 行的加载成本。
 - **未做**：H3 六段式（全参考）、Rewriter LoRA 真跑（基座权重未随包分发）、
-  图像后端的 `--lang zh`。这三条在 `docs/22-smith-ir-路线图.md` 里写了卡点。
+  图像后端的 `--lang zh`。这三条在 历史记录（git 历史） 里写了卡点。
 - 测试：`python tests/test_smith_ir.py` = **347 项**（零 GPU 零网络）；
   确定性输出基线 `python tools/freeze_smith_set.py --check`；
   设计见 `docs/21-smith-ir-架构.md`，用法见 `moss_llm/smith/README.md`。

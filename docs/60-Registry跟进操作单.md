@@ -1,11 +1,11 @@
 # Registry 跟进操作单：moss-storyboard 版本状态
 
-> 2026-11-01。前置：`docs/52-Registry版本状态-flagged.md`（语义、三条安装路径、后端源码证据已查清）。
+> 2026-11-01。前置：历史记录（git 历史）（语义、三条安装路径、后端源码证据已查清）。
 > 本文只做**可持续跟进**：复核当前状态、给决策树、给可直接发送的英文联络稿、给发布前后 24h
 > 清单、给「不要做」清单、把**需要真人账号**的动作单列。**不改 Registry、不发版、不代用户对外
 > 提交任何东西。**
 >
-> 证据分级沿用 `docs/52`：**已验证** = 有公开源码 / 官方文档 / 线上 API 实测或本机可复核证据；
+> 证据分级沿用 历史记录（git 历史）：**已验证** = 有公开源码 / 官方文档 / 线上 API 实测或本机可复核证据；
 > **未验证** = 缺环境或本轮未执行；**查不到** = 公开面没有答案，不猜。
 
 ---
@@ -17,10 +17,10 @@
 | 节点状态 | `NodeStatusActive` | `out/registry_status/20261101-141400/node.json`（已验证，本次实测） |
 | 最新版本 | `0.3.3`，`NodeVersionStatusFlagged` | 同上（已验证） |
 | 历史版本 | 10 个，**10/10 全部 `Flagged`**，没有一个是 `Active` | `versions.json`（已验证） |
-| `status_reason` | 空：**响应里没有这个键**（`docs/52` §1.1 当时记为 `null`，本次实测该键缺失） | `versions.json` / `node.json`（已验证） |
+| `status_reason` | 空：**响应里没有这个键**（历史记录（git 历史） §1.1 当时记为 `null`，本次实测该键缺失） | `versions.json` / `node.json`（已验证） |
 | 安装端点 | `GET /nodes/moss-storyboard/install?version=0.3.3` → HTTP 200，`downloadUrl` 可用 | `install.json`（已验证） |
 | `downloads` | 快照值 17；但**该字段不稳定**：同一节点在 12 秒内 6 次相同请求返回 22/17/16/21/21/16 | 本页 §1.3（已验证「不稳定」；原因**未验证**） |
-| 状态有没有变化 | **没有**：与 `docs/52` 的结论一致，仍是「扫描有发现、等待安全复核」 | 对比 `docs/52` §1.1 |
+| 状态有没有变化 | **没有**：与 历史记录（git 历史） 的结论一致，仍是「扫描有发现、等待安全复核」 | 对比 历史记录（git 历史） §1.1 |
 | 发布闸判定 | `check --expect-latest-active` 退出码 **2（未通过）** | 本页 §1.2（已验证） |
 
 一句话：**状态没变，跟进动作还没开始做**——第一件要人做的事是把 §3 的联络稿发出去
@@ -55,7 +55,7 @@ Active」，并且**没有**把它写成「安全」或「不安全」——这�
 
 ### 1.3 复核时发现：`downloads` 字段不稳定（不要把当证据用）
 
-`docs/52` §1.1 只写了「`downloads` 是动态计数」。本次复核做了更严格的观测：**对同一个节点
+历史记录（git 历史） §1.1 只写了「`downloads` 是动态计数」。本次复核做了更严格的观测：**对同一个节点
 端点连续发相同请求、不碰 install 端点**，2 秒间隔取 6 次：
 
 ```text
@@ -65,8 +65,8 @@ Active」，并且**没有**把它写成「安全」或「不安全」——这�
 - **已验证**：`downloads` 在秒级就会来回跳（**可能**是多副本/缓存或滑动窗口口径——这是推断，
   **未验证**），**不能**当安装量、热度或「有没有人装」的证据。
 - **未验证**：具体口径（多副本缓存？时间窗口？去重？）——公开面没有说明，不猜。
-- 工具输出里照样记录 `downloads`，但都带「动态计数，只作参考」；`docs/52` §1.1 的那句
-  本次也补了实测数字（见 `docs/52` 顶部跟进行）。
+- 工具输出里照样记录 `downloads`，但都带「动态计数，只作参考」；历史记录（git 历史） §1.1 的那句
+  本次也补了实测数字（见 历史记录（git 历史） 顶部跟进行）。
 
 > 影响：§4 清单里**不要**用 `downloads` 增长当作「发布成功」的信号。
 
@@ -84,7 +84,7 @@ python tools/registry_status.py check --expect-latest-active
 │   ├─ 还没有扫描 issues 清单  → 发 §3 的英文联络稿（人工账号执行，见 §6）
 │   ├─ 拿到清单，全部是误报 / 历史遗留
 │   │   └─ 请求 Registry 人工复核（Review Node Versions → Approve → Active）
-│   │      我们侧不改状态、不伪造 status、不重发同版本号（依据 docs/52 §2.5）
+│   │      我们侧不改状态、不伪造 status、不重发同版本号（依据 历史记录（git 历史） §2.5）
 │   ├─ 拿到清单，是真问题（代码 / 打包）
 │   │   └─ 修代码 → 发**新的 patch 版本**（如 0.3.4；同版本号不能覆盖）
 │   └─ 拿到清单但看不懂（只给规则名 / 没有文件行号）
@@ -99,12 +99,12 @@ python tools/registry_status.py check --expect-latest-active
        别据此发任何对外说法，也别据此判断「状态变坏了」
 ```
 
-补充判定边界（都来自 `docs/52`，此处不重复论证）：
+补充判定边界（都来自 历史记录（git 历史），此处不重复论证）：
 
 - `Pending` 与 `Flagged` 在网页上是同一个黄色徽章「Pending Security Review」；但 `Pending`
   通常意味着「刚上传、还没跑完扫描」，`Flagged` 意味着「扫描返回了 issues」——**语义不同**，
-  别混着说（`docs/52` §2.1–2.3 已验证）。
-- 「新发布版本是否自动排队扫描 / 多久扫一次 / 人工复核 SLA」——**查不到**（`docs/52` §5）。
+  别混着说（历史记录（git 历史） §2.1–2.3 已验证）。
+- 「新发布版本是否自动排队扫描 / 多久扫一次 / 人工复核 SLA」——**查不到**（历史记录（git 历史） §5）。
   所以 §5 的 24h 时效是**工程约定**，不是官方承诺。
 
 ---
@@ -158,7 +158,7 @@ Public evidence pointers (all publicly accessible):
 - Install endpoint: https://api.comfy.org/nodes/moss-storyboard/install?version=0.3.3
   (HTTP 200, returns a download URL)
 - The repository above contains a public write-up of the observed semantics in
-  docs/52-Registry版本状态-flagged.md
+  历史记录（git 历史）
 
 I have not modified any Registry state in connection with this request.
 
@@ -191,7 +191,7 @@ Thanks,
 ```
 
 > 判断：这两个草稿**不含**本机路径、用户名、token、内部叙事，也不预设结论；事实部分都能在
-> 公开 API 或本仓 `docs/52` 找到对应行。发送前把中文全角标点替换成英文标点即可。
+> 公开 API 或本仓 历史记录（git 历史） 找到对应行。发送前把中文全角标点替换成英文标点即可。
 
 ---
 
@@ -201,7 +201,7 @@ Thanks,
 
 - [ ] CI 口径全绿（`docs/44` 的清单；不要只跑单测）。
 - [ ] `python tools/registry_status.py snapshot` 留**发布前基线**，记下 latest 版本与状态。
-- [ ] 新版本号在 `versions.json` 里**不存在**（同版本号发布会被拒；`docs/52` §4-3）。
+- [ ] 新版本号在 `versions.json` 里**不存在**（同版本号发布会被拒；历史记录（git 历史） §4-3）。
 - [ ] `pyproject.toml` / `CHANGES.md` / `RELEASE-NOTES.md` 版本号一致。
 - [ ] README / Release notes 里**没有**「已通过安全审核」这类措辞；有 flagged 历史时只写
       「Registry 显示 Pending Security Review」这种事实描述。
@@ -210,17 +210,17 @@ Thanks,
 ### 发布后 0–24h
 
 - [ ] 发布完立刻 `snapshot`，新版本应先是 `Pending`（源码结论：新版本默认 Pending，
-      `docs/52` §2.5 已验证；**是否自动触发扫描未验证**）。
+      历史记录（git 历史） §2.5 已验证；**是否自动触发扫描未验证**）。
 - [ ] 24h 后仍 `Flagged` / `Pending` → 启动 §3 联络稿 + 按 §2 决策树走。
 - [ ] 期间**不要**反复重发同版本号、改元数据或刷状态（见 §5）。
 - [ ] 若 24h 内变 `Active` → 记录快照目录收尾；仍等下一次发布再复用本清单。
-- [ ] 用 `check` 而不是肉眼记数字：记录退出码（0/2/3/4 的含义见 `docs/52` §4 与本文 §7）。
+- [ ] 用 `check` 而不是肉眼记数字：记录退出码（0/2/3/4 的含义见 历史记录（git 历史） §4 与本文 §7）。
 
 ### 用户可见文案（发布公告 / README / Release notes）
 
 - 允许：「Registry 上该版本状态为 Pending Security Review / NodeVersionStatusFlagged」。
 - 允许：说明 loopback 桌面/便携版（`--listen 127.0.0.1`）按 Manager 指引可安装
-  （`docs/52` §3 已验证语义，但**本机未真机复验**）。
+  （历史记录（git 历史） §3 已验证语义，但**本机未真机复验**）。
 - 禁止：「已通过安全审核」「已证明安全」「恶意软件」；也禁止推荐用户常开
   `allow_flagged_nodepack_install`（见 §5）。
 
@@ -231,9 +231,9 @@ Thanks,
 1. **不要**对同一版本号重发 / 改元数据 / 删了重发试图刷状态（Registry 不接受覆盖，
    且这属于骚扰式操作）。
 2. **不要**伪造 `status`、改 Registry 数据、调用 admin 端点；Approve/Reject 只能由
-   Registry 团队执行（`docs/52` §2.5 已验证：admin 复核页是团队侧工具）。
+   Registry 团队执行（历史记录（git 历史） §2.5 已验证：admin 复核页是团队侧工具）。
 3. **不要**用 git 安装 / 直接给 zip 链接来「绕过」，并对外宣称安装问题已解决——那条路径
-   不经过 CNR 检查，跟 Registry 可见性无关（`docs/52` §4-5）。
+   不经过 CNR 检查，跟 Registry 可见性无关（历史记录（git 历史） §4-5）。
 4. **不要**把 `Flagged` 写成「已通过」「已证明安全」，也**不要**写成「恶意软件」——
    网页官方措辞是「Pending Security Review」。
 5. **不要**在 README / 公告里推荐用户常开 `allow_flagged_nodepack_install`，或教用户绕过
@@ -300,14 +300,14 @@ python tools/registry_status.py check --expect-latest-active --json   # 机器�
 
 | 项 | 状态 |
 |---|---|
-| 本次 10 个版本被 flag 的**具体 issues** | **查不到**（公开 API 无 issue 清单；后端只发私有 Discord 安全频道，`docs/52` §2.2） |
+| 本次 10 个版本被 flag 的**具体 issues** | **查不到**（公开 API 无 issue 清单；后端只发私有 Discord 安全频道，历史记录（git 历史） §2.2） |
 | flag 是否会自动过期 / 重扫频率 | 查不到 |
-| 人工复核 SLA / 是否接受发布者申诉 | 查不到（`docs/52` §5 同样结论） |
+| 人工复核 SLA / 是否接受发布者申诉 | 查不到（历史记录（git 历史） §5 同样结论） |
 | 新发布版本是否自动触发扫描 | 未验证（公开代码里扫描由 `GET /security-scan` 驱动，调度器不在公开仓） |
-| Manager 在「全部版本 Flagged」时版本下拉的确切 UI | 未验证（由「版本端点只查 Active+Pending」推断为无可选版本，`docs/52` §2.4） |
+| Manager 在「全部版本 Flagged」时版本下拉的确切 UI | 未验证（由「版本端点只查 Active+Pending」推断为无可选版本，历史记录（git 历史） §2.4） |
 | `downloads` 波动的真实原因 | **未验证**（只确认不稳定：12 秒内 22/17/16/21/21/16） |
-| 本机 `comfy node install` 端到端 | 未验证（与 `docs/52` §5 一致，本任务不安装） |
-| Registry 网页 Install 点击行为 | 未验证（源码已说明只是复制命令，`docs/52` §3） |
+| 本机 `comfy node install` 端到端 | 未验证（与 历史记录（git 历史） §5 一致，本任务不安装） |
+| Registry 网页 Install 点击行为 | 未验证（源码已说明只是复制命令，历史记录（git 历史） §3） |
 
 ---
 
