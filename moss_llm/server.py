@@ -357,7 +357,7 @@ def missing_exe_error():
         "  ② 已有 llama.cpp：节点「服务器程序 / server_exe」填完整路径；\n"
         "     或设环境变量 %s=<路径>；也可以设 LLAMA_CPP_HOME=<解压目录>，或放进 PATH。\n"
         "  ③ 已有 OpenAI 兼容服务（LM Studio / Ollama / llama-swap / 远端）：\n"
-        "     节点「通道 / channel」选「外部 API」，填 api_base（要带 /v1）与模型名；不需要本机二进制。\n"
+        "     节点「通道 / channel」选「外部 API」，填 api_base（--base-url，要带 /v1）与模型名；不需要本机二进制。\n"
         "  命令行等价：python -m moss_llm.smith setup --backend auto\n"
         "  官方构建：https://github.com/ggml-org/llama.cpp/releases" % SERVER_EXE_ENV)
 
