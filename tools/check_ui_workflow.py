@@ -206,7 +206,9 @@ def check_file(path, mappings):
         check("%s(id=%d) 每个 widget 值都在值域内" % (n["type"], n["id"]), not bad, "；".join(bad[:3]))
         pv = dict(zip(names, got, strict=False)).get("panels")
         if "panels" in names:
-            check("%s(id=%d) panels 合理" % (n["type"], n["id"]), pv in (3, 4, 6, 8, 9), str(pv))
+            # 1 = 单图（不切格），端到端矩阵里「1格 无宫格」已真跑过（512×288）；
+            # 3/4/6/8/9 是宫格档位。这里曾只允许 3/4/6/8/9，把单图示例误判成红。
+            check("%s(id=%d) panels 合理" % (n["type"], n["id"]), pv in (1, 3, 4, 6, 8, 9), str(pv))
     check("文件里含本包节点（%d 个）" % ours, ours > 0)
 
     # 注释（MarkdownNote）里**不许出现反引号**。

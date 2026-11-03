@@ -140,16 +140,16 @@ Outputs: a **1024×576** board and four **496×272** panels.
 > **With no save node attached, the image only exists in memory and is gone when the run ends.**
 
 **Step 2 — from a photo to a prompt (optional LLM subpackage).**
-[`examples/llm-caption-to-moss.json`](examples/llm-caption-to-moss.json) reverses an input image into a caption
-prompt plus a `report` (extracted facts, binding warnings, omitted artifacts). It needs the optional `moss_llm/`
-subpackage and either a llama-server (the node can install an official build in one click) or any
-OpenAI-compatible endpoint. It produces **text, not an image** — use it to write the prompt, then feed that
-prompt to the storyboard node.
+[`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json) has three bypassable groups —
+caption / wash / generic expand; only caption is on by default — and writes a prompt plus a `report`
+(extracted facts, binding warnings, omitted artifacts). It needs the optional `moss_llm/` subpackage and either
+a llama-server (the node can install an official build in one click) or any OpenAI-compatible endpoint. It
+produces **text, not an image** — use it to write the prompt, then feed that prompt to the storyboard node.
 
 This node has four jobs — `caption` / `expand` / `edit` / `compile` (see [3.7](#37-the-llm-node-mossromptsmith));
 `compile` runs with **no model at all**, so it also works as the zero-weight smoke test.
 
-**Thirteen examples, one job each**
+**Eleven examples, one job each**
 
 > The table below is checked against the actual files: every `examples/*.json` must be named here and must
 > have the columns below (release gate S18). When a new example lands under `examples/`, it gets a row here
@@ -173,19 +173,17 @@ This node has four jobs — `caption` / `expand` / `edit` / `compile` (see [3.7]
 | `moss-faceswap-single-ui.json` | **one photo** → face swap → image out (no `spec`) | ✅ | one swapped portrait |
 | `moss-pose-generate-ui.json` | reference face + prompt → one posed image (`init=empty`) | ✅ | one posed image |
 | `moss-storyboard-4panels-edit.json` | crop one panel → instruction edit → paste back | ✅ | board with one panel repainted |
-| `llm-caption-to-moss.json` | 🧩 one image → reverse-engineered prompt + report | ✅ | caption prompt + `report` (no image) |
-| `llm-idea-to-storyboard.json` | 🧩 one line → 4-panel board script → straight into the sampler | ✅ | 4-panel board from one line |
-| `llm-wash.json` | 🧩 re-wash: caption (ignoring compression/watermark class defects) → edit → redraw at the same ratio | ✅ | redrawn image + `report` |
-| `llm-idea-to-generic-prompt.json` | 🧩 one line → a prompt for **any** model (Flux / Krea / SDXL / Chinese-native), **text only, no MOSS, no sampler** | ✅ | prompt + `report` (no image) |
+| `llm-prompt-workbench.json` | 🧩 three bypassable groups in one file: caption / wash / generic expand — **text only, any model** | ✅ | prompt + `report` (no image) |
+| `llm-idea-to-image.json` | 🧩 one line → one image (`panels=1`) **or** a 4-panel board; bypass the group you do not need | ✅ | one image or a 4-panel board |
 
-> 🧩 The four marked `moss_llm` use `MossPromptSmith` from the **optional LLM subpackage**
+> 🧩 The three marked `moss_llm` use `MossPromptSmith` from the **optional LLM subpackage**
 > (category `moss/llm`). They are not among the seven core nodes: delete the whole
 > `moss_llm/` directory and the core keeps working. It needs a llama-server
 > (set the node's `runtime` to the update option to install an official build in one click),
 > or the `外部 API` channel against any OpenAI-compatible endpoint.
 > **Both of those reach the network**, once per queued run.
 
-> ⚠ **Four of the thirteen examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
+> ⚠ **Four of the eleven examples carry the host's `LazyCache` node** (`editor-storyboard` / `4panels-ui` /
 > `4panels-edit` / `poster`; the face-swap and pose examples have none) between the LoRA and the sampler. It is **not part of this pack** — it is ComfyUI core
 > (`comfy_extras/nodes_easycache.py`, experimental, filed under `advanced/debug`) and lets the sampler reuse steps.
 > **Bypass it (`Ctrl+B`) or delete it before comparing anything against the numbers on this page** — with it on,
@@ -641,8 +639,9 @@ The optional `moss_llm/` subpackage adds one more node (category `moss/llm`). It
   PE weights are `qwen-research` (non-commercial, internal use only; never bundled).
 - **`report`** lists extracted facts, binding warnings, `must_keep` misses and omitted artifacts. If the model
   returns no usable prompt, the node raises an actionable error instead of passing a JSON blob downstream.
-- **Examples**: `llm-compile-zero-model.json` (no model), `llm-caption-to-moss.json`,
-  `llm-idea-to-storyboard.json`, `llm-wash.json`, `llm-idea-to-generic-prompt.json` (text only, any model).
+- **Examples**: `llm-compile-zero-model.json` (no model), `llm-prompt-workbench.json`
+  (caption / wash / generic expand, three bypassable groups), `llm-idea-to-image.json`
+  (one image or a 4-panel board).
 - Parameters and limits: [docs/20](docs/20-llm-prompt-nodes.md); PE details: [manual §9](docs/19-node-manual.md#9--pe-改写器qwen-image-21实验)。
 
 ## 4 · Code / bugs
@@ -665,7 +664,7 @@ ComfyUI-MOSS-Storyboard/
 ├── v3/                    V3 schema shell
 ├── web/                   frontend extension (zh/en switch + layout editor)
 ├── tests/ tools/          automated checks and dev scripts
-├── examples/              13 user examples (test fixtures live in tests/fixtures/)
+├── examples/              11 user examples (test fixtures live in tests/fixtures/)
 ├── docs/                  mechanisms and measurement records
 └── pyproject.toml         metadata + host version requirement
 ```

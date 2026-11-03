@@ -107,7 +107,7 @@ NOTE_ZERO = """## 第一次打开：零模型编译（MOSS Prompt Smith · task=
 本示例 target=moss-image。改 target 可看 qwen-image-2_1 / krea2 / flux3 / sdxl 的方言差异。
 
 ### 下一步
-- 想用 LLM 反推/扩写：换 llm-caption-to-moss.json / llm-idea-to-storyboard.json，并在节点里选本机 GGUF。
+- 想用 LLM 反推/扩写：换 llm-prompt-workbench.json / llm-idea-to-image.json，并在节点里选本机 GGUF。
 - 想真出图：用 moss-storyboard-4panels-ui.json 等图像示例，需要 MOSS-Image 权重。
 
 > 环境不满足时 report 会说清缺什么；本示例本身不需要任何权重。

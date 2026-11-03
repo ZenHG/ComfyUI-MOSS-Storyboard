@@ -132,15 +132,15 @@
 > **没接任何保存节点 = 图只在内存里，跑完就没了。**
 
 **第 2 步 —— 从一张照片到提示词（可选 LLM 子包）。**
-[`examples/llm-caption-to-moss.json`](examples/llm-caption-to-moss.json) 把输入图反推成提示词 +
-`report`（取证事实、绑定告警、被忽略的缺陷类）。它需要可选的 `moss_llm/` 子包，以及 llama-server
-（节点里可一键装官方构建）或任意 OpenAI 兼容端点。它产出的是**文本不是图** —— 先用它写提示词，
-再把提示词喂给故事板节点。
+[`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json) 一个文件三组（反推 / 洗图 / 通用扩写），
+默认只开反推，其余组 Ctrl+B 旁路；输出提示词 + `report`（取证事实、绑定告警、被忽略的缺陷类）。它需要可选的
+`moss_llm/` 子包，以及 llama-server（节点里可一键装官方构建）或任意 OpenAI 兼容端点。它产出的是**文本不是图**
+—— 先用它写提示词，再把提示词喂给故事板节点。
 
 这个节点有四件活：`caption` / `expand` / `edit` / `compile`（见 [3.7](#37-llm-节点mossromptsmith)）；
 其中 `compile` **完全不加载模型**，所以它也是零权重的冒烟测试。
 
-**十三份示例，各管一件事**
+**十一份示例，各管一件事**
 
 > 下表与**实际文件**核对：每个 `examples/*.json` 都必须在这里被点名，且带下面三列（发布闸 S18 会查）。
 > 以后新增示例，在同一个 PR 里补一行。
@@ -163,17 +163,15 @@
 | `moss-faceswap-single-ui.json` | **单张照片** → 换脸 → 整张出（不接 `spec`） | ✅ | 一张换脸后的人像 |
 | `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图（`init=empty`） | ✅ | 一张带指定动作的图 |
 | `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 | ✅ | 只重画了一格的整张 |
-| `llm-caption-to-moss.json` | 🧩 一张图 → 反推出成品提示词 + report | ✅ | 提示词 + `report`（不出图） |
-| `llm-idea-to-storyboard.json` | 🧩 一句话 → 4 格宫格稿 → 直接进采样器出图 | ✅ | 一句话变 4 格整张 |
-| `llm-wash.json` | 🧩 洗图：反推（忽略压缩/水印类缺陷）→ 改词 → 同比例重绘 | ✅ | 重绘后的图 + `report` |
-| `llm-idea-to-generic-prompt.json` | 🧩 一句话 → **任意模型**可用提示词（Flux / Krea / SDXL / 中文模型），**纯文本、不接 MOSS、不接采样器** | ✅ | 提示词 + `report`（不出图） |
+| `llm-prompt-workbench.json` | 🧩 一个文件三组（反推 / 洗图 / 通用扩写），**纯文本、任意模型**；未用组 Ctrl+B 旁路 | ✅ | 提示词 + `report`（不出图） |
+| `llm-idea-to-image.json` | 🧩 一句话 → **单图**（`panels=1`）或 **4 格故事板**，两组按需旁路 | ✅ | 一张单图或 4 格整张 |
 
-> 🧩 标 `moss_llm` 的四份用**可选 LLM 子包**的 `MossPromptSmith`（分类 `moss/llm`）。
+> 🧩 标 `moss_llm` 的三份用**可选 LLM 子包**的 `MossPromptSmith`（分类 `moss/llm`）。
 > 它不属于上面那七个核心节点：删掉 `moss_llm/` 整个目录，核心照常工作。
 > 它需要一个 llama-server（节点里把「runtime」选成「更新到最新版」可一键装官方构建），
 > 或改走「外部 API」通道接任何 OpenAI 兼容端点。**这两份能力会联网**，只在你排队时发生一次。
 
-> ⚠ **十三份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
+> ⚠ **十一份示例里有四份带宿主的 `LazyCache` 节点**（`editor-storyboard` / `4panels-ui` / `4panels-edit` /
 > `poster`；换脸与姿态示例没有），夹在 LoRA 与采样器之间。它**不是本包的节点**，是 ComfyUI 自带
 > （`comfy_extras/nodes_easycache.py`，实验性，分类 `advanced/debug`），作用是让采样器复用部分步。
 > **要跟本页的数字对得上，先 `Ctrl+B` 旁路或删掉它** —— 开着它，采样器跑的不是本页数字测的那份活。
@@ -598,8 +596,8 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
   节点在 `expand` / `edit` 时改用该原生 prompt。PE 权重是 `qwen-research`（**非商用、仅内部**，不随包分发）。
 - **`report`** 列取证事实、绑定告警、`must_keep` 缺失与被忽略的伪影；模型没给出可用提示词时，节点抛可操作错误，
   不再把 JSON 当提示词往下传。
-- **示例**：`llm-compile-zero-model.json`（零模型）、`llm-caption-to-moss.json`、`llm-idea-to-storyboard.json`、
-  `llm-wash.json`、`llm-idea-to-generic-prompt.json`（纯文本、任意模型）。
+- **示例**：`llm-compile-zero-model.json`（零模型）、`llm-prompt-workbench.json`
+  （反推 / 洗图 / 通用扩写三组）、`llm-idea-to-image.json`（单图或 4 格故事板）。
 - 参数与边界见 [docs/20](docs/20-llm-prompt-nodes.md)；PE 细节见 [手册 §9](docs/19-node-manual.md#9--pe-改写器qwen-image-21实验)。
 
 ## 4 · 改代码 / 报 bug
@@ -622,7 +620,7 @@ ComfyUI-MOSS-Storyboard/
 ├── v3/                    V3 接口外壳
 ├── web/                   前端扩展（中英切换 + 布局编辑器）
 ├── tests/ tools/          自动机检与开发脚本
-├── examples/              13 份用户示例（机检夹具在 tests/fixtures/）
+├── examples/              11 份用户示例（机检夹具在 tests/fixtures/）
 ├── docs/                  机理与实测记录
 └── pyproject.toml         元数据 + 宿主版本要求
 ```

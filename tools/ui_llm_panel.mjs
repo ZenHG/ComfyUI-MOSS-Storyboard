@@ -43,8 +43,8 @@ const clickChip = async (key) => {
 };
 
 await boot(page, URL_);
-const wf = JSON.parse(readFileSync(join(ROOT, "examples", "llm-wash.json"), "utf8"));
-check("载入 examples/llm-wash.json", (await loadGraph(page, wf)).ok);
+const wf = JSON.parse(readFileSync(join(ROOT, "examples", "llm-prompt-workbench.json"), "utf8"));
+check("载入 examples/llm-prompt-workbench.json", (await loadGraph(page, wf)).ok);
 await page.waitForTimeout(2500);
 const loaded = await where();
 check("面板已挂载（DOM 组件行）", loaded && loaded[0] && loaded[0].mounted, JSON.stringify(loaded));
@@ -263,16 +263,20 @@ check("指针离开参数区 ⇒ 说明行回到摘要（不留最后一条 tool
 
 // —— (f) 不伤及别人：两个同型节点各自独立 ——
 const two = await page.evaluate(async () => {
+    const before = app.graph.nodes.filter((x) => x.type === "MossPromptSmith").length;
     const n = LiteGraph.createNode("MossPromptSmith");
     app.graph.add(n); n.pos = [820, 60];
     await new Promise((r) => setTimeout(r, 2200));
     const all = app.graph.nodes.filter((x) => x.type === "MossPromptSmith");
-    return all.map((m) => ({ id: m.id, mounted: !!(m.__mossllmBar && m.__mossllmBar.nodeType),
-        widgets: m.widgets.length, values: (m.serialize().widgets_values || []).length,
-        hidden: m.widgets.filter((w) => w.options && w.options.hidden).length }));
+    const fresh = all.find((m) => m.id === n.id);
+    return { before, after: all.length, fresh: fresh && {
+        mounted: !!(fresh.__mossllmBar && fresh.__mossllmBar.nodeType),
+        widgets: fresh.widgets.length, values: (fresh.serialize().widgets_values || []).length,
+        hidden: fresh.widgets.filter((w) => w.options && w.options.hidden).length } };
 });
-check("两个同型节点各自挂载、各自 39 格存档、各自 34 项隐藏", two.length === 2
-    && two.every((t) => t.mounted && t.widgets === 40 && t.values === 39 && t.hidden === 34), JSON.stringify(two));
+check("新加的同型节点独立挂载、39 格存档、34 项隐藏（不干扰已有节点）",
+    two.after === two.before + 1 && two.fresh && two.fresh.mounted && two.fresh.widgets === 40
+    && two.fresh.values === 39 && two.fresh.hidden === 34, JSON.stringify(two));
 
 // 接了线的参数不许藏：**造真机条件**——PrimitiveNode 连一根真链到 ctx_size 的输入槽。
 //

@@ -24,7 +24,7 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "## 第一次打开：零模型编译（MOSS Prompt Smith · task=compile）\n\n**不用下模型、不占显存、按 Run 就有输出。** 这是最快的「装好了吗」自检：\n\n### 怎么跑\n1. 拖进画布 → 直接按 **Run**（队列里秒出，通常几十毫秒量级）。\n2. 看右侧两个预览：\n   - 「提示词」= 编译结果；\n   - 「report」= 这次编译改了什么（方言 / 长度 / 丢弃项）。\n\n### 它是什么\n左上「📝 文字输入」里是一段 **IR（JSON）**；节点把 IR 编译成 **target** 选的图像后端提示词。\n本示例 target=moss-image。改 target 可看 qwen-image-2_1 / krea2 / flux3 / sdxl 的方言差异。\n\n### 下一步\n- 想用 LLM 反推/扩写：换 llm-caption-to-moss.json / llm-idea-to-storyboard.json，并在节点里选本机 GGUF。\n- 想真出图：用 moss-storyboard-4panels-ui.json 等图像示例，需要 MOSS-Image 权重。\n\n> 环境不满足时 report 会说清缺什么；本示例本身不需要任何权重。\n"
+    "## 第一次打开：零模型编译（MOSS Prompt Smith · task=compile）\n\n**不用下模型、不占显存、按 Run 就有输出。** 这是最快的「装好了吗」自检：\n\n### 怎么跑\n1. 拖进画布 → 直接按 **Run**（队列里秒出，通常几十毫秒量级）。\n2. 看右侧两个预览：\n   - 「提示词」= 编译结果；\n   - 「report」= 这次编译改了什么（方言 / 长度 / 丢弃项）。\n\n### 它是什么\n左上「📝 文字输入」里是一段 **IR（JSON）**；节点把 IR 编译成 **target** 选的图像后端提示词。\n本示例 target=moss-image。改 target 可看 qwen-image-2_1 / krea2 / flux3 / sdxl 的方言差异。\n\n### 下一步\n- 想用 LLM 反推/扩写：换 llm-prompt-workbench.json / llm-idea-to-image.json，并在节点里选本机 GGUF。\n- 想真出图：用 moss-storyboard-4panels-ui.json 等图像示例，需要 MOSS-Image 权重。\n\n> 环境不满足时 report 会说清缺什么；本示例本身不需要任何权重。\n"
    ],
    "title": "这是什么 · 怎么跑"
   },

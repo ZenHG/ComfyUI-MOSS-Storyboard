@@ -158,7 +158,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 | V3 外壳 | `moss_llm/v3_shells.py`（+ `v3/entrypoint.py` 追加注册，装载失败不拖核心） |
 | 纯函数测试 | `tests/test_llm_subpackage.py` |
 | 示例生成器 | `tools/make_llm_examples.py`（槽位序取 `check_ui_workflow.expected_widgets`，与门禁同源） |
-| 示例 | `examples/llm-caption-to-moss.json` · `llm-idea-to-storyboard.json` · `llm-wash.json` |
+| 示例 | `examples/llm-prompt-workbench.json` · `llm-idea-to-image.json` · `llm-compile-zero-model.json` |
 | 参数面板（前端） | `web/moss_llm_panel.js`（开关条置顶 + 默认只露常驻 5 项 + 单组视图 + 「已改」点；只改显隐，按内容调高度，不碰 `widgets_values`） |
 | 面板真机闸 | `tools/ui_llm_panel.mjs`（要活宿主；截图落 `docs/_local/`） |
 | 运行时落点 | `moss_llm/runtime/`（已进 `.gitignore`，几百 MB 二进制不入库、不进发布包） |
