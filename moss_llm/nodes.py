@@ -133,6 +133,46 @@ def _scan_gguf():
     return models, mmprojs
 
 
+def _looks_like_pe_system(text: str) -> bool:
+    """内容像不像 Qwen-Image 2.1 PE 改写器的原生 system prompt。
+
+    只认两个强特征，避免把同目录随便一个 txt 当 system prompt：
+    `Image Prompt Rewriting Expert`，或同时出现 `rewritten_prompt` 与 `wh_ratio`。
+    """
+    low = (text or "").casefold()
+    return ("image prompt rewriting expert" in low
+            or ("rewritten_prompt" in low and "wh_ratio" in low))
+
+
+def _pe_system_prompt(model_path):
+    """找模型目录里自带的 PE 原生 system prompt。
+
+    顺序：`<dir>/system_prompt.txt`、`<dir>/<stem>.system_prompt.txt`。
+    找到文件但内容不像 PE 时继续看下一个候选；没有命中返回 ("", "")。
+    """
+    if not model_path:
+        return "", ""
+    p = Path(model_path)
+    for cand in (p.parent / "system_prompt.txt",
+                 p.parent / (p.stem + ".system_prompt.txt")):
+        if not cand.is_file():
+            continue
+        try:
+            text = cand.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if _looks_like_pe_system(text):
+            return text, str(cand)
+    return "", ""
+
+
+def _pe_system_for(task, model_path):
+    """PE 模式只在 expand 任务启用；caption/edit/compile 一律不启用。"""
+    if task != "expand":
+        return "", ""
+    return _pe_system_prompt(model_path)
+
+
 #: mmproj 配对与 GGUF 头部读取都在 `server.py` —— 侧车启动时要用同一套判据，
 #: 放在节点层会让「节点能配上、编译器配不上」这种错配无处暴露。
 #: `_text_width` / `_proj_width` / `_pair_key` / `_check_pair` / `_resolve_mmproj`
@@ -367,11 +407,29 @@ class MossPromptSmith:
         if dialect == "moss_storyboard" and not 2 <= int(panels) <= 9:
             raise ValueError("宫格数 panels=%s 超出 2–9。" % panels)
 
+        # PE 改写器模式：在 _build_system 之前先看模型目录自带没有原生 prompt。
+        # model_path 必须在本地通道最前面解析（下面启动侧车也用它），不能等 _build_system 之后。
+        pe_text, pe_path = "", ""
+        model_path = ""
+        models, mmprojs = {}, {}
+        if channel == "local":
+            models, mmprojs = _scan_gguf()
+            model_path = models.get(model, "")
+            if not model_path or not Path(model_path).is_file():
+                raise ValueError("模型不存在或未选中：%r。请在下拉里选一个存在的 GGUF" % (model,))
+            pe_text, pe_path = _pe_system_for(task, model_path)
+
         pack = load_pack(_PROMPTS_DIR)
         report.append("提示词包 %s v%s（%s，%d 个文件）"
                       % (pack["pack"], pack["version"], pack["updated"], len(pack["files"])))
-        system = self._build_system(pack, task, dialect, length, panels, style_lock,
-                                    must_keep, wash, two_pass, language)
+        pe_mode = bool(task == "expand" and pe_text)
+        if pe_mode:
+            system = pe_text
+            report.append("PE 改写器模式：system prompt 来自 %s（Qwen-Image 2.1 PE）；"
+                          "长度带与 must_keep 判据不适用" % pe_path)
+        else:
+            system = self._build_system(pack, task, dialect, length, panels, style_lock,
+                                        must_keep, wash, two_pass, language)
         user = (text or "").strip()
 
         if channel == "api":
@@ -451,8 +509,9 @@ class MossPromptSmith:
             if n not in report:
                 report.append(n)
 
-        checks = self._checks(prompt, obj if isinstance(obj, dict) else None,
-                              task, dialect, panels, must_keep)
+        checks = [] if pe_mode else self._checks(
+            prompt, obj if isinstance(obj, dict) else None,
+            task, dialect, panels, must_keep)
         if self._img_notes:
             report.extend("图像预处理：" + n for n in self._img_notes)
         if self._json_unsupported:

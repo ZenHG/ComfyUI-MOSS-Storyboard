@@ -1,6 +1,12 @@
 # CHANGES
 
 ## 未发布 · 口径更正与反推占位符修复（2026-11-03）
+- 🆕 **PE 改写器模式（实验）**：`MossPromptSmith` 的 `task=expand` 在模型同目录发现
+  `system_prompt.txt` / `<stem>.system_prompt.txt` 且内容像 Qwen-Image 2.1 PE 时，改用原生
+  system prompt（不调用 `_build_system`），report 明说「PE 改写器模式…长度带与 must_keep 判据不适用」；
+  `caption`/`edit`/`compile` 不启用，默认行为不变。PE 权重为 `qwen-research` **非商用、仅内部使用**，
+  权重与 system prompt 均不提交/不分发。
+
 
 - 🆕 **扩写空输出不再静默**：实测注入输入会得到 `{"rewritten_prompt": ""}` 空壳，旧逻辑在取不到正文时
   用 `json.dumps(obj)` 兜底，节点「成功」返回一串 JSON 当提示词。现在 `_pick_prompt()` 返回空串，

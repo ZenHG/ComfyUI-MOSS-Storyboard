@@ -502,6 +502,43 @@ def main():
             else:
                 os.environ["MOSS_LLM_SERVER"] = old
 
+    print("\n== PE 改写器模式（模型目录自带 system_prompt.txt） ==")
+    import tempfile as _tf
+    pe_text = ("You are an Image Prompt Rewriting Expert.\\n"
+               "Return JSON with fields rewritten_prompt and wh_ratio.")
+    with _tf.TemporaryDirectory() as td:
+        gguf = Path(td) / "pe_t2i_heretic-Q4_K_M.gguf"
+        gguf.write_bytes(b"x")
+        (Path(td) / "system_prompt.txt").write_text(pe_text, encoding="utf-8")
+        got, path = nodes._pe_system_prompt(str(gguf))
+        check("PE：pe_t2i 模型同目录 system_prompt.txt 命中", got == pe_text and path.endswith("system_prompt.txt"))
+
+        renamed = Path(td) / "some_other_model.gguf"
+        renamed.write_bytes(b"x")
+        got2, _ = nodes._pe_system_prompt(str(renamed))
+        check("PE：模型改名后仍按内容命中", got2 == pe_text)
+
+        (Path(td) / "system_prompt.txt").write_text("just a normal note", encoding="utf-8")
+        got3, path3 = nodes._pe_system_prompt(str(gguf))
+        check("PE：普通 txt 不像 PE 时不命中", got3 == "" and path3 == "")
+
+        (Path(td) / "system_prompt.txt").unlink()
+        got4, path4 = nodes._pe_system_prompt(str(gguf))
+        check("PE：没有 system_prompt.txt 时不命中", got4 == "" and path4 == "")
+
+        (Path(td) / "system_prompt.txt").write_text(pe_text, encoding="utf-8")
+        got5, _ = nodes._pe_system_for("expand", str(gguf))
+        got6, _ = nodes._pe_system_for("caption", str(gguf))
+        check("PE：expand 启用、caption 不启用", got5 == pe_text and got6 == "")
+
+        (Path(td) / "pe_t2i_heretic-Q4_K_M.system_prompt.txt").write_text(pe_text, encoding="utf-8")
+        (Path(td) / "system_prompt.txt").unlink()
+        got7, path7 = nodes._pe_system_prompt(str(gguf))
+        check("PE：<stem>.system_prompt.txt 命名命中", got7 == pe_text and path7.endswith(".system_prompt.txt"))
+
+    got_pick = nodes._pick_prompt({"rewritten_prompt": "x", "wh_ratio": "3:2"})
+    check("PE JSON：_pick_prompt 取到 rewritten_prompt", got_pick == "x", got_pick)
+
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     for f in FAIL:
         print("  - " + f)
