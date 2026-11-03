@@ -312,9 +312,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: 取宿主（钉版本；clone 到 runner 临时目录，避免复制自包含）
-        run: git clone --depth 1 --branch ${{ matrix.comfy }} https://github.com/comfyanonymous/ComfyUI.git "$RUNNER_TEMP/comfyui"
+        run: git clone --depth 1 --branch ${{ matrix.comfy }} https://github.com/comfyanonymous/ComfyUI.git "$COMFYUI_PATH"
       - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install --disable-pip-version-check -r "$RUNNER_TEMP/comfyui/requirements.txt"
+      - run: pip install --disable-pip-version-check -r "$COMFYUI_PATH/requirements.txt"
       - name: 放真实副本进 custom_nodes（check_ui_workflow 按 __file__ 找 custom_nodes 祖先；软链会 resolve 回 workspace）
         run: |
           mkdir -p "$MOSSSB_PATH"
@@ -322,8 +322,8 @@ jobs:
           rm -rf "$MOSSSB_PATH/.git"
       - name: 占位 GGUF（只让模型下拉在无权重 runner 上可复现；不加载、不出图）
         run: |
-          mkdir -p "$RUNNER_TEMP/comfyui/models/LLM/GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF"
-          : > "$RUNNER_TEMP/comfyui/models/LLM/GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+          mkdir -p "$COMFYUI_PATH/models/LLM/GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF"
+          : > "$COMFYUI_PATH/models/LLM/GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
       - name: "[阻塞] 自加载 + 纯节点冒烟（CPU 可确定判定）"
         working-directory: ${{ env.MOSSSB_PATH }}
         run: python tools/smoke_nodes.py
@@ -332,7 +332,7 @@ jobs:
         run: python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json
       - name: "[阻塞] 干净副本独立装载（make_dist --verify，16 项）"
         env:
-          PYTHONPATH: ${{ runner.temp }}/comfyui
+          PYTHONPATH: ${{ env.COMFYUI_PATH }}
         run: python tools/make_dist.py --out "$RUNNER_TEMP/moss-dist-host" --verify
       # 🔴 CUDA 豁免（step 级）：CPU runner 上 ComfyUI 在 import 期就会断言 CUDA
       #    （`Torch not compiled with CUDA enabled`），这一步**必然失败**且与本包无关。
@@ -357,16 +357,16 @@ jobs:
           python-version: "3.11"
       - name: 取宿主（钉 v0.43.2；Windows 侧只验 CPU 可判定子集）
         shell: pwsh
-        run: git clone --depth 1 --branch v0.43.2 https://github.com/comfyanonymous/ComfyUI.git "$env:RUNNER_TEMP\comfyui"
+        run: git clone --depth 1 --branch v0.43.2 https://github.com/comfyanonymous/ComfyUI.git "$env:COMFYUI_PATH"
       - run: pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install --disable-pip-version-check -r "$env:RUNNER_TEMP\comfyui\requirements.txt"
+      - run: pip install --disable-pip-version-check -r "$env:COMFYUI_PATH\requirements.txt"
       - name: 放副本 + 占位 GGUF（宿主在 workspace 外，复制不会自包含）
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:MOSSSB_PATH" | Out-Null
           Get-ChildItem -Force "$env:GITHUB_WORKSPACE" | Copy-Item -Destination "$env:MOSSSB_PATH" -Recurse -Force
           Remove-Item -Recurse -Force "$env:MOSSSB_PATH\.git" -ErrorAction SilentlyContinue
-          $m = "$env:RUNNER_TEMP\comfyui\models\LLM\GGUF\Qwen\Qwen3-VL-4B-Instruct-GGUF"
+          $m = "$env:COMFYUI_PATH\models\LLM\GGUF\Qwen\Qwen3-VL-4B-Instruct-GGUF"
           New-Item -ItemType Directory -Force -Path $m | Out-Null
           New-Item -ItemType File -Force -Path "$m\Qwen3VL-4B-Instruct-Q4_K_M.gguf" | Out-Null
       - name: "[阻塞] 纯节点冒烟"
