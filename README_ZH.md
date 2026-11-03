@@ -9,13 +9,17 @@
 - **故事板** —— 一张画布分成 3 / 4 / 6 / 8 / 9 格，每格一段描述，同时把每格裁出来。
 - **局部编辑** —— 只改一格、或把一张脸换进一格；改完贴回，其它格逐像素不动。
 
+**最快上手：** Manager 安装 → 把三个权重文件放进 [1.1](#11-装什么) 的目录 → 把
+[`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json) 拖进 ComfyUI 按 Run。
+不用 `pip install`，不用改配置。（还没有权重？`llm-compile-zero-model.json` 零权重就能跑。）
+
 > 🔴 **先记这一句：画布上的框是参考，不是坐标。**
 > 框会变成一句带坐标的文字进提示词，模型自己决定画在哪——会画偏、画大、把两个框揉在一起，也可能完全不理。
 > 细节与实测见 [1.6](#16-框只是参考能改变什么不能改变什么)。
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.3.3** |
+| 版本 | **0.4.0** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（原生支持 MOSS-Image 自 PR #17095 起） |
 | 依赖 | 核心**零**额外 pip 依赖（`torch` / `comfy*` 由宿主提供）。换脸节点的自动蒙版可选装 `insightface` + `onnxruntime`，不装也能跑 |
@@ -69,7 +73,9 @@
 | `flux2-vae.safetensors` | ✅ | `models/vae/` |
 | 额外 pip 包 | ❌ | 无（换脸自动蒙版可选 `insightface` + `onnxruntime`） |
 
-权重**不随包分发**。下载地址与目录名以官方教程为准：<https://docs.comfy.org/tutorials/image/moss-image/moss-image>。
+权重**不随包分发**。从官方教程下载这三个文件：<https://docs.comfy.org/tutorials/image/moss-image/moss-image>
+（下载链接与文件名都在那一页），按上表的 `放哪` 目录放好，然后**重启 ComfyUI** —— 加载器只认启动时已存在的文件。
+可选的蒸馏 LoRA（任意 `*.safetensors`）放 `<ComfyUI>/models/loras/`；首图不需要它。
 
 **4 步蒸馏 LoRA 是可选的，也不属于本包。** 三份故事板示例里预置了它、默认**旁路**；海报示例没有 LoRA；
 **换脸与姿态示例的两个 LoRA 是生效的** —— 它们本身就是那两条配方的组成部分（[3.5](#35-换脸--蒙版局部编辑)）。
@@ -589,12 +595,16 @@ MOSS 官方模板、KJ 的布局节点、本包，三者都是这一套。
 | `edit`（编辑指令） | 一张图 + 要改什么 | 编辑指令 |
 | `compile`（编译） | 一段 IR（JSON/YAML） | 编译后提示词 + 编辑器 state —— **不加载模型，毫秒级** |
 
-- **通道**：`local` 起 llama-server 侧车，用你选的 GGUF（递归扫描 `models/LLM` 与 `models/text_encoders`；
-  节点可一键装官方运行时）；`api` 走任意 OpenAI 兼容端点——该通道会把文字与图片**联网外发**。
+- **通道**：`local` 起 llama-server 侧车，用你选的 GGUF；`api` 走任意 OpenAI 兼容端点——该通道会把文字与图片
+  **联网外发**。
+- **权重（只对 local）**：`compile` **不需要**权重，`api` 也不需要。GGUF 放 `<ComfyUI>/models/LLM/` 或
+  `<ComfyUI>/models/text_encoders/` 下任意子目录（两处都会递归扫描）。`caption` / `edit` 要视觉模型 **+** 它的
+  `mmproj` 文件（放同一目录，在 `mmproj` 下拉里选它）；`expand` 只要文本模型。节点可一键装 llama-server
+  （`runtime` → 更新到最新版），或用 `server_exe` 指现有程序。
 - **方言**：`moss_image`、`moss_storyboard`、通用 Flux / Krea / SDXL 目标，以及中文原生模型用的 `cn_natural`；
   `compile` 按目标后端渲染 IR。
-- **PE 改写器（实验）**：把 Qwen-Image 2.1 PE-T2I / PE-I2I 的 GGUF 与它自带的 `system_prompt.txt` 放同一目录，
-  节点在 `expand` / `edit` 时改用该原生 prompt。PE 权重是 `qwen-research`（**非商用、仅内部**，不随包分发）。
+- **PE 改写器（实验）**：把 Qwen-Image 2.1 PE-T2I / PE-I2I 的 GGUF 与它自带的 `system_prompt.txt` 放在扫描根下
+  的**同一目录**，节点在 `expand` / `edit` 时改用该原生 prompt。PE 权重是 `qwen-research`（**非商用、仅内部**，不随包分发）。
 - **`report`** 列取证事实、绑定告警、`must_keep` 缺失与被忽略的伪影；模型没给出可用提示词时，节点抛可操作错误，
   不再把 JSON 当提示词往下传。
 - **示例**：`llm-compile-zero-model.json`（零模型）、`llm-prompt-workbench.json`

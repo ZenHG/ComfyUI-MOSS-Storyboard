@@ -19,6 +19,34 @@
 
 ---
 
+## 0.4.0 — 2026-11-03
+
+**新增可选 LLM 提示词节点（`LLM Prompt`），故事板包不再只做故事板。**
+
+- 一个节点四种任务：反推（图→提示词）、扩写（一句话→提示词）、编辑指令（图+改法）、编译（IR→提示词，不加载模型）。
+- 不绑定 MOSS-Image：输出方言覆盖 Flux / Krea / SDXL / 中文模型；本地 GGUF 或任意 OpenAI 兼容端点都行。
+- 本地权重放 `<ComfyUI>/models/LLM/`（或 `models/text_encoders/`）下任意子目录；反推/编辑要视觉模型 + `mmproj`，扩写只要文本模型。
+- 实验性 PE 改写器：Qwen-Image 2.1 PE-T2I / PE-I2I 的 GGUF 与 `system_prompt.txt` 放同一目录即可启用；权重为非商用许可，不随包分发。
+- 三个 LLM 示例：零模型编译、提示词工作台（反推 / 洗图 / 通用扩写）、单图或 4 格故事板。
+- 节点显示名改为 `LLM Prompt`，分类改为 `LLM`；类型 id 不变，旧工作流照常打开。
+- 文档收敛到 12 篇用户向页面；权重放置路径写进安装章。
+
+**升级动作**：无需改旧工作流；想用 LLM 节点时，装 llama-server（节点里一键）或填 API 端点。
+
+<!-- EN -->
+
+**New optional LLM prompt node (`LLM Prompt`) — the pack is no longer storyboard-only.**
+
+- One node, four tasks: caption (image → prompt), expand (one line → prompt), edit (image + change → instruction), compile (IR → prompt, no model loaded).
+- Not tied to MOSS-Image: output dialects cover Flux / Krea / SDXL / Chinese-native models; use a local GGUF or any OpenAI-compatible endpoint.
+- Local weights go anywhere under `<ComfyUI>/models/LLM/` (or `models/text_encoders/`); caption/edit need a vision model plus its `mmproj`, expand needs a text model only.
+- Experimental PE rewriters: Qwen-Image 2.1 PE-T2I / PE-I2I GGUF with its own `system_prompt.txt` in the same folder; those weights are non-commercial and never bundled.
+- Three LLM examples: zero-model compile, prompt workbench (caption / wash / generic expand), and single image or a 4-panel board.
+- The node is now `LLM Prompt` (category `LLM`); its type id is unchanged, so existing workflows keep working.
+- Docs trimmed to 12 user-facing pages; weight placement is spelled out in the install section.
+
+**Action required**: existing workflows need no changes. To use the LLM node, install llama-server (one click in the node) or set an API endpoint.
+
 ## 0.3.3 — 2026-10-30
 
 **画布手感 + 导入导出**，节点数仍是 7，模型侧只改两个默认值。

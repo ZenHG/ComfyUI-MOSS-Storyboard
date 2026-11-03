@@ -9,6 +9,10 @@
 - **Storyboard** — one canvas split into 3 / 4 / 6 / 8 / 9 panels, one caption per panel, one crop per panel.
 - **Local edit** — fix a single panel, or put a reference face into one panel, then paste it back. Every other panel stays pixel-identical.
 
+**Fastest path:** install from Manager → copy the three weight files into the folders in [1.1](#11-what-to-install)
+→ drag [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json) into ComfyUI and
+press Run. No `pip install`, no config files. (No weights yet? `llm-compile-zero-model.json` runs without any.)
+
 > 🔴 **Remember one thing: a box on the canvas is a hint, not a coordinate.**
 > A box becomes one line of text holding coordinates and goes into the prompt; the model decides where to draw.
 > It can overshoot, drift, merge two boxes into one, or ignore them entirely.
@@ -16,7 +20,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.3.3** |
+| Version | **0.4.0** |
 | License | **MIT** (credits in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support landed in PR #17095) |
 | Dependencies | **Zero** extra pip dependencies beyond the host-provided `torch` / `comfy*`. Face Swap's auto mask optionally uses `insightface` + `onnxruntime` — the pack runs without them |
@@ -70,8 +74,10 @@ Full table and finer usage: [manual §0](docs/19-node-manual.md#0-术语一个�
 | `flux2-vae.safetensors` | ✅ | `models/vae/` |
 | pip packages | ❌ | none (optional `insightface` + `onnxruntime` for Face Swap's auto mask) |
 
-Weights are **not** bundled. For download links and exact folder names, follow the official tutorial:
-<https://docs.comfy.org/tutorials/image/moss-image/moss-image>.
+Weights are **not** bundled. Download the three files from the official tutorial
+<https://docs.comfy.org/tutorials/image/moss-image/moss-image> (it lists the download links and file names),
+copy them into the `Where` folders above, then **restart ComfyUI** — loaders only list files that existed at startup.
+An optional distilled LoRA (any `*.safetensors`) goes into `<ComfyUI>/models/loras/`; it is not needed for the first image.
 
 **The 4-step distilled LoRA is optional and not part of this pack.** The three storyboard examples ship with
 it **bypassed**; the poster example has no LoRA; **the face-swap and pose examples have both LoRAs active** —
@@ -630,14 +636,18 @@ Chinese-native models, and `compile` can target any registered backend. Pick the
 | `edit` | an image + what to change | an editing instruction |
 | `compile` | an IR (JSON/YAML) | compiled prompt + editor state — **no model, milliseconds** |
 
-- **Channel**: `local` starts a llama-server sidecar for a GGUF you pick (scanned recursively from
-  `models/LLM` and `models/text_encoders`; the node can install the official runtime) or `api` calls any
-  OpenAI-compatible endpoint — that route sends your text and image over the network.
+- **Channel**: `local` starts a llama-server sidecar for a GGUF you pick, or `api` calls any OpenAI-compatible
+  endpoint — that route sends your text and image over the network.
+- **Weights (local only)**: `compile` needs **none**, and `api` needs none either. Put GGUF files anywhere under
+  `<ComfyUI>/models/LLM/` or `<ComfyUI>/models/text_encoders/` (both are scanned recursively). `caption` / `edit`
+  need a vision model **plus** its `mmproj` file — keep the `mmproj` in the same folder and pick it in the `mmproj`
+  widget; `expand` needs a text model only. The node can install llama-server in one click (`runtime` → update)
+  or use an existing binary (`server_exe`).
 - **Dialects**: `moss_image`, `moss_storyboard`, the generic Flux / Krea / SDXL targets, and `cn_natural`
   for Chinese-native models; `compile` renders an IR for the selected backend.
 - **PE rewriters (experimental)**: Qwen-Image 2.1 PE-T2I / PE-I2I GGUF with the model's own
-  `system_prompt.txt` in the same folder — the node then uses that native prompt for `expand` / `edit`.
-  PE weights are `qwen-research` (non-commercial, internal use only; never bundled).
+  `system_prompt.txt` in the same folder under the scan roots — the node then uses that native prompt for
+  `expand` / `edit`. PE weights are `qwen-research` (non-commercial, internal use only; never bundled).
 - **`report`** lists extracted facts, binding warnings, `must_keep` misses and omitted artifacts. If the model
   returns no usable prompt, the node raises an actionable error instead of passing a JSON blob downstream.
 - **Examples**: `llm-compile-zero-model.json` (no model), `llm-prompt-workbench.json`
