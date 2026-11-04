@@ -143,6 +143,7 @@ const I18N = {
         inertHint: "编译模式：%d 项本次不生效",
         selfCheck: "零模型自检：任务选「编译」",
         fetchTip: "用当前 api_base 与 Key 拉模型清单，灌进这个下拉",
+        fetched: "已拉到 %d 个模型，可直接下拉换",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
         },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
@@ -156,6 +157,7 @@ const I18N = {
         inertHint: "Compile: %d controls have no effect",
         selfCheck: "No-weight check: set task=compile",
         fetchTip: "Fetch models for this api_base + key into this dropdown",
+        fetched: "%d models loaded — pick from the dropdown",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
         },
 };
@@ -514,6 +516,7 @@ async function fetchModels(node, st) {
     if (!base) {
         // 空端点就点「拉取」是静默空转 —— 必须说清缺哪一项。
         pick.err = t().needBase;
+        pick.note = "";
         pick.btn.dataset.bad = "1";
         apply(node);
         return;
@@ -532,11 +535,13 @@ async function fetchModels(node, st) {
         setModelChoices(node, d.models);
         pick.err = null;
         delete pick.btn.dataset.bad;
-        // 只有一个模型且 api_model 还空着 ⇒ 直接填上；多个不替用户选。
-        if (!apiVal(node, "api_model") && d.models.length === 1) setModel(node, d.models[0]);
+        // 拉完必须看得见：空着就选中第一个（否则屏幕上除了下拉内部什么都没变）。
+        if (!apiVal(node, "api_model") && d.models.length) setModel(node, d.models[0]);
+        pick.note = fmt(t().fetched, d.models.length);
     } catch (e) {
         // 失败必须留下痕迹：按钮变红、说明行常驻原因（不靠会过期的一闪而过）。
         pick.err = t().fetchFail + "：" + String((e && e.message) || e).split("\n")[0];
+        pick.note = "";
         pick.btn.dataset.bad = "1";
         console.warn("%s: 拉取模型失败", TAG, e);
     } finally {
@@ -579,7 +584,7 @@ function pinPicker(node, st) {
             fetchModels(node, st);
         };
         box.append(btn);
-        st.pick = { box, btn, err: null, autoDone: false };
+        st.pick = { box, btn, err: null, note: "", autoDone: false };
     }
     if (st.pick.box.parentElement !== row) row.appendChild(st.pick.box);
     st.pick.btn.title = t().fetchTip;
@@ -663,6 +668,7 @@ function paintBar(node, st, shown, off, meta) {
     // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
     let summary = fmt(L.count, all, all - hidden);
     if (st.pick && st.pick.err) summary += "｜" + st.pick.err.slice(0, 70);
+    else if (st.pick && st.pick.note) summary += "｜" + st.pick.note;
     if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);
     else if (meta && !meta.compile && meta.task === "caption" && meta.ch === CH_LOCAL) {
         summary += "｜" + L.selfCheck;

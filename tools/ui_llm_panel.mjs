@@ -544,6 +544,8 @@ const combo = await page.evaluate(async () => {
         .map((e) => e.textContent.trim()).filter(Boolean);
     document.body.click();
     await new Promise((r) => setTimeout(r, 200));
+    const okValue = W("api_model").value;
+    const okHint = (grid.querySelector(".mossllm-hint") || {}).textContent || "";
 
     // 失败路径：清空选项后重拉，必须标红且说明行留字
     w.options.values = [""];
@@ -552,13 +554,17 @@ const combo = await page.evaluate(async () => {
     pick.querySelector("button").click();
     await new Promise((r) => setTimeout(r, 1000));
     const bad = row.querySelector(".mossllm-pick button");
-    return { typeIsCombo, pick: true, values, opts,
+    return { typeIsCombo, pick: true, values, opts, value: okValue, okHint,
         bad: (bad && bad.dataset.bad) || "",
         hint: (grid.querySelector(".mossllm-hint") || {}).textContent || "" };
 });
 check("api_model 是原生 combo（不是手填输入框）", combo.typeIsCombo, JSON.stringify(combo).slice(0, 100));
 check("拉取后下拉里真能选到模型", combo.pick && combo.values.includes("model-a")
-    && combo.opts.includes("model-a") && combo.opts.includes("model-b"), JSON.stringify(combo.opts || combo.values));
+    && combo.opts.includes("model-a") && combo.opts.includes("model-b"),
+    JSON.stringify(combo.opts || combo.values));
+check("拉取后控件里立刻看得见模型名（不是只有下拉内部变了）",
+    combo.value === "model-a" && /2/.test(combo.okHint || ""),
+    JSON.stringify({ v: combo.value, h: combo.okHint }));
 check("拉取失败留得下痕迹（按钮标红 + 说明行点名原因）", combo.bad === "1"
     && combo.hint.includes("401"), JSON.stringify(combo.hint.slice(-40)));
 
