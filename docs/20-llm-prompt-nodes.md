@@ -41,6 +41,35 @@ MossPromptSmith
 | 外部 API | `channel=外部 API`：任何 OpenAI 兼容端点（OpenAI / 火山方舟 / 智谱 / Kimi / MiniMax / DeepSeek / Ollama / LM Studio…）。不起侧车、不占显存。Key 两处来源：直接填 `api_key`（会随 JSON 分享出去，report 会警告），或放在宿主进程环境变量 `MOSS_LLM_API_KEY` 里（界面不提供变量名那一栏，免得让用户背目录/环境知识；旧工作流里存过的自定义变量名仍然生效）。`api_base` 决定线格式（四种，都不用选旋钮）：`/anthropic` → `/v1/messages` + `x-api-key`；`generativelanguage.googleapis.com` 或 `/v1beta` → `models/<model>:generateContent` + `x-goog-api-key`；`/responses` → OpenAI Responses 线格式（`instructions` + `input` + `max_output_tokens`）；其余 → `/chat/completions`。Azure 主机（`*.openai.azure.com`）自动改用 `api-key` 头，带 `?api-version=` 的端点也不会被拼坏。出站带 `User-Agent` 并声明 `Accept-Encoding: identity` —— urllib 默认 UA 会被 Cloudflare 一类网关拦成 403/1010；opencode 的 Go 网关另外要求 `x-opencode-session`（缺了直接 400 `MissingSessionID`），已按主机自动带上稳定会话 id；其它网关要的自定义头用环境变量 `MOSS_LLM_EXTRA_HEADERS='{"x-foo":"bar"}'` 补（不进工作流、不进存档）；本地端点（含 `127.0.0.0/8`、`*.localhost`、`host.docker.internal`）显式绕开系统代理。面板的「↻」用当前端点 + Key 拉清单：从端点那层逐级上溯试 `/models` 与 `/v1/models`（并发、命中即停），所以清单挂在上一层也能找到；拉取中按钮转圈并在说明行计时，拉完自动展开下拉；换 `api_base` 会立刻清掉上一批模型名。`api_model` 是 combo，清单只来自实际拉取（进程重启即空），旧工作流里的自定义值由 `VALIDATE_INPUTS`（V1 出口）/ `validate_inputs`（V3 出口）放行、并自动补进选项 |
 | 提示词包 | 12 个自写文件（MIT），方法与出处逐条记在 manifest。MOSS 两个方言只是其中两项 |
 
+### 已实测的 `api_base`（2026-11-05，无 Key 探测状态码）
+
+不是推荐列表，只是「这样填能连上」的证据。401 = 路径与线格式都对、只差凭据；403 若是地区/风控，
+报错里会明说「不是 Key 错」。
+
+| 服务商 | `api_base` | 探测结果 |
+|---|---|---|
+| DeepSeek | `https://api.deepseek.com/v1` | 401 |
+| 火山方舟 | `https://ark.cn-beijing.volces.com/api/v3` | 401 |
+| 智谱 GLM | `https://open.bigmodel.cn/api/paas/v4` | 401 |
+| Kimi | `https://api.moonshot.cn/v1` | 401 |
+| 阿里百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 401 |
+| 腾讯混元 | `https://api.hunyuan.cloud.tencent.com/v1` | 401 |
+| 百度千帆 | `https://qianfan.baidubce.com/v2` | 403（要 IAM Bearer token） |
+| MiniMax | `https://api.minimax.chat/v1` | 401 |
+| 硅基流动 | `https://api.siliconflow.cn/v1` | 401 |
+| 阶跃星辰 | `https://api.stepfun.com/v1` | 401 |
+| 魔搭 ModelScope | `https://api-inference.modelscope.cn/v1` | **200（清单公开）** |
+| OpenRouter | `https://openrouter.ai/api/v1` | **200（清单公开）** |
+| OpenDesign CoRouter | `https://amr-link.open-design.ai/v1` | 401（标准 OpenAI 网关） |
+| OpenCode | `https://opencode.ai/inference/go/openai/v1` | 401；自动带 `x-opencode-session` |
+| Ollama 云 | `https://ollama.com/v1` | **200（清单公开）** |
+| Ollama 本地 | `http://127.0.0.1:11434/v1` | 需本机 `ollama serve`；Key 留空 |
+| LM Studio | `http://127.0.0.1:1234/v1` | 需在 LM Studio 里开 Server；Key 留空 |
+
+⚠️ **`api_base` 要写到 `/v1` 这一层**：Ollama / LM Studio 若只填 `http://127.0.0.1:11434`，
+请求会落到 `/chat/completions` 而不是 `/v1/chat/completions`（404）。
+Ollama 的原生 `/api/chat` 与云端的 `/api/tags` 不在这条线格式内，本节点不走它们。
+
 ## 三、透明与不静默（本仓一贯口径）
 
 - **report 回显** pack 版本 + 每个提示词文件的 sha256 前 8 位 + tokens + 耗时 + 是否降级。

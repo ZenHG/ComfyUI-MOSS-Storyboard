@@ -1250,12 +1250,17 @@ _REGION_403 = re.compile(r"country|region|territory|not allowed|error code: 1009
                          r"cf-error|cloudflare|access denied", re.I)
 
 
-def _http_hint(code, body):
+def _http_hint(code, body, url=""):
     """HTTP 错误 → 追加一句人话。拿不准就不说（返回空串），不硬猜。"""
     text = body or ""
     if code == 403 and (_REGION_403.search(text) or text.lstrip().startswith("<")):
         return ("\n    这不是 Key 错：该服务商按出口地区 / 风控拒绝了此请求。"
                 "换一条能直连该地区的网络（或代理出口），或换服务商。")
+    # 404 且路径里没有版本段：多半是把主机根当成了端点（Ollama / LM Studio 的经典填法）。
+    path = urllib.parse.urlsplit(url or "").path
+    if code == 404 and path and not re.search(r"/v\d", path):
+        return ("\n    路径不对：OpenAI 兼容端点一般在 `/v1` 下 —— "
+                "把 api_base 写成 `http://主机:端口/v1`（Ollama 是 `http://127.0.0.1:11434/v1`）。")
     return ""
 
 
@@ -1277,7 +1282,7 @@ def _post(endpoint, payload, key=None):
             raise _Http400(body or "(无 body)") from e
         raise RuntimeError("服务端返回 HTTP %s（%s）：%s%s"
                            % (e.code, urllib.parse.urlsplit(endpoint).netloc,
-                              body or "(无 body)", _http_hint(e.code, body))) from e
+                              body or "(无 body)", _http_hint(e.code, body, endpoint))) from e
     except Exception as e:
         raise RuntimeError("请求失败（%s，请求体 %.1f MB）：%r\n%s"
                            % (urllib.parse.urlsplit(endpoint).netloc,

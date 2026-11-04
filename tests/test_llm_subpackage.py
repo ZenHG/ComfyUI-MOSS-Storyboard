@@ -761,6 +761,12 @@ def main():
           "风控" in nodes._http_hint(403, "<!DOCTYPE html><title>403 Forbidden</title>"), "没提示")
     check("凭据无效的 403 不乱加话（novita: INVALID_API_KEY）",
           nodes._http_hint(403, '{"code":403,"reason":"INVALID_API_KEY"}') == "", "乱加了")
+    check("把主机根当端点（无 /v1）的 404 会被点明路径",
+          "/v1" in nodes._http_hint(404, "404 page not found", "http://127.0.0.1:11434/chat/completions"),
+          "没提示")
+    check("路径含 /v1 的 404（模型不存在）不冒充路径问题",
+          nodes._http_hint(404, "Model not found", "https://api.fireworks.ai/inference/v1/chat/completions") == "",
+          "乱加了")
     check("401 / 400 不加地区提示（避免误导）",
           nodes._http_hint(401, "country not supported") == ""
           and nodes._http_hint(400, "region") == "", "串了")
