@@ -202,7 +202,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 | 常驻 (`core`) | `task` `channel` `dialect` `model` `text`（+ `image` 口与两条输出） | 常显，不给折叠 |
 | 常用调优 (`tune`) | `length` `temperature` `max_tokens` `seed`(+控制项) `language` `thinking` `panels` `style_lock` `must_keep` `wash` `two_pass` | 收起，一次点开 |
 | 本地引擎 · llama.cpp (`local`) | `mmproj` `runtime` `ctx_size` `gpu_layers` `cache_type_k/v` `flash_attn` `image_max_tokens` `ubatch` `parallel` `fit_on` `fit_target_mib` `mtp` `mtp_draft_n` `server_exe` `port` `release_after_run` | 收起；`channel` 不是「本地 GGUF」时 chip 标「通道外」 |
-| 外部 API (`api`) | `api_base` `api_model` `api_key` `api_key_env` | 收起；切到外部通道时自动展开 |
+| 外部 API (`api`) | `api_base` `api_model` `api_key` | 收起；切到外部通道时自动展开 |
 
 四条实测依据（前端 1.57.6 / 本机宿主 **Vue 节点模式**，都写进代码头注）：
 
@@ -223,15 +223,26 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 不静默兜底：拿不到显隐 API 或挂不上那一行 ⇒ **什么都不藏**并 `console.warn`；表里没写的新参数
 一律归「其它」常显；`channel` 取值认不出来 ⇒ 停用通道标记（宁可多显示，不可藏错）。
 
+**通道只有一个事实（`channel`），但不需要人肉同步**（2026-11-05 实测事故：填好端点与模型、
+通道还停在本地，运行时报「找不到 llama-server」）：
+
+- 填 `api_base` / 手填 `api_model` / 点 `↻` 拉到清单 ⇒ 面板把 `channel` **拨到「外部 API」**并说一句；
+  打开「端点已填、通道还写本地」的旧存档 ⇒ 对齐一次（`adoptApiIntent`，每节点只做一次）。
+- 之后手动切回「本地 GGUF」= 显式选择，**不再抢**；此时开关条上常驻一条琥珀色状态块
+  「⚠ 端点已填，但通道=本地 —— 本次走本地模型」，点它一键改道（端点与模型名原样保留）。
+- 运行期不猜：仍然只认 `channel`；本地分支若发现 `api_base` 已填，在 report 里点名，
+  且本机没有 llama-server 时把「你想用的应该是 API」放在报错第一句。
+
 已知代价（不装成优点）：点「全部展开」时，参数顺序决定标题仍会出现 3 次「本地引擎」（组被切断），
 这是存档契约换来的；单组视图下不会出现。
 
-真机闸：`node tools/ui_llm_panel.mjs` = **60/0**（只读界面、不排队）。断言含：默认 5 行 /
+真机闸：`node tools/ui_llm_panel.mjs` = **65/0**（只读界面、不排队）。断言含：默认 5 行 /
 开关条在参数上方且是 `widgets[0]`（**重开后也自愈回首位**）/ 悬停换说明时开关条高度与参数 top 都不动（不抖）/
 节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 38 个 `isWidgetVisible` /
 **存盘→重开 `widgets_values` 逐位一致** / 折叠状态不进存档 / 两个同型节点各自独立 /
 只作用于本节点 / 页面无 JS 异常 / **按 `task` 动态常驻**（compile 提 `target`、给 3 个 inert
-控件加文字标注）/ api 工作流冷载入自动聚焦 / 切组焦点保护 / **拉取模型有可见进度、拉完自己展开下拉、换端点不留旧模型名**。
+控件加文字标注）/ api 工作流冷载入自动聚焦 / 切组焦点保护 / **拉取模型有可见进度、拉完自己展开下拉、换端点不留旧模型名** /
+**填端点即切通道、通道=本地时状态块显眼且可一键改道、旧存档打开自动对齐**。
 「已连线的 widget 槽」已用 PrimitiveNode 真拖线覆盖（4 条断言，无 skip），`isLinked` 不再是「防一手」。
 
 ## 八、同一层的另一件事：`moss_llm.smith`（IR 编译层）

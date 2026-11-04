@@ -20,6 +20,18 @@ class _LlmShell(io.ComfyNode):
         return schema_from_v1(cls._V1_CLS)
 
     @classmethod
+    def validate_inputs(cls, api_model=None):
+        """`api_model` 不按下拉列表校验。
+
+        清单是运行时拉来的，进程重启就空；用户手填服务商给的 id（或旧存档里的值）不该被判非法。
+        `nodes.py` 的 V1 出口靠 `VALIDATE_INPUTS` 做到这点，V3 出口走 `validate_inputs` 且
+        **不继承** V1 那份 —— 漏了它就只能「先点 ↻ 拉到清单」才能运行，实测报
+        `value_not_in_list: api_model: 'xxx' not in ['']`。
+        只声明这一个参数：其余输入的范围/类型校验照旧（写 **kwargs 会整片关掉）。
+        """
+        return True
+
+    @classmethod
     def execute(cls, **kwargs) -> io.NodeOutput:
         return call_class(cls._V1_CLS, kwargs)
 

@@ -100,6 +100,14 @@ const CSS = `
 .mossllm-chip[data-state="open"]{border-color:var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222)}
 .mossllm-chip[data-state="closed"]{color:var(--descrip-text,#999)}
 .mossllm-chip[data-state="outside"]{color:var(--descrip-text,#999);opacity:.65}
+/* 「端点已填，但通道=本地」：这不是提示语，是当前状态 —— 用琥珀色块钉在开关条上，
+   而不是缩成摘要里的一小段灰字（实测那样等于没看见）。点它即可切到外部 API。 */
+.mossllm-warn{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:2px 8px;
+ border-radius:7px;border:1px solid #b8860b;background:rgba(217,164,65,.16);color:#e8b64c;
+ font:600 11px/1.5 system-ui,sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;
+ text-overflow:ellipsis}
+.mossllm-warn[hidden]{display:none}
+.mossllm-warn:hover{background:rgba(217,164,65,.28)}
 .mossllm-caret{width:9px;opacity:.55;font-size:11px;line-height:1}
 .mossllm-count{opacity:.55;font-variant-numeric:tabular-nums}
 .mossllm-dot{display:none;width:6px;height:6px;margin-left:2px;border-radius:50%;
@@ -149,6 +157,13 @@ const I18N = {
         fetched: "已拉到 %d 个模型，可直接下拉换",
         fetching: "拉模型清单中… %ds",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
+        switched: "通道已切到外部 API",
+        apiIdle: "⚠ 端点已填，但通道=本地 —— 本次走本地模型",
+        apiIdleFix: "点此改用 API",
+        apiIdleTip: "api_base 已填，但「通道 / channel」还是本地 GGUF：本次运行会去找本机 llama-server，"
+            + "端点不生效。点这一个提示，就把通道切到「外部 API」（端点与模型名都已填好）。"
+            + "想保留本地就无视它 —— 通道=本地 是显式选择，节点不会替你改。",
+        chanAuto: "已按已填的端点切到「外部 API」",
         },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
         other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
@@ -164,6 +179,13 @@ const I18N = {
         fetched: "%d models loaded — pick from the dropdown",
         fetching: "Fetching model list… %ds",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
+        switched: "channel switched to external API",
+        apiIdle: "Endpoint filled but channel=local — this run uses local",
+        apiIdleFix: "Click to use the API",
+        apiIdleTip: "api_base is filled but the channel is still Local GGUF: this run will look for a local"
+            + " llama-server and the endpoint will be ignored. Click this badge to switch the channel to"
+            + " External API. Keep local on purpose? Ignore it — the channel is respected, never overridden.",
+        chanAuto: "Channel switched to External API (endpoint filled)",
         },
 };
 let T = null;
@@ -493,6 +515,19 @@ function setModel(node, id) {
 }
 
 /**
+ * 把「通道」拨到 API。点「↻ 拉模型」本身就是「我要用这个 API」的明确动作：
+ * 拉完仍停在「本地 GGUF」，下次运行就会去找 llama-server（实测踩过）。
+ */
+function setChannel(node, v) {
+    const w = widgetOf(node, "channel");
+    if (!w || chanOf(String(w.value)) === v) return false;
+    w.value = v;
+    try { w.callback?.(v); } catch (e) { /* 老前端没有 callback */ }
+    app?.graph?.setDirtyCanvas?.(true, true);
+    return true;
+}
+
+/**
  * 把拉到的模型灌进 `api_model` 这个 combo 的选项。
  * 直接改 `options.values` 宿主不重画（实测下拉仍是旧列表），必须把同一个 widget
  * 在同索引 splice 一次触发响应式；位置不变 ⇒ 存档格数与顺序不受影响。
@@ -554,9 +589,11 @@ async function fetchModels(node, st) {
         setModelChoices(node, d.models);
         pick.err = null;
         delete pick.btn.dataset.bad;
+        // 拉成功 = 用这个 API。通道还停在本地就顺手拨过去，否则下次运行又去找 llama-server。
+        const switched = setChannel(node, CH_API);
         // 拉完必须看得见：空着就选中第一个（否则屏幕上除了下拉内部什么都没变）。
         if (!apiVal(node, "api_model") && d.models.length) setModel(node, d.models[0]);
-        pick.note = fmt(t().fetched, d.models.length);
+        pick.note = fmt(t().fetched, d.models.length) + (switched ? "｜" + t().switched : "");
         pick.autoOpen = true;
         pick.btn.title = t().fetchTip + (d.url ? "\n" + d.url : "");
     } catch (e) {
@@ -625,6 +662,30 @@ function ensureModelValue(node) {
     }
 }
 
+/**
+ * 载入存档后的通道对齐：旧存档里「端点填着、通道还写本地」是踩坑态（运行时会去找本地 LLM）。
+ * 对齐只做一次 —— 之后用户手动切回本地就是显式选择，不再抢。
+ *
+ * 为什么放在 apply 而不是 onConfigure：宿主把 `widgets_values` 灌进 widgets 的时机晚于
+ * onConfigure（实测：在那里读 api_base 还是空串），只能等值真的出现。
+ */
+function adoptApiIntent(node, st) {
+    if (st.chanAligned || !apiVal(node, "api_base").trim()) return;
+    st.chanAligned = true;
+    if (chanOf(apiVal(node, "channel")) !== CH_API && setChannel(node, CH_API)) {
+        noteOnce(node, st, t().chanAuto);
+    }
+}
+
+/** 一次性说明：把状态的改变说出来，但不能一直占着摘要行（8s 后自己收）。 */
+function noteOnce(node, st, text) {
+    st.note = text;
+    clearTimeout(st.noteTimer);
+    st.noteTimer = setTimeout(() => {
+        if (st.note === text) { st.note = ""; apply(node); }
+    }, 8000);
+}
+
 /** 把「↻ 拉取」贴在 api_model 行右端；宿主重建行元素后自愈。 */
 function pinPicker(node, st) {
     const row = rowOf(node, "api_model");
@@ -689,7 +750,18 @@ function buildBar(node, st) {
     const hintRow = document.createElement("div");
     hintRow.className = "mossllm-hintrow";
     hintRow.append(st.hint, st.langSlot);
-    bar.append(st.btn, hintRow);
+    st.warn = document.createElement("span");
+    st.warn.className = "mossllm-warn";
+    st.warn.hidden = true;
+    st.warn.onclick = (e) => {
+        e.stopPropagation();
+        // 一键修复：把通道拨到外部 API（端点/模型名原样保留）。用户显式选本地时不会被这个按钮碰到。
+        if (setChannel(node, CH_API)) {
+            noteOnce(node, st, t().chanAuto);
+            applySoon(node);
+        }
+    };
+    bar.append(st.warn, st.btn, hintRow);
     return bar;
 }
 
@@ -721,11 +793,22 @@ function paintBar(node, st, shown, off, meta) {
     st.btn.textContent = st.force ? L.back : L.expand;
     st.btn.title = st.force ? L.backTip : fmt(L.expandTip, hidden);
 
+    // 状态条：端点填了、通道却停在本地 —— 此刻的状态必须一眼看见（摘要里的灰字实测等于没写）。
+    const idle = chanOf(apiVal(node, "channel")) !== CH_API && !!apiVal(node, "api_base").trim();
+    if (st.warn) {
+        st.warn.hidden = !idle;
+        if (idle) {
+            st.warn.textContent = L.apiIdle + " · " + L.apiIdleFix;
+            st.warn.title = L.apiIdleTip;
+        }
+    }
+
     // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
     let summary = fmt(L.count, all, all - hidden);
     if (st.pick && st.pick.err) summary += "｜" + st.pick.err.slice(0, 70);
     else if (st.pick && st.pick.busy) summary += "｜" + st.pick.busy;
     else if (st.pick && st.pick.note) summary += "｜" + st.pick.note;
+    else if (st.note) summary += "｜" + st.note;
     if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);
     else if (meta && !meta.compile && meta.task === "caption" && meta.ch === CH_LOCAL) {
         summary += "｜" + L.selfCheck;
@@ -787,6 +870,7 @@ function apply(node) {
         st.barH = barH;
         st.fitted = false;
     }
+    adoptApiIntent(node, st);
     const meta = plan(node, st);
     const { shown, off, inert } = meta;
     const changed = syncWidgets(node, shown);
@@ -866,14 +950,27 @@ function mount(node) {
         };
     }
     // 换端点 ⇒ 上一批模型名立刻作废。等 1.5s 兜底轮询太慢，更像"没反应"。
+    // 同一处顺手把通道拨过去：填了端点 = 要用这个 API（踩过的坑：填完直接跑，去本地找 llama-server）。
     const bw = widgetOf(node, "api_base");
     if (bw) {
         const orig = bw.callback;
         bw.callback = function (...args) {
             const r = orig ? orig.apply(this, args) : undefined;
+            if (String(args[0] == null ? "" : args[0]).trim()) setChannel(node, CH_API);
             applySoon(node);
             return r;
         };
+    }
+    // 手输模型名（不走 ↻ 拉取）同样是"我要用这个 API"。
+    const mw = widgetOf(node, "api_model");
+    if (mw && !mw.__mossChanHooked) {
+        const orig = mw.callback;
+        mw.callback = function (...args) {
+            const r = orig ? orig.apply(this, args) : undefined;
+            if (String(args[0] == null ? "" : args[0]).trim()) setChannel(node, CH_API);
+            return r;
+        };
+        mw.__mossChanHooked = true;
     }
     const oc = node.onConfigure;
     node.onConfigure = function (...args) {

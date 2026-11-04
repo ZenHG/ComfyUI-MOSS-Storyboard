@@ -49,6 +49,7 @@ from .server import (MMPROJ_AUTO as _MMPROJ_AUTO,  # noqa: F401
                      MMPROJ_NONE as _MMPROJ_NONE,
                      GgufLocalServer,
                      check_mmproj_pair as _check_pair,
+                     find_server_exe,
                      gguf_metadata,
                      gguf_proj_width as _proj_width,
                      gguf_text_width as _text_width,
@@ -484,6 +485,10 @@ class MossPromptSmith:
             who = "外部 API %s｜model=%s｜Key：%s" % (_host_of(endpoint), api_model, key_src)
             report.append("通道：外部 API（联网外发图片与文字，不起侧车、不占显存）")
         else:
+            if (api_base or "").strip():
+                # 只出声、不改道：通道是用户的显式选择。把「为什么还去找本地」说在运行结果里。
+                report.append("⚠ 通道=本地 GGUF，但 api_base 已填（%s）⇒ 本次用本地模型，端点不生效；"
+                              "要用外部 API 请把「通道」切到「外部 API」" % _host_of(api_base))
             if runtime == "update":
                 from . import runtime_install      # 只在真要装时才 import（CLI 也用它）
                 dest = runtime_install.RUNTIME_DIR
@@ -521,6 +526,12 @@ class MossPromptSmith:
             if image is not None and not mmproj_path and mmproj != _MMPROJ_NONE:
                 report.append(_VISION_HINT)
 
+            if (api_base or "").strip() and runtime != "update" and not find_server_exe(server_exe):
+                raise RuntimeError(
+                    "「通道」= 本地 GGUF，但本机没有 llama-server；而你已填 api_base=%s\n"
+                    "    ⇒ 想用这个 API：把「通道」选成「外部 API」即可（端点与模型名都填好了，不用重填）。\n"
+                    "    ⇒ 想跑本地：把「运行时」设为「更新到最新版」一键装，或在「服务器程序」填完整路径。"
+                    % (api_base or "").strip())
             base_url, notes = GgufLocalServer.acquire(
                 model_path, mmproj_path, ctx_size=int(ctx_size), gpu_layers=gpu_layers,
                 cache_type_k=cache_type_k, cache_type_v=cache_type_v,

@@ -593,6 +593,80 @@ check("换 api_base 后旧模型名不残留（只留当前选中值）",
 check("拉取失败留得下痕迹（按钮标红 + 说明行点名原因）", combo.bad === "1"
     && combo.hint.includes("401"), JSON.stringify(combo.hint.slice(-40)));
 
+// —— 通道与端点的一致性：填端点即切通道；显式切回本地则状态块必须显眼、可一键改道 ——
+const autoChan = await page.evaluate(async () => {
+    const n = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
+    const W = (name) => n.widgets.find((x) => x.name === name);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cw = W("channel");
+    cw.value = "local";
+    if (cw.callback) cw.callback("local");
+    await wait(200);
+    const bw = W("api_base");
+    bw.value = "https://auto.example.com/v1";
+    if (bw.callback) bw.callback(bw.value);      // 真实输入走 callback，纯赋值不走
+    await wait(400);
+    return String(W("channel").value);
+});
+check("填端点即把通道拨到外部 API（不用记得还有第二个开关）",
+    autoChan === "api", autoChan);
+
+const idle = await page.evaluate(async () => {
+    const n = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
+    const W = (name) => n.widgets.find((x) => x.name === name);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    W("api_base").value = "https://api.example.com/v1";
+    W("api_model").value = "model-a";
+    const cw = W("channel");
+    cw.value = "local";
+    if (cw.callback) cw.callback("local");       // 用户显式切回本地 ⇒ 不抢，但要说明
+    await wait(1900);
+    const grid = () => document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const badge = grid().querySelector(".mossllm-warn");
+    const shown = !!badge && !badge.hidden;
+    const out = { shown, text: shown ? badge.textContent : "",
+                  tip: shown ? badge.title : "" };
+    if (shown) badge.click();
+    await wait(500);
+    out.chanAfter = String(W("channel").value);
+    out.hiddenAfter = !badge || badge.hidden;
+    return out;
+});
+check("端点已填 + 通道=本地 ⇒ 开关条上有显眼状态块（不是摘要里的灰字）",
+    idle.shown && /端点已填/.test(idle.text) && idle.text.length > 10,
+    JSON.stringify({ shown: idle.shown, text: idle.text }));
+check("状态块带完整说明（点它会发生什么、不想用 API 怎么办）",
+    /llama-server/.test(idle.tip) && /通道/.test(idle.tip), idle.tip.slice(0, 40));
+check("点状态块即切到外部 API（一键修复，端点与模型名原样保留）",
+    idle.chanAfter === "api" && idle.hiddenAfter,
+    JSON.stringify({ chan: idle.chanAfter, hidden: idle.hiddenAfter }));
+
+// 用户真实踩过的存档形态：端点填着、通道还写本地。**用新页面载入**（复现「打开工作流」），
+// 断言面板把它对齐到外部 API 并说明一句 —— 这里不 serialize，避免把宿主内部的 Map 结构带进来。
+const page2 = await browser.newPage({ viewport: { width: 1500, height: 1500 } });
+await boot(page2, URL_);
+const wf2 = JSON.parse(readFileSync(join(ROOT, "examples", "llm-prompt-workbench.json"), "utf8"));
+const smith2 = wf2.nodes.find((x) => x.type === "MossPromptSmith");
+smith2.widgets_values[1] = "local";
+smith2.widgets_values[19] = "https://api.example.com/v1";
+smith2.widgets_values[20] = "model-a";
+const adopted = await page2.evaluate(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    await wait(200);
+    return true;
+});
+await loadGraph(page2, wf2);
+await page2.waitForTimeout(3000);
+const adopt = await page2.evaluate(() => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    return { ch: String(n.widgets.find((x) => x.name === "channel").value),
+             hint: grid ? ((grid.querySelector(".mossllm-hint") || {}).textContent || "") : "" };
+});
+await page2.close();
+check("打开「端点已填、通道还写本地」的存档 ⇒ 自动对齐到外部 API，并在摘要里说一句",
+    adopt.ch === "api" && /外部 API|External API/.test(adopt.hint), JSON.stringify(adopt));
+
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();
 await browser.close();
