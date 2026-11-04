@@ -38,7 +38,7 @@ MossPromptSmith
 | MTP | 读 GGUF 元数据 `*.nextn_predict_layers` 的**取值**（不看文件名）。默认 `draft-mtp d=2`；**DFlash 不用**（对 MOSS target 接受率实测 10–31%） |
 | 运行时 | 找的顺序：`server_exe` 参数 > 环境变量 `MOSS_LLM_SERVER` > `moss_llm/runtime/` > PATH。**不扫别的节点包的 runtime**（那是把别人的目录结构写成本包的隐性依赖） |
 | 一键更新 | `runtime` 选「更新到最新版」→ 从官方 release 的 `b<build>` 里挑本机可用的包：先探后端（N 卡→CUDA 且不超驱动版本；AMD Windows→Vulkan、Linux→ROCm；Intel→Vulkan；Apple→Metal；认不出→CPU），再下主包 + 同版本 cudart；`.zip` / `.tar.gz` 都支持，带断点续传与慢速熔断。**直连失败会自动走内置镜像链**（`gh-proxy.com` → `ghproxy.net`），每个包都先用 GitHub API 的 `sha256` 校验、对不上就丢弃换源——镜像只影响下载速度，不影响可信度；可用 `MOSS_LLM_MIRRORS=前缀1,前缀2` 替换镜像链，`MOSS_LLM_MIRROR` 指定单个镜像。覆盖用 `MOSS_LLM_BACKEND` / `MOSS_LLM_RUNTIME_URL`。CLI 同义：`python -m moss_llm.runtime_install` |
-| 外部 API | `channel=外部 API`：任何 OpenAI 兼容端点（OpenAI / 火山方舟 / 智谱 / Kimi / MiniMax / DeepSeek / Ollama / LM Studio…）。不起侧车、不占显存。Key 优先读**环境变量名**（`api_key_env`），写进 `api_key` 会在 report 里警告「随 JSON 分享出去」 |
+| 外部 API | `channel=外部 API`：任何 OpenAI 兼容端点（OpenAI / 火山方舟 / 智谱 / Kimi / MiniMax / DeepSeek / Ollama / LM Studio…）。不起侧车、不占显存。Key 优先读**环境变量名**（`api_key_env`），写进 `api_key` 会在 report 里警告「随 JSON 分享出去」。`api_base` 以 `/anthropic` 收尾时自动改走 Anthropic 线格式（`/v1/messages`，`x-api-key`），域名是 `generativelanguage.googleapis.com` 或以 `/v1beta` 收尾时走 Gemini（`models/<model>:generateContent`，`x-goog-api-key`）；面板的「拉取模型」用当前端点 + Key 打 `GET /models` 填 `api_model`，拉不到可手填 |
 | 提示词包 | 12 个自写文件（MIT），方法与出处逐条记在 manifest。MOSS 两个方言只是其中两项 |
 
 ## 三、透明与不静默（本仓一贯口径）
@@ -77,6 +77,17 @@ MossPromptSmith
 相符才复用，不符**硬报错**要用户释放或换端口。绝不拿别人的模型当自己的用。
 实测：修完再跑同一臂，16.0s（这次真载了模型），跑完 `nvidia-smi` 从 10752 → 3972 MiB、
 8091 无监听。
+
+🔴 **外部 API 报 `SSLEOFError: EOF occurred in violation of protocol` 不是 Key 错，是链路被掐**。
+签名是 TLS 握手成功、发请求时对端直接关连接 —— 代理或防火墙拦断某域名、或该域名本就不可达，
+都是这个样。本节点用 `urllib` 发请求，它**只认自己进程的环境变量**（`HTTP(S)_PROXY` / `NO_PROXY`）：
+宿主在哪个 shell 里启动就只拿到那个 shell 的代理，起完再设无效，必须重启宿主。
+排查三步：① 报错已带主机名、请求体大小、当前进程的代理变量，先看这三项；
+② 在**启动宿主那个 shell** 里跑 `curl -sS -o /dev/null -w '%{http_code}' https://<host>`，
+200/401/404 都算链路通 —— 能通而节点不通，就是两个进程的网络环境不同；
+③ 需要代理才到的域名，把 `HTTPS_PROXY` 设在启动宿主的环境里，或把它加进 `NO_PROXY` 走直连。
+本地端点（`127.0.0.1` / `localhost`）**一律直连**，代码里显式绕开代理 —— 否则开了全局代理时
+连 Ollama 都会被塞进隧道（实测 502）。
 
 ## 五、P0 取证（2026-10-30，本机 RTX 5070 12GB / b11998 / 宿主队列空）
 
@@ -119,7 +130,7 @@ MossPromptSmith
 
 ## 七、闸与计数
 
-`python tests/test_llm_subpackage.py` = **123/0**（纯函数，零 GPU 零网络）：
+`python tests/test_llm_subpackage.py` = **129/0**（纯函数，零 GPU 零网络）：
 包 sha 篡改检测、JSON 围栏与容错、`_pick_prompt` 优先级、must_keep 对账、段数=格数、
 MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外部 API 端点拼接与 Key 来源、
 任务边界报错、旧稿中文枚举归一、mmproj 宽度配对（同名 > 同目录唯一 > 全局唯一，多候选报错），

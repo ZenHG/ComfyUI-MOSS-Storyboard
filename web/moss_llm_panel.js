@@ -109,6 +109,10 @@ const CSS = `
  color:var(--descrip-text,#999);cursor:pointer;font:inherit;
  text-decoration:underline;text-underline-offset:2px}
 .mossllm-btn:hover{color:var(--input-text,#ddd);background:var(--comfy-input-bg,#222)}
+.mossllm-select{flex:0 0 auto;max-width:46%;padding:1px 4px;border-radius:6px;
+ border:1px solid var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222);
+ color:var(--input-text,#ddd);font:inherit}
+.mossllm-select[hidden],.mossllm-btn[hidden]{display:none}
 .mossllm-hintrow{flex:0 0 100%;display:flex;align-items:flex-start;gap:6px;min-width:0}
 .mossllm-hint{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;
  /* 🔴 高度必须恒定：悬停换 tooltip 时行数一变，下面每个参数都会跟着位移（实测：鼠标定位失败）。 */
@@ -131,7 +135,9 @@ const I18N = {
         backTip: "恢复分组：默认只露常驻，一次看一组",
         inert: "本次不生效（编译任务不开模型）",
         inertHint: "编译模式：%d 项本次不生效",
-        selfCheck: "零模型自检：任务选「编译」" },
+        selfCheck: "零模型自检：任务选「编译」",
+        fetch: "拉取模型", fetchTip: "用当前 api_base 与 Key 拉服务端模型清单",
+        fetching: "拉取中…", modelTip: "选中即写入 api_model" },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
         other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
         count: "%d params · %d visible", dirty: "%d differ from default",
@@ -141,7 +147,9 @@ const I18N = {
         backTip: "Back to grouped view (Basic only, one group at a time)",
         inert: "No effect in this run (compile does not load a model)",
         inertHint: "Compile: %d controls have no effect",
-        selfCheck: "No-weight check: set task=compile" },
+        selfCheck: "No-weight check: set task=compile",
+        fetch: "List models", fetchTip: "Fetch models from this api_base + key",
+        fetching: "Fetching…", modelTip: "Pick one to fill api_model" },
 };
 let T = null;
 /** 宿主界面语言（没点过「中/EN」时跟随它）。顺序与 `moss_sb_i18n_ui.js` 完全一致。 */
@@ -456,6 +464,56 @@ function makeChip(node, st, g) {
     return { b, caret, label, count, dot };
 }
 
+function apiVal(node, name) {
+    const w = widgetOf(node, name);
+    return w ? String(w.value == null ? "" : w.value) : "";
+}
+
+function setModel(node, id) {
+    const w = widgetOf(node, "api_model");
+    if (!w || !id) return;
+    w.value = id;
+    try { w.callback?.(id); } catch (e) { /* 老前端没有 callback */ }
+    app?.graph?.setDirtyCanvas?.(true, true);
+}
+
+/** 拉模型清单：Key 只在这一次 POST 里过一趟，服务端不回显、不落盘。 */
+async function fetchModels(node, st) {
+    const base = apiVal(node, "api_base");
+    if (!base) return;
+    st.fetch.disabled = true;
+    st.fetch.textContent = t().fetching;
+    try {
+        const r = await fetch("/moss_llm/models", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ api_base: base, api_key: apiVal(node, "api_key"),
+                                   api_key_env: apiVal(node, "api_key_env") }),
+        });
+        const d = await r.json();
+        if (!d.ok) throw new Error(d.error || ("HTTP " + r.status));
+        st.sel.innerHTML = "";
+        for (const id of d.models) {
+            const o = document.createElement("option");
+            o.value = id;
+            o.textContent = id;
+            st.sel.appendChild(o);
+        }
+        const cur = apiVal(node, "api_model");
+        if (cur) st.sel.value = cur;
+        st.sel.hidden = d.models.length === 0;
+        // 只有一个模型且 api_model 还空着 ⇒ 直接填上；多个不替用户选。
+        if (!cur && d.models.length === 1) setModel(node, d.models[0]);
+    } catch (e) {
+        st.sel.hidden = true;
+        st.hint.textContent = String((e && e.message) || e);
+        console.warn("%s: 拉取模型失败", TAG, e);
+    } finally {
+        st.fetch.disabled = false;
+        st.fetch.textContent = t().fetch;
+    }
+}
+
 function buildBar(node, st) {
     const bar = document.createElement("div");
     bar.className = "mossllm-bar";
@@ -483,6 +541,18 @@ function buildBar(node, st) {
         st.force = !st.force;
         applySoon(node);
     };
+    st.fetch = document.createElement("button");
+    st.fetch.type = "button";
+    st.fetch.className = "mossllm-btn";
+    st.fetch.hidden = true;
+    st.fetch.onclick = (e) => {
+        e.stopPropagation();
+        fetchModels(node, st);
+    };
+    st.sel = document.createElement("select");
+    st.sel.className = "mossllm-select";
+    st.sel.hidden = true;
+    st.sel.onchange = () => setModel(node, st.sel.value);
     st.hint = document.createElement("span");
     st.hint.className = "mossllm-hint";
     // 「中 / EN」按钮由 `moss_sb_i18n_ui.js` 挂进这个槽（与布局编辑器的 langSlot 同一机制）：
@@ -492,7 +562,7 @@ function buildBar(node, st) {
     const hintRow = document.createElement("div");
     hintRow.className = "mossllm-hintrow";
     hintRow.append(st.hint, st.langSlot);
-    bar.append(st.btn, hintRow);
+    bar.append(st.btn, st.fetch, st.sel, hintRow);
     return bar;
 }
 
@@ -523,6 +593,19 @@ function paintBar(node, st, shown, off, meta) {
     const all = realWidgets(node).length;
     st.btn.textContent = st.force ? L.back : L.expand;
     st.btn.title = st.force ? L.backTip : fmt(L.expandTip, hidden);
+    // 「拉取模型」只在外部 API 通道出现：本地引擎的模型是文件，不是服务端清单。
+    const apiOn = !!(meta && meta.ch === CH_API);
+    st.fetch.hidden = !apiOn;
+    st.fetch.textContent = L.fetch;
+    st.fetch.title = L.fetchTip;
+    st.sel.title = L.modelTip;
+    st.sel.hidden = !apiOn || st.sel.options.length === 0;
+    // 端点和 Key 都填了、模型还空着 ⇒ 自动拉一次（每个节点只拉一次，失败不反复打服务端）
+    if (apiOn && !st.autoFetched && !apiVal(node, "api_model") && apiVal(node, "api_base")
+        && (apiVal(node, "api_key") || apiVal(node, "api_key_env"))) {
+        st.autoFetched = true;
+        fetchModels(node, st);
+    }
     // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
     let summary = fmt(L.count, all, all - hidden);
     if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);

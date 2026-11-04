@@ -636,6 +636,29 @@ def main():
     check("视觉塔提示给全三条路",
           all(k in nodes._VISION_HINT for k in ("①", "②", "③")), nodes._VISION_HINT[:40])
 
+    # ---- 协议层：端点判定 + 三套 body/read 收口（`moss_llm/protocols.py`）
+    pr = nodes._proto
+    cases = [("https://api.deepseek.com/v1", "openai", "https://api.deepseek.com/v1/chat/completions"),
+             ("https://api.deepseek.com/anthropic", "anthropic",
+              "https://api.deepseek.com/anthropic/v1/messages"),
+             ("https://generativelanguage.googleapis.com/v1beta", "gemini",
+              "https://generativelanguage.googleapis.com/v1beta/models/gm:generateContent")]
+    for base, want_proto, want_ep in cases:
+        ep = pr.endpoint(base, "gm")
+        check("协议按端点判定：%s" % want_proto,
+              pr.detect(ep) == want_proto and ep == want_ep, "%s | %s" % (ep, pr.detect(ep)))
+    check("已写全的端点不重复拼",
+          pr.endpoint("https://x/y/chat/completions") == "https://x/y/chat/completions")
+    check("三种协议都能取到正文",
+          pr.read(pr.OPENAI, {"choices": [{"message": {"content": "a"}}]})[0] == "a"
+          and pr.read(pr.ANTHROPIC, {"content": [{"type": "text", "text": "b"}]})[0] == "b"
+          and pr.read(pr.GEMINI, {"candidates": [{"content": {"parts": [{"text": "c"}]}}]})[0] == "c")
+    try:
+        pr.read(pr.GEMINI, {"promptFeedback": {"blockReason": "SAFETY"}})
+        check("Gemini 无候选要出声", False, "没报错")
+    except RuntimeError as e:
+        check("Gemini 无候选要出声", "SAFETY" in str(e), str(e)[:40])
+
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     for f in FAIL:

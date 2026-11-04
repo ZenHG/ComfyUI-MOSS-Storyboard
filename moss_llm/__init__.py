@@ -22,10 +22,34 @@ LLM 自动补词（内容与节奏归作者，见 `docs/14-top-level-design.md` 
 - `v3_shells.py`  V3 外壳（需要宿主 `comfy_api`，故不在这里 import）
 """
 
-from .nodes import CATEGORY, NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+from .nodes import CATEGORY, NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS, list_models
 
 __all__ = ["CATEGORY", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS",
-           "llama_server_hint", "smith_available"]
+           "llama_server_hint", "smith_available", "list_models"]
+
+
+def register_models_route():
+    """前端「拉取模型」打这个路由。Key 只在请求体里过一趟：不回显、不落日志、不存盘。"""
+    try:
+        from aiohttp import web
+        from server import PromptServer
+    except Exception:            # 不在 ComfyUI 里（单测 / CLI）⇒ 没有路由可挂
+        return False
+
+    @PromptServer.instance.routes.post("/moss_llm/models")
+    async def _models(request):
+        try:
+            data = await request.json()
+            ids, url = list_models(data.get("api_base"), data.get("api_key"),
+                                   data.get("api_key_env"))
+            return web.json_response({"ok": True, "models": ids, "url": url})
+        except Exception as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+    return True
+
+
+register_models_route()
 
 
 def smith_available() -> bool:

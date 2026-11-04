@@ -27,12 +27,16 @@ MOSS 两个方言只是其中两项。核心 7 节点不 import 本模块，本�
 import json
 import os
 import re
+import socket
+import ssl
 import time
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from . import protocols as _proto
 from . import vision as _vision
 from .pack import load_pack
 #: 这些名字里有一半只被测试直接调用（`_check_pair` / `_proj_width` / `_pair_key` /
@@ -736,7 +740,8 @@ class MossPromptSmith:
 
     def _chat(self, endpoint, system, user, image, temperature, max_tokens, seed,
               want_json=True, thinking=False, key=None, schema=None):
-        content = [{"type": "text", "text": system + "\n\n" + (user or "")}]
+        proto = _proto.detect(endpoint)
+        image_url = None
         if image is not None:
             # 编码走 `moss_llm.vision`（最长边 1536 + JPEG q95 4:4:4）。
             # 以前是原始尺寸编 PNG：1536x1024 的图能吃掉一两千视觉 token，而且
@@ -745,48 +750,47 @@ class MossPromptSmith:
             for n in prep.notes:
                 if n not in self._img_notes:
                     self._img_notes.append(n)
-            content.append({"type": "image_url",
-                            "image_url": {"url": prep.data_url}})
-        base = {
-            "model": self._model_id,
-            "messages": [{"role": "user", "content": content}],
-            "temperature": float(temperature),
-            "max_tokens": int(max_tokens),
-            "seed": int(seed),
-            "stream": False,
-        }
+            image_url = prep.data_url
+        base = _proto.body(proto, self._model_id, system, user, image_url,
+                           temperature, max_tokens, seed)
         # 两个可选键都发：`chat_template_kwargs.enable_thinking` 是唯一实测能关掉思考的写法
         # （见 _THINKING 注释），vLLM / 火山方舟 / llama-server 都认它；严格 OpenAI 可能拒。
         # 拒了就**逐级摘掉再试**，并在 report 里说清摘了什么 —— 不静默降级，也不假装成功。
-        base["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
-        if want_json:
-            # 与 server.py 的 JSON 重复保护同一口径：DRY/presence/frequency 会惩罚
-            # 合法重复的键名，但 repeat_penalty 压的是整段循环（G7 4/40 次整单归零）。
-            base["repeat_penalty"] = _CAPTION_REPEAT_PENALTY
+        if proto != _proto.ANTHROPIC:
+            base["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
+            if want_json:
+                # 与 server.py 的 JSON 重复保护同一口径：DRY/presence/frequency 会惩罚
+                # 合法重复的键名，但 repeat_penalty 压的是整段循环（G7 4/40 次整单归零）。
+                base["repeat_penalty"] = _CAPTION_REPEAT_PENALTY
 
-        # 结构化输出四级降级（从强到弱；服务端 400 就往下走，逐级出声）：
-        #   json_schema → json_object → 无 response_format → 再摘 chat_template_kwargs
-        formats = []
-        if want_json:
-            if schema is not None:
-                formats.append(("json_schema",
-                                {"type": "json_schema",
-                                 "json_schema": {"name": "caption", "schema": schema}}))
-            formats.append(("json_object", {"type": "json_object"}))
-            formats.append(("none", None))
+        if proto != _proto.OPENAI:
+            # Anthropic / Gemini 都没有 response_format、chat_template_kwargs、repeat_penalty：
+            # 结构化交给提示词契约，思考开关归模型 —— 一次请求，不装降级阶梯。
+            attempts = [(False, False, "plain", None)]
         else:
-            formats.append(("plain", None))
-        # 尝试顺序：每个结构化档位先保留 repeat_penalty、再摘掉它（严格 OpenAI 不认
-        # repeat_penalty，但认 json_schema——先摘参数比先降结构化档少一次语义降级）；
-        # 全部档位都不行，最后才摘 chat_template_kwargs（思考可能关不掉）。
-        attempts = []
-        for name, rf in formats:
-            attempts.append((False, False, name, rf))
+            # 结构化输出四级降级（从强到弱；服务端 400 就往下走，逐级出声）：
+            #   json_schema → json_object → 无 response_format → 再摘 chat_template_kwargs
+            formats = []
             if want_json:
-                attempts.append((False, True, name, rf))
-        for name, rf in formats:
-            if want_json:
-                attempts.append((True, True, name, rf))
+                if schema is not None:
+                    formats.append(("json_schema",
+                                    {"type": "json_schema",
+                                     "json_schema": {"name": "caption", "schema": schema}}))
+                formats.append(("json_object", {"type": "json_object"}))
+                formats.append(("none", None))
+            else:
+                formats.append(("plain", None))
+            # 尝试顺序：每个结构化档位先保留 repeat_penalty、再摘掉它（严格 OpenAI 不认
+            # repeat_penalty，但认 json_schema——先摘参数比先降结构化档少一次语义降级）；
+            # 全部档位都不行，最后才摘 chat_template_kwargs（思考可能关不掉）。
+            attempts = []
+            for name, rf in formats:
+                attempts.append((False, False, name, rf))
+                if want_json:
+                    attempts.append((False, True, name, rf))
+            for name, rf in formats:
+                if want_json:
+                    attempts.append((True, True, name, rf))
 
         obj, last, chosen = None, None, None
         for drop_thinking, drop_repeat, name, rf in attempts:
@@ -828,21 +832,20 @@ class MossPromptSmith:
                 "⚠️ 服务端拒绝 repeat_penalty（HTTP 400），已去掉重试（重复循环保护降级；"
                 "仍靠 prompt 与后处理兜底）")
 
-        try:
-            msg = obj["choices"][0]["message"]
-            raw = msg["content"]
-            finish = obj["choices"][0].get("finish_reason")
-        except Exception as e:
-            raise RuntimeError("响应缺 choices/message/content：%s"
-                               % json.dumps(obj, ensure_ascii=False)[:400]) from e
+        raw, finish, usage = _proto.read(proto, obj)
         if not (raw or "").strip():
             # 思考模型最常见的失败：全写进 reasoning_content，正文空 + finish=length。
             # 不把思考内容当答案偷偷端上桌——那是另一种"静默兜底"。
+            reason = ""
+            try:
+                reason = ((obj["choices"][0]["message"] or {}).get("reasoning_content") or "")
+            except Exception:
+                reason = ""
             raise RuntimeError(
                 "模型正文为空（finish=%s，reasoning %s 字）。"
                 "把「思考模式」设为「关」，或加大「最大token数」后重试。"
-                % (finish, len(str(msg.get("reasoning_content") or ""))))
-        return raw, obj.get("usage") or {}
+                % (finish, len(str(reason))))
+        return raw, usage
 
     # ------------------------------------------------------------------ 机检（只报数）
 
@@ -1139,15 +1142,46 @@ class _Http400(Exception):
         self.body = body
 
 
+#: 本地端点绝不走代理：VPN/代理软件设了全局 HTTP(S)_PROXY 时，连 Ollama 都被塞进
+#: 代理隧道（实测 Tunnel connection failed: 502），本地端点必须直连。
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0", "[::1]")
+
+
+def _is_local(endpoint):
+    host = (urllib.parse.urlsplit(endpoint).hostname or "").lower()
+    return host in _LOCAL_HOSTS
+
+
+def _net_hint(endpoint, exc):
+    """网络异常 → 可操作建议。只报主机名与代理变量，绝不回显 Key。"""
+    netloc = urllib.parse.urlsplit(endpoint).netloc or endpoint
+    prox = {} if _is_local(endpoint) else urllib.request.getproxies()
+    via = ("当前进程走代理（%s）；" % "、".join("%s=%s" % (k, v) for k, v in sorted(prox.items()))
+           if prox else "当前进程未设代理；")
+    err = getattr(exc, "reason", exc)
+    if isinstance(err, ssl.SSLError) or "EOF occurred" in str(err):
+        return (via + "TLS 握手后被对端直接断开，通常是代理或防火墙拦断了该域名。三条路："
+                "① 把该域名加进 NO_PROXY 走直连；② 换一条能直连的网络；"
+                "③ 复核链路 curl -sS -o /dev/null -w '%%{http_code}' https://%s"
+                "（200/401/404 都算通）" % netloc)
+    if isinstance(err, socket.gaierror):
+        return via + "域名解析失败（%s）：检查 api_base 拼写与 DNS。" % netloc
+    if isinstance(err, ConnectionRefusedError):
+        return via + "%s 拒绝连接：端口不对，或本地端点（Ollama / LM Studio）没启动。" % netloc
+    if isinstance(err, (socket.timeout, TimeoutError)):
+        return via + "%s 超时：网络不可达，或端点限速 / 无响应。" % netloc
+    return via + "%s 连接失败：%r" % (netloc, err)
+
+
 def _post(endpoint, payload, key=None):
-    """POST 一个 OpenAI 兼容的 /chat/completions。失败一律 raise 带 body 的中文错误。"""
-    headers = {"Content-Type": "application/json"}
-    if key:
-        headers["Authorization"] = "Bearer " + key
-    req = urllib.request.Request(endpoint, data=json.dumps(payload).encode("utf-8"),
-                                 headers=headers)
+    """POST 一次。失败一律 raise 带 body 的中文错误。线格式由端点判定（见 `protocols`）。"""
+    headers = _proto.headers(_proto.detect(endpoint), key)
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(endpoint, data=data, headers=headers)
+    opener = (urllib.request.build_opener(urllib.request.ProxyHandler({}))
+              if _is_local(endpoint) else urllib.request.build_opener())
     try:
-        with urllib.request.urlopen(req, timeout=900) as r:
+        with opener.open(req, timeout=900) as r:
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
@@ -1156,25 +1190,18 @@ def _post(endpoint, payload, key=None):
             body = ""
         if e.code == 400:
             raise _Http400(body or "(无 body)") from e
-        raise RuntimeError("服务端返回 HTTP %s：%s" % (e.code, body or "(无 body)")) from e
+        raise RuntimeError("服务端返回 HTTP %s（%s）：%s"
+                           % (e.code, urllib.parse.urlsplit(endpoint).netloc,
+                              body or "(无 body)")) from e
     except Exception as e:
-        raise RuntimeError("请求失败：%r" % (e,)) from e
+        raise RuntimeError("请求失败（%s，请求体 %.1f MB）：%r\n%s"
+                           % (urllib.parse.urlsplit(endpoint).netloc,
+                              len(data) / 1048576.0, e,
+                              _net_hint(endpoint, e))) from e
 
 
-def _api_setup(api_base, api_model, api_key, api_key_env):
-    """外部 API 通道：拼出 chat/completions 端点 + 取 Key（Key 不进工作流才算安全）。
-
-    留空 Key 是合法状态（Ollama / LM Studio 一类本地端点不要 Key）。
-    """
-    base = (api_base or "").strip().rstrip("/")
-    if not base:
-        raise ValueError("通道=外部 API 必须填「api_base」。"
-                         "例：`https://api.openai.com/v1`、`https://ark.cn-beijing.volces.com/api/v3`、"
-                         "`http://127.0.0.1:11434/v1`（Ollama）")
-    if not (api_model or "").strip():
-        raise ValueError("通道=外部 API 必须填「api_model」（服务商给的模型 id）。")
-    if not base.endswith("/chat/completions"):
-        base += "/chat/completions"
+def _api_creds(api_key, api_key_env):
+    """Key 解析：写死的 > 环境变量。返回 (key, 来源描述)。"""
     key = (api_key or "").strip()
     src = "写在工作流里（会随 JSON 分享出去）" if key else None
     env_name = (api_key_env or "").strip()
@@ -1184,7 +1211,86 @@ def _api_setup(api_base, api_model, api_key, api_key_env):
             src = "环境变量 %s" % env_name
     if not key:
         src = "未提供（本地端点可留空）"
-    return base, key, src
+    return key, src
+
+
+def _get_json(url, key, proto, timeout=15):
+    req = urllib.request.Request(url, headers=_proto.headers(proto, key))
+    opener = (urllib.request.build_opener(urllib.request.ProxyHandler({}))
+              if _is_local(url) else urllib.request.build_opener())
+    try:
+        with opener.open(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")[:200]
+        raise RuntimeError("HTTP %s %s" % (e.code, body or "(无 body)")) from e
+    except Exception as e:
+        raise RuntimeError("%r；%s" % (e, _net_hint(url, e))) from e
+
+
+def list_models(api_base, api_key="", api_key_env="", timeout=15):
+    """拉服务端模型清单（`GET /models`）。返回 (ids, 实际用的 url)。
+
+    两种兼容入口都试：`/models` 与 `/v1/models`；`/anthropic` 尾巴下面挂的是 v1。
+    拉不到就 raise —— 有的服务商不给模型列表，手填 `api_model` 仍然可用，不静默空表。
+    """
+    root = (api_base or "").strip().rstrip("/")
+    if not root:
+        raise ValueError("要拉模型清单，请先填「api_base」。")
+    for tail in ("/chat/completions", "/messages"):
+        if root.endswith(tail):
+            root = root[: -len(tail)]
+    key, _src = _api_creds(api_key, api_key_env)
+    proto = _proto.detect(root)
+    tries = []
+    if proto == _proto.ANTHROPIC:
+        tries.append((root + "/v1/models", _proto.ANTHROPIC))
+    if proto == _proto.GEMINI:
+        tries.append((root + "/models", _proto.GEMINI))
+    tries += [(root + "/models", _proto.OPENAI), (root + "/v1/models", _proto.OPENAI)]
+    if proto == _proto.ANTHROPIC:
+        # `/anthropic` 只挂对话接口，模型清单在站点根上（实测 DeepSeek 的该前缀 404）。
+        site = root.rsplit("/anthropic", 1)[0]
+        tries += [(site + "/models", _proto.OPENAI), (site + "/v1/models", _proto.OPENAI)]
+    uniq = []
+    for url, p in tries:
+        if all(url != u for u, _ in uniq):
+            uniq.append((url, p))
+    errs = []
+    for url, p in uniq:
+        try:
+            obj = _get_json(url, key, p, timeout)
+        except Exception as e:
+            errs.append("%s → %s" % (url, e))
+            continue
+        ids = []
+        for m in (obj.get("data") or obj.get("models") or []):
+            mid = m.get("id") or m.get("name") if isinstance(m, dict) else m
+            if isinstance(mid, str) and mid:
+                # Gemini 的 name 带 "models/" 前缀，去掉才是用户要填的 id。
+                ids.append(mid.split("/")[-1] if p == _proto.GEMINI else mid)
+        if ids:
+            return sorted(set(ids)), url
+    raise RuntimeError("拉不到模型清单：\n%s\n"
+                       "确认 api_base / Key 正确；服务商不提供模型列表时手填 api_model 即可。" %
+                       "\n".join(errs[-3:]))
+
+
+def _api_setup(api_base, api_model, api_key, api_key_env):
+    """外部 API 通道：拼出请求端点 + 取 Key（Key 不进工作流才算安全）。
+
+    端点决定线格式：`/anthropic` 收尾走 `/v1/messages`，其余走 `/chat/completions`。
+    留空 Key 是合法状态（Ollama / LM Studio 一类本地端点不要 Key）。
+    """
+    base = (api_base or "").strip().rstrip("/")
+    if not base:
+        raise ValueError("通道=外部 API 必须填「api_base」。"
+                         "例：`https://api.openai.com/v1`、`https://ark.cn-beijing.volces.com/api/v3`、"
+                         "`http://127.0.0.1:11434/v1`（Ollama）")
+    if not (api_model or "").strip():
+        raise ValueError("通道=外部 API 必须填「api_model」（服务商给的模型 id）。")
+    key, src = _api_creds(api_key, api_key_env)
+    return _proto.endpoint(base, api_model), key, src
 
 
 def _host_of(endpoint):
