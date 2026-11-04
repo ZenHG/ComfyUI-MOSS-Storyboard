@@ -306,12 +306,8 @@ class MossPromptSmith:
                     "tooltip": "外部 API 的模型名。点右边的 ↻ 用当前端点+Key 拉一次清单就能下拉选；"
                                "拉不到也能手填服务商给的 id。channel=外部 API 时必填", "advanced": True}),
                 "api_key": ("STRING", {"default": "",
-                    "tooltip": "API Key。**注意：写在这里会随工作流 JSON 一起保存/分享出去**，"
-                               "要发给别人请清空改用下面的环境变量名", "advanced": True}),
-                "api_key_env": ("STRING", {"default": "MOSS_LLM_API_KEY",
-                    "tooltip": "从哪个环境变量读 Key（留空=不读）。"
-                               "Key 不落进工作流才是安全做法；本地端点（Ollama/LM Studio）"
-                               "通常不需要 Key，两处都留空即可", "advanced": True}),
+                    "tooltip": "API Key。注意：写在这里会随工作流 JSON 一起保存/分享出去。"
+                               "要发给别人就清空它，改设宿主进程的环境变量 MOSS_LLM_API_KEY", "advanced": True}),
                 "ctx_size": ("INT", {"default": 8192, "min": 1024, "max": 262144, "step": 512,
                     "tooltip": "反推图片 token 多，建议 ≥8192。越大占显存越多（KV cache）",
                     "advanced": True}),
@@ -400,7 +396,7 @@ class MossPromptSmith:
     def smith(self, task, channel, dialect, model, text, length, temperature, max_tokens, seed,
               image=None, mmproj=_MMPROJ_AUTO, language="auto", thinking="off", panels=4,
               style_lock="", must_keep="", wash=False, two_pass=False, runtime="current",
-              api_base="", api_model="", api_key="", api_key_env="MOSS_LLM_API_KEY",
+              api_base="", api_model="", api_key="",
               ctx_size=8192, gpu_layers="", cache_type_k="q8_0", cache_type_v="q8_0",
               flash_attn="on", image_max_tokens=1024, ubatch=512, parallel=1, fit_on="on",
               fit_target_mib=1024, mtp="auto", mtp_draft_n=2, server_exe="", port=8091,
@@ -481,7 +477,7 @@ class MossPromptSmith:
         user = (text or "").strip()
 
         if channel == "api":
-            endpoint, key, key_src = _api_setup(api_base, api_model, api_key, api_key_env)
+            endpoint, key, key_src = _api_setup(api_base, api_model, api_key)
             self._model_id = api_model.strip()
             stop_server = lambda: None                                   # noqa: E731
             who = "外部 API %s｜model=%s｜Key：%s" % (_host_of(endpoint), api_model, key_src)
@@ -1180,15 +1176,16 @@ def _net_hint(endpoint, exc):
     via = ("当前进程走代理（%s）；" % "、".join("%s=%s" % (k, v) for k, v in sorted(prox.items()))
            if prox else "当前进程未设代理；")
     err = getattr(exc, "reason", exc)
+    # 证书错必须排在 SSLError 前面：SSLCertVerificationError 是它的子类，否则永远走"被掐"。
+    if isinstance(err, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(err):
+        return (via + "%s 的证书校验失败：公司代理 / 自签 CA 常见。三条路："
+                "① 把公司根证书装进系统信任链；② 设 SSL_CERT_FILE 指向该 CA；"
+                "③ 换一条直连网络。不要关校验 —— 那等于让中间人随意改内容。" % netloc)
     if isinstance(err, ssl.SSLError) or "EOF occurred" in str(err):
         return (via + "TLS 握手后被对端直接断开，通常是代理或防火墙拦断了该域名。三条路："
                 "① 把该域名加进 NO_PROXY 走直连；② 换一条能直连的网络；"
                 "③ 复核链路 curl -sS -o /dev/null -w '%%{http_code}' https://%s"
                 "（200/401/404 都算通）" % netloc)
-    if isinstance(err, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(err):
-        return (via + "%s 的证书校验失败：公司代理 / 自签 CA 常见。三条路："
-                "① 把公司根证书装进系统信任链；② 设 SSL_CERT_FILE 指向该 CA；"
-                "③ 换一条直连网络。不要关校验 —— 那等于让中间人随意改内容。" % netloc)
     if isinstance(err, socket.gaierror):
         return via + "域名解析失败（%s）：检查 api_base 拼写与 DNS。" % netloc
     if isinstance(err, ConnectionRefusedError):
@@ -1225,23 +1222,18 @@ def _post(endpoint, payload, key=None):
                               _net_hint(endpoint, e))) from e
 
 
-#: 界面上不暴露变量名，只认这个约定名；旧工作流里存过的自定义名仍然生效。
-KEY_ENV_DEFAULT = "MOSS_LLM_API_KEY"
+#: Key 只有一个环境变量来源，不做成参数：变量名让用户填只会制造困惑。
+KEY_ENV = "MOSS_LLM_API_KEY"
 
 
-def _api_creds(api_key, api_key_env):
-    """Key 解析：写死的 > 环境变量（自定义名，其次约定名）。返回 (key, 来源描述)。"""
+def _api_creds(api_key):
+    """Key 解析：写死的 > 环境变量 `MOSS_LLM_API_KEY`。返回 (key, 来源描述)。"""
     key = (api_key or "").strip()
     src = "写在工作流里（会随 JSON 分享出去）" if key else None
-    names = [(api_key_env or "").strip(), KEY_ENV_DEFAULT]
-    for name in names:
-        if key:
-            break
-        if not name:
-            continue
-        value = os.environ.get(name, "").strip()
+    if not key:
+        value = os.environ.get(KEY_ENV, "").strip()
         if value:
-            key, src = value, "环境变量 %s" % name
+            key, src = value, "环境变量 %s" % KEY_ENV
     if not key:
         src = "未提供（本地端点可留空）"
     return key, src
@@ -1256,7 +1248,7 @@ def _loads(raw):
         return json.loads(text)
     except ValueError as e:
         head = " ".join(text.lstrip()[:120].split())
-        if head[:1] in ("<", "<!"):
+        if head.startswith("<"):
             raise RuntimeError("这个地址返回的是网页，不是接口数据（多半路径不对或需要登录）：%s…"
                                "检查 api_base 是不是少了 /v1\n" % head[:60]) from e
         raise RuntimeError("响应不是 JSON：%s" % (head[:120] or "(空)")) from e
@@ -1302,7 +1294,7 @@ def _model_list_prefixes(root):
     return out
 
 
-def list_models(api_base, api_key="", api_key_env="", timeout=15):
+def list_models(api_base, api_key="", timeout=15):
     """拉服务端模型清单。返回 (ids, 实际命中的 url)。
 
     从端点那层开始逐级上溯，每层试 `/models` 与 `/v1/models`，命中即停。
@@ -1314,7 +1306,7 @@ def list_models(api_base, api_key="", api_key_env="", timeout=15):
     for tail in ("/chat/completions", "/messages", "/responses"):
         if root.endswith(tail):
             root = root[: -len(tail)]
-    key, _src = _api_creds(api_key, api_key_env)
+    key, _src = _api_creds(api_key)
     proto = _proto.detect(root)
 
     def add(prefix, proto_try):
@@ -1343,7 +1335,9 @@ def list_models(api_base, api_key="", api_key_env="", timeout=15):
     errs = []
     with ThreadPoolExecutor(max_workers=min(6, len(uniq))) as pool:
         futs = [pool.submit(_get_json, u, key, pr, timeout) for u, pr in uniq]
-    for (url, pr), fut in zip(uniq, futs, strict=True):
+    # 用下标而不是 zip(strict=)：那是 3.10 才有的参数，ComfyUI 里不少人还跑 3.9。
+    for i, fut in enumerate(futs):
+        url, pr = uniq[i]
         try:
             obj = fut.result()
         except Exception as e:
@@ -1363,7 +1357,7 @@ def list_models(api_base, api_key="", api_key_env="", timeout=15):
                        "\n".join(errs[-3:]))
 
 
-def _api_setup(api_base, api_model, api_key, api_key_env):
+def _api_setup(api_base, api_model, api_key):
     """外部 API 通道：拼出请求端点 + 取 Key（Key 不进工作流才算安全）。
 
     端点决定线格式：`/anthropic` 收尾走 `/v1/messages`，其余走 `/chat/completions`。
@@ -1376,7 +1370,7 @@ def _api_setup(api_base, api_model, api_key, api_key_env):
                          "`http://127.0.0.1:11434/v1`（Ollama）")
     if not (api_model or "").strip():
         raise ValueError("通道=外部 API 必须填「api_model」（服务商给的模型 id）。")
-    key, src = _api_creds(api_key, api_key_env)
+    key, src = _api_creds(api_key)
     return _proto.endpoint(base, api_model), key, src
 
 

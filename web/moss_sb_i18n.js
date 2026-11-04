@@ -131,7 +131,6 @@ export const LABELS_EN = {
     api_base: "API endpoint",
     api_model: "API model",
     api_key: "API key",
-    api_key_env: "key env var",
     ctx_size: "context size",
     gpu_layers: "GPU layers",
     cache_type_k: "K cache type",
@@ -220,7 +219,6 @@ export const LABELS = {
     api_base: "API 端点",
     api_model: "API 模型名",
     api_key: "API Key",
-    api_key_env: "Key 环境变量",
     ctx_size: "上下文长度",
     gpu_layers: "GPU 层数",
     cache_type_k: "K 缓存精度",
@@ -765,12 +763,7 @@ export const TIPS = {
     },
     "MossPromptSmith.api_key": {
         en: "[api channel] API key. NOTE: typed here it is saved into the workflow JSON and shared with it;\n"
-            + "to share a workflow, clear this and use the env var below.",
-    },
-    "MossPromptSmith.api_key_env": {
-        en: "[api channel] Which environment variable holds the key (empty = do not read one).\n"
-            + "Keeping the key out of the workflow is the safe route; local endpoints (Ollama / LM Studio)\n"
-            + "usually need no key, leave both empty.",
+            + "to share a workflow, clear this and set the MOSS_LLM_API_KEY env var instead.",
     },
     "MossPromptSmith.ctx_size": {
         en: "[Local engine] Caption prompts carry many image tokens; 8192 or more is recommended.\n"

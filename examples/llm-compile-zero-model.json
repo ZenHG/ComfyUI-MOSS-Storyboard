@@ -1,215 +1,214 @@
 {
- "id": "llm-compile-zero-model",
- "revision": 0,
- "last_node_id": 4,
- "last_link_id": 2,
- "nodes": [
-  {
-   "id": 1,
-   "type": "MarkdownNote",
-   "pos": [
-    -700,
-    -260
-   ],
-   "size": [
-    600,
-    700
-   ],
-   "flags": {},
-   "order": 0,
-   "mode": 0,
-   "inputs": [],
-   "outputs": [],
-   "properties": {
-    "Node name for S&R": "MarkdownNote"
-   },
-   "widgets_values": [
-    "## 第一次打开：零模型编译（LLM Prompt · task=compile）\n\n**不用下模型、不占显存、按 Run 就有输出。** 这是最快的「装好了吗」自检：\n\n### 怎么跑\n1. 拖进画布 → 直接按 **Run**（队列里秒出，通常几十毫秒量级）。\n2. 看右侧两个预览：\n   - 「提示词」= 编译结果；\n   - 「report」= 这次编译改了什么（方言 / 长度 / 丢弃项）。\n\n### 它是什么\n左上「📝 文字输入」里是一段 **IR（JSON）**；节点把 IR 编译成 **target** 选的图像后端提示词。\n本示例 target=moss-image。改 target 可看 qwen-image-2_1 / krea2 / flux3 / sdxl 的方言差异。\n\n### 下一步\n- 想用 LLM 反推/扩写：换 llm-prompt-workbench.json / llm-idea-to-image.json，并在节点里选本机 GGUF。\n- 想真出图：用 moss-storyboard-4panels-ui.json 等图像示例，需要 MOSS-Image 权重。\n\n> 环境不满足时 report 会说清缺什么；本示例本身不需要任何权重。\n"
-   ],
-   "title": "这是什么 · 怎么跑"
-  },
-  {
-   "id": 2,
-   "type": "MossPromptSmith",
-   "pos": [
-    0,
-    -260
-   ],
-   "size": [
-    480,
-    700
-   ],
-   "flags": {},
-   "order": 1,
-   "mode": 0,
-   "inputs": [
+  "id": "llm-compile-zero-model",
+  "revision": 0,
+  "last_node_id": 4,
+  "last_link_id": 2,
+  "nodes": [
     {
-     "name": "image",
-     "type": "IMAGE",
-     "link": null
-    }
-   ],
-   "outputs": [
-    {
-     "name": "提示词",
-     "type": "STRING",
-     "links": [
-      1
-     ]
+      "id": 1,
+      "type": "MarkdownNote",
+      "pos": [
+        -700,
+        -260
+      ],
+      "size": [
+        600,
+        700
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "MarkdownNote"
+      },
+      "widgets_values": [
+        "## 第一次打开：零模型编译（LLM Prompt · task=compile）\n\n**不用下模型、不占显存、按 Run 就有输出。** 这是最快的「装好了吗」自检：\n\n### 怎么跑\n1. 拖进画布 → 直接按 **Run**（队列里秒出，通常几十毫秒量级）。\n2. 看右侧两个预览：\n   - 「提示词」= 编译结果；\n   - 「report」= 这次编译改了什么（方言 / 长度 / 丢弃项）。\n\n### 它是什么\n左上「📝 文字输入」里是一段 **IR（JSON）**；节点把 IR 编译成 **target** 选的图像后端提示词。\n本示例 target=moss-image。改 target 可看 qwen-image-2_1 / krea2 / flux3 / sdxl 的方言差异。\n\n### 下一步\n- 想用 LLM 反推/扩写：换 llm-prompt-workbench.json / llm-idea-to-image.json，并在节点里选本机 GGUF。\n- 想真出图：用 moss-storyboard-4panels-ui.json 等图像示例，需要 MOSS-Image 权重。\n\n> 环境不满足时 report 会说清缺什么；本示例本身不需要任何权重。\n"
+      ],
+      "title": "这是什么 · 怎么跑"
     },
     {
-     "name": "report",
-     "type": "STRING",
-     "links": [
-      2
-     ]
-    }
-   ],
-   "properties": {
-    "Node name for S&R": "MossPromptSmith",
-    "cnr_id": "moss-storyboard",
-    "ver": "0.3.3"
-   },
-   "widgets_values": [
-    "compile",
-    "local",
-    "moss_image",
-    "GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
-    "{\"task\": \"t2i\", \"canvas\": {\"aspect_ratio\": \"1:1\"}, \"entities\": [{\"id\": \"e1\", \"kind\": \"character\", \"label\": \"woman\", \"importance\": 1.0, \"age_years\": 28, \"descriptors\": {\"gender\": \"woman\", \"wardrobe\": [\"a yellow raincoat\"]}, \"spatial\": {\"anchor\": \"left foreground\"}}], \"style\": {\"medium\": \"photograph\"}}",
-    "standard",
-    0.2,
-    1024,
-    0,
-    "fixed",
-    "auto",
-    "auto",
-    "off",
-    4,
-    "",
-    "",
-    false,
-    false,
-    "current",
-    "",
-    "",
-    "",
-    "MOSS_LLM_API_KEY",
-    8192,
-    "",
-    "q8_0",
-    "q8_0",
-    "on",
-    1024,
-    512,
-    1,
-    "on",
-    1024,
-    "auto",
-    2,
-    "",
-    8091,
-    true,
-    "moss-image"
-   ],
-   "title": "🧠 LLM Prompt · zero-model compile"
-  },
-  {
-   "id": 3,
-   "type": "PreviewAny",
-   "pos": [
-    560,
-    -260
-   ],
-   "size": [
-    440,
-    330
-   ],
-   "flags": {},
-   "order": 2,
-   "mode": 0,
-   "inputs": [
+      "id": 2,
+      "type": "MossPromptSmith",
+      "pos": [
+        0,
+        -260
+      ],
+      "size": [
+        480,
+        700
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "提示词",
+          "type": "STRING",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MossPromptSmith",
+        "cnr_id": "moss-storyboard",
+        "ver": "0.3.3"
+      },
+      "widgets_values": [
+        "compile",
+        "local",
+        "moss_image",
+        "GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+        "{\"task\": \"t2i\", \"canvas\": {\"aspect_ratio\": \"1:1\"}, \"entities\": [{\"id\": \"e1\", \"kind\": \"character\", \"label\": \"woman\", \"importance\": 1.0, \"age_years\": 28, \"descriptors\": {\"gender\": \"woman\", \"wardrobe\": [\"a yellow raincoat\"]}, \"spatial\": {\"anchor\": \"left foreground\"}}], \"style\": {\"medium\": \"photograph\"}}",
+        "standard",
+        0.2,
+        1024,
+        0,
+        "fixed",
+        "auto",
+        "auto",
+        "off",
+        4,
+        "",
+        "",
+        false,
+        false,
+        "current",
+        "",
+        "",
+        "",
+        8192,
+        "",
+        "q8_0",
+        "q8_0",
+        "on",
+        1024,
+        512,
+        1,
+        "on",
+        1024,
+        "auto",
+        2,
+        "",
+        8091,
+        true,
+        "moss-image"
+      ],
+      "title": "🧠 LLM Prompt · zero-model compile"
+    },
     {
-     "name": "source",
-     "type": "*",
-     "link": 1
-    }
-   ],
-   "outputs": [
+      "id": 3,
+      "type": "PreviewAny",
+      "pos": [
+        560,
+        -260
+      ],
+      "size": [
+        440,
+        330
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [],
+      "title": "编译出的提示词"
+    },
     {
-     "name": "STRING",
-     "type": "STRING",
-     "links": []
+      "id": 4,
+      "type": "PreviewAny",
+      "pos": [
+        560,
+        90
+      ],
+      "size": [
+        440,
+        350
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [],
+      "title": "report（改了什么）"
     }
-   ],
-   "properties": {
-    "Node name for S&R": "PreviewAny"
-   },
-   "widgets_values": [],
-   "title": "编译出的提示词"
-  },
-  {
-   "id": 4,
-   "type": "PreviewAny",
-   "pos": [
-    560,
-    90
-   ],
-   "size": [
-    440,
-    350
-   ],
-   "flags": {},
-   "order": 3,
-   "mode": 0,
-   "inputs": [
-    {
-     "name": "source",
-     "type": "*",
-     "link": 2
-    }
-   ],
-   "outputs": [
-    {
-     "name": "STRING",
-     "type": "STRING",
-     "links": []
-    }
-   ],
-   "properties": {
-    "Node name for S&R": "PreviewAny"
-   },
-   "widgets_values": [],
-   "title": "report（改了什么）"
-  }
- ],
- "links": [
-  [
-   1,
-   2,
-   0,
-   3,
-   0,
-   "STRING"
   ],
-  [
-   2,
-   2,
-   1,
-   4,
-   0,
-   "STRING"
-  ]
- ],
- "groups": [],
- "config": {},
- "extra": {
-  "ds": {
-   "scale": 0.9,
-   "offset": [
-    780,
-    420
-   ]
-  }
- },
- "version": 0.4
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "STRING"
+    ],
+    [
+      2,
+      2,
+      1,
+      4,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.9,
+      "offset": [
+        780,
+        420
+      ]
+    }
+  },
+  "version": 0.4
 }

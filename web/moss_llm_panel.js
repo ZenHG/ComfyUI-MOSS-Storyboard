@@ -69,7 +69,7 @@ const GROUPS = [
     { key: "local", channel: CH_LOCAL, items: ["mmproj", "runtime", "ctx_size", "gpu_layers",
         "cache_type_k", "cache_type_v", "flash_attn", "image_max_tokens", "ubatch", "parallel",
         "fit_on", "fit_target_mib", "mtp", "mtp_draft_n", "server_exe", "port", "release_after_run"] },
-    { key: "api", channel: CH_API, items: ["api_base", "api_model", "api_key", "api_key_env"] },
+    { key: "api", channel: CH_API, items: ["api_base", "api_model", "api_key"] },
 ];
 const OTHER = { key: "other", always: true };
 const BY_NAME = new Map();
@@ -323,9 +323,6 @@ function plan(node, st) {
     const off = new Set();                       // 通道对不上的组（只影响 chip 的标记）
     const inert = new Set();                     // 本次执行读不到、但仍显示并标注的控件
     for (const w of realWidgets(node)) {
-        // 界面不提供 api_key_env：Key 走约定名 MOSS_LLM_API_KEY 就够，填变量名没人用。
-        // 但**不能删 widget** —— 39 格按位置存，删了后面 16 格存档全串位。只隐不删。
-        if (w.name === "api_key_env") continue;
         const g = groupOf(w);
         const outside = gated && !!g.channel && g.channel !== ch;
         if (outside) off.add(g.key);
@@ -538,6 +535,10 @@ async function fetchModels(node, st) {
     // 兜底链最长要几秒，没有可见进度就像点了没反应。
     pick.busy = fmt(t().fetching, 0);
     pick.timer = setInterval(() => {
+        if (!node.graph) {           // 节点已被删除：定时器必须自己停
+            clearInterval(pick.timer);
+            return;
+        }
         pick.busy = fmt(t().fetching, Math.round((Date.now() - t0) / 1000));
         apply(node);
     }, 1000);
@@ -546,8 +547,7 @@ async function fetchModels(node, st) {
         const r = await fetch("/moss_llm/models", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ api_base: base, api_key: apiVal(node, "api_key"),
-                                   api_key_env: apiVal(node, "api_key_env") }),
+            body: JSON.stringify({ api_base: base, api_key: apiVal(node, "api_key") }),
         });
         const d = await r.json();
         if (!d.ok) throw new Error(d.error || ("HTTP " + r.status));

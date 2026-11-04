@@ -19,7 +19,7 @@ python tests/test_panel_assembly.py       # 22 项：逐格拼版 reborder 语�
 python tests/test_sampling_contract.py    # 19 项：宿主采样 API 的入参类型
 python tests/test_faceswap_wiring.py    # 36 项：换脸接线（桩 clip/vae/采样）—— 前缀 / 预算 / 抬格 / 裁贴 / denoise 语义
 python tests/test_init_empty.py         # 18 项：init 两个分支 —— 空 latent 不碰源图 / 画布来源 / 忽略项写明 / 缺 image 报错
-node   tests/test_i18n.mjs                # 64 项：中英切换纯函数（含子包 39 个参数标签 / en 提示 / 枚举显示）
+node   tests/test_i18n.mjs                # 64 项：中英切换纯函数（含子包全部参数标签 / en 提示 / 枚举显示）
 node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
 python tests/test_llm_subpackage.py        # 148 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一 / 侧车启动命令 / 图像预处理 / 零模型编译 / 反漂移断言）
 python tests/test_caption_quality.py       #  29 项：反推护栏（character 类型闸 / 实体上限 / 重复循环显式失败与合并；零 GPU 零网络）

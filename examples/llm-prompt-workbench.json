@@ -276,7 +276,7 @@
     },
     {
      "name": "api_model",
-     "type": "STRING",
+     "type": "['']",
      "link": null,
      "widget": {
       "name": "api_model"
@@ -288,14 +288,6 @@
      "link": null,
      "widget": {
       "name": "api_key"
-     }
-    },
-    {
-     "name": "api_key_env",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "api_key_env"
      }
     },
     {
@@ -471,7 +463,6 @@
     "",
     "",
     "",
-    "MOSS_LLM_API_KEY",
     8192,
     "",
     "q8_0",
@@ -673,7 +664,7 @@
     },
     {
      "name": "api_model",
-     "type": "STRING",
+     "type": "['']",
      "link": null,
      "widget": {
       "name": "api_model"
@@ -685,14 +676,6 @@
      "link": null,
      "widget": {
       "name": "api_key"
-     }
-    },
-    {
-     "name": "api_key_env",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "api_key_env"
      }
     },
     {
@@ -868,7 +851,6 @@
     "",
     "",
     "",
-    "MOSS_LLM_API_KEY",
     8192,
     "",
     "q8_0",
@@ -1070,7 +1052,7 @@
     },
     {
      "name": "api_model",
-     "type": "STRING",
+     "type": "['']",
      "link": null,
      "widget": {
       "name": "api_model"
@@ -1082,14 +1064,6 @@
      "link": null,
      "widget": {
       "name": "api_key"
-     }
-    },
-    {
-     "name": "api_key_env",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "api_key_env"
      }
     },
     {
@@ -1265,7 +1239,6 @@
     "",
     "",
     "",
-    "MOSS_LLM_API_KEY",
     8192,
     "",
     "q8_0",
@@ -1671,7 +1644,7 @@
     },
     {
      "name": "api_model",
-     "type": "STRING",
+     "type": "['']",
      "link": null,
      "widget": {
       "name": "api_model"
@@ -1683,14 +1656,6 @@
      "link": null,
      "widget": {
       "name": "api_key"
-     }
-    },
-    {
-     "name": "api_key_env",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "api_key_env"
      }
     },
     {
@@ -1866,7 +1831,6 @@
     "",
     "",
     "",
-    "MOSS_LLM_API_KEY",
     8192,
     "",
     "q8_0",

@@ -48,7 +48,7 @@ check("载入 examples/llm-prompt-workbench.json", (await loadGraph(page, wf)).o
 await page.waitForTimeout(2500);
 const loaded = await where();
 check("面板已挂载（DOM 组件行）", loaded && loaded[0] && loaded[0].mounted, JSON.stringify(loaded));
-check("参数控件仍是 39 个（一个不多一个不少）", loaded && loaded[0].widgets === 39, "widgets=" + (loaded && loaded[0].widgets));
+check("参数控件仍是 38 个（一个不多一个不少）", loaded && loaded[0].widgets === 38, "widgets=" + (loaded && loaded[0].widgets));
 const ID = await page.evaluate(() => app.graph.nodes.find((x) => x.type === "MossPromptSmith").id);
 // 面板文案与核心 i18n 同源（节点标题/标签/说明会一起换）⇒ 先钉中文，后面断言的
 // 「常用调优 / 本地引擎 / 通道外 / 已改」才有确定口径。宿主自己的 `<html lang>` 可能是 en。
@@ -221,10 +221,8 @@ const names = await page.evaluate(() => {
     return { total: ws.length, hidden: ws.filter((w) => w.options && w.options.hidden).length,
         invisible: ws.filter((w) => typeof n.isWidgetVisible === "function" && !n.isWidgetVisible(w)).map((w) => w.name) };
 });
-// 39 格都在（存档契约），但 api_key_env 界面不提供 —— Key 走约定名，不再让用户填变量名。
-check("全展开后除 api_key_env 外全部可见（39 格存档不变）",
-    names.total === 39 && names.hidden === 1 && names.invisible.length === 1
-    && names.invisible[0] === "api_key_env",
+check("全展开后 38 个参数一个不少（逐个核 isWidgetVisible）",
+    names.total === 38 && names.hidden === 0 && names.invisible.length === 0,
     "widgets=" + names.total + " hidden=" + names.hidden + " 不可见=" + JSON.stringify(names.invisible));
 const bad = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
@@ -275,12 +273,12 @@ const diff = [];
 for (let i = 0; i < Math.max(save.orig.length, save.after.length); i += 1) {
     if (JSON.stringify(save.orig[i]) !== JSON.stringify(save.after[i])) diff.push([i, save.orig[i], save.after[i]]);
 }
-check("存档里 widgets_values 长度 39（DOM 组件那格被剔掉）", save.orig.length === 39, "len=" + save.orig.length);
+check("存档里 widgets_values 长度 38（DOM 组件那格被剔掉）", save.orig.length === 38, "len=" + save.orig.length);
 check("重开后 widgets_values 逐位一致", diff.length === 0, JSON.stringify(diff.slice(0, 3)));
 check("折叠/聚焦状态没写进存档（无 mossllm/hidden/focus 键）", save.stray.length === 0, JSON.stringify(save.stray));
 check("改过的值重开还在（0.55 / 路上小心）", save.temp === 0.55 && save.keep === "路上小心", save.temp + "/" + save.keep);
-check("重后面板自动挂回、回到默认（常驻 5 行 / 34 项隐藏 / 无聚焦组）",
-    save.mounted && save.hidden === 34 && save.focus === null, "mounted=" + save.mounted
+check("重后面板自动挂回、回到默认（常驻 5 行 / 33 项隐藏 / 无聚焦组）",
+    save.mounted && save.hidden === 33 && save.focus === null, "mounted=" + save.mounted
     + " hidden=" + save.hidden + " focus=" + JSON.stringify(save.focus));
 r = await visRows(await page.evaluate(() => app.graph.nodes.find((x) => x.type === "MossPromptSmith").id));
 check("重开后界面上仍是 5 行", r && r.shown === 5, JSON.stringify(r));
@@ -318,17 +316,11 @@ const two = await page.evaluate(async () => {
     return { before, after: all.length, fresh: fresh && {
         mounted: !!(fresh.__mossllmBar && fresh.__mossllmBar.nodeType),
         widgets: fresh.widgets.length, values: (fresh.serialize().widgets_values || []).length,
-        hidden: fresh.widgets.filter((w) => w.options && w.options.hidden).length,
-        keyEnvHidden: (() => {
-            const w = fresh.widgets.find((x) => x.name === "api_key_env");
-            return !!w && !!(w.options && w.options.hidden)
-                && (typeof fresh.isWidgetVisible !== "function" || !fresh.isWidgetVisible(w));
-        })() } };
+        hidden: fresh.widgets.filter((w) => w.options && w.options.hidden).length } };
 });
-check("新加的同型节点独立挂载、39 格存档、api_key_env 恒隐（不干扰已有节点）",
-    two.after === two.before + 1 && two.fresh && two.fresh.mounted && two.fresh.widgets === 40
-    && two.fresh.values === 39 && two.fresh.hidden === 34
-    && two.fresh.keyEnvHidden === true, JSON.stringify(two));
+check("新加的同型节点独立挂载、38 格存档（不干扰已有节点）",
+    two.after === two.before + 1 && two.fresh && two.fresh.mounted && two.fresh.widgets === 39
+    && two.fresh.values === 38 && two.fresh.hidden === 33, JSON.stringify(two));
 
 // 接了线的参数不许藏：**造真机条件**——PrimitiveNode 连一根真链到 ctx_size 的输入槽。
 //
@@ -431,8 +423,8 @@ const reloadLinked = await page.evaluate(async () => {
 });
 check("重开工作流后真链还在（ctx_size 输入槽 slot.link 非空）",
     reloadLinked.slotLink != null, "slot.link=" + reloadLinked.slotLink);
-check("重开后 widgets_values 逐位一致（39 格；接线与折叠都不写存档）",
-    reloadLinked.len === 39 && reloadLinked.diff.length === 0,
+check("重开后 widgets_values 逐位一致（38 格；接线与折叠都不写存档）",
+    reloadLinked.len === 38 && reloadLinked.diff.length === 0,
     "len=" + reloadLinked.len + " diff=" + JSON.stringify(reloadLinked.diff));
 check("重开后已接线参数仍不被面板藏（hidden=false；宿主 byConnection 抑制控件本身是宿主行为，如实记录）",
     reloadLinked.hidden === false && reloadLinked.suppressed === true

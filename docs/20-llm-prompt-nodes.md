@@ -112,7 +112,7 @@ MossPromptSmith
 |---|---|---|
 | 宿主端到端 | 维护者本地实验 `p0_host_e2e.py`：`/prompt` 提交 `LoadImage → MossPromptSmith → SaveText×2` | ✅ `status=success`，16.0s，产物落 `output/moss_llm_e2e/`；report 里 pack 版本 / `MTP(draft-mtp d=2) 已启用` / 模型与 mmproj 名 / tokens 2786 / `confidence.overall=0.95` / 12 个文件的 sha8 全在 |
 
-> 这一臂证明的是**宿主侧**：V3 注册、`image` 入参接线、39 个 widget 的 API 形态、
+> 这一臂证明的是**宿主侧**：V3 注册、`image` 入参接线、38 个 widget 的 API 形态、
 > 以及节点自己拉起并释放 llama-server。链尾必须挂输出节点，否则宿主直接
 > `prompt_no_outputs`（第一次就栽在这）。
 
@@ -147,9 +147,9 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 ✅ **子包节点已与核心 7 节点共用同一套 i18n 表**（`web/moss_sb_i18n.js`）：
 `NODES`（后端当前显示名 `LLM Prompt`；更早的 `MOSS Prompt Smith` 收进 legacy，老工作流标题也能换）、
-`LABELS`（39 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
+`LABELS`（38 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
 `COMBOS`（任务/通道/方言/编译目标/篇幅/语言/思考/运行时/mmproj/KV 精度/开关，共 17 组）、
-`TIPS`（39 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
+`TIPS`（38 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
 **存档值一律 ASCII id**（`caption` / `local` / `standard` …），中文只在显示层 ——
 英文用户的工作流里不会出现中文枚举；初版已写进存档的中文由 `_LEGACY_VALUES` 在运行时就地
 归一，并把「哪几格被改」写进 report（不静默迁移）。
@@ -178,7 +178,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 ## 九、参数面板 `web/moss_llm_panel.js`
 
-39 个参数平铺是一堵墙。面板只做三件事：**默认只露常驻**、**一次只看一组**、**把改动标出来**。
+38 个参数平铺是一堵墙。面板只做三件事：**默认只露常驻**、**一次只看一组**、**把改动标出来**。
 
 - **默认 5 项**（`task` `channel` `dialect` `model` `text`）。这个节点的日常动作是
   「贴图/贴文本 → 跑」，其余参数都是配置不是操作。默认状态节点 `size` 高 **353 画布单位**；
@@ -228,7 +228,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 真机闸：`node tools/ui_llm_panel.mjs` = **60/0**（只读界面、不排队）。断言含：默认 5 行 /
 开关条在参数上方且是 `widgets[0]`（**重开后也自愈回首位**）/ 悬停换说明时开关条高度与参数 top 都不动（不抖）/
-节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 39 个 `isWidgetVisible` /
+节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 38 个 `isWidgetVisible` /
 **存盘→重开 `widgets_values` 逐位一致** / 折叠状态不进存档 / 两个同型节点各自独立 /
 只作用于本节点 / 页面无 JS 异常 / **按 `task` 动态常驻**（compile 提 `target`、给 3 个 inert
 控件加文字标注）/ api 工作流冷载入自动聚焦 / 切组焦点保护 / **拉取模型有可见进度、拉完自己展开下拉、换端点不留旧模型名**。

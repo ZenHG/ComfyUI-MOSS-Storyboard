@@ -209,7 +209,7 @@ the rest need nothing.
 ### 3.2 Docs
 
 - Full parameters, glossary and measured limits: [`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
-- LLM node (dialects, 39 widgets): [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 above.
+- LLM node (dialects, 38 widgets): [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 above.
 - Docs index: [`docs/README.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/README.md).
 
 > Manuals live in the GitHub repository only; the published package does not ship `docs/`. Links above point to the repository.

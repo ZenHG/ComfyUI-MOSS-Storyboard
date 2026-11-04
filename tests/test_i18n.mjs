@@ -71,21 +71,21 @@ check("2.7 LABELS 都是非空中文串",
 check("2.8 COMBOS 的值都是字符串（不会误翻数字枚举）",
     Object.values(COMBOS).every((m) => Object.values(m).every((v) => typeof v === "string")));
 
-// ---- 2.5 子包节点：38 个参数一个都不许漏（漏了 = 中文界面显示英文名 / 英文界面显示中文说明）----
+// ---- 2.5 子包节点：37 个参数一个都不许漏（漏了 = 中文界面显示英文名 / 英文界面显示中文说明）----
 const SMITH = "MossPromptSmith";
 //: 与 `moss_llm/nodes.py::INPUT_TYPES` 同步；参数表对账（增删参数）在 Python 侧 `check_frontend` F5/F6。
 const SMITH_PARAMS = [
     "task", "channel", "dialect", "model", "text", "length", "temperature", "max_tokens", "seed",
     "image", "mmproj", "language", "thinking", "panels", "style_lock", "must_keep", "wash", "two_pass",
-    "runtime", "api_base", "api_model", "api_key", "api_key_env", "ctx_size", "gpu_layers",
+    "runtime", "api_base", "api_model", "api_key", "ctx_size", "gpu_layers",
     "cache_type_k", "cache_type_v", "flash_attn", "image_max_tokens", "ubatch", "parallel",
     "fit_on", "fit_target_mib", "mtp", "mtp_draft_n", "server_exe", "port", "release_after_run",
 ];
 const missLabel = SMITH_PARAMS.filter((n) => !LABELS[n]);
 const missTip = SMITH_PARAMS.filter((n) => !(TIPS[SMITH + "." + n] && TIPS[SMITH + "." + n].en));
-check("2.9 提示词工匠 38 个参数都有中文标签", SMITH_PARAMS.length === 38 && !missLabel.length,
+check("2.9 提示词工匠 37 个参数都有中文标签", SMITH_PARAMS.length === 37 && !missLabel.length,
     missLabel.join(","));
-check("2.10 提示词工匠 38 个参数都有英文提示", !missTip.length, missTip.join(","));
+check("2.10 提示词工匠 37 个参数都有英文提示", !missTip.length, missTip.join(","));
 check("2.11 子包节点的后端显示名进了 legacy（老工作流才可切）",
     NODES[SMITH].legacy === "MOSS Prompt Smith" && defaultTitles(SMITH).length === 3);
 

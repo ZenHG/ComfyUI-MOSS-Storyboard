@@ -176,20 +176,23 @@ def main():
     check("指纹带可读前缀且定长", a1.startswith("moss-llm-") and len(a1) == 19, a1)
 
     print("\n== 5. 外部 API 通道：端点拼接与 Key 来源 ==")
-    ep, key, src = nodes._api_setup("https://api.example.com/v1/", "glm-4v", "", "NO_SUCH_ENV")
+    os.environ.pop(nodes.KEY_ENV, None)      # 环境里可能有真 Key，先清掉再断言"未提供"
+    ep, key, src = nodes._api_setup("https://api.example.com/v1/", "glm-4v", "")
     check("补全 chat/completions 且吃掉尾斜杠",
           ep == "https://api.example.com/v1/chat/completions", ep)
     check("没 Key 时说明是本地端点可留空", not key and "未提供" in src, src)
-    os.environ["MOSS_TEST_KEY"] = "sk-abcdef"
-    _ep, key, src = nodes._api_setup("x/v1", "m", "", "MOSS_TEST_KEY")
-    check("从环境变量读 Key 并写明来源", key == "sk-abcdef" and "MOSS_TEST_KEY" in src, src)
-    _ep, key, src = nodes._api_setup("x/v1", "m", "sk-inline", "")
+    os.environ[nodes.KEY_ENV] = "sk-abcdef"
+    _ep, key, src = nodes._api_setup("x/v1", "m", "")
+    check("从约定环境变量读 Key 并写明来源",
+          key == "sk-abcdef" and nodes.KEY_ENV in src, src)
+    os.environ.pop(nodes.KEY_ENV, None)
+    _ep, key, src = nodes._api_setup("x/v1", "m", "sk-inline")
     check("写在工作流里的 Key 要警告会随 JSON 分享", "随 JSON 分享" in src, src)
     check("已含 chat/completions 的 URL 不重复拼",
-          nodes._api_setup("a/b/chat/completions", "m", "", "")[0] == "a/b/chat/completions")
+          nodes._api_setup("a/b/chat/completions", "m", "")[0] == "a/b/chat/completions")
     for bad, needle in ((("", "m"), "api_base"), (("x/v1", ""), "api_model")):
         try:
-            nodes._api_setup(bad[0], bad[1], "", "")
+            nodes._api_setup(bad[0], bad[1], "")
             check("缺 %s 要报错" % needle, False, "没报错")
         except ValueError as e:
             check("缺 %s 要报错" % needle, needle in str(e), str(e)[:50])

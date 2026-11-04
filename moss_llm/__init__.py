@@ -30,23 +30,24 @@ __all__ = ["CATEGORY", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS",
 
 def register_models_route():
     """前端「拉取模型」打这个路由。Key 只在请求体里过一趟：不回显、不落日志、不存盘。"""
+    # 整个注册过程都要兜住：`PromptServer.instance` 在无宿主 / app 未建时不存在，
+    # 漏在 try 外面会让**整个子包 import 失败**，节点直接注册不上（真机不炸、闸一跑就露）。
     try:
         from aiohttp import web
         from server import PromptServer
+
+        @PromptServer.instance.routes.post("/moss_llm/models")
+        async def _models(request):
+            try:
+                data = await request.json()
+                ids, url = list_models(data.get("api_base"), data.get("api_key"))
+                return web.json_response({"ok": True, "models": ids, "url": url})
+            except Exception as e:
+                return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+        return True
     except Exception:            # 不在 ComfyUI 里（单测 / CLI）⇒ 没有路由可挂
         return False
-
-    @PromptServer.instance.routes.post("/moss_llm/models")
-    async def _models(request):
-        try:
-            data = await request.json()
-            ids, url = list_models(data.get("api_base"), data.get("api_key"),
-                                   data.get("api_key_env"))
-            return web.json_response({"ok": True, "models": ids, "url": url})
-        except Exception as e:
-            return web.json_response({"ok": False, "error": str(e)}, status=400)
-
-    return True
 
 
 register_models_route()
