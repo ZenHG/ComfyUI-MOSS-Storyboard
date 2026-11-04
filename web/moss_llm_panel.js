@@ -164,6 +164,22 @@ const I18N = {
             + "端点不生效。点这一个提示，就把通道切到「外部 API」（端点与模型名都已填好）。"
             + "想保留本地就无视它 —— 通道=本地 是显式选择，节点不会替你改。",
         chanAuto: "已按已填的端点切到「外部 API」",
+        // 模式摘要：首屏唯一一处解释「这个节点现在要干什么」的地方（不新增控件、不动存档）。
+        chLocalShort: "本地 GGUF", chApiShort: "外部 API",
+        mode_caption: "读图说话", mode_expand: "扩写提示词",
+        mode_edit: "按指令改图", mode_compile: "只编译提示词",
+        modeTip_caption: "读图说话：把输入图写成提示词。本地要 GGUF 模型 + 视觉塔（mmproj）；"
+            + "切到外部 API 则用服务商的视觉模型",
+        modeTip_expand: "扩写：纯文字 → 更详细的提示词。不需要图，也不需要视觉塔",
+        modeTip_edit: "按指令改图：接输入图 + 指令，输出改写后的提示词。本地需要视觉塔",
+        modeTip_compile: "只编译提示词：不开模型、不占显存，用来检查拼装结果",
+        // 执行前就能看出来的缺项（Key 空不算缺 —— Ollama / LM Studio 本来就不要 Key）
+        lackBase: "⚠ 还没填 api_base", lackName: "⚠ 还没选模型名",
+        lackModel: "⚠ 本机没有 GGUF 模型",
+        lackTipBase: "端点还没填，这次运行必然失败。点一下展开「外部 API」组。",
+        lackTipName: "模型名还没选。点一下展开「外部 API」组，或先用 ↻ 拉一份清单。",
+        lackTipModel: "本地通道要一个 GGUF 模型才能跑。点一下展开「本地引擎」组；"
+            + "或把通道切到「外部 API」。",
         },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
         other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
@@ -180,6 +196,21 @@ const I18N = {
         fetching: "Fetching model list… %ds",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
         switched: "channel switched to external API",
+        chLocalShort: "Local GGUF", chApiShort: "External API",
+        mode_caption: "Caption image", mode_expand: "Expand prompt",
+        mode_edit: "Edit by instruction", mode_compile: "Compile only",
+        modeTip_caption: "Caption: turn the input image into a prompt. Local needs a GGUF model "
+            + "plus a vision tower (mmproj); the API channel uses the provider's vision model",
+        modeTip_expand: "Expand: plain text to a longer prompt. No image, no vision tower",
+        modeTip_edit: "Edit: input image plus instruction, output the rewritten prompt. "
+            + "Local needs a vision tower",
+        modeTip_compile: "Compile only: no model, no VRAM, just check the assembled prompt",
+        lackBase: "Missing api_base", lackName: "No model name yet",
+        lackModel: "No local GGUF found",
+        lackTipBase: "api_base is empty, so this run cannot work. Click to open External API.",
+        lackTipName: "Pick a model name. Click to open External API, or press the arrow to fetch a list.",
+        lackTipModel: "The local channel needs a GGUF model. Click to open Local engine, "
+            + "or switch the channel to External API.",
         apiIdle: "Endpoint filled but channel=local — this run uses local",
         apiIdleFix: "Click to use the API",
         apiIdleTip: "api_base is filled but the channel is still Local GGUF: this run will look for a local"
@@ -298,7 +329,7 @@ function installHintListener() {
             if (!s || !s.hint || !s.hint.dataset.hover) continue;
             delete s.hint.dataset.hover;
             s.hint.textContent = s.summary || "";
-            s.hint.title = "";
+            s.hint.title = s.modeTip || "";
         }
         const st = owner && owner.__mossllm;
         if (!st || !st.hint) return;
@@ -755,7 +786,14 @@ function buildBar(node, st) {
     st.warn.hidden = true;
     st.warn.onclick = (e) => {
         e.stopPropagation();
-        // 一键修复：把通道拨到外部 API（端点/模型名原样保留）。用户显式选本地时不会被这个按钮碰到。
+        const act = st.warn.dataset.act || "chan";
+        // 缺项：只把对应分组展开（不替用户改值）—— 修复动作是「填一个值」，不该由按钮代填。
+        if (act === "open-api" || act === "open-local") {
+            st.focus = act === "open-api" ? "api" : "local";
+            applySoon(node);
+            return;
+        }
+        // 通道矛盾：拨到外部 API（端点/模型名原样保留）。用户显式选本地时不会被这个按钮碰到。
         if (setChannel(node, CH_API)) {
             noteOnce(node, st, t().chanAuto);
             applySoon(node);
@@ -763,6 +801,24 @@ function buildBar(node, st) {
     };
     bar.append(st.warn, st.btn, hintRow);
     return bar;
+}
+
+/**
+ * 执行前就能判断的「还缺什么」——只列**前端看得见、且缺了必然跑不起来**的项。
+ *
+ * Key 空不算缺：Ollama / LM Studio / vLLM 本来就不要 Key，报「缺 Key」会把人往错方向带。
+ * llama-server 有没有也不在这里判断（那要碰文件系统），交给执行期那条定向报错。
+ */
+function lacksOf(node, meta) {
+    if (!meta || meta.compile) return null;          // 编译任务不开模型
+    if (meta.ch === CH_API) {
+        if (!apiVal(node, "api_base").trim()) return "base";
+        if (!apiVal(node, "api_model").trim()) return "name";
+        return null;
+    }
+    // 后端在没有 GGUF 时把占位符塞进选项（"(未找到 GGUF 模型)"）；真实文件名不会以括号开头。
+    const m = apiVal(node, "model");
+    return (!m || m.startsWith("(")) ? "model" : null;
 }
 
 function paintBar(node, st, shown, off, meta) {
@@ -793,18 +849,35 @@ function paintBar(node, st, shown, off, meta) {
     st.btn.textContent = st.force ? L.back : L.expand;
     st.btn.title = st.force ? L.backTip : fmt(L.expandTip, hidden);
 
-    // 状态条：端点填了、通道却停在本地 —— 此刻的状态必须一眼看见（摘要里的灰字实测等于没写）。
+    // 状态块两用，且两者天然互斥（通道矛盾要求 api_base 非空，缺端点要求它为空）：
+    //   ① 端点已填、通道却停在本地 —— 通道矛盾，优先（它往往是缺项之前要先解决的那件事）；
+    //   ② 还缺必填项 —— 跑之前就说出来，而不是等执行完再报错。
     const idle = chanOf(apiVal(node, "channel")) !== CH_API && !!apiVal(node, "api_base").trim();
+    const lack = idle ? null : lacksOf(node, meta);
     if (st.warn) {
-        st.warn.hidden = !idle;
+        st.warn.hidden = !idle && !lack;
+        st.warn.dataset.act = idle ? "chan" : (lack === "model" ? "open-local" : "open-api");
         if (idle) {
             st.warn.textContent = L.apiIdle + " · " + L.apiIdleFix;
             st.warn.title = L.apiIdleTip;
+        } else if (lack) {
+            const K = lack[0].toUpperCase() + lack.slice(1);
+            st.warn.textContent = L["lack" + K];
+            st.warn.title = L["lackTip" + K];
         }
     }
 
+    // 模式摘要：首屏唯一解释「这个节点现在要干什么」的一行（不加控件、不动存档）。
+    // 完整说明（要不要视觉塔、要不要图）放 title，不占视觉宽度。
+    const modeName = (meta && L["mode_" + meta.task]) || (meta && meta.task) || "";
+    const chanName = !meta ? "" : (meta.ch === CH_API ? L.chApiShort
+        : meta.ch === CH_LOCAL ? L.chLocalShort : "");
+    st.modeTip = (meta && L["modeTip_" + meta.task]) || "";
+    if (!st.hint.dataset.hover) st.hint.title = st.modeTip;
+
     // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
-    let summary = fmt(L.count, all, all - hidden);
+    let summary = (modeName && chanName ? modeName + " · " + chanName + "｜" : "")
+        + fmt(L.count, all, all - hidden);
     if (st.pick && st.pick.err) summary += "｜" + st.pick.err.slice(0, 70);
     else if (st.pick && st.pick.busy) summary += "｜" + st.pick.busy;
     else if (st.pick && st.pick.note) summary += "｜" + st.pick.note;
@@ -961,6 +1034,19 @@ function mount(node) {
             return r;
         };
     }
+    // 摘要行与缺项都在读 task / model：值一变就必须重画。不装这个回调，只能等 1.5s 兜底轮询，
+    // 用户看到的就是「切了模式，上面那行字没动」（实测）。
+    for (const name of ["task", "model"]) {
+        const w = widgetOf(node, name);
+        if (!w || w.__mossRepaintHooked) continue;
+        const orig = w.callback;
+        w.callback = function (...args) {
+            const r = orig ? orig.apply(this, args) : undefined;
+            applySoon(node);
+            return r;
+        };
+        w.__mossRepaintHooked = true;
+    }
     // 手输模型名（不走 ↻ 拉取）同样是"我要用这个 API"。
     const mw = widgetOf(node, "api_model");
     if (mw && !mw.__mossChanHooked) {
@@ -968,6 +1054,7 @@ function mount(node) {
         mw.callback = function (...args) {
             const r = orig ? orig.apply(this, args) : undefined;
             if (String(args[0] == null ? "" : args[0]).trim()) setChannel(node, CH_API);
+            applySoon(node);
             return r;
         };
         mw.__mossChanHooked = true;

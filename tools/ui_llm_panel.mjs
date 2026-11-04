@@ -667,6 +667,109 @@ await page2.close();
 check("打开「端点已填、通道还写本地」的存档 ⇒ 自动对齐到外部 API，并在摘要里说一句",
     adopt.ch === "api" && /外部 API|External API/.test(adopt.hint), JSON.stringify(adopt));
 
+// —— 模式摘要（B）与执行前缺项（C）：都要靠真页面读 DOM，不能只测函数 ——
+const guide = await page.evaluate(async () => {
+    const n = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
+    const W = (name) => n.widgets.find((x) => x.name === name);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const grid = () => document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const badge = () => grid().querySelector(".mossllm-warn");
+    const hint = () => grid().querySelector(".mossllm-hint");
+    // 隐藏的 widget 行仍在 DOM 里（宿主只是不画），必须按实际高度判可见。
+    const vis = (name) => {
+        const e = grid().querySelector('[data-widget-name="' + name + '"]');
+        return !!e && e.getBoundingClientRect().height > 0;
+    };
+    const set = async (name, v) => {
+        const w = W(name);
+        w.value = v;
+        if (w.callback) w.callback(v);            // 纯赋值不走 callback，面板收不到
+        await wait(700);                          // paintBar 走 rAF + 300ms 兜底，等够再读
+    };
+    const out = {};
+
+    // ① 本地 + 没有 GGUF：说缺模型，点一下把「本地引擎」组展开
+    n.__mossllm.focus = "";
+    n.__mossllm.force = false;      // 前面的用例可能停在「全部展开」，那状态下什么都可见
+    await set("channel", "local");
+    await set("api_base", "");
+    W("model").value = "(未找到 GGUF 模型)";
+    await set("task", "caption");
+    // 切通道会自动聚焦该通道的组，这里先把视图挪到 tune，才测得出「点一下才展开」
+    globalThis.MOSS_SB_LLM_PANEL.focus("tune");
+    await wait(500);
+    out.lackModel = { shown: !badge().hidden, text: badge().textContent,
+                      tip: badge().title, act: badge().dataset.act, visBefore: vis("gpu_layers") };
+    if (!badge().hidden) badge().click();
+    await wait(400);
+    out.lackModel.visAfter = vis("gpu_layers");
+
+    // ② 外部 API + 没端点：说缺 api_base
+    await set("channel", "api");
+    globalThis.MOSS_SB_LLM_PANEL.focus("tune");
+    await wait(500);
+    out.lackBase = { shown: !badge().hidden, text: badge().textContent, act: badge().dataset.act };
+    if (!badge().hidden) badge().click();
+    await wait(400);
+    out.lackBase.visAfter = vis("api_key");
+
+    // ③ 有端点、没模型名
+    await set("api_model", "");
+    await set("api_base", "https://guide.example.com/v1");
+    await wait(500);
+    out.lackName = { shown: !badge().hidden, text: badge().textContent };
+
+    // ④ Key 空不算缺（Ollama / LM Studio 不要 Key）—— 防误报的对照组
+    await set("api_model", "model-a");
+    out.noKey = { shown: !badge().hidden, text: badge().hidden ? "" : badge().textContent };
+
+    // ⑤ 编译任务不开模型 ⇒ 不该报缺模型
+    await set("task", "compile");
+    await wait(500);
+    out.compile = { shown: !badge().hidden, hint: hint().textContent };
+
+    // ⑥ 模式摘要随 task/channel 变，完整说明在 title 里
+    await set("task", "expand");
+    await wait(300);
+    out.expand = { hint: hint().textContent, title: hint().title };
+    await set("task", "caption");
+    await wait(500);
+    out.caption = { hint: hint().textContent, title: hint().title };
+
+    // 复原，别把现场留给后面的用例
+    n.__mossllm.focus = "";
+    await set("channel", "local");
+    await set("api_base", "");
+    await set("task", "caption");
+    return out;
+});
+check("本地没有 GGUF ⇒ 跑之前就指出缺模型（不用等执行报错）",
+    guide.lackModel.shown && /GGUF/.test(guide.lackModel.text), JSON.stringify(guide.lackModel.text));
+check("点缺项提示会展开对应分组（本地引擎），不替用户填值",
+    guide.lackModel.act === "open-local" && !guide.lackModel.visBefore && guide.lackModel.visAfter,
+    JSON.stringify({ act: guide.lackModel.act, before: guide.lackModel.visBefore, after: guide.lackModel.visAfter }));
+check("外部 API 没填端点 ⇒ 指出缺 api_base，并展开 API 组",
+    guide.lackBase.shown && /api_base/.test(guide.lackBase.text) && guide.lackBase.visAfter,
+    JSON.stringify(guide.lackBase));
+check("有端点没模型名 ⇒ 指出缺模型名",
+    guide.lackName.shown && /模型名/.test(guide.lackName.text), JSON.stringify(guide.lackName.text));
+check("Key 留空不算缺（Ollama / LM Studio 本来就不要 Key）",
+    !guide.noKey.shown, JSON.stringify(guide.noKey));
+check("编译任务不报缺模型（它不开模型）",
+    !guide.compile.shown && /编译/.test(guide.compile.hint), JSON.stringify(guide.compile));
+check("摘要行说人话：现在是哪个模式 + 哪个通道",
+    /扩写/.test(guide.expand.hint) && /外部 API/.test(guide.expand.hint)
+    && /读图/.test(guide.caption.hint), JSON.stringify([guide.expand.hint, guide.caption.hint]));
+check("完整说明（要不要视觉塔 / 要不要图）挂在 title 上，不占视觉宽度",
+    /视觉塔/.test(guide.caption.title) && /不需要图/.test(
+        await page.evaluate(() => {
+            const n = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
+            const w = n.widgets.find((x) => x.name === "task");
+            w.value = "expand"; if (w.callback) w.callback("expand");
+            return document.querySelector('[data-widgets-grid-node-id="' + n.id + '"] .mossllm-hint').title;
+        })),
+    guide.caption.title.slice(0, 40));
+
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();
 await browser.close();
