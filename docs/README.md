@@ -1,4 +1,4 @@
-# 文档索引（12 篇）
+# 文档索引（13 篇）
 
 > 只列仍在 `docs/` 的文档；历史过程文档已归档，见 git 历史。
 
@@ -16,3 +16,4 @@
 | [蒙版潜空间编辑：MOSS 没做的那半条路](18-masked-latent-edit.md) | 三条硬证据（2026-10-29 读代码 + 工作流得到）： |
 | [节点手册 · 参数全表](19-node-manual.md) | 同一个东西在不同地方叫不同名字，是这类文档最常见的误解来源。本包统一如下： |
 | [20 · 可选 LLM 子包 `moss_llm`：一个节点，只出成品提示词](20-llm-prompt-nodes.md) | 提案里是 `MossLLMConfig` + `MossPromptSmith`（+ 可选 `MossPromptCheck`）三个。 |
+| [21 · LLM Prompt 节点 · 未做项台账](21-llm-prompt-ux-spec.md) | 改造已落地大半，这里只留没做的事与仍生效的判据。 |
