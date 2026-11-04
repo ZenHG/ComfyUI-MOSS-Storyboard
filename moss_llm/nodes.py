@@ -824,11 +824,20 @@ class MossPromptSmith:
                 break
             except _Http400 as e:
                 last = e
+                if _FATAL_400.search(e.body or ""):
+                    break        # 缺会话/缺头的 400，换参数试不出来
                 continue
         if obj is None:
-            raise RuntimeError(
-                "HTTP 400（把结构化输出 / thinking / repeat_penalty 逐级摘掉后仍被拒）：%s"
-                % last.body) from last
+            body = last.body or ""
+            if _KNOB_400.search(body):
+                head = "HTTP 400（把结构化输出 / thinking / repeat_penalty 逐级摘掉后仍被拒）"
+            elif _FATAL_400.search(body):
+                head = ("HTTP 400：请求缺必需项（会话 id / 请求头 / 鉴权），换参数解决不了；"
+                        "网关要自定义头时可用环境变量 MOSS_LLM_EXTRA_HEADERS='{\"x-foo\": \"bar\"}'")
+            else:
+                head = ("HTTP 400（报错没提到 response_format / thinking / repeat_penalty ⇒ "
+                        "大概率不是参数不支持，看下面的原文）")
+            raise RuntimeError("%s：%s" % (head, body)) from last
 
         drop_thinking, drop_repeat, name = chosen
         if drop_thinking:
@@ -1155,6 +1164,15 @@ class _Http400(Exception):
     def __init__(self, body):
         super().__init__(body)
         self.body = body
+
+
+#: 这些 400 是「请求缺东西」（会话 id / 必需头 / 鉴权），换参数换不出来。
+#: 实测 opencode：缺 `x-opencode-session` 时报 `MissingSessionID`，我们却把
+#: response_format / thinking / repeat_penalty 全摘一遍才报「参数不支持」—— 白打五六个请求。
+_FATAL_400 = re.compile(r"missing[ _-]?(?:session|header|api[ _-]?key|token|param)|"
+                        r"invalid[ _-]?api[ _-]?key|unauthori[sz]ed", re.I)
+#: 报错里点到这些名字，才说明真是「这个旋钮不支持」。
+_KNOB_400 = re.compile(r"response_format|json_schema|chat_template|thinking|repeat_penalty", re.I)
 
 
 #: 拉过的模型清单（按端点缓存）。combo 的选项由它生成 —— 进程内有效，重启后为空。

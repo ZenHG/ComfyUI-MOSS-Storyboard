@@ -10,7 +10,10 @@ Anthropic `/v1/messages`、Google GenAI `:generateContent`。
 协议由**端点**判定，不另开参数：用户填的 `api_base` 决定拼哪个端点，端点决定用哪套线格式。
 """
 
+import json
+import os
 import urllib.parse
+import uuid
 
 OPENAI = "openai"
 RESPONSES = "responses"
@@ -23,6 +26,9 @@ ANTHROPIC_VERSION = "2023-06-01"
 GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
 #: urllib 默认 UA 会被 Cloudflare 一类网关按脚本签名拦掉（实测 403 error 1010）。
 USER_AGENT = "Mozilla/5.0 (compatible; ComfyUI-MOSS-Storyboard)"
+#: opencode 的 Go 网关要求每段对话带一个稳定的 `x-opencode-session`：缺了直接 400
+#: `MissingSessionID`（实测），它同时用于路由与 prompt 缓存。进程内一个 id 就够稳定。
+SESSION_ID = uuid.uuid4().hex
 
 
 def _path(url):
@@ -72,10 +78,30 @@ def endpoint(base, model=""):
     return join(base, "/chat/completions")
 
 
+def extra_headers():
+    """`MOSS_LLM_EXTRA_HEADERS='{"x-foo":"bar"}'`：网关要的自定义头。
+
+    这类要求穷举不完（会话 id、租户、路由标签…），又不该进工作流/存档 —— 只从环境变量来。
+    解析失败就当没设：多一个请求头不该让整个节点报错，但也不静默改写成别的东西。
+    """
+    raw = (os.environ.get("MOSS_LLM_EXTRA_HEADERS") or "").strip()
+    if not raw:
+        return {}
+    try:
+        obj = json.loads(raw)
+    except ValueError:
+        return {}
+    return {str(k): str(v) for k, v in obj.items()} if isinstance(obj, dict) else {}
+
+
 def headers(proto, key, url=""):
     # 明确不要压缩：网关强制 gzip 时 body 是二进制，json 解析会炸。
     head = {"Content-Type": "application/json", "User-Agent": USER_AGENT,
             "Accept-Encoding": "identity"}
+    # 服务商要求的头与鉴权无关，必须在「没 Key 就返回」之前加（本地/无鉴权网关也要）。
+    if (urllib.parse.urlsplit(url or "").hostname or "").lower().endswith("opencode.ai"):
+        head["x-opencode-session"] = SESSION_ID
+    head.update(extra_headers())
     if not key:
         return head
     if (urllib.parse.urlsplit(url or "").hostname or "").lower().endswith("openai.azure.com"):

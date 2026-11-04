@@ -735,6 +735,35 @@ def main():
     check("清单地址逐级上溯（清单不一定挂在对话端点那层）",
           "https://opencode.ai/inference/go" in ups and len(ups) >= 4, str(ups[:3]))
 
+    # ---- 网关要的自定义头（opencode 缺 x-opencode-session 直接 400 MissingSessionID）
+    oc = pr.headers(pr.OPENAI, "", "https://opencode.ai/inference/go/openai/v1")
+    check("opencode 网关自动带 x-opencode-session（不带 Key 也带：它与鉴权无关）",
+          bool(oc.get("x-opencode-session")), str(sorted(oc)))
+    check("同一个进程内会话 id 稳定（路由与 prompt 缓存都靠它）",
+          oc.get("x-opencode-session") == pr.headers(
+              pr.OPENAI, "K", "https://opencode.ai/inference/go/openai/v1").get("x-opencode-session"),
+          oc.get("x-opencode-session"))
+    check("别的服务商不被塞这个头", "x-opencode-session" not in
+          pr.headers(pr.OPENAI, "K", "https://api.deepseek.com/v1"), "leaked")
+    os.environ["MOSS_LLM_EXTRA_HEADERS"] = '{"x-tenant": "t1"}'
+    check("MOSS_LLM_EXTRA_HEADERS 能补网关要的头",
+          pr.headers(pr.OPENAI, "K", "https://api.deepseek.com/v1").get("x-tenant") == "t1", "missing")
+    os.environ["MOSS_LLM_EXTRA_HEADERS"] = "not json"
+    check("环境变量写坏了就当没设（不静默改成别的头）",
+          "x-tenant" not in pr.headers(pr.OPENAI, "K", "https://api.deepseek.com/v1"))
+    os.environ.pop("MOSS_LLM_EXTRA_HEADERS", None)
+
+    # ---- 400 的归属：缺东西的 400 不能甩锅给「参数不支持」
+    oc400 = '{"type":"error","error":{"type":"MissingSessionID","message":"missing x-opencode-session"}}'
+    check("缺会话 id 的 400 归为「换参数解决不了」",
+          nodes._FATAL_400.search(oc400) and not nodes._KNOB_400.search(oc400), "misclassified")
+    check("点到 response_format 的 400 才走降级梯子",
+          nodes._KNOB_400.search("response_format is not supported")
+          and not nodes._FATAL_400.search("response_format is not supported"), "misclassified")
+    check("两句都没提的 400 不冒充「参数不支持」",
+          not nodes._KNOB_400.search('{"error":"Invalid request"}')
+          and not nodes._FATAL_400.search('{"error":"Invalid request"}'), "misclassified")
+
     # ---- 拉清单的效能契约：不白等、不白建
     shared = nodes._opener("https://api.deepseek.com/v1")
     check("opener 复用（build_opener 单次 ~16ms，十来跳就是白等两百毫秒）",
