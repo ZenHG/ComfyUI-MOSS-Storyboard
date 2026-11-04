@@ -220,9 +220,9 @@ def _class_body(src, cls):
 #: 宿主给的列表，值就是英文 ID（euler / dpmpp_2m …），翻译反而会让人对不上别的节点。
 HOST_COMBO = {"sampler_name", "scheduler"}
 
-#: 值来自磁盘/运行时的动态下拉（GGUF 文件名、mmproj 文件名）——
-#: 文件名本来就该原样显示；只有固定项（auto / none）在 COMBOS 里有中文。
-DYNAMIC_COMBO = {"model", "mmproj"}
+#: 值来自磁盘/运行时的动态下拉（GGUF 文件名、mmproj 文件名、服务商的模型 id）——
+#: 这些名字本来就该原样显示；只有固定项（auto / none）在 COMBOS 里有中文。
+DYNAMIC_COMBO = {"model", "mmproj", "api_model"}
 
 
 def f7_combo_labels(mapping, src_js):

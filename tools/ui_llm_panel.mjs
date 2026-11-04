@@ -515,8 +515,8 @@ check("切组时焦点落在被隐藏行 ⇒ 移到目标 chip（不丢焦点）
 check("只作用于 MossPromptSmith", await page.evaluate(() => app.graph.nodes.filter((n) => n.type !== "MossPromptSmith")
     .every((n) => !n.__mossllmBar && !(n.widgets || []).some((w) => w && w.name === "mosssb_llm_panel"))));
 
-// —— 拉取模型：控件必须长在 api_model 那一行，且成功/失败都要有看得见的反馈 ——
-const picker = await page.evaluate(async () => {
+// —— 拉取模型：api_model 是真 combo，模型清单拉回来要能当场在下拉里选 ——
+const combo = await page.evaluate(async () => {
     const n = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
     const W = (name) => n.widgets.find((x) => x.name === name);
     const cw = W("channel");
@@ -528,36 +528,39 @@ const picker = await page.evaluate(async () => {
     const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
     const row = grid.querySelector('[data-widget-name="api_model"]');
     const pick = row && row.querySelector(".mossllm-pick");
-    if (!pick) return { inRow: false };
+    const w = W("api_model");
+    const typeIsCombo = !!w && (Array.isArray(w.options && w.options.values));
+    if (!pick) return { typeIsCombo, pick: false };
 
-    const stub = (ok, models, error) => {
-        window.fetch = async () => ({ ok, status: ok ? 200 : 401,
-            json: async () => (ok ? { ok: true, models } : { ok: false, error }) });
-    };
-    const read = () => {
-        const p2 = grid.querySelector('[data-widget-name="api_model"] .mossllm-pick');
-        const sel = p2.querySelector("select");
-        return { hidden: sel.hidden, opts: [...sel.options].map((o) => o.value),
-            bad: p2.querySelector("button").dataset.bad || "",
-            hint: (grid.querySelector(".mossllm-hint") || {}).textContent || "" };
-    };
-
-    stub(true, ["model-a", "model-b"], "");
+    window.fetch = async () => ({ ok: true, status: 200,
+        json: async () => ({ ok: true, models: ["model-a", "model-b"] }) });
     pick.querySelector("button").click();
-    await new Promise((r) => setTimeout(r, 900));
-    const good = read();
+    await new Promise((r) => setTimeout(r, 1000));
+    const values = (w.options && w.options.values) || [];
+    const ctl = row.querySelector('[role="combobox"]');
+    if (ctl) ctl.click();
+    await new Promise((r) => setTimeout(r, 400));
+    const opts = [...document.querySelectorAll('[role="option"]')]
+        .map((e) => e.textContent.trim()).filter(Boolean);
+    document.body.click();
+    await new Promise((r) => setTimeout(r, 200));
 
-    stub(false, [], "拉不到模型清单：HTTP 401");
-    grid.querySelector('[data-widget-name="api_model"] select').innerHTML = "";
-    grid.querySelector('[data-widget-name="api_model"] button').click();
-    await new Promise((r) => setTimeout(r, 900));
-    return { inRow: row.contains(pick), good, bad: read() };
+    // 失败路径：清空选项后重拉，必须标红且说明行留字
+    w.options.values = [""];
+    window.fetch = async () => ({ ok: false, status: 401,
+        json: async () => ({ ok: false, error: "拉不到模型清单：HTTP 401" }) });
+    pick.querySelector("button").click();
+    await new Promise((r) => setTimeout(r, 1000));
+    const bad = row.querySelector(".mossllm-pick button");
+    return { typeIsCombo, pick: true, values, opts,
+        bad: (bad && bad.dataset.bad) || "",
+        hint: (grid.querySelector(".mossllm-hint") || {}).textContent || "" };
 });
-check("拉取控件长在 api_model 行内（不是顶部条）", picker.inRow, JSON.stringify(picker).slice(0, 120));
-check("拉取成功后面板出现模型下拉", picker.good && !picker.good.hidden
-    && picker.good.opts.join(",") === "model-a,model-b", JSON.stringify(picker.good));
-check("拉取失败留得下痕迹（按钮标红 + 说明行点名原因）", picker.bad && picker.bad.bad === "1"
-    && picker.bad.hint.includes("401"), JSON.stringify(picker.bad));
+check("api_model 是原生 combo（不是手填输入框）", combo.typeIsCombo, JSON.stringify(combo).slice(0, 100));
+check("拉取后下拉里真能选到模型", combo.pick && combo.values.includes("model-a")
+    && combo.opts.includes("model-a") && combo.opts.includes("model-b"), JSON.stringify(combo.opts || combo.values));
+check("拉取失败留得下痕迹（按钮标红 + 说明行点名原因）", combo.bad === "1"
+    && combo.hint.includes("401"), JSON.stringify(combo.hint.slice(-40)));
 
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();

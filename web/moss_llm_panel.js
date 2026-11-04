@@ -119,10 +119,6 @@ const CSS = `
  color:var(--input-text,#ddd);cursor:pointer;font:12px/1 system-ui,sans-serif}
 .mossllm-pick button:hover{background:var(--comfy-menu-bg,#333)}
 .mossllm-pick button[data-bad="1"]{border-color:#c0504d;color:#e07b78}
-.mossllm-pick select{max-width:100%;padding:1px 3px;border-radius:5px;
- border:1px solid var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222);
- color:var(--input-text,#ddd);font:11px/1.4 system-ui,sans-serif}
-.mossllm-pick select[hidden]{display:none}
 .mossllm-hintrow{flex:0 0 100%;display:flex;align-items:flex-start;gap:6px;min-width:0}
 .mossllm-hint{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;
  /* 🔴 高度必须恒定：悬停换 tooltip 时行数一变，下面每个参数都会跟着位移（实测：鼠标定位失败）。 */
@@ -146,9 +142,9 @@ const I18N = {
         inert: "本次不生效（编译任务不开模型）",
         inertHint: "编译模式：%d 项本次不生效",
         selfCheck: "零模型自检：任务选「编译」",
-        fetch: "拉取模型", fetchTip: "用当前 api_base 与 Key 拉服务端模型清单（贴在模型那一格）",
+        fetchTip: "用当前 api_base 与 Key 拉模型清单，灌进这个下拉",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
-        fetching: "拉取中…", modelTip: "选中即写入 api_model" },
+        },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
         other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
         count: "%d params · %d visible", dirty: "%d differ from default",
@@ -159,9 +155,9 @@ const I18N = {
         inert: "No effect in this run (compile does not load a model)",
         inertHint: "Compile: %d controls have no effect",
         selfCheck: "No-weight check: set task=compile",
-        fetch: "List models", fetchTip: "Fetch models from this api_base + key (in the model row)",
+        fetchTip: "Fetch models for this api_base + key into this dropdown",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
-        fetching: "Fetching…", modelTip: "Pick one to fill api_model" },
+        },
 };
 let T = null;
 /** 宿主界面语言（没点过「中/EN」时跟随它）。顺序与 `moss_sb_i18n_ui.js` 完全一致。 */
@@ -489,6 +485,27 @@ function setModel(node, id) {
     app?.graph?.setDirtyCanvas?.(true, true);
 }
 
+/**
+ * 把拉到的模型灌进 `api_model` 这个 combo 的选项。
+ * 直接改 `options.values` 宿主不重画（实测下拉仍是旧列表），必须把同一个 widget
+ * 在同索引 splice 一次触发响应式；位置不变 ⇒ 存档格数与顺序不受影响。
+ */
+function setModelChoices(node, models) {
+    const w = widgetOf(node, "api_model");
+    if (!w) return;
+    const vals = [""].concat(models);
+    // 存过的自定义值不在清单里时要留在选项中，否则 combo 会显示空白、存盘把值弄丢。
+    const cur = String(w.value == null ? "" : w.value);
+    if (cur && !vals.includes(cur)) vals.unshift(cur);
+    w.options.values = vals;
+    const i = node.widgets.indexOf(w);
+    if (i >= 0) {
+        node.widgets.splice(i, 1);
+        node.widgets.splice(i, 0, w);
+    }
+    app?.graph?.setDirtyCanvas?.(true, true);
+}
+
 /** 拉模型清单：Key 只在这一次 POST 里过一趟，服务端不回显、不落盘。 */
 async function fetchModels(node, st) {
     const base = apiVal(node, "api_base");
@@ -512,34 +529,42 @@ async function fetchModels(node, st) {
         });
         const d = await r.json();
         if (!d.ok) throw new Error(d.error || ("HTTP " + r.status));
-        pick.sel.innerHTML = "";
-        for (const id of d.models) {
-            const o = document.createElement("option");
-            o.value = id;
-            o.textContent = id;
-            pick.sel.appendChild(o);
-        }
-        const cur = apiVal(node, "api_model");
-        if (cur) pick.sel.value = cur;
-        pick.sel.hidden = d.models.length === 0;
+        setModelChoices(node, d.models);
         pick.err = null;
         delete pick.btn.dataset.bad;
         // 只有一个模型且 api_model 还空着 ⇒ 直接填上；多个不替用户选。
-        if (!cur && d.models.length === 1) setModel(node, d.models[0]);
+        if (!apiVal(node, "api_model") && d.models.length === 1) setModel(node, d.models[0]);
     } catch (e) {
         // 失败必须留下痕迹：按钮变红、说明行常驻原因（不靠会过期的一闪而过）。
         pick.err = t().fetchFail + "：" + String((e && e.message) || e).split("\n")[0];
         pick.btn.dataset.bad = "1";
-        pick.sel.hidden = true;
         console.warn("%s: 拉取模型失败", TAG, e);
     } finally {
         pick.btn.disabled = false;
-        pick.btn.textContent = "⇣";
+        pick.btn.textContent = "↻";
         apply(node);
     }
 }
 
-/** 把「⇣ 拉取」贴在 api_model 行右端；宿主重建行元素后自愈。 */
+/**
+ * 旧工作流存过的模型名可能不在这次拉到的清单里：不补进选项，combo 就显示空白，
+ * 用户以为没选、存盘还可能丢值。补进去即可（只会补一次）。
+ */
+function ensureModelValue(node) {
+    const w = widgetOf(node, "api_model");
+    const vals = w && w.options && w.options.values;
+    if (!Array.isArray(vals)) return;
+    const cur = String(w.value == null ? "" : w.value);
+    if (!cur || vals.includes(cur)) return;
+    w.options.values = [cur].concat(vals);
+    const i = node.widgets.indexOf(w);
+    if (i >= 0) {
+        node.widgets.splice(i, 1);
+        node.widgets.splice(i, 0, w);
+    }
+}
+
+/** 把「↻ 拉取」贴在 api_model 行右端；宿主重建行元素后自愈。 */
 function pinPicker(node, st) {
     const row = rowOf(node, "api_model");
     if (!row) return false;
@@ -548,21 +573,16 @@ function pinPicker(node, st) {
         box.className = "mossllm-pick";
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.textContent = "⇣";
+        btn.textContent = "↻";
         btn.onclick = (e) => {
             e.stopPropagation();
-            if (st.pick.sel.options.length) st.pick.sel.hidden = !st.pick.sel.hidden;
-            else fetchModels(node, st);
+            fetchModels(node, st);
         };
-        const sel = document.createElement("select");
-        sel.hidden = true;
-        sel.onchange = () => setModel(node, sel.value);
-        box.append(btn, sel);
-        st.pick = { box, btn, sel, err: null, autoDone: false };
+        box.append(btn);
+        st.pick = { box, btn, err: null, autoDone: false };
     }
     if (st.pick.box.parentElement !== row) row.appendChild(st.pick.box);
     st.pick.btn.title = t().fetchTip;
-    st.pick.sel.title = t().modelTip;
     // 端点与 Key 都填了、模型还空着 ⇒ 自动拉一次（每节点一次，失败不反复打服务端）
     if (!st.pick.autoDone && !apiVal(node, "api_model") && apiVal(node, "api_base")
         && apiVal(node, "api_key")) {
@@ -709,6 +729,7 @@ function apply(node) {
     const changed = syncWidgets(node, shown);
     paintInert(node, inert);
     const found = paintHeaders(node, shown);
+    ensureModelValue(node);
     pinPicker(node, st);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;

@@ -300,9 +300,9 @@ class MossPromptSmith:
                                "`https://ark.cn-beijing.volces.com/api/v3`、"
                                "`http://127.0.0.1:11434/v1`（Ollama）、`http://127.0.0.1:1234/v1`"
                                "（LM Studio）。channel=外部 API 时必填", "advanced": True}),
-                "api_model": ("STRING", {"default": "",
-                    "tooltip": "外部 API 的模型名（服务商给的 id）。channel=外部 API 时必填；"
-                               "本地 GGUF 通道不用填（填了也不看）", "advanced": True}),
+                "api_model": (_model_choices(), {"default": "",
+                    "tooltip": "外部 API 的模型名。点右边的 ↻ 用当前端点+Key 拉一次清单就能下拉选；"
+                               "拉不到也能手填服务商给的 id。channel=外部 API 时必填", "advanced": True}),
                 "api_key": ("STRING", {"default": "",
                     "tooltip": "API Key。**注意：写在这里会随工作流 JSON 一起保存/分享出去**，"
                                "要发给别人请清空改用下面的环境变量名", "advanced": True}),
@@ -369,6 +369,11 @@ class MossPromptSmith:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("提示词", "report")
     FUNCTION = "smith"
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, api_model=None):
+        """模型名不按列表校验：清单来自实际拉取，进程重启就空，旧工作流里的值不许被判非法。"""
+        return True
     CATEGORY = CATEGORY
     DISPLAY_NAME = "LLM Prompt"
     #: 该 runtime 拒绝 `response_format` 时置真，report 里出声（不静默降级）
@@ -1142,6 +1147,18 @@ class _Http400(Exception):
         self.body = body
 
 
+#: 拉过的模型清单（按端点缓存）。combo 的选项由它生成 —— 进程内有效，重启后为空。
+_MODELS_BY_BASE = {}
+
+
+def _model_choices():
+    """`api_model` 的下拉选项：空串（未选）+ 拉过的全部模型名。
+
+    服务商给的 id 无法预知，所以清单只能来自实际拉取；空串保留「必填」语义。
+    """
+    return [""] + sorted({m for ids in _MODELS_BY_BASE.values() for m in ids})
+
+
 #: 本地端点绝不走代理：VPN/代理软件设了全局 HTTP(S)_PROXY 时，连 Ollama 都被塞进
 #: 代理隧道（实测 Tunnel connection failed: 502），本地端点必须直连。
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0", "[::1]")
@@ -1270,6 +1287,7 @@ def list_models(api_base, api_key="", api_key_env="", timeout=15):
                 # Gemini 的 name 带 "models/" 前缀，去掉才是用户要填的 id。
                 ids.append(mid.split("/")[-1] if p == _proto.GEMINI else mid)
         if ids:
+            _MODELS_BY_BASE[url.rsplit("/models", 1)[0]] = sorted(set(ids))
             return sorted(set(ids)), url
     raise RuntimeError("拉不到模型清单：\n%s\n"
                        "确认 api_base / Key 正确；服务商不提供模型列表时手填 api_model 即可。" %

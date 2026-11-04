@@ -38,7 +38,7 @@ MossPromptSmith
 | MTP | 读 GGUF 元数据 `*.nextn_predict_layers` 的**取值**（不看文件名）。默认 `draft-mtp d=2`；**DFlash 不用**（对 MOSS target 接受率实测 10–31%） |
 | 运行时 | 找的顺序：`server_exe` 参数 > 环境变量 `MOSS_LLM_SERVER` > `moss_llm/runtime/` > PATH。**不扫别的节点包的 runtime**（那是把别人的目录结构写成本包的隐性依赖） |
 | 一键更新 | `runtime` 选「更新到最新版」→ 从官方 release 的 `b<build>` 里挑本机可用的包：先探后端（N 卡→CUDA 且不超驱动版本；AMD Windows→Vulkan、Linux→ROCm；Intel→Vulkan；Apple→Metal；认不出→CPU），再下主包 + 同版本 cudart；`.zip` / `.tar.gz` 都支持，带断点续传与慢速熔断。**直连失败会自动走内置镜像链**（`gh-proxy.com` → `ghproxy.net`），每个包都先用 GitHub API 的 `sha256` 校验、对不上就丢弃换源——镜像只影响下载速度，不影响可信度；可用 `MOSS_LLM_MIRRORS=前缀1,前缀2` 替换镜像链，`MOSS_LLM_MIRROR` 指定单个镜像。覆盖用 `MOSS_LLM_BACKEND` / `MOSS_LLM_RUNTIME_URL`。CLI 同义：`python -m moss_llm.runtime_install` |
-| 外部 API | `channel=外部 API`：任何 OpenAI 兼容端点（OpenAI / 火山方舟 / 智谱 / Kimi / MiniMax / DeepSeek / Ollama / LM Studio…）。不起侧车、不占显存。Key 优先读**环境变量名**（`api_key_env`），写进 `api_key` 会在 report 里警告「随 JSON 分享出去」。`api_base` 以 `/anthropic` 收尾时自动改走 Anthropic 线格式（`/v1/messages`，`x-api-key`），域名是 `generativelanguage.googleapis.com` 或以 `/v1beta` 收尾时走 Gemini（`models/<model>:generateContent`，`x-goog-api-key`）；面板的「拉取模型」用当前端点 + Key 打 `GET /models` 填 `api_model`，拉不到可手填 |
+| 外部 API | `channel=外部 API`：任何 OpenAI 兼容端点（OpenAI / 火山方舟 / 智谱 / Kimi / MiniMax / DeepSeek / Ollama / LM Studio…）。不起侧车、不占显存。Key 优先读**环境变量名**（`api_key_env`），写进 `api_key` 会在 report 里警告「随 JSON 分享出去」。`api_base` 以 `/anthropic` 收尾时自动改走 Anthropic 线格式（`/v1/messages`，`x-api-key`），域名是 `generativelanguage.googleapis.com` 或以 `/v1beta` 收尾时走 Gemini（`models/<model>:generateContent`，`x-goog-api-key`）；面板的「↻」用当前端点 + Key 打 `GET /models`，把模型灌进 `api_model` 下拉；`api_model` 是 combo，清单只来自实际拉取（进程重启即空），旧工作流里的自定义值由 `VALIDATE_INPUTS` 放行、并自动补进选项 |
 | 提示词包 | 12 个自写文件（MIT），方法与出处逐条记在 manifest。MOSS 两个方言只是其中两项 |
 
 ## 三、透明与不静默（本仓一贯口径）
@@ -130,7 +130,7 @@ MossPromptSmith
 
 ## 七、闸与计数
 
-`python tests/test_llm_subpackage.py` = **129/0**（纯函数，零 GPU 零网络）：
+`python tests/test_llm_subpackage.py` = **131/0**（纯函数，零 GPU 零网络）：
 包 sha 篡改检测、JSON 围栏与容错、`_pick_prompt` 优先级、must_keep 对账、段数=格数、
 MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外部 API 端点拼接与 Key 来源、
 任务边界报错、旧稿中文枚举归一、mmproj 宽度配对（同名 > 同目录唯一 > 全局唯一，多候选报错），
