@@ -109,11 +109,60 @@ const layout1 = await page.evaluate(() => {
         barH: Math.round(box(g.querySelector('[data-widget-name="mosssb_llm_panel"]')).height),
         taskTop: Math.round(box(g.querySelector('[data-widget-name="task"]')).top) };
 });
-check("点开一组后开关条顶端不动、下面的行只让位 ≤4px（宿主会把剩余高度摊进行里）",
+// 预设按钮让开关条高了 21px（草稿/精修/默认那排）。核心不变量是「顶端不动」，
+// 再加上因果：下面的行是被推下去的（taskTop 增量 == barH 增量），不是被叠住。
+// ⚠️ 这条只允许更严，不许删或改恒真 —— 见任务书 T00。
+const dBarH = layout1.barH - layout0.barH;
+const dTaskTop = layout1.taskTop - layout0.taskTop;
+check("点开一组后开关条顶端不动；增高 ≤24px；下面各行是被推下去的（taskTop 增量 == barH 增量）",
     layout1.first === "mosssb_llm_panel" && Math.abs(layout1.barTop - layout0.barTop) <= 1
-    && Math.abs(layout1.taskTop - layout0.taskTop) <= 4,
-    JSON.stringify({ layout0, layout1 }));
+    && dBarH >= 0 && dBarH <= 24
+    && Math.abs(dTaskTop - dBarH) <= 1,
+    JSON.stringify({ layout0, layout1, dBarH, dTaskTop }));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-2-tune.png"), { y: 30 });
+
+// —— (a1) 一次性预设（草稿 / 恢复默认 / 显隐）——
+const presetState = () => page.evaluate((id) => {
+    const n = app.graph.nodes.find((x) => String(x.id) === id);
+    const val = (k) => { const w = n.widgets.find((x) => x.name === k); return w ? String(w.value) : null; };
+    const wrap = document.querySelector(".mossllm-presets");
+    // 说明行的「摘要」才是 st.note 的落点；指针悬停时 .mossllm-hint 会被 tooltip 顶替，
+    // 所以这里断言 __mossllm.summary（用户不悬停时看到的那一行），不去赌 DOM 时序。
+    const summary = (n.__mossllm && n.__mossllm.summary) || "";
+    return { length: val("length"), temperature: val("temperature"), max_tokens: val("max_tokens"),
+        gpu_layers: val("gpu_layers"), hidden: wrap ? wrap.hidden : null, summary };
+}, ID);
+const clickPreset = async (key) => {
+    await page.evaluate((k) => { const b = document.querySelector('[data-moss-preset="' + k + '"]'); if (b) b.click(); }, key);
+    await page.waitForTimeout(600);
+};
+check("「常用调优」展开时预设按钮才出现（不常驻占位）", (await presetState()).hidden === false);
+await clickPreset("draft");
+const pDraft = await presetState();
+check("点「草稿」⇒ length=brief / temperature=0.9 / max_tokens=512，且说明行说「已套用」",
+    pDraft.length === "brief" && pDraft.temperature === "0.9" && pDraft.max_tokens === "512"
+    && /已套用/.test(pDraft.summary), JSON.stringify(pDraft));
+// 对照组：先给「本地引擎」组的 gpu_layers 塞一个非默认值，验证恢复默认不越组。
+// ⚠️ 不许用 temperature 当判据：默认值与「精修」都是 0.2，恢复前后没差别。
+const gpuSet = await page.evaluate((id) => {
+    const n = app.graph.nodes.find((x) => String(x.id) === id);
+    const w = n.widgets.find((x) => x.name === "gpu_layers");
+    if (!w) return null;
+    w.value = "7"; w.callback?.("7");   // gpu_layers 是 STRING 控件，别塞数字
+    app?.graph?.setDirtyCanvas?.(true, true);
+    return String(w.value);
+}, ID);
+await page.waitForTimeout(400);
+const pBeforeReset = await presetState();
+await clickPreset("reset");
+const pReset = await presetState();
+check("点「恢复默认」⇒ length=standard / max_tokens=1024，且非本组的 gpu_layers 不被改动",
+    pReset.length === "standard" && pReset.max_tokens === "1024"
+    && pReset.gpu_layers === pBeforeReset.gpu_layers,
+    JSON.stringify({ gpuSet, pBeforeReset, pReset }));
+await clickChip("tune");
+check("「常用调优」收起时预设按钮隐藏（不占地方）", (await presetState()).hidden === true);
+await clickChip("tune");
 
 // 「已改」小点：改一项 → 折起来 → chip 应亮，且条数 +1
 const dirty0 = await page.evaluate(() => globalThis.MOSS_SB_LLM_PANEL.where()[0].dirty);
@@ -769,6 +818,36 @@ check("完整说明（要不要视觉塔 / 要不要图）挂在 title 上，不
             return document.querySelector('[data-widgets-grid-node-id="' + n.id + '"] .mossllm-hint').title;
         })),
     guide.caption.title.slice(0, 40));
+
+// —— (e) 窄宽度：加了「通道」前缀后，三个 chip 仍要落在开关条里 ——
+const origSize = await page.evaluate((id) => {
+    const n = app.graph.nodes.find((x) => String(x.id) === id);
+    return [n.size[0], n.size[1]];
+}, ID);
+await page.evaluate((id) => {
+    const n = app.graph.nodes.find((x) => String(x.id) === id);
+    n.setSize([260, n.size[1]]);
+}, ID);
+await page.waitForTimeout(800);
+const narrow = await page.evaluate((id) => {
+    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
+    const bar = g.querySelector('[data-widget-name="mosssb_llm_panel"]');
+    const bb = bar.getBoundingClientRect();
+    const rects = ["tune", "local", "api"].map((k) => {
+        const e = document.querySelector('[data-mossllm-chip="' + k + '"]');
+        if (!e) return { k, inside: false };
+        const r = e.getBoundingClientRect();
+        return { k, inside: r.left >= bb.left - 1 && r.right <= bb.right + 1
+            && r.top >= bb.top - 1 && r.bottom <= bb.bottom + 1 };
+    });
+    return { rects, overflow: bar.scrollWidth > bar.clientWidth + 1, sw: bar.scrollWidth, cw: bar.clientWidth };
+}, ID);
+check("节点宽 260px 时三个 chip 都在开关条范围内，且开关条不横向溢出",
+    narrow.rects.every((x) => x.inside) && !narrow.overflow, JSON.stringify(narrow));
+await page.evaluate(([id, w, h]) => {
+    const n = app.graph.nodes.find((x) => String(x.id) === id);
+    n.setSize([w, h]);
+}, [ID, origSize[0], origSize[1]]);
 
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();

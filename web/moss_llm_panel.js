@@ -109,6 +109,16 @@ const CSS = `
 .mossllm-warn[hidden]{display:none}
 .mossllm-warn:hover{background:rgba(217,164,65,.28)}
 .mossllm-caret{width:9px;opacity:.55;font-size:11px;line-height:1}
+/* 三个 chip 并排，但「常用调优」是参数分组、「本地引擎 / 外部 API」是通道 —— 不是同一维度。
+   给通道两个加前缀小字，别让人以为调优属于本地引擎。 */
+.mossllm-kind{font-size:9.5px;line-height:1;opacity:.45;margin-right:3px;letter-spacing:.04em}
+/* 一次性预设：只在「常用调优」展开时出现。按钮不是 widget ⇒ 不进 widgets_values。 */
+.mossllm-presets{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
+.mossllm-presets[hidden]{display:none}
+.mossllm-preset{padding:0 7px;border-radius:6px;border:1px dashed var(--border-color,#4e4e4e);
+ background:transparent;color:var(--input-text,#ddd);font:11px/1.7 system-ui,sans-serif;cursor:pointer}
+.mossllm-preset:hover{background:var(--comfy-input-bg,#222)}
+.mossllm-preset:focus-visible{outline:1px solid var(--border-color,#4e4e4e);outline-offset:1px}
 .mossllm-count{opacity:.55;font-variant-numeric:tabular-nums}
 .mossllm-dot{display:none;width:6px;height:6px;margin-left:2px;border-radius:50%;
  background:#5b9cf6;flex:0 0 auto}
@@ -180,6 +190,13 @@ const I18N = {
         lackTipName: "模型名还没选。点一下展开「外部 API」组，或先用 ↻ 拉一份清单。",
         lackTipModel: "本地通道要一个 GGUF 模型才能跑。点一下展开「本地引擎」组；"
             + "或把通道切到「外部 API」。",
+        kindChannel: "通道",
+        preset_draft: "草稿（快）", preset_fine: "精修（细）", preset_reset: "恢复默认",
+        presetTip_draft: "一次写入：长度=简短 · 温度 0.9 · 上限 512 tokens。先看方向对不对时用，最省时间",
+        presetTip_fine: "一次写入：长度=详细 · 温度 0.2 · 上限 2048 tokens。要出成品时用",
+        presetTip_reset: "把「常用调优」这一组恢复成默认值（不动其它组、不动通道）",
+        presetDone: "已套用「%s」，改了 %d 项",
+        presetResetDone: "「常用调优」已恢复默认值",
         },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
         other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
@@ -211,6 +228,13 @@ const I18N = {
         lackTipName: "Pick a model name. Click to open External API, or press the arrow to fetch a list.",
         lackTipModel: "The local channel needs a GGUF model. Click to open Local engine, "
             + "or switch the channel to External API.",
+        kindChannel: "ch",
+        preset_draft: "Draft (fast)", preset_fine: "Fine (slow)", preset_reset: "Reset",
+        presetTip_draft: "Writes: length=brief, temp 0.9, max 512 tokens. Cheapest way to check direction",
+        presetTip_fine: "Writes: length=detailed, temp 0.2, max 2048 tokens. For final output",
+        presetTip_reset: "Restore this group to defaults (other groups and the channel are untouched)",
+        presetDone: "Applied %s, %d values changed",
+        presetResetDone: "Common settings restored to defaults",
         apiIdle: "Endpoint filled but channel=local — this run uses local",
         apiIdleFix: "Click to use the API",
         apiIdleTip: "api_base is filled but the channel is still Local GGUF: this run will look for a local"
@@ -521,6 +545,13 @@ function makeChip(node, st, g) {
     count.className = "mossllm-count";
     const dot = document.createElement("span");
     dot.className = "mossllm-dot";
+    // 通道组带一个前缀小字：三个 chip 并排时，「常用调优」是参数分组、
+    // 「本地引擎 / 外部 API」是通道，不是同一维度，不标出来就会被当成同级三选一。
+    const kind = g.channel ? document.createElement("span") : null;
+    if (kind) {
+        kind.className = "mossllm-kind";
+        b.append(kind);
+    }
     b.append(caret, label, count, dot);
     b.onclick = (e) => {
         e.stopPropagation();
@@ -529,7 +560,7 @@ function makeChip(node, st, g) {
         st.focus = wasForce ? g.key : (st.focus === g.key ? null : g.key);
         applySoon(node);
     };
-    return { b, caret, label, count, dot };
+    return { b, caret, label, count, dot, kind };
 }
 
 function apiVal(node, name) {
@@ -799,8 +830,60 @@ function buildBar(node, st) {
             applySoon(node);
         }
     };
-    bar.append(st.warn, st.btn, hintRow);
+    // 一次性预设：跟着「常用调优」组的展开/收起显隐 —— 不常驻占位，但一展开就在手边。
+    st.presets = document.createElement("span");
+    st.presets.className = "mossllm-presets";
+    st.presets.hidden = true;
+    for (const key of ["draft", "fine", "reset"]) {
+        const pb = document.createElement("button");
+        pb.type = "button";
+        pb.className = "mossllm-preset";
+        pb.dataset.mossPreset = key;
+        pb.onclick = (e) => {
+            e.stopPropagation();
+            applyPreset(node, st, key);
+        };
+        st.presets.appendChild(pb);
+    }
+    bar.append(st.warn, st.presets, st.btn, hintRow);
     return bar;
+}
+
+/**
+ * 一次性预设：点一下写入几个值，之后照旧各改各的。
+ *
+ * 为什么不是常驻下拉：下拉要存「当前是哪档」，用户手改一个旋钮后它就得显示「自定义」，
+ * 于是多一个必须与真实值同步的状态。按钮没有这个问题 —— 它是一次动作，不是状态，
+ * 也不用进 `widgets_values`（按钮本身不是 widget）。
+ *
+ * 只动采样三项：two_pass / wash 是反推（caption）专用，无脑打开会让别的模式变慢变贵。
+ */
+const PRESETS = {
+    draft: { length: "brief", temperature: 0.9, max_tokens: 512 },
+    fine: { length: "detailed", temperature: 0.2, max_tokens: 2048 },
+};
+
+/** `reset` 用后端下发的 nodeDef 默认值，只作用于「常用调优」这一组。 */
+function applyPreset(node, st, key) {
+    const L = t();
+    const spec = key === "reset" ? (DEFAULTS || {}) : PRESETS[key];
+    if (!spec) return;
+    const names = key === "reset"
+        ? (GROUPS.find((g) => g.key === "tune").items || []) : Object.keys(spec);
+    let n = 0;
+    for (const name of names) {
+        const w = widgetOf(node, name);
+        if (!w || !(name in spec)) continue;
+        if (String(w.value) === String(spec[name])) continue;
+        w.value = spec[name];
+        try { w.callback?.(spec[name]); } catch (e) { /* 老前端没有 callback */ }
+        n += 1;
+    }
+    // 值改了但参数可能是收起的看不见 ⇒ 必须说一句，否则又成「点了没反应」。
+    noteOnce(node, st, key === "reset" ? L.presetResetDone
+        : fmt(L.presetDone, L["preset_" + key], n));
+    applySoon(node);
+    app?.graph?.setDirtyCanvas?.(true, true);
 }
 
 /**
@@ -826,7 +909,7 @@ function paintBar(node, st, shown, off, meta) {
     let hidden = 0;
     for (const g of GROUPS) {
         if (g.always) continue;
-        const { b, caret, label, count, dot } = st.chips[g.key];
+        const { b, caret, label, count, dot, kind } = st.chips[g.key];
         const total = g.items.filter((n) => widgetOf(node, n)).length;
         b.hidden = total === 0;                          // 参数表里没这些名字 ⇒ 不摆空开关
         if (!total) continue;
@@ -835,6 +918,7 @@ function paintBar(node, st, shown, off, meta) {
         const vis = g.items.filter((n) => shown.has(n)).length;
         hidden += total - vis;
         caret.textContent = expanded ? "▾" : "▸";
+        if (kind) kind.textContent = L.kindChannel;
         label.textContent = L[g.key] + (outside ? " · " + L.offchannel : "");
         count.textContent = total;
         b.dataset.state = expanded ? (outside ? "outside" : "open") : "closed";
@@ -864,6 +948,18 @@ function paintBar(node, st, shown, off, meta) {
             const K = lack[0].toUpperCase() + lack.slice(1);
             st.warn.textContent = L["lack" + K];
             st.warn.title = L["lackTip" + K];
+        }
+    }
+
+    // 预设按钮跟着调参组走：展开才有意义，收起时别占地方。
+    if (st.presets) {
+        st.presets.hidden = !(st.force || st.focus === "tune");
+        if (!st.presets.hidden) {
+            for (const pb of st.presets.children) {
+                const k = pb.dataset.mossPreset;
+                pb.textContent = L["preset_" + k];
+                pb.title = L["presetTip_" + k];
+            }
         }
     }
 
