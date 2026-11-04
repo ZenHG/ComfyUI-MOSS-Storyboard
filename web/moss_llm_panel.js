@@ -109,10 +109,20 @@ const CSS = `
  color:var(--descrip-text,#999);cursor:pointer;font:inherit;
  text-decoration:underline;text-underline-offset:2px}
 .mossllm-btn:hover{color:var(--input-text,#ddd);background:var(--comfy-input-bg,#222)}
-.mossllm-select{flex:0 0 auto;max-width:46%;padding:1px 4px;border-radius:6px;
+/* 「拉取模型」贴在 api_model 行里 —— 控件必须挨着它填的那一格，放顶部条上等于没放。
+   行本身是 static 网格，设 relative 只为定位，不改宿主布局。 */
+[data-widgets-grid-node-id] [data-widget-name="api_model"]{position:relative}
+.mossllm-pick{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+ display:flex;align-items:center;gap:4px;max-width:60%;z-index:3}
+.mossllm-pick button{flex:0 0 auto;width:20px;height:20px;padding:0;border-radius:5px;
  border:1px solid var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222);
- color:var(--input-text,#ddd);font:inherit}
-.mossllm-select[hidden],.mossllm-btn[hidden]{display:none}
+ color:var(--input-text,#ddd);cursor:pointer;font:12px/1 system-ui,sans-serif}
+.mossllm-pick button:hover{background:var(--comfy-menu-bg,#333)}
+.mossllm-pick button[data-bad="1"]{border-color:#c0504d;color:#e07b78}
+.mossllm-pick select{max-width:100%;padding:1px 3px;border-radius:5px;
+ border:1px solid var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222);
+ color:var(--input-text,#ddd);font:11px/1.4 system-ui,sans-serif}
+.mossllm-pick select[hidden]{display:none}
 .mossllm-hintrow{flex:0 0 100%;display:flex;align-items:flex-start;gap:6px;min-width:0}
 .mossllm-hint{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;
  /* 🔴 高度必须恒定：悬停换 tooltip 时行数一变，下面每个参数都会跟着位移（实测：鼠标定位失败）。 */
@@ -136,7 +146,8 @@ const I18N = {
         inert: "本次不生效（编译任务不开模型）",
         inertHint: "编译模式：%d 项本次不生效",
         selfCheck: "零模型自检：任务选「编译」",
-        fetch: "拉取模型", fetchTip: "用当前 api_base 与 Key 拉服务端模型清单",
+        fetch: "拉取模型", fetchTip: "用当前 api_base 与 Key 拉服务端模型清单（贴在模型那一格）",
+        fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
         fetching: "拉取中…", modelTip: "选中即写入 api_model" },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
         other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
@@ -148,7 +159,8 @@ const I18N = {
         inert: "No effect in this run (compile does not load a model)",
         inertHint: "Compile: %d controls have no effect",
         selfCheck: "No-weight check: set task=compile",
-        fetch: "List models", fetchTip: "Fetch models from this api_base + key",
+        fetch: "List models", fetchTip: "Fetch models from this api_base + key (in the model row)",
+        fetchFail: "Model list failed", needBase: "Fill api_base first",
         fetching: "Fetching…", modelTip: "Pick one to fill api_model" },
 };
 let T = null;
@@ -480,9 +492,17 @@ function setModel(node, id) {
 /** 拉模型清单：Key 只在这一次 POST 里过一趟，服务端不回显、不落盘。 */
 async function fetchModels(node, st) {
     const base = apiVal(node, "api_base");
-    if (!base) return;
-    st.fetch.disabled = true;
-    st.fetch.textContent = t().fetching;
+    const pick = st.pick;
+    if (!pick) return;
+    if (!base) {
+        // 空端点就点「拉取」是静默空转 —— 必须说清缺哪一项。
+        pick.err = t().needBase;
+        pick.btn.dataset.bad = "1";
+        apply(node);
+        return;
+    }
+    pick.btn.disabled = true;
+    pick.btn.textContent = "…";
     try {
         const r = await fetch("/moss_llm/models", {
             method: "POST",
@@ -492,26 +512,64 @@ async function fetchModels(node, st) {
         });
         const d = await r.json();
         if (!d.ok) throw new Error(d.error || ("HTTP " + r.status));
-        st.sel.innerHTML = "";
+        pick.sel.innerHTML = "";
         for (const id of d.models) {
             const o = document.createElement("option");
             o.value = id;
             o.textContent = id;
-            st.sel.appendChild(o);
+            pick.sel.appendChild(o);
         }
         const cur = apiVal(node, "api_model");
-        if (cur) st.sel.value = cur;
-        st.sel.hidden = d.models.length === 0;
+        if (cur) pick.sel.value = cur;
+        pick.sel.hidden = d.models.length === 0;
+        pick.err = null;
+        delete pick.btn.dataset.bad;
         // 只有一个模型且 api_model 还空着 ⇒ 直接填上；多个不替用户选。
         if (!cur && d.models.length === 1) setModel(node, d.models[0]);
     } catch (e) {
-        st.sel.hidden = true;
-        st.hint.textContent = String((e && e.message) || e);
+        // 失败必须留下痕迹：按钮变红、说明行常驻原因（不靠会过期的一闪而过）。
+        pick.err = t().fetchFail + "：" + String((e && e.message) || e).split("\n")[0];
+        pick.btn.dataset.bad = "1";
+        pick.sel.hidden = true;
         console.warn("%s: 拉取模型失败", TAG, e);
     } finally {
-        st.fetch.disabled = false;
-        st.fetch.textContent = t().fetch;
+        pick.btn.disabled = false;
+        pick.btn.textContent = "⇣";
+        apply(node);
     }
+}
+
+/** 把「⇣ 拉取」贴在 api_model 行右端；宿主重建行元素后自愈。 */
+function pinPicker(node, st) {
+    const row = rowOf(node, "api_model");
+    if (!row) return false;
+    if (!st.pick) {
+        const box = document.createElement("span");
+        box.className = "mossllm-pick";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "⇣";
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            if (st.pick.sel.options.length) st.pick.sel.hidden = !st.pick.sel.hidden;
+            else fetchModels(node, st);
+        };
+        const sel = document.createElement("select");
+        sel.hidden = true;
+        sel.onchange = () => setModel(node, sel.value);
+        box.append(btn, sel);
+        st.pick = { box, btn, sel, err: null, autoDone: false };
+    }
+    if (st.pick.box.parentElement !== row) row.appendChild(st.pick.box);
+    st.pick.btn.title = t().fetchTip;
+    st.pick.sel.title = t().modelTip;
+    // 端点与 Key 都填了、模型还空着 ⇒ 自动拉一次（每节点一次，失败不反复打服务端）
+    if (!st.pick.autoDone && !apiVal(node, "api_model") && apiVal(node, "api_base")
+        && apiVal(node, "api_key")) {
+        st.pick.autoDone = true;
+        fetchModels(node, st);
+    }
+    return true;
 }
 
 function buildBar(node, st) {
@@ -541,18 +599,6 @@ function buildBar(node, st) {
         st.force = !st.force;
         applySoon(node);
     };
-    st.fetch = document.createElement("button");
-    st.fetch.type = "button";
-    st.fetch.className = "mossllm-btn";
-    st.fetch.hidden = true;
-    st.fetch.onclick = (e) => {
-        e.stopPropagation();
-        fetchModels(node, st);
-    };
-    st.sel = document.createElement("select");
-    st.sel.className = "mossllm-select";
-    st.sel.hidden = true;
-    st.sel.onchange = () => setModel(node, st.sel.value);
     st.hint = document.createElement("span");
     st.hint.className = "mossllm-hint";
     // 「中 / EN」按钮由 `moss_sb_i18n_ui.js` 挂进这个槽（与布局编辑器的 langSlot 同一机制）：
@@ -562,7 +608,7 @@ function buildBar(node, st) {
     const hintRow = document.createElement("div");
     hintRow.className = "mossllm-hintrow";
     hintRow.append(st.hint, st.langSlot);
-    bar.append(st.btn, st.fetch, st.sel, hintRow);
+    bar.append(st.btn, hintRow);
     return bar;
 }
 
@@ -593,21 +639,10 @@ function paintBar(node, st, shown, off, meta) {
     const all = realWidgets(node).length;
     st.btn.textContent = st.force ? L.back : L.expand;
     st.btn.title = st.force ? L.backTip : fmt(L.expandTip, hidden);
-    // 「拉取模型」只在外部 API 通道出现：本地引擎的模型是文件，不是服务端清单。
-    const apiOn = !!(meta && meta.ch === CH_API);
-    st.fetch.hidden = !apiOn;
-    st.fetch.textContent = L.fetch;
-    st.fetch.title = L.fetchTip;
-    st.sel.title = L.modelTip;
-    st.sel.hidden = !apiOn || st.sel.options.length === 0;
-    // 端点和 Key 都填了、模型还空着 ⇒ 自动拉一次（每个节点只拉一次，失败不反复打服务端）
-    if (apiOn && !st.autoFetched && !apiVal(node, "api_model") && apiVal(node, "api_base")
-        && (apiVal(node, "api_key") || apiVal(node, "api_key_env"))) {
-        st.autoFetched = true;
-        fetchModels(node, st);
-    }
+
     // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
     let summary = fmt(L.count, all, all - hidden);
+    if (st.pick && st.pick.err) summary += "｜" + st.pick.err.slice(0, 70);
     if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);
     else if (meta && !meta.compile && meta.task === "caption" && meta.ch === CH_LOCAL) {
         summary += "｜" + L.selfCheck;
@@ -674,6 +709,7 @@ function apply(node) {
     const changed = syncWidgets(node, shown);
     paintInert(node, inert);
     const found = paintHeaders(node, shown);
+    pinPicker(node, st);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;
         console.warn("%s: 这个前端定位不到参数行（旧版画布）⇒ 组标题不画，显隐照常生效", TAG);

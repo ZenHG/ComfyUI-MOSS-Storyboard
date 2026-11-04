@@ -141,7 +141,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 `smith.llm.LlamaServer is server.LlamaServer` 这条**防再抄一份**的断言。
 
 真机闸：`tools/check_ui_workflow.py examples/llm-*.json` = 46/0；
-`node tools/ui_llm_panel.mjs` = 53/0（参数面板，见 §九）；
+`node tools/ui_llm_panel.mjs` = 56/0（参数面板，见 §九）；
 `tools/check_frontend.py` 21/0；`tests/test_i18n.mjs` 64/0；`ruff` 全绿。
 `tools/check_release_ready.py` 在提交后应全绿（未提交时唯一红项是「未跟踪文件」）。
 
@@ -226,7 +226,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 已知代价（不装成优点）：点「全部展开」时，参数顺序决定标题仍会出现 3 次「本地引擎」（组被切断），
 这是存档契约换来的；单组视图下不会出现。
 
-真机闸：`node tools/ui_llm_panel.mjs` = **53/0**（只读界面、不排队）。断言含：默认 5 行 /
+真机闸：`node tools/ui_llm_panel.mjs` = **56/0**（只读界面、不排队）。断言含：默认 5 行 /
 开关条在参数上方且是 `widgets[0]`（**重开后也自愈回首位**）/ 悬停换说明时开关条高度与参数 top 都不动（不抖）/
 节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 39 个 `isWidgetVisible` /
 **存盘→重开 `widgets_values` 逐位一致** / 折叠状态不进存档 / 两个同型节点各自独立 /

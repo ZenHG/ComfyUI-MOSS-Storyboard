@@ -55,7 +55,7 @@ python tools/check_editor_ui.py           # 160 项：编辑器接线 / 语法 /
 python tools/check_release_ready.py       # 54 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查 / **中英 README 节级同步**）
 node   tools/ui_smoke.mjs                 # 38 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认 / 删除与分布按钮接线）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）
-node   tools/ui_llm_panel.mjs            # 53 项：**真机** LLM 面板（开关条置顶 / 悬停不抖 / 默认常驻 5 项 / 单组视图 / 已改点 / 已接线参数不被藏 / 存档逐位不变 / 按 task 动态常驻与 inert 标注 / api 冷载入聚焦 / 切组焦点保护 / 只动本节点）
+node   tools/ui_llm_panel.mjs            # 56 项：**真机** LLM 面板（开关条置顶 / 悬停不抖 / 默认常驻 5 项 / 单组视图 / 已改点 / 已接线参数不被藏 / 存档逐位不变 / 按 task 动态常驻与 inert 标注 / api 冷载入聚焦 / 切组焦点保护 / 只动本节点）
 node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 python tools/ci_preflight.py               # 本地真机预检：有环境就跑、缺环境输出 SKIP（未跑）；发布前加 --require-all（GPU 项再加 --with-gpu）
 python tools/ci_preflight.py --probe-only  # 只探测宿主/GPU/Playwright 与计划，不跑任何闸
