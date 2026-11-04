@@ -25,6 +25,7 @@ MOSS 两个方言只是其中两项。核心 7 节点不 import 本模块，本�
 """
 
 import gzip
+import ipaddress
 import json
 import os
 import re
@@ -1191,12 +1192,31 @@ def _model_choices():
 #: 代理隧道（实测 Tunnel connection failed: 502），本地端点必须直连。
 _LOCAL_HOSTS = ("localhost", "::1", "0.0.0.0", "host.docker.internal",
                 "host.containers.internal", "gateway.docker.internal")
+#: RFC 6598 共享地址段（Tailscale 等组网工具也用）：同属「不该走代理」。
+_SHARED_NETS = (ipaddress.ip_network("100.64.0.0/10"),)
 
 
 def _is_local(endpoint):
+    """这个端点该不该**绕开系统代理**直连。
+
+    判据是「本机或本网络」：回环、私有网段（10/8、172.16/12、192.168/16）、链路本地、
+    以及 docker/Tailscale 这类容器与组网地址。局域网另一台机器上的 Ollama / vLLM 是最常见的
+    情况 —— 走了系统代理只会得到 `Tunnel 502`，而且报错完全看不出是被代理吞了。
+
+    公网端点仍然走系统代理：那是用户刻意配的出口，不能替他绕。域名一律交给系统代理 ——
+    内网域名的解析结果本地不可知，猜错反而更难查。
+    """
     host = (urllib.parse.urlsplit(endpoint).hostname or "").lower()
-    # 127.0.0.0/8 整段都是回环；`*.localhost` 也按回环处理。
-    return (host in _LOCAL_HOSTS or host.startswith("127.") or host.endswith(".localhost"))
+    if host in _LOCAL_HOSTS or host.endswith((".localhost", ".local")):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    # is_private 覆盖 10/8 · 172.16/12 · 192.168/16 · fe80::/10 · fc00::/7；
+    # 注意它**不**包含 172.32+（那一段是公网）—— 所以不能写成 startswith("172.")。
+    return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified
+            or any(ip in net for net in _SHARED_NETS))
 
 
 #: opener 缓存：`build_opener()` 每次都要重新加载 CA 证书（实测 ~16ms）。拉清单一次

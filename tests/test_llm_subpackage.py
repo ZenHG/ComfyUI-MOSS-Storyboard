@@ -723,6 +723,19 @@ def main():
           nodes._is_local("http://127.9.9.9:8080") and nodes._is_local("http://app.localhost:8000")
           and nodes._is_local("http://host.docker.internal:1234/v1"), "local")
     check("公网地址不算本地", not nodes._is_local("https://api.deepseek.com"), "remote")
+    # 局域网另一台机器上的 Ollama / vLLM：不绕代理就只会得到 Tunnel 502。
+    # 这一段同时是反向验证 —— 172.16/12 的边界若被写成 startswith("172.")，172.32 会误判。
+    lan = ("http://192.168.1.5:11434/v1", "http://10.0.0.7:8000/v1",
+           "http://172.16.3.2:1234/v1", "http://172.31.255.254/v1",
+           "http://169.254.1.1/v1", "http://100.101.1.1:11434/v1",   # 链路本地 / Tailscale
+           "http://nas.local:8080/v1")
+    miss = [u for u in lan if not nodes._is_local(u)]
+    check("局域网 / 链路本地 / Tailscale 地址都直连（别被全局代理吞成 502）", not miss, str(miss))
+    check("172.16/12 之外的 172.32 是公网，不能被当成内网（防前缀匹配写糙）",
+          not nodes._is_local("http://172.32.0.1/v1"), "被误判为内网")
+    check("公网 IP 仍走系统代理（用户刻意配的出口不能替他绕）",
+          not nodes._is_local("https://8.8.8.8/v1")
+          and not nodes._is_local("https://100.63.0.1/v1"), "被误绕")
     check("网关强制 gzip 也能解（否则 json 解析必炸）",
           nodes._loads(gzip.compress(b'{"ok":true}')) == {"ok": True}, "gzip")
     try:
