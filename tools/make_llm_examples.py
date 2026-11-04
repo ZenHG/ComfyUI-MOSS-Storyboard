@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
-"""生成 `moss_llm` 的四个示例工作流（UI 格式，可直接在 ComfyUI 打开）。
+"""生成 `moss_llm` 的三个示例工作流（UI 格式，可直接在 ComfyUI 打开）。
 
 为什么用脚本而不是手写 JSON：`MossPromptSmith` 有几十个 widget 槽（数量随参数表变），`widgets_values`
 **按位置存** —— 手抄必错一次，而且错得静默（参数串位不报错）。这里先按
@@ -9,6 +9,7 @@
 
 跑法：`python tools/make_llm_examples.py`
 产物：`examples/llm-prompt-workbench.json` / `examples/llm-idea-to-image.json`
+      / `examples/llm-pe-i2i.json`
 """
 
 import importlib.machinery
@@ -316,6 +317,40 @@ def ex_idea_to_image():
     return wf
 
 
+# ───────────────────────────────────────────── 例 7：PE-I2I 原生改写器（权重自备、非商用）
+def ex_pe_i2i():
+    nodes, links, groups = [], [], []
+    n = note(1, (-760, -420), (640, 940),
+             "## PE-I2I：用 Qwen-Image 2.1 自己的 system prompt 改写编辑指令\n\n"
+             "**先说许可**：PE 权重（官方 Qwen/Qwen-Image-2.1-PE-I2I 与社区 GGUF）按 qwen-research 发布，"
+             "**非商用、仅内部使用**。本包不含权重、也不含 system_prompt.txt，三件套全部自备；"
+             "商用前自行核对上游许可，不要提交或分发。\n\n"
+             "### 三件套放哪\n"
+             "把 PE-I2I GGUF、配套 mmproj 视觉塔、原生 system_prompt.txt（须含 ratio_follow "
+             "或 rewritten editing instruction）放在 <ComfyUI>/models/LLM/ 下同一个目录。\n\n"
+             "### 拖进来之后四步\n"
+             "① 在 Smith 的 model 下拉里选那个 PE-I2I GGUF（本示例存的是生成时的默认值，不是 PE 模型）；\n"
+             "② mmproj 保持自动或手选配对视觉塔；③ LoadImage 选你的图，text 写中文编辑指令；\n"
+             "④ task=edit、Run。第二个输出 report 出现「PE 改写器模式（编辑）」即命中。\n\n"
+             "### 命中后有什么不同\n"
+             "用模型自带的 system prompt，不走本包提示词；dialect / length / must_keep / panels / "
+             "style_lock 本次不生效，report 会逐一点名。PE-I2I 输出中文描述，画幅仍由上游决定。\n\n"
+             "### 没命中怎么办\n"
+             "report 没有 PE 行就是普通编辑路径：通常是 system_prompt.txt 不在模型同目录、内容不含 "
+             "I2I 契约关键词、或 task 不是 edit。PE-T2I（expand）另需一套 T2I 权重与提示词，本包不带。")
+    img = load_image(2, (-80, -420), (340, 320),
+                     "comic-4panel-lineart-sample.png", "① 参考图（换成你的图）")
+    sm = smith_node(3, (340, -420), (430, 371), "🧠 LLM Prompt · PE-I2I edit",
+                    {"task": "edit", "text": "把背景换成雪夜，人物不变"})
+    p1 = preview(4, (860, -420), (460, 420), "PE 编辑提示词（成品）")
+    p2 = preview(5, (860, 60), (460, 300), "report（看有没有 PE 改写器模式（编辑））")
+    lid = wire(1, img, 0, sm, sm.slot("image"), "IMAGE", links)
+    lid = wire(lid, sm, 0, p1, 0, "STRING", links)
+    wire(lid, sm, 1, p2, 0, "STRING", links)
+    groups = [group(1, "PE-I2I（权重自备 · 非商用）", (-760, -480), (2200, 1020))]
+    return finish(nodes + [n, img, sm, p1, p2], links, groups, "llm-pe-i2i")
+
+
 def _sampler_decl(panels: int):
     out = []
     for name, typ, widget, value in SAMPLER_DECL:
@@ -331,10 +366,11 @@ def main():
     load_pkg()
     os.makedirs(OUT_DIR, exist_ok=True)
     for name, fn in (("llm-prompt-workbench", ex_prompt_workbench),
-                     ("llm-idea-to-image", ex_idea_to_image)):
+                     ("llm-idea-to-image", ex_idea_to_image),
+                     ("llm-pe-i2i", ex_pe_i2i)):
         wf = fn()
         path = os.path.join(OUT_DIR, name + ".json")
-        with open(path, "w", encoding="utf-8") as fh:
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(wf, fh, ensure_ascii=False, indent=1)
         sm = [x for x in wf["nodes"] if x["type"] == "MossPromptSmith"][0]
         print("已写 %-28s 节点 %d / 连线 %d / Smith widgets=%d"

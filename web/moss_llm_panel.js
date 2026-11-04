@@ -16,7 +16,7 @@
 //      单组视图让同组行在视觉上连成一片，标题只出现一次。
 //   3. **「已改」小点**：折叠着的组里只要有一项与默认不同，chip 上点一个小蓝点
 //      （悬停看条数）。高频用户最怕「我改过的东西被藏起来了」。
-//   4. 视觉只用宿主自己的 CSS 变量（明/暗主题一起对），不覆盖宿主样式、不用 !important。
+//   4. 视觉只用宿主 CSS 变量；置顶 order 与临时网格样式需 !important。
 //      开关条透明底 + 上边一道发丝线，读起来是工具栏而不是第 39 个参数。
 //   5. **说明行高度恒定**（`height:2.7em`）：悬停换 tooltip 时行数变化不再顶动下面的参数
 //      （2026-10-30 实测：这是鼠标定位失败的直接原因）。「中/EN」按钮挂在说明行右端的
@@ -78,7 +78,7 @@ for (const g of GROUPS) for (const n of g.items) BY_NAME.set(n, g);
 /** seed 每次跑都会变、「生成后控制」是它的伴侣 —— 拿它们算「已改」只会永远亮着。 */
 const DIRTY_SKIP = new Set(["seed", "control_after_generate"]);
 
-// 全走宿主 CSS 变量（明/暗主题一起对）；不用 !important，不碰宿主核心样式。
+// 全走宿主 CSS 变量；置顶 order 与临时网格样式例外。DOM 顺序 ≠ 视觉顺序，见 fitHeight。
 // `flex:0 0 auto` 必须有：宿主给 DOM 组件的单元格套了 `*:flex-1`（flex-grow:1），
 // 不覆盖它，开关条就会被撑到整个剩余高度，线条被 align-content 摊开成一列散字（实测 434px）。
 const CSS = `
@@ -114,6 +114,7 @@ const CSS = `
  /* 🔴 高度必须恒定：悬停换 tooltip 时行数一变，下面每个参数都会跟着位移（实测：鼠标定位失败）。 */
  line-height:1.35;height:2.7em;overflow:hidden;opacity:.8}
 .mossllm-langslot{flex:0 0 auto;display:flex;align-items:center;min-height:2.7em}
+.mossllm-inert{opacity:.5}
 .mossllm-head{margin-top:18px;position:relative}
 .mossllm-head::before{content:attr(data-mossllm-title);position:absolute;left:2px;top:-16px;
  font:600 10.5px/16px system-ui,sans-serif;letter-spacing:.08em;
@@ -127,14 +128,20 @@ const I18N = {
         openTip: "只展开这一组（其余收起来）", closeTip: "收起，回到常驻",
         expandTip: "一次展开全部 %d 项，包括当前通道用不到的旋钮",
         hideTip: "隐藏只是不画出来：参数还在工作流里，值不变",
-        backTip: "恢复分组：默认只露常驻，一次看一组" },
+        backTip: "恢复分组：默认只露常驻，一次看一组",
+        inert: "本次不生效（编译任务不开模型）",
+        inertHint: "编译模式：%d 项本次不生效",
+        selfCheck: "零模型自检：任务选「编译」" },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
         other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
         count: "%d params · %d visible", dirty: "%d differ from default",
         openTip: "Show only this group", closeTip: "Fold back to Basic",
         expandTip: "Show all %d params, including the other channel's",
         hideTip: "Hiding only affects the canvas — values stay in the workflow",
-        backTip: "Back to grouped view (Basic only, one group at a time)" },
+        backTip: "Back to grouped view (Basic only, one group at a time)",
+        inert: "No effect in this run (compile does not load a model)",
+        inertHint: "Compile: %d controls have no effect",
+        selfCheck: "No-weight check: set task=compile" },
 };
 let T = null;
 /** 宿主界面语言（没点过「中/EN」时跟随它）。顺序与 `moss_sb_i18n_ui.js` 完全一致。 */
@@ -161,6 +168,21 @@ const widgetOf = (node, name) => (node.widgets || []).find((w) => w && w.name ==
 const hideable = (w) => !!w && typeof w.syncVisibilityFromOptions === "function";
 const realWidgets = (node) => (node.widgets || []).filter((w) => w && w.name !== BAR_NAME);
 const groupOf = (w) => BY_NAME.get(w.name) || OTHER;
+/** 旧稿把中文写进 task 枚举；归一口径与后端 _LEGACY_VALUES 一致。 */
+const TASK_LEGACY = { "反推": "caption", "扩写": "expand", "编辑指令": "edit", "编译": "compile" };
+const taskOf = (node) => {
+    const w = widgetOf(node, "task");
+    const v = w ? String(w.value) : "";
+    return TASK_LEGACY[v] || v;
+};
+/** 可静态判定的模式知识；tasks/channels 由 check_frontend.py 的 F11 与后端常量对账。
+ *  PE 命中取决于模型目录里的文件，属运行时探测，不进这张表（docs/21 A2'）。 */
+const MODE_SPEC = {
+    tasks: ["caption", "expand", "edit", "compile"],
+    channels: ["local", "api"],
+    inertOnCompile: ["channel", "dialect", "model"],
+    pinnedOnCompile: ["target"],
+};
 /** 接了线的参数不许藏（藏了用户找不到那根线接到哪）。 */
 const isLinked = (node, name) => (node.inputs || [])
     .some((i) => i && i.name === name && i.link != null);
@@ -267,22 +289,28 @@ function stateOf(node) {
 function plan(node, st) {
     const cw = widgetOf(node, "channel");
     const ch = cw ? chanOf(String(cw.value)) : "";
-    const gated = ch === CH_LOCAL || ch === CH_API;
+    const gated = MODE_SPEC.channels.includes(ch);
     if (cw && !gated && !st.warnedChannel) {
         st.warnedChannel = true;
         console.warn("%s: 不认识 channel 取值 %j ⇒ 停用通道标记（分组仍可用）", TAG, ch);
     }
+    const task = taskOf(node);
+    const compile = MODE_SPEC.tasks.includes(task) && task === "compile";
     const shown = new Set();
     const off = new Set();                       // 通道对不上的组（只影响 chip 的标记）
+    const inert = new Set();                     // 本次执行读不到、但仍显示并标注的控件
     for (const w of realWidgets(node)) {
         const g = groupOf(w);
         const outside = gated && !!g.channel && g.channel !== ch;
         if (outside) off.add(g.key);
-        // 优先级：接了线 > 一键全开 > 常驻 > 当前聚焦组
-        const ok = isLinked(node, w.name) || st.force || !!g.always || g.key === st.focus;
+        if (compile && MODE_SPEC.inertOnCompile.includes(w.name)) inert.add(w.name);
+        // compile 唯一有效的旋钮是 target；它排在存档末尾，折叠时用户换不了后端。
+        const pinned = compile && MODE_SPEC.pinnedOnCompile.includes(w.name);
+        // 优先级：接了线 > 一键全开 > compile 必填 > 常驻 > 当前聚焦组
+        const ok = isLinked(node, w.name) || st.force || pinned || !!g.always || g.key === st.focus;
         if (ok) shown.add(w.name);
     }
-    return { shown, off };
+    return { shown, off, inert, compile, task, ch };
 }
 
 function syncWidgets(node, shown) {
@@ -323,6 +351,8 @@ function fitHeight(node, shown) {
         rects = [...grid.querySelectorAll("[data-widget-name]")]
             .filter((e) => e.dataset.widgetName === BAR_NAME || shown.has(e.dataset.widgetName))
             .map((e) => e.getBoundingClientRect());
+        // order 只改视觉顺序；DOM 首行不是视觉首行，顶部留白会被算成置顶行高度。
+        rects.sort((a, b) => a.top - b.top);
     } finally {
         grid.style.removeProperty("grid-auto-rows");
         grid.style.removeProperty("align-content");
@@ -342,6 +372,23 @@ function fitHeight(node, shown) {
     if (Math.abs(node.size[1] - want) < 6) return false;
     node.setSize([node.size[0], want]);
     return true;
+}
+
+function paintInert(node, inert) {
+    const L = t();
+    for (const w of realWidgets(node)) {
+        const row = rowOf(node, w.name);
+        if (!row) continue;
+        const on = inert.has(w.name);
+        row.classList.toggle("mossllm-inert", on);
+        if (on) {
+            row.title = L.inert;
+            row.dataset.mossllmInert = "1";
+        } else if (row.dataset.mossllmInert) {
+            delete row.dataset.mossllmInert;
+            row.title = "";
+        }
+    }
 }
 
 /**
@@ -449,7 +496,7 @@ function buildBar(node, st) {
     return bar;
 }
 
-function paintBar(node, st, shown, off) {
+function paintBar(node, st, shown, off, meta) {
     const L = t();
     let hidden = 0;
     for (const g of GROUPS) {
@@ -477,7 +524,11 @@ function paintBar(node, st, shown, off) {
     st.btn.textContent = st.force ? L.back : L.expand;
     st.btn.title = st.force ? L.backTip : fmt(L.expandTip, hidden);
     // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
-    const summary = fmt(L.count, all, all - hidden);
+    let summary = fmt(L.count, all, all - hidden);
+    if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);
+    else if (meta && !meta.compile && meta.task === "caption" && meta.ch === CH_LOCAL) {
+        summary += "｜" + L.selfCheck;
+    }
     if (!st.hint.dataset.hover) st.hint.textContent = summary;
     st.summary = summary;
 }
@@ -489,7 +540,12 @@ function paintBar(node, st, shown, off) {
 function applySoon(node) {
     apply(node);
     try { requestAnimationFrame(() => apply(node)); } catch (e) { /* 无 rAF */ }
-    setTimeout(() => apply(node), 300);
+    setTimeout(() => {
+        apply(node);
+        // 行重建/CSS order 晚于首帧；补算一次，尺寸已对时 fitHeight 自带早退。
+        // 必须与 fitHeight 的排序同做，否则会把虚高 want 写得更稳。
+        try { fitHeight(node, plan(node, stateOf(node)).shown); } catch (e) { /* noop */ }
+    }, 300);
 }
 
 /**
@@ -509,6 +565,16 @@ function ensureBarFirst(node, st) {
     return true;
 }
 
+function protectFocus(node, st, shown) {
+    const act = document.activeElement;
+    const row = act && act.closest ? act.closest("[data-widget-name]") : null;
+    if (!row) return;
+    const grid = row.closest('[data-widgets-grid-node-id="' + node.id + '"]');
+    if (!grid || shown.has(row.dataset.widgetName)) return;
+    const c = st.chips && (st.chips[st.focus] || st.chips.tune);
+    if (c) { try { c.b.focus(); } catch (e) { /* noop */ } }
+}
+
 function apply(node) {
     const st = stateOf(node);
     ensureBarFirst(node, st);
@@ -520,14 +586,17 @@ function apply(node) {
         st.barH = barH;
         st.fitted = false;
     }
-    const { shown, off } = plan(node, st);
+    const meta = plan(node, st);
+    const { shown, off, inert } = meta;
     const changed = syncWidgets(node, shown);
+    paintInert(node, inert);
     const found = paintHeaders(node, shown);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;
         console.warn("%s: 这个前端定位不到参数行（旧版画布）⇒ 组标题不画，显隐照常生效", TAG);
     }
-    if (st.chips) paintBar(node, st, shown, off);
+    if (st.chips) paintBar(node, st, shown, off, meta);
+    if (changed) protectFocus(node, st, shown);
     if (changed || !st.fitted) st.fitted = fitHeight(node, shown) || !!st.fitted;
     return shown.size;
 }
@@ -535,6 +604,21 @@ function apply(node) {
 // ---------------------------------------------------------------------------
 // 挂载
 // ---------------------------------------------------------------------------
+function focusForChannel(node, st, load) {
+    if (st.force) return;
+    const cw = widgetOf(node, "channel");
+    if (!cw) return;
+    const ch = chanOf(String(cw.value));
+    const cur = GROUPS.find((g) => g.key === st.focus);
+    if (load) {
+        // 冷载入只对 api 兜底：local 保持默认 5 行，别把首屏撑开。
+        if (ch === CH_API && (!cur || cur.channel !== CH_API)) st.focus = "api";
+        return;
+    }
+    const want = GROUPS.find((g) => g.channel && g.channel === ch);
+    if (want && (!cur || cur.channel !== want.channel)) st.focus = want.key;
+}
+
 function mount(node) {
     if (!node || node.type !== TYPE || node.__mossllmBar) return false;
     const ws = realWidgets(node);
@@ -561,6 +645,7 @@ function mount(node) {
     ensureBarFirst(node, st);
     installSaveCleanup(node);
     installHintListener();
+    focusForChannel(node, st, true);
     applySoon(node);
     loadDefs();
 
@@ -571,12 +656,7 @@ function mount(node) {
             const r = orig ? orig.apply(this, args) : undefined;
             // 换通道 ⇒ 把参数面板切到那个通道的组：不切的话用户看不到 api_* / mmproj，
             // 填不了必填项还以为节点坏了。
-            if (!st.force) {
-                const ch = chanOf(String(cw.value));
-                const want = GROUPS.find((g) => g.channel && g.channel === ch);
-                const cur = GROUPS.find((g) => g.key === st.focus);
-                if (want && (!cur || cur.channel !== want.channel)) st.focus = want.key;
-            }
+            focusForChannel(node, st, false);
             applySoon(node);
             return r;
         };
@@ -584,6 +664,7 @@ function mount(node) {
     const oc = node.onConfigure;
     node.onConfigure = function (...args) {
         const r = oc ? oc.apply(this, args) : undefined;
+        focusForChannel(node, st, true);       // 存过的 api 工作流重开后要能看见 api_model
         applySoon(node);                       // 载入时 widget 是重建的，隐藏位要重打
         return r;
     };
@@ -649,6 +730,7 @@ try {
             widgets: realWidgets(n).length,
             hidden: realWidgets(n).filter((w) => w.options && w.options.hidden).length,
             focus: n.__mossllm ? n.__mossllm.focus : null,
+            task: taskOf(n),
             force: !!(n.__mossllm && n.__mossllm.force),
             dirty: GROUPS.filter((g) => !g.always)
                 .map((g) => g.key + ":" + countDirty(n, g)).join(","),

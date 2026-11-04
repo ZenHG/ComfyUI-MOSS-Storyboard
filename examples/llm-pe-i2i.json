@@ -1,0 +1,613 @@
+{
+ "id": "llm-pe-i2i",
+ "revision": 0,
+ "last_node_id": 5,
+ "last_link_id": 3,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "MarkdownNote",
+   "pos": [
+    -760,
+    -420
+   ],
+   "size": [
+    640,
+    940
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "text",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "text"
+     }
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "MarkdownNote"
+   },
+   "widgets_values": [
+    "## PE-I2I：用 Qwen-Image 2.1 自己的 system prompt 改写编辑指令\n\n**先说许可**：PE 权重（官方 Qwen/Qwen-Image-2.1-PE-I2I 与社区 GGUF）按 qwen-research 发布，**非商用、仅内部使用**。本包不含权重、也不含 system_prompt.txt，三件套全部自备；商用前自行核对上游许可，不要提交或分发。\n\n### 三件套放哪\n把 PE-I2I GGUF、配套 mmproj 视觉塔、原生 system_prompt.txt（须含 ratio_follow 或 rewritten editing instruction）放在 <ComfyUI>/models/LLM/ 下同一个目录。\n\n### 拖进来之后四步\n① 在 Smith 的 model 下拉里选那个 PE-I2I GGUF（本示例存的是生成时的默认值，不是 PE 模型）；\n② mmproj 保持自动或手选配对视觉塔；③ LoadImage 选你的图，text 写中文编辑指令；\n④ task=edit、Run。第二个输出 report 出现「PE 改写器模式（编辑）」即命中。\n\n### 命中后有什么不同\n用模型自带的 system prompt，不走本包提示词；dialect / length / must_keep / panels / style_lock 本次不生效，report 会逐一点名。PE-I2I 输出中文描述，画幅仍由上游决定。\n\n### 没命中怎么办\nreport 没有 PE 行就是普通编辑路径：通常是 system_prompt.txt 不在模型同目录、内容不含 I2I 契约关键词、或 task 不是 edit。PE-T2I（expand）另需一套 T2I 权重与提示词，本包不带。"
+   ],
+   "title": "这是什么 · 怎么用"
+  },
+  {
+   "id": 2,
+   "type": "LoadImage",
+   "pos": [
+    -80,
+    -420
+   ],
+   "size": [
+    340,
+    320
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "image"
+     }
+    },
+    {
+     "name": "upload",
+     "type": "IMAGE",
+     "link": null,
+     "widget": {
+      "name": "upload"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      1
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "comic-4panel-lineart-sample.png",
+    null
+   ],
+   "title": "① 参考图（换成你的图）"
+  },
+  {
+   "id": 3,
+   "type": "MossPromptSmith",
+   "pos": [
+    340,
+    -420
+   ],
+   "size": [
+    430,
+    371
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "task",
+     "type": "['CAPTION', 'EXPAND', 'EDIT', 'COMPILE']",
+     "link": null,
+     "widget": {
+      "name": "task"
+     }
+    },
+    {
+     "name": "channel",
+     "type": "['LOCAL', 'API']",
+     "link": null,
+     "widget": {
+      "name": "channel"
+     }
+    },
+    {
+     "name": "dialect",
+     "type": "['MOSS_IMAGE', 'MOSS_STORYBOARD', 'GENERIC_NATURAL', 'GENERIC_TAGS', 'CINEMATIC', 'CN_NATURAL']",
+     "link": null,
+     "widget": {
+      "name": "dialect"
+     }
+    },
+    {
+     "name": "model",
+     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
+     "link": null,
+     "widget": {
+      "name": "model"
+     }
+    },
+    {
+     "name": "text",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "text"
+     }
+    },
+    {
+     "name": "length",
+     "type": "['BRIEF', 'STANDARD', 'DETAILED']",
+     "link": null,
+     "widget": {
+      "name": "length"
+     }
+    },
+    {
+     "name": "temperature",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "temperature"
+     }
+    },
+    {
+     "name": "max_tokens",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "max_tokens"
+     }
+    },
+    {
+     "name": "seed",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "seed"
+     }
+    },
+    {
+     "name": "control_after_generate",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "control_after_generate"
+     }
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 1
+    },
+    {
+     "name": "mmproj",
+     "type": "['AUTO', 'NONE', 'GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/MMPROJ-QWEN3VL-4B-INSTRUCT-F16.GGUF', 'MOSS_LLM_6G/MMPROJ-F16.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC.MMPROJ-BF16.GGUF', 'QWEN3.5-9B.MMPROJ-Q8_0.GGUF', 'QWEN3.8/MMPROJ-QWEN3.8-27B-BF16.GGUF']",
+     "link": null,
+     "widget": {
+      "name": "mmproj"
+     }
+    },
+    {
+     "name": "language",
+     "type": "['AUTO', 'ZH', 'EN']",
+     "link": null,
+     "widget": {
+      "name": "language"
+     }
+    },
+    {
+     "name": "thinking",
+     "type": "['OFF', 'ON']",
+     "link": null,
+     "widget": {
+      "name": "thinking"
+     }
+    },
+    {
+     "name": "panels",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panels"
+     }
+    },
+    {
+     "name": "style_lock",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "style_lock"
+     }
+    },
+    {
+     "name": "must_keep",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "must_keep"
+     }
+    },
+    {
+     "name": "wash",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "wash"
+     }
+    },
+    {
+     "name": "two_pass",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "two_pass"
+     }
+    },
+    {
+     "name": "runtime",
+     "type": "['CURRENT', 'UPDATE']",
+     "link": null,
+     "widget": {
+      "name": "runtime"
+     }
+    },
+    {
+     "name": "api_base",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_base"
+     }
+    },
+    {
+     "name": "api_model",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_model"
+     }
+    },
+    {
+     "name": "api_key",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_key"
+     }
+    },
+    {
+     "name": "api_key_env",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_key_env"
+     }
+    },
+    {
+     "name": "ctx_size",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "ctx_size"
+     }
+    },
+    {
+     "name": "gpu_layers",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "gpu_layers"
+     }
+    },
+    {
+     "name": "cache_type_k",
+     "type": "['Q8_0', 'Q4_0', 'F16']",
+     "link": null,
+     "widget": {
+      "name": "cache_type_k"
+     }
+    },
+    {
+     "name": "cache_type_v",
+     "type": "['Q8_0', 'Q4_0', 'F16']",
+     "link": null,
+     "widget": {
+      "name": "cache_type_v"
+     }
+    },
+    {
+     "name": "flash_attn",
+     "type": "['ON', 'OFF']",
+     "link": null,
+     "widget": {
+      "name": "flash_attn"
+     }
+    },
+    {
+     "name": "image_max_tokens",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "image_max_tokens"
+     }
+    },
+    {
+     "name": "ubatch",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "ubatch"
+     }
+    },
+    {
+     "name": "parallel",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "parallel"
+     }
+    },
+    {
+     "name": "fit_on",
+     "type": "['ON', 'OFF']",
+     "link": null,
+     "widget": {
+      "name": "fit_on"
+     }
+    },
+    {
+     "name": "fit_target_mib",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "fit_target_mib"
+     }
+    },
+    {
+     "name": "mtp",
+     "type": "['AUTO', 'ON', 'OFF']",
+     "link": null,
+     "widget": {
+      "name": "mtp"
+     }
+    },
+    {
+     "name": "mtp_draft_n",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "mtp_draft_n"
+     }
+    },
+    {
+     "name": "server_exe",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "server_exe"
+     }
+    },
+    {
+     "name": "port",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "port"
+     }
+    },
+    {
+     "name": "release_after_run",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "release_after_run"
+     }
+    },
+    {
+     "name": "target",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3']",
+     "link": null,
+     "widget": {
+      "name": "target"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "提示词",
+     "type": "STRING",
+     "links": [
+      2
+     ]
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": [
+      3
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossPromptSmith",
+    "cnr_id": "moss-storyboard",
+    "ver": "0.3.3"
+   },
+   "widgets_values": [
+    "edit",
+    "local",
+    "moss_image",
+    "GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+    "把背景换成雪夜，人物不变",
+    "standard",
+    0.2,
+    1024,
+    0,
+    "fixed",
+    "auto",
+    "auto",
+    "off",
+    4,
+    "",
+    "",
+    false,
+    false,
+    "current",
+    "",
+    "",
+    "",
+    "MOSS_LLM_API_KEY",
+    8192,
+    "",
+    "q8_0",
+    "q8_0",
+    "on",
+    1024,
+    512,
+    1,
+    "on",
+    1024,
+    "auto",
+    2,
+    "",
+    8091,
+    true,
+    "moss-image"
+   ],
+   "title": "🧠 LLM Prompt · PE-I2I edit"
+  },
+  {
+   "id": 4,
+   "type": "PreviewAny",
+   "pos": [
+    860,
+    -420
+   ],
+   "size": [
+    460,
+    420
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 2
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "PE 编辑提示词（成品）"
+  },
+  {
+   "id": 5,
+   "type": "PreviewAny",
+   "pos": [
+    860,
+    60
+   ],
+   "size": [
+    460,
+    300
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 3
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "report（看有没有 PE 改写器模式（编辑））"
+  }
+ ],
+ "links": [
+  [
+   1,
+   2,
+   0,
+   3,
+   10,
+   "IMAGE"
+  ],
+  [
+   2,
+   3,
+   0,
+   4,
+   0,
+   "STRING"
+  ],
+  [
+   3,
+   3,
+   1,
+   5,
+   0,
+   "STRING"
+  ]
+ ],
+ "groups": [
+  {
+   "id": 1,
+   "title": "PE-I2I（权重自备 · 非商用）",
+   "bounding": [
+    -760,
+    -480,
+    2200,
+    1020
+   ],
+   "color": "NO_COLOR",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ds": {
+   "scale": 0.8,
+   "offset": [
+    820,
+    420
+   ]
+  }
+ },
+ "version": 0.4
+}

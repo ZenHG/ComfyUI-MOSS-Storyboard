@@ -474,8 +474,10 @@ def main():
     reg_mod = importlib.import_module("moss_sb_t.moss_llm.smith.registry")
     names = set(reg_mod.Registry.load().names())
     extra = [t for t in nodes._TARGETS if t not in names]
-    check("节点的 target 列表与 registry 一致（%d 个，镜像不许漂移）"
-          % len(nodes._TARGETS), not extra, str(extra))
+    missing = [t for t in sorted(names) if t not in nodes._TARGETS]
+    check("节点的 target 列表与 registry 双向一致（%d 个，镜像不许漂移）"
+          % len(nodes._TARGETS), not extra and not missing,
+          "多=%s 漏=%s" % (extra, missing))
     check("compile 在任务枚举里", "compile" in nodes._TASKS)
     check("编译任务的中文旧值也有归一映射", nodes._LEGACY_VALUES.get("编译") == "compile")
 
@@ -588,6 +590,51 @@ def main():
 
     check("PE：I2I 特征（ratio_follow）只被 I2I 判定认",
           nodes._looks_like_pe_i2i(i2i_text) and not nodes._looks_like_pe_t2i(i2i_text))
+
+    print("\n== 13. 两处出声：PE 绕过参数 / 接图无视觉塔 ==")
+    import contextlib
+    from unittest import mock
+
+    def smith_report(task, image, mmproj, pe_text, mmproj_path, **overrides):
+        with tempfile.TemporaryDirectory() as td:
+            gguf = os.path.join(td, "stub.gguf")
+            with open(gguf, "wb") as f:
+                f.write(b"x")
+            key = "stub.gguf"
+            patches = [
+                mock.patch.object(nodes, "_scan_gguf", lambda: ({key: gguf}, {})),
+                mock.patch.object(nodes, "_resolve_mmproj", lambda *a: (mmproj_path, "")),
+                mock.patch.object(nodes, "_pe_system_for",
+                                  lambda t, m: (pe_text, "stub.txt") if pe_text else ("", "")),
+                mock.patch.object(nodes.GgufLocalServer, "acquire",
+                                  classmethod(lambda cls, *a, **k: ("http://127.0.0.1:0", []))),
+                mock.patch.object(nodes.MossPromptSmith, "_chat",
+                                  lambda self, *a, **k: ('{"rewritten_prompt":"x"}', {"total_tokens": 1})),
+            ]
+            for name, value in overrides.items():
+                patches.append(mock.patch.object(nodes, name, value))
+            with contextlib.ExitStack() as stack:
+                for p in patches:
+                    stack.enter_context(p)
+                return nodes.MossPromptSmith().smith(
+                    task=task, channel="local", dialect="moss_image", model=key,
+                    text="把背景换成雪夜", length="standard", temperature=0.2,
+                    max_tokens=256, seed=0, image=image, mmproj=mmproj,
+                    release_after_run=False)[1]
+
+    rep_pe = smith_report("edit", object(), "auto", "PE", "/fake/stub.mmproj.gguf",
+                          _PE_BYPASSED=("SENTINEL_PE",))
+    check("PE 分支真的把绕过参数写进 report（哨兵反证）",
+          "PE 绕过参数：SENTINEL_PE" in rep_pe, rep_pe[-70:])
+    rep_vis = smith_report("expand", object(), "auto", "", "", _VISION_HINT="SENTINEL_V")
+    check("接图无视觉塔时真的出声（哨兵反证）", "SENTINEL_V" in rep_vis, rep_vis[-70:])
+    rep_none = smith_report("expand", object(), nodes._MMPROJ_NONE, "", "")
+    check("显式选「不使用」时不误报", nodes._VISION_HINT not in rep_none, rep_none[-70:])
+    check("常量写全了被绕过的参数",
+          nodes._PE_BYPASSED == ("dialect", "length", "must_keep", "panels", "style_lock"),
+          str(nodes._PE_BYPASSED))
+    check("视觉塔提示给全三条路",
+          all(k in nodes._VISION_HINT for k in ("①", "②", "③")), nodes._VISION_HINT[:40])
 
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

@@ -341,6 +341,36 @@ def f10_tooltips(src, classes):
     check("F10 每个入参都有中文 tooltip（%d 个）" % seen, seen >= 40 and not miss, "；".join(miss[:5]))
 
 
+
+def f11_mode_spec():
+    """前端 MODE_SPEC 的 tasks/channels ↔ 后端 _TASKS/_CHANNELS 对账。
+
+    只核可静态判定的部分：PE 命中要看模型目录里的文件，源码解析核不出（docs/21 A2'）；
+    inertOnCompile / pinnedOnCompile 是前端对 compile 首段返回的推论，由真机断言覆盖。
+    """
+    llm = open(os.path.join(ROOT, "moss_llm", "nodes.py"), encoding="utf-8").read()
+    panel = open(os.path.join(ROOT, "web", "moss_llm_panel.js"), encoding="utf-8").read()
+
+    def py_list(name):
+        m = re.search(r"^%s = \[(.*?)\]" % name, llm, re.M | re.S)
+        return re.findall(r'"([a-z0-9_\-]+)"', m.group(1)) if m else []
+
+    m = re.search(r"const MODE_SPEC = \{(.*?)\n\};", panel, re.S)
+    spec = m.group(1) if m else ""
+
+    def js_list(key):
+        mm = re.search(r"%s:\s*\[(.*?)\]" % key, spec, re.S)
+        return re.findall(r'"([a-z0-9_\-]+)"', mm.group(1)) if mm else []
+
+    tasks, channels = py_list("_TASKS"), py_list("_CHANNELS")
+    bad = []
+    if not tasks or js_list("tasks") != tasks:
+        bad.append("tasks 前端=%s 后端=%s" % (js_list("tasks"), tasks))
+    if not channels or js_list("channels") != channels:
+        bad.append("channels 前端=%s 后端=%s" % (js_list("channels"), channels))
+    check("F11 MODE_SPEC 与后端 task/channel 常量对账", not bad, "；".join(bad))
+
+
 def main(argv):
     src, nodes_zh, nodes_en, tips = load_tables()
 
@@ -406,6 +436,9 @@ def main(argv):
     src_py = open(os.path.join(ROOT, "nodes.py"), encoding="utf-8").read()
     src_llm = open(os.path.join(ROOT, "moss_llm", "nodes.py"), encoding="utf-8").read()
     f10_tooltips(src_py + "\n" + src_llm, classes)
+
+    print("\n== F11 模式表对账 ==")
+    f11_mode_spec()
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     if FAIL:

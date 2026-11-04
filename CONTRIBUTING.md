@@ -21,7 +21,7 @@ python tests/test_faceswap_wiring.py    # 36 项：换脸接线（桩 clip/vae/�
 python tests/test_init_empty.py         # 18 项：init 两个分支 —— 空 latent 不碰源图 / 画布来源 / 忽略项写明 / 缺 image 报错
 node   tests/test_i18n.mjs                # 64 项：中英切换纯函数（含子包 39 个参数标签 / en 提示 / 枚举显示）
 node   tests/test_compat.mjs              # 43 项：旧工作流 widgets_values 错位修复（长度/内容两种错位 + 时序）
-python tests/test_llm_subpackage.py        # 98 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一 / 侧车启动命令 / 图像预处理 / 零模型编译 / 反漂移断言）
+python tests/test_llm_subpackage.py        # 123 项：可选 LLM 子包纯函数（包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 旧稿中文枚举归一 / 侧车启动命令 / 图像预处理 / 零模型编译 / 反漂移断言）
 python tests/test_caption_quality.py       #  29 项：反推护栏（character 类型闸 / 实体上限 / 重复循环显式失败与合并；零 GPU 零网络）
 python tests/test_node_caption_guard.py    #  21 项：反推护栏节点路径（类型闸接线 / 实体上限 / 结构化四级降级 / 重复保护；桩服务端）
 python tests/test_docs_sync.py              #  13 项：README 中英节级同步（结构/层级/例外清单；零 GPU 零网络）
@@ -50,12 +50,12 @@ python tools/check_coverage.py --check     # 覆盖率闸：4 份夹具 × 7 后
 python tools/smoke_nodes.py               # 63 项：自加载 + 纯节点真跑 + 分辨率告警按模式给对杠杆
 python tools/host_loader_check.py         # 19 项：走宿主 load_custom_node
 python tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json   # 共 210 项（11 个示例 + 2 个夹具）：连线 + 槽位；不带文件参数只查内建那一份 = 17 项
-python tools/check_frontend.py            # 20 项：前端词表/语法/接线/标题可换语言/**汉化完整**（参数标签 / 枚举取值 / 编辑器文案 / 节点显示名 / 中文 tooltip）
+python tools/check_frontend.py            # 21 项：前端词表/语法/接线/标题可换语言/**汉化完整**（参数标签 / 枚举取值 / 编辑器文案 / 节点显示名 / 中文 tooltip）
 python tools/check_editor_ui.py           # 160 项：编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 最终提示词 / 占位守卫 / 滚轮跨平台守卫 / 旧稿错位守卫 / 界面文案中英齐全
 python tools/check_release_ready.py       # 54 项：**发布前**开源卫生（凭据 / 两个公开面的路径 / 打包口径 / 元数据 / 发布说明 / 提交信息 / 内部称呼 / 黑名单是否随仓库走 / 二进制元数据 / 临时产物 / 提交格式 / SPDX / **文档清单与实物一致**：参数表覆盖全部入参、每个示例都被点名、示例引用的图要么在仓库要么写明自备、报错表原文逐字可查 / **中英 README 节级同步**）
 node   tools/ui_smoke.mjs                 # 38 项：**无头浏览器真机**（扩展是否执行 / 只动本包节点 / 编辑器语义分层 / 预览可见 / 占位确认 / 删除与分布按钮接线）
 node   tools/ui_widget_compat.mjs         # 14 项：**真机**旧稿错位修复（对齐稿不动 / 错位稿归位 / **刷新后**仍不红 / 存出去再打开）
-node   tools/ui_llm_panel.mjs            # 43 项：**真机** LLM 面板（开关条置顶 / 悬停不抖 / 默认常驻 5 项 / 单组视图 / 已改点 / 已接线参数不被藏（三层分开断言）/ 存档逐位不变 / 只动本节点）
+node   tools/ui_llm_panel.mjs            # 53 项：**真机** LLM 面板（开关条置顶 / 悬停不抖 / 默认常驻 5 项 / 单组视图 / 已改点 / 已接线参数不被藏 / 存档逐位不变 / 按 task 动态常驻与 inert 标注 / api 冷载入聚焦 / 切组焦点保护 / 只动本节点）
 node   tools/ui_wheel_check.mjs           # 每引擎 21 项：滚轮归属（节点内只滚编辑器、画布纹丝不动、不接管原生滚动），Chromium/Firefox/WebKit 各跑一遍
 python tools/ci_preflight.py               # 本地真机预检：有环境就跑、缺环境输出 SKIP（未跑）；发布前加 --require-all（GPU 项再加 --with-gpu）
 python tools/ci_preflight.py --probe-only  # 只探测宿主/GPU/Playwright 与计划，不跑任何闸

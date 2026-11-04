@@ -18,7 +18,7 @@
 #   ·  19/0  tests/test_sampling_contract.py  宿主采样 API 的入参类型（桩替身）
 #   ·  64/0  tests/test_i18n.mjs              中英切换纯函数（node）
 #   ·  43/0  tests/test_compat.mjs            旧工作流 widgets_values 错位修复（纯函数）
-#   ·  98/0  tests/test_llm_subpackage.py     可选 LLM 子包纯函数：包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 侧车命令 / 图像预处理 / 零模型编译 / 反漂移断言
+#   · 123/0  tests/test_llm_subpackage.py     可选 LLM 子包纯函数：包 sha / JSON 容错 / must_keep 对账 / 段数=格数 / MTP 元数据 / mmproj 宽度配对 / 运行时选包 / 外部 API 端点 / 侧车命令 / 图像预处理 / 零模型编译 / 反漂移断言
 #   ·  29/0  tests/test_caption_quality.py    反推护栏：character 类型闸 / 实体上限 / 重复循环显式失败 / 合并出声
 #   ·  21/0  tests/test_node_caption_guard.py  反推护栏节点路径：类型闸 / 实体上限 / 结构化四级降级 / 重复保护
 #   ·  13/0  tests/test_docs_sync.py          README 中英节级同步（S19）：层级/顺序/成对存在 + 例外清单
@@ -51,7 +51,7 @@
 #                prompt-compiler 12 · faceswap-ui 15 · faceswap-single 12 · pose-generate 12 ·
 #                llm-prompt-workbench 19 · llm-idea-to-image 27 · llm-compile 13；
 #                **CI 实际传 examples/ 11 个 + fixtures/ 2 个 = 13 个文件 ⇒ 共 210 项**
-#   ·  20/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 标题可换语言 / 汉化完整（标签·枚举·文案·标题·tooltip）
+#   ·  21/0  tools/check_frontend.py          前端词表纯净度 / 语法 / 接线 / 标题可换语言 / 汉化完整（标签·枚举·文案·标题·tooltip）
 #   · 160/0  tools/check_editor_ui.py         编辑器接线 / 语法 / 词表 / 互操作 / 层级对齐 / 分布与等大 / 滚轮与旧稿错位守卫
 #   ·  95/0  tests/test_cross_language.py     JS ↔ Python 预设/校验/elements/canvas/外接稿 差分
 #   ·  22/0  tests/test_panel_assembly.py      逐格拼版 reborder 语义 / 逐格 latent 契约 / 档位提示

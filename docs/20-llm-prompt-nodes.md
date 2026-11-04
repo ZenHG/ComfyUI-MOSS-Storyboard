@@ -48,8 +48,10 @@ MossPromptSmith
 - 机检**只报数不裁决**：`must_keep` 哪几项没逐字出现、`[PANEL]` 段数 vs `panels`、
   `confidence.risks` / `omitted_low_confidence` / `uncertainties` / `open_choices` 的条数与内容。
   「好不好看 / 像不像」不交给自动判官。
-- 失败面全部 raise 带操作指引的中文错误：反推没接图、扩写没填字、mmproj 找不到、
-  llama-server 起不来、panels 越界。
+- 主判据链的失败面全部 raise 带操作指引的中文错误：反推没接图、扩写没填字、mmproj 找不到、
+  llama-server 起不来、panels 越界。`compile` 首段直接返回、PE 分支跳过 `_checks`，这两条路径
+  **不走主判据链**；PE 模式下被绕过的参数写进 `report`，接了参考图却没有视觉投影时也会出声，
+  不静默忽略。
 - 两处**出声的**降级，不假装成功：MTP 起不来 → 回退普通模式；服务端 400 拒
   `response_format` / `chat_template_kwargs` → 逐级摘掉重试。
 
@@ -117,7 +119,7 @@ MossPromptSmith
 
 ## 七、闸与计数
 
-`python tests/test_llm_subpackage.py` = **98/0**（纯函数，零 GPU 零网络）：
+`python tests/test_llm_subpackage.py` = **123/0**（纯函数，零 GPU 零网络）：
 包 sha 篡改检测、JSON 围栏与容错、`_pick_prompt` 优先级、must_keep 对账、段数=格数、
 MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外部 API 端点拼接与 Key 来源、
 任务边界报错、旧稿中文枚举归一、mmproj 宽度配对（同名 > 同目录唯一 > 全局唯一，多候选报错），
@@ -128,8 +130,8 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 `smith.llm.LlamaServer is server.LlamaServer` 这条**防再抄一份**的断言。
 
 真机闸：`tools/check_ui_workflow.py examples/llm-*.json` = 46/0；
-`node tools/ui_llm_panel.mjs` = 36/0 + 1 skip（参数面板，见 §九）；
-`tools/check_frontend.py` 20/0；`tests/test_i18n.mjs` 64/0；`ruff` 全绿。
+`node tools/ui_llm_panel.mjs` = 53/0（参数面板，见 §九）；
+`tools/check_frontend.py` 21/0；`tests/test_i18n.mjs` 64/0；`ruff` 全绿。
 `tools/check_release_ready.py` 在提交后应全绿（未提交时唯一红项是「未跟踪文件」）。
 
 ✅ **子包节点已与核心 7 节点共用同一套 i18n 表**（`web/moss_sb_i18n.js`）：
@@ -168,7 +170,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 39 个参数平铺是一堵墙。面板只做三件事：**默认只露常驻**、**一次只看一组**、**把改动标出来**。
 
 - **默认 5 项**（`task` `channel` `dialect` `model` `text`）。这个节点的日常动作是
-  「贴图/贴文本 → 跑」，其余 33 项是配置不是操作。默认状态节点 `size` 高 **353 画布单位**；
+  「贴图/贴文本 → 跑」，其余参数都是配置不是操作。默认状态节点 `size` 高 **353 画布单位**；
   80% 缩放下盒子 **306 px**（100% 缩放下 383 px；上一版默认 17 行 / 978 px）。
 - **开关条钉在节点顶部**（`node.widgets[0]`），展开的组都在它**下方**；宿主重建 widget 数组后
   位置会退回末尾，`apply()` 每次自愈。说明行高度恒定 `2.7em` —— 悬停换 tooltip 时行数变化
@@ -182,7 +184,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
   en 提示，中文态回落后端 `INPUT_TYPES` 原文）；同一行右端是核心 i18n 画的「中/EN」按钮
   （`langSlot`），切语言时面板的分组标题/摘要/说明行与节点标签/枚举一起换。
   指针离开就回到「N 个参数 · M 个可见」。
-- 视觉只用宿主 CSS 变量（明/暗主题一起对），不用 `!important`；面板自己的标签按宿主语言 zh/en 二选一。
+- 视觉只用宿主 CSS 变量（明/暗主题一起对）；置顶 `order` 与临时网格样式需 `!important`（宿主特异性/内联优先）；面板自己的标签按宿主语言 zh/en 二选一。
 
 | 组 | 内容 | 默认 |
 |---|---|---|
@@ -213,12 +215,13 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 已知代价（不装成优点）：点「全部展开」时，参数顺序决定标题仍会出现 3 次「本地引擎」（组被切断），
 这是存档契约换来的；单组视图下不会出现。
 
-真机闸：`node tools/ui_llm_panel.mjs` = **36/0 + 1 skip**（只读界面、不排队）。断言含：默认 5 行 /
+真机闸：`node tools/ui_llm_panel.mjs` = **53/0**（只读界面、不排队）。断言含：默认 5 行 /
 开关条在参数上方且是 `widgets[0]`（**重开后也自愈回首位**）/ 悬停换说明时开关条高度与参数 top 都不动（不抖）/
 节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 39 个 `isWidgetVisible` /
 **存盘→重开 `widgets_values` 逐位一致** / 折叠状态不进存档 / 两个同型节点各自独立 /
-只作用于本节点 / 页面无 JS 异常。skip 的那条：造不出「已连线的 widget 槽」（直接写 `slot.link`
-被宿主立刻归零），代码里的 `isLinked` 只是防一手 —— **未证**。
+只作用于本节点 / 页面无 JS 异常 / **按 `task` 动态常驻**（compile 提 `target`、给 3 个 inert
+控件加文字标注）/ api 工作流冷载入自动聚焦 / 切组焦点保护。
+「已连线的 widget 槽」已用 PrimitiveNode 真拖线覆盖（4 条断言，无 skip），`isLinked` 不再是「防一手」。
 
 ## 八、同一层的另一件事：`moss_llm.smith`（IR 编译层）
 

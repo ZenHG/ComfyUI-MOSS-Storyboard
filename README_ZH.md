@@ -11,14 +11,14 @@
 - **提示词** —— 可选 LLM 节点做反推 / 扩写 / 编辑 / 编译；**不绑定 MOSS**，也支持 Flux、SDXL、Qwen-Image。
 
 > 🔴 **先记这一句：画布上的框是参考，不是坐标。** 框会变成一句带坐标的文字进提示词，模型自己决定画在哪。
-> 会画偏、会揉框、也可能完全不理。细节见[节点手册 §1](docs/19-node-manual.md)。
+> 会画偏、会揉框、也可能完全不理。细节见[节点手册 §1](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
 
 | 项 | 值 |
 |---|---|
 | 版本 | **0.4.2** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（原生支持 MOSS-Image） |
-| 依赖 | 核心**零**额外 pip 依赖。换脸自动蒙版可选 `insightface` + `onnxruntime`，不装也能跑 |
+| 依赖 | 核心**零**额外 pip 依赖。换脸自动蒙版**默认开**，需 `insightface` + `onnxruntime` **以及** `det_10g.onnx` 权重（默认 `~/.insightface/models/buffalo_l/`，可用 `MOSS_INSIGHTFACE_ROOT` 改目录）；缺任一项请手接 `mask` 或关掉 `auto_mask`，节点会明确报错且不会联网下载 |
 
 **本包保证**：画布尺寸、每格坐标、裁切位置、宫格线位置 —— 算术，逐像素对齐。
 **本包不保证**：画面内容、元素落点、跨格是不是同一张脸 —— 由模型采样决定。
@@ -72,8 +72,8 @@
 
 ### 1.4 下一步
 
-- 全部入参 / 输出：[`docs/19-node-manual.md`](docs/19-node-manual.md)。
-- LLM 节点（通道、方言、PE 改写器）：[`docs/20-llm-prompt-nodes.md`](docs/20-llm-prompt-nodes.md)。
+- 全部入参 / 输出：[`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
+- LLM 节点（通道、方言）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见下面 1.6。
 - 更多示例：见下面 3.1。
 
 ### 1.5 怎么接线
@@ -83,6 +83,30 @@
 | `UNETLoader` | `moss_image_sft_bf16.safetensors` | `model` |
 | `CLIPLoader` | `qwen3.5_9b_int8_convrot.safetensors`（`type=moss_image`） | `clip` |
 | `VAELoader` | `flux2-vae.safetensors` | `vae` |
+
+> **换脸节点另有一套配方。** 它默认 `8 步 / cfg 1.0 / simple`，属 8 步蒸馏档。要在模型前串上 8 步 DMD2 蒸馏 LoRA **与** Moss-Image-Edit 编辑 LoRA。照上表接裸 `UNETLoader` 又用默认步数，出图会糊、会变成另一张脸；节点不检测 LoRA。接线见 `examples/moss-faceswap-ui.json`。
+
+### 1.6 PE 改写器（Qwen-Image 2.1，非商用）
+
+可选 LLM 提示词节点可以把提示词交给 Qwen-Image 2.1 的**原生** PE system prompt，而不是用本包的提示词。
+只有所选 GGUF 同目录存在匹配的 `system_prompt.txt` 时才启用 —— 没有 PE 开关、不下载、不改默认行为。
+
+**先说许可。** PE 权重（官方 `Qwen/Qwen-Image-2.1-PE-T2I` / `-PE-I2I` 与社区 GGUF）按
+`qwen-research` 发布：**非商用、仅内部使用**。本包是 MIT，**不含任何权重，也不含 `system_prompt.txt`**；
+请自备，商用前自行核对上游许可，不要提交或随包分发。
+
+跑通 PE-I2I（参考图 + 编辑指令 → 精确编辑提示词）：
+
+1. 把 PE-I2I GGUF、配套的 `mmproj` 视觉塔、原生 `system_prompt.txt`（须含 `ratio_follow`
+   或 `rewritten editing instruction`）放在 `<ComfyUI>/models/LLM/` 下同一个目录里，三个文件都自备。
+2. 把 [`examples/llm-pe-i2i.json`](examples/llm-pe-i2i.json) 拖进 ComfyUI，在 `model` 下拉里选这个 GGUF，
+   `mmproj` 保持自动（或手选配对的视觉塔）。
+3. `LoadImage` 选你的图，`text` 写编辑指令，`task` 保持 `edit`，按 Run。
+4. 第二个输出 `report` 出现 `PE 改写器模式（编辑）` 即已命中；`dialect`、`length`、`must_keep`、
+   `panels`、`style_lock` 本次被绕过，report 会逐一点名。
+
+PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但本包既不随包分发、也不安装任何 T2I 权重。
+`caption` / `compile` 与 `api` 通道永不进入 PE。详见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
 
 ## 2 · 常见问题
 
@@ -105,8 +129,7 @@
 
 ### 2.3 显存与速度
 
-12GB 卡跑得动实测的 0.64–1.42MP 画布，但峰值 11.2–11.4GB，余量很小，别读成「12GB 够用」。
-峰值在 VAE 解码，不在采样。数字与宿主版本分水岭见 [`docs/06-vae-memory.md`](docs/06-vae-memory.md)。
+峰值在 VAE 解码，不在采样。[显存笔记](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/06-vae-memory.md)里的数字是**按公式复算的预估**，不是本包实测峰值：旧宿主（VAE 融合优化未生效）下 3120x896 / 8 格预估 11.34 GB；当前宿主走融合路径，同尺寸约 2.84 GB。两组数字都别读成「12 GB 够用」。
 
 ### 2.4 已知边界
 
@@ -117,7 +140,7 @@
 
 ### 2.5 报错对照表
 
-下表每一行都是从源码里逐字抄的 `ValueError` 文案，`Ctrl+F` 报错里的几个字就能对上。
+下表每一行都对应源码里的一条 `ValueError`。格式串里的 `%d`/`%s` 换成示例数字，标点与反引号按表格排版归一化；`Ctrl+F` 报错里的几个字就能对上。
 
 | 你看到的报错 | 原因 | 改法 |
 |---|---|---|
@@ -157,7 +180,7 @@
 ### 3.1 示例
 
 示例都是 UI 格式（直接拖进画布）。换脸示例要自备 `moss_faceswap_src.png` 与 `moss_faceswap_ref.png`；
-单图换脸示例自带 `assets/` 下两张演示图；其余示例不需要图。
+单图换脸示例自带 `assets/` 下两张演示图；`llm-pe-i2i.json` 要自备 PE-I2I GGUF + `mmproj` + `system_prompt.txt`（见 1.6，非商用）；其余示例不需要图。
 
 | 文件 | 干什么 |
 |---|---|
@@ -172,12 +195,15 @@
 | `llm-compile-zero-model.json` | IR → 提示词，零模型（装机自检） |
 | `llm-prompt-workbench.json` | 反推 / 洗图 / 通用扩写三组，按需旁路 |
 | `llm-idea-to-image.json` | 一句话 → 单图或 4 格故事板 |
+| `llm-pe-i2i.json` | Qwen-Image 2.1 PE-I2I：参考图 + 编辑指令 → 精确编辑提示词（权重自备、非商用） |
 
 ### 3.2 文档
 
-- 全部参数、术语与实测边界：[`docs/19-node-manual.md`](docs/19-node-manual.md)。
-- LLM 节点（方言 / PE / 39 个参数）：[`docs/20-llm-prompt-nodes.md`](docs/20-llm-prompt-nodes.md)。
-- 文档索引：[`docs/README.md`](docs/README.md)。
+- 全部参数、术语与实测边界：[`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
+- LLM 节点（方言 / 39 个参数）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见上面 1.6。
+- 文档索引：[`docs/README.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/README.md)。
+
+> 手册只在 GitHub 仓库里，发布包不含 `docs/`；上面的链接指向仓库。
 
 ### 3.3 贡献
 
@@ -188,3 +214,6 @@
 ## 4 · 许可
 
 MIT。第三方出处与上游许可：[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)。
+
+> 可选的 Qwen-Image 2.1 PE 权重**不在**本 MIT 许可范围内。它们按 `qwen-research` 发布，**非商用 / 仅内部使用**；本包不分发权重，也不含它们的 `system_prompt.txt`。
+> 请自备，商用前自行核对上游许可（见 1.6）。

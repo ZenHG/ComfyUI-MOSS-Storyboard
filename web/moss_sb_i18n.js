@@ -307,6 +307,7 @@ export const COMBOS = {
         flux1_dev: "FLUX.1 dev",
         sdxl: "SDXL",
         "minimax-h3": "MiniMax H3（视频）",
+        "nano-banana": "Nano Banana（Gemini 图像）",
     },
     dialect: {
         moss_image: "MOSS 单图（英文散文）",
@@ -901,18 +902,34 @@ export function tipFor(type, widgetName, lang) {
     return e.en == null ? null : String(e.en);
 }
 
+/** 后端 RETURN_NAMES 是中文硬编码；英文界面在这里覆盖输出端口名。 */
+const OUTPUT_LABELS = {
+    MossPromptSmith: [{ zh: "提示词", en: "Prompt" }, { zh: "report", en: "Report" }],
+};
+
 /**
  * 把语言应用到节点：标题 + 参数标签 + 枚举显示 + 悬浮提示。
  * @returns {{title:boolean, labels:number, combos:number, tips:number}}
  */
 export function applyLang(node, lang) {
-    const out = { title: false, labels: 0, combos: 0, tips: 0, placeholders: 0 };
+    const out = { title: false, labels: 0, combos: 0, tips: 0, placeholders: 0, outputs: 0 };
     if (!node) return out;
     // 🔴 **只处理本包节点**。外来节点（官方 / 别人的）一个字节都不许动：
     //    同名参数（steps/cfg/seed…）在别人那里语义不同，改了 label 就是篡改别人的界面。
     //    这条不写在调用方，是因为调用方可能漏判（`nodeCreated` 对所有节点都触发）。
     if (!NODES[String(node.type || "")]) return out;
     const L = normLang(lang);
+
+    // 输出端口名：后端 RETURN_NAMES 是中文；英文界面覆盖，中文还原。只处理本包节点。
+    const outs = OUTPUT_LABELS[String(node.type || "")];
+    if (outs) {
+        for (let i = 0; i < outs.length; i += 1) {
+            const o = (node.outputs || [])[i];
+            if (!o) continue;
+            const want = L === "en" ? outs[i].en : outs[i].zh;
+            if (o.name !== want) { o.name = want; out.outputs += 1; }
+        }
+    }
 
     try {
         const t = swapTitle(node.title, node.type, L);

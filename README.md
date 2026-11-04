@@ -11,14 +11,14 @@
 - **Prompt** — optional LLM node: caption / expand / edit / compile. **Not MOSS-only**: also targets Flux, SDXL and Qwen-Image.
 
 > 🔴 **A box is a hint, not a coordinate.** It becomes one line of text in the prompt; the model decides where to draw.
-> It can overshoot, merge boxes, or ignore them. Details: [manual §1](docs/19-node-manual.md).
+> It can overshoot, merge boxes, or ignore them. Details: [manual §1](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
 
 | Item | Value |
 |---|---|
 | Version | **0.4.2** |
 | License | **MIT** (credits: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support) |
-| Dependencies | **Zero** extra pip packages. Face Swap's auto mask optionally uses `insightface` + `onnxruntime` |
+| Dependencies | **Zero** extra pip packages for the core nodes. Face Swap's auto mask is **on by default** and needs `insightface` + `onnxruntime` **plus** `det_10g.onnx` (`~/.insightface/models/buffalo_l/`, or `MOSS_INSIGHTFACE_ROOT`). Without them, wire a `mask` manually or turn `auto_mask` off; the node raises a clear error and never downloads weights |
 
 **What this pack guarantees:** canvas size, panel coordinates, crop rectangles, grid-line position — arithmetic, pixel-aligned.
 **What it does not guarantee:** what is drawn inside panels, where elements land, or that the same face survives across panels.
@@ -72,8 +72,8 @@ Download the three files from the official tutorial
 
 ### 1.4 Where to go next
 
-- All node inputs / outputs: [`docs/19-node-manual.md`](docs/19-node-manual.md).
-- LLM node details, dialects and PE rewriters: [`docs/20-llm-prompt-nodes.md`](docs/20-llm-prompt-nodes.md).
+- All node inputs / outputs: [`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
+- LLM node details and dialects: [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 below.
 - More examples: §3.1 below.
 
 ### 1.5 What to wire
@@ -83,6 +83,34 @@ Download the three files from the official tutorial
 | `UNETLoader` | `moss_image_sft_bf16.safetensors` | `model` |
 | `CLIPLoader` | `qwen3.5_9b_int8_convrot.safetensors` (`type=moss_image`) | `clip` |
 | `VAELoader` | `flux2-vae.safetensors` | `vae` |
+
+> **Face Swap is different.** Its defaults (`8 steps / cfg 1.0 / simple`) are the 8-step distilled recipe. Chain the 8-step DMD2 LoRA **and** the Moss-Image-Edit LoRA before the model. Wiring a bare `UNETLoader` as above with default steps gives blurry, wrong-identity images; the node does not check for LoRAs. Wiring: `examples/moss-faceswap-ui.json`.
+
+### 1.6 PE rewriter (Qwen-Image 2.1, non-commercial)
+
+The optional LLM Prompt node can hand the prompt to Qwen-Image 2.1's **native** PE system prompt
+instead of this pack's prompt. It is off unless the selected GGUF has a matching
+`system_prompt.txt` beside it — there is no PE switch, no download, and no change to defaults.
+
+**License first.** PE weights (official `Qwen/Qwen-Image-2.1-PE-T2I` / `-PE-I2I`, and community
+GGUFs) are released under `qwen-research`: **non-commercial, internal use only**. This pack is MIT
+and ships **no weights and no `system_prompt.txt`**; bring your own and check the upstream license
+before any commercial use. Do not commit or redistribute them.
+
+To run PE-I2I (image + edit instruction → precise edit prompt):
+
+1. Put the PE-I2I GGUF, its `mmproj` vision tower, and its native `system_prompt.txt` (must contain
+   `ratio_follow` or `rewritten editing instruction`) together in one folder under
+   `<ComfyUI>/models/LLM/`. All three are your own files.
+2. Drag [`examples/llm-pe-i2i.json`](examples/llm-pe-i2i.json) into ComfyUI, pick that GGUF in the
+   `model` dropdown, and leave `mmproj` on auto (or select the matching tower).
+3. Load your image into `LoadImage`, write the edit instruction in `text`, keep `task=edit`, press Run.
+4. The second output `report` prints `PE 改写器模式（编辑）` when PE is active; `dialect`, `length`,
+   `must_keep`, `panels` and `style_lock` are bypassed and named in the same report.
+
+PE-T2I (`task=expand`) needs a separate T2I prompt file and weights — the code branch exists but this
+pack neither ships nor installs any T2I weights. `caption`, `compile` and the `api` channel never
+enter PE. Reference: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
 
 ## 2 · Troubleshooting
 
@@ -106,8 +134,7 @@ Only the same model instance is reused; another model on that port is never borr
 
 ### 2.3 VRAM and speed
 
-A 12 GB card runs the tested 0.64–1.42 MP boards, but peak use is 11.2–11.4 GB — close the margin, not “12 GB is enough”.
-VAE decode is the peak, not sampling. Numbers and the host-version split: [`docs/06-vae-memory.md`](docs/06-vae-memory.md).
+VAE decode is the peak, not sampling. The figures in the [memory notes](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/06-vae-memory.md) are **formula estimates, not measured peaks of this pack**: on the old host (fused VAE norm not active) a 3120x896 / 8-panel board is estimated at 11.34 GB; the current host takes the fused path and the same board is about 2.84 GB. Do not read either number as “12 GB is enough”.
 
 ### 2.4 Known limits
 
@@ -119,7 +146,7 @@ VAE decode is the peak, not sampling. Numbers and the host-version split: [`docs
 
 ### 2.5 Error table
 
-Every row is copied verbatim from a `ValueError` in the source; `Ctrl+F` a few words from your error.
+Every row maps to one `ValueError` in the source. `%d`/`%s` are shown with example numbers; punctuation and quoting are normalised for the table. `Ctrl+F` a few words from your error.
 
 | Error you see | Cause | Fix |
 |---|---|---|
@@ -160,7 +187,8 @@ channel in [`SECURITY.md`](SECURITY.md).
 ### 3.1 Examples
 
 Every example is UI format (drag into the canvas). The face-swap examples need your own `moss_faceswap_src.png` and
-`moss_faceswap_ref.png`; the single-photo example ships two demo images under `assets/`; the rest need nothing.
+`moss_faceswap_ref.png`; the single-photo example ships two demo images under `assets/`; `llm-pe-i2i.json` needs your
+own PE-I2I GGUF + `mmproj` + `system_prompt.txt` (§1.6, non-commercial); the rest need nothing.
 
 | File | Job |
 |---|---|
@@ -175,12 +203,15 @@ Every example is UI format (drag into the canvas). The face-swap examples need y
 | `llm-compile-zero-model.json` | IR → prompt, no model (install check) |
 | `llm-prompt-workbench.json` | caption / wash / generic expand, three bypassable groups |
 | `llm-idea-to-image.json` | one line → single image or 4-panel board |
+| `llm-pe-i2i.json` | Qwen-Image 2.1 PE-I2I: image + edit instruction → precise edit prompt (weights not bundled, non-commercial) |
 
 ### 3.2 Docs
 
-- Full parameters, glossary and measured limits: [`docs/19-node-manual.md`](docs/19-node-manual.md).
-- LLM node (dialects, PE, 39 widgets): [`docs/20-llm-prompt-nodes.md`](docs/20-llm-prompt-nodes.md).
-- Docs index: [`docs/README.md`](docs/README.md).
+- Full parameters, glossary and measured limits: [`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
+- LLM node (dialects, 39 widgets): [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 above.
+- Docs index: [`docs/README.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/README.md).
+
+> Manuals live in the GitHub repository only; the published package does not ship `docs/`. Links above point to the repository.
 
 ### 3.3 Contributing
 
@@ -191,3 +222,7 @@ Every example is UI format (drag into the canvas). The face-swap examples need y
 ## 4 · License
 
 MIT. Third-party notices and upstream licenses: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
+> The optional Qwen-Image 2.1 PE weights are **not** covered by this MIT license. They are released under
+> `qwen-research` — **non-commercial / internal use only** — and this pack ships neither the weights nor their
+> `system_prompt.txt`. Bring your own and check the upstream license before any commercial use (§1.6).

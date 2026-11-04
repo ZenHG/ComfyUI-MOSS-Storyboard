@@ -594,3 +594,15 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 **许可与边界**：PE 权重（含官方 `Qwen/Qwen-Image-2.1-PE-T2I` / `-PE-I2I` 与社区 GGUF）是
 `qwen-research`，**非商用、仅内部使用**；不要提交权重或 `system_prompt.txt`，不要随包分发。
 PE-T2I 是纯文本改写器；做「反推」需要另配视觉模型与 mmproj。
+
+**从零跑通（PE-I2I）**：
+
+1. 自备三件套放进 `<ComfyUI>/models/LLM/` 下同一目录：PE-I2I GGUF、配套 `mmproj` 视觉塔、
+   原生 `system_prompt.txt`（须含 `ratio_follow` 或 `rewritten editing instruction`）。
+2. 把 `examples/llm-pe-i2i.json` 拖进画布；在 `model` 下拉里选该 GGUF，`mmproj` 保持自动或手选配对塔。
+3. `LoadImage` 选参考图，`text` 写中文编辑指令，`task=edit`，Run。
+4. 看第二个输出 `report`：出现「PE 改写器模式（编辑）」即命中，并列出本次被绕过的参数；
+   没有这一行就是普通编辑路径，按上面的候选顺序与识别特征排查。
+5. 权重与提示词不随包分发，许可见上；中英 README 的 §1.6 有同样步骤与示例链接。
+
+`caption` / `compile` 与 `api` 通道永不进入 PE；PE-T2I 需另配 T2I 权重与提示词，本包不带。

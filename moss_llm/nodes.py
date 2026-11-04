@@ -63,13 +63,19 @@ _DIALECTS = ["moss_image", "moss_storyboard", "generic_natural", "generic_tags",
 #: 列表取自 `smith/data/model-registry.yaml`（唯一事实源），下面这份是它的镜像，
 #: 只用于 V1 参数表——组合框必须能在不 import 编译器时也有值。
 _TARGETS = ["moss-image", "qwen-image-2_1", "krea2", "flux3", "flux1_dev",
-            "sdxl", "minimax-h3"]
+            "sdxl", "minimax-h3", "nano-banana"]
 _LENGTHS = ["brief", "standard", "detailed"]
 _LANGS = ["auto", "zh", "en"]
 _RUNTIMES = ["current", "update"]
 _ONOFF = ["on", "off"]
 _MTP = ["auto", "on", "off"]
 _KV = ["q8_0", "q4_0", "f16"]
+#: PE 跳过 _build_system 时这些参数不生效；report 逐一点名，不静默。
+_PE_BYPASSED = ("dialect", "length", "must_keep", "panels", "style_lock")
+#: 仅 local、task 非 caption/edit、且未显式选「不使用」时触发；只写 report 不 raise。
+_VISION_HINT = ("⚠ 已接参考图但没有视觉投影（mmproj）：本次图片不会生效。"
+                "三条路：① 在「mmproj」下拉里显式选一个 *mmproj*.gguf；"
+                "② 换用 VL 一体模型；③ 把 mmproj 放到模型同目录。")
 #: 出词通道。本地 = llama-server 侧车；外部 = 任何 OpenAI 兼容端点
 #: （OpenAI / 火山方舟 / 智谱 / Kimi / MiniMax / DeepSeek / Ollama / LM Studio …）。
 #: 外部通道**不起侧车、不占显存**，但图要靠 base64 传，且是**联网**操作 —— 由用户主动
@@ -457,6 +463,7 @@ class MossPromptSmith:
             else:
                 report.append("PE 改写器模式：system prompt 来自 %s（Qwen-Image 2.1 PE）；"
                               "长度带与 must_keep 判据不适用" % pe_path)
+            report.append("PE 绕过参数：%s —— 本次不生效" % " / ".join(_PE_BYPASSED))
         else:
             system = self._build_system(pack, task, dialect, length, panels, style_lock,
                                         must_keep, wash, two_pass, language)
@@ -503,6 +510,8 @@ class MossPromptSmith:
                     "    ① 在「mmproj」下拉里显式选一个 *mmproj*.gguf；\n"
                     "    ② 换用 VL 一体模型（如 Qwen3-VL-4B-Instruct，不用另配 mmproj）；\n"
                     "    ③ 把 mmproj 放到模型同目录。" % task)
+            if image is not None and not mmproj_path and mmproj != _MMPROJ_NONE:
+                report.append(_VISION_HINT)
 
             base_url, notes = GgufLocalServer.acquire(
                 model_path, mmproj_path, ctx_size=int(ctx_size), gpu_layers=gpu_layers,

@@ -151,6 +151,34 @@ const pinned = await page.evaluate(() => {
 });
 check("服务器程序行置顶（在开关条下方、runtime 上方，不改存档）",
     pinned.barTop < pinned.serverTop && pinned.serverTop < pinned.runtimeTop, JSON.stringify(pinned));
+
+// 尺寸回归：展开后不得出现大面积空白或虚高。
+const probeFit = () => page.evaluate(() => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    const g = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const rs = [...g.querySelectorAll("[data-widget-name]")]
+        .map((e) => e.getBoundingClientRect())
+        .filter((r) => r.height > 0)
+        .sort((a, b) => a.top - b.top);
+    const hs = rs.map((r) => r.height).sort((a, b) => a - b);
+    const med = hs[Math.floor(hs.length / 2)] || 1;
+    let maxGap = 0;
+    for (let i = 1; i < rs.length; i += 1) {
+        maxGap = Math.max(maxGap, Math.round(rs[i].top - rs[i - 1].bottom));
+    }
+    return { rows: rs.length, med: Math.round(med), maxGap,
+        boxH: Math.round(g.closest(".lg-node").getBoundingClientRect().height),
+        sizeH: Math.round(n.size[1]), spill: g.scrollHeight - g.clientHeight };
+});
+const fit = await probeFit();
+check("展开分组后行间无大片空白", fit.maxGap < fit.med * 2, JSON.stringify(fit));
+check("节点高度与可见内容相称（不是 order 算出的虚高）",
+    fit.sizeH < 1200 && fit.spill <= fit.med, JSON.stringify(fit));
+await clickChip("local");
+await clickChip("local");
+const fit2 = await probeFit();
+check("收起再展开不复发",
+    fit2.maxGap < fit2.med * 2 && fit2.sizeH < 1200 && fit2.spill <= fit2.med, JSON.stringify(fit2));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-3-local.png"), { y: 30 });
 
 await clickChip("api");
@@ -402,6 +430,87 @@ check("重开后已接线参数仍不被面板藏（hidden=false；宿主 byConn
     && reloadLinked.ubatchHidden === true && reloadLinked.mounted,
     JSON.stringify(reloadLinked));
 console.log("  真链重开证据 =", JSON.stringify(reloadLinked));
+
+// —— (h) T14：按 task 动态常驻 / inert 标注 / 冷载入 / 焦点保护 ——
+const t14 = await page.evaluate(async () => {
+    // (g) 给第一个节点接了真链；链接行按 INV-6 恒可见，会多出一行。挑干净节点测常驻集。
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith"
+        && !(x.inputs || []).some((i) => i && i.link != null));
+    const W = (name) => n.widgets.find((x) => x.name === name);
+    const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const box = grid.closest(".lg-node");
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shown = () => [...grid.querySelectorAll("[data-widget-name]")]
+        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel")
+        .filter((e) => e.getBoundingClientRect().height > 0)
+        .map((e) => e.dataset.widgetName);
+    const inert = () => [...grid.querySelectorAll(".mossllm-inert")]
+        .map((e) => e.dataset.widgetName);
+    const hint = () => box.querySelector(".mossllm-hint").textContent;
+    const clearHover = () => document.body.dispatchEvent(
+        new PointerEvent("pointerover", { bubbles: true }));
+
+    W("task").value = "compile";
+    globalThis.MOSS_SB_LLM_PANEL.focus(null);
+    await wait(1900);
+    clearHover();
+    await wait(100);
+    const chanRow = grid.querySelector('[data-widget-name="channel"]');
+    const c = { names: shown(), inert: inert(), hint: hint(), title: chanRow ? chanRow.title : "" };
+
+    W("task").value = "caption";
+    globalThis.MOSS_SB_LLM_PANEL.focus(null);
+    await wait(1900);
+    clearHover();
+    await wait(100);
+    const cap = { names: shown(), inert: inert(), hint: hint() };
+    return { c, cap };
+});
+check("compile ⇒ target 提为常驻（6 行），不再折叠在 tune 组",
+    t14.c.names.length === 6 && t14.c.names.includes("target"), JSON.stringify(t14.c.names));
+check("compile ⇒ channel/dialect/model 标 inert（不隐藏，带文字）",
+    ["channel", "dialect", "model"].every((x) => t14.c.inert.includes(x))
+    && /不生效|No effect/.test(t14.c.title),
+    JSON.stringify(t14.c.inert) + " title=" + t14.c.title);
+check("compile ⇒ 说明行点名被绕过的参数",
+    /编译模式|Compile:/.test(t14.c.hint), t14.c.hint.slice(0, 70));
+check("切回 caption ⇒ 恢复 5 行、inert 清除、出现零模型自检引导",
+    t14.cap.names.length === 5 && t14.cap.inert.length === 0
+    && /零模型自检|No-weight check/.test(t14.cap.hint), JSON.stringify(t14.cap));
+
+const cold = await page.evaluate(async () => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    n.widgets.find((x) => x.name === "channel").value = "api";
+    const g = app.graph.serialize();
+    await app.loadGraphData(JSON.parse(JSON.stringify(g)));
+    await new Promise((r) => setTimeout(r, 2200));
+    const m = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    return { focus: m.__mossllm ? m.__mossllm.focus : "NO_STATE",
+        apiVisible: !m.widgets.find((x) => x.name === "api_model").options.hidden };
+});
+check("冷载入已存的 api 工作流 ⇒ 自动聚焦 api 组、api_model 可见",
+    cold.focus === "api" && cold.apiVisible, JSON.stringify(cold));
+
+const fk = await page.evaluate(async () => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const box = grid.closest(".lg-node");
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const chipTune = box.querySelector('[data-mossllm-chip="tune"]');
+    chipTune.click();
+    await wait(1900);
+    const row = grid.querySelector('[data-widget-name="temperature"]');
+    const input = row && row.querySelector("input,select,textarea");
+    if (input) input.focus();
+    const before = !!input && document.activeElement === input;
+    const chipLocal = box.querySelector('[data-mossllm-chip="local"]');
+    chipLocal.click();
+    await wait(1900);
+    return { before, after: document.activeElement === chipLocal,
+        active: document.activeElement && document.activeElement.dataset.mossllmChip };
+});
+check("切组时焦点落在被隐藏行 ⇒ 移到目标 chip（不丢焦点）",
+    fk.before && fk.after, JSON.stringify(fk));
 
 check("只作用于 MossPromptSmith", await page.evaluate(() => app.graph.nodes.filter((n) => n.type !== "MossPromptSmith")
     .every((n) => !n.__mossllmBar && !(n.widgets || []).some((w) => w && w.name === "mosssb_llm_panel"))));
