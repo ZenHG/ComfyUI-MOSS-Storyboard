@@ -15,6 +15,7 @@ import struct
 import gzip
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -733,6 +734,42 @@ def main():
     ups = nodes._model_list_prefixes("https://opencode.ai/inference/go/openai/v1/responses")
     check("清单地址逐级上溯（清单不一定挂在对话端点那层）",
           "https://opencode.ai/inference/go" in ups and len(ups) >= 4, str(ups[:3]))
+
+    # ---- 拉清单的效能契约：不白等、不白建
+    shared = nodes._opener("https://api.deepseek.com/v1")
+    check("opener 复用（build_opener 单次 ~16ms，十来跳就是白等两百毫秒）",
+          shared is nodes._opener("https://api.deepseek.com/v1"))
+    check("本地端点单独一个 opener（不能走代理）",
+          nodes._opener("http://127.0.0.1:11434/v1") is not shared)
+
+    real_get = nodes._get_json
+    try:
+        def _fake_get(url, key, proto, timeout=15):
+            if url.endswith("/v1/models"):
+                return {"data": [{"id": "m-hit"}]}
+            time.sleep(1.5)                      # 慢候选：命中之后绝不该再等它
+            raise RuntimeError("slow")
+
+        nodes._get_json = _fake_get
+        t0 = time.monotonic()
+        got, hit = nodes.list_models("https://probe.invalid/api/v1")
+        cost = time.monotonic() - t0
+        check("命中即返回，不等其余候选跑完（shutdown(wait=False)）",
+              got == ["m-hit"] and cost < 0.5, "耗时 %.2fs" % cost)
+        check("命中地址回传给前端（报错/取证都要看它）",
+              hit == "https://probe.invalid/api/v1/models", hit)
+
+        def _dead_get(url, key, proto, timeout=15):
+            raise RuntimeError("boom")
+
+        nodes._get_json = _dead_get
+        try:
+            nodes.list_models("https://probe.invalid/api/v1")
+            check("全失败要报错，不能静默空表", False, "没报错")
+        except RuntimeError as e:
+            check("全失败报错带最后一跳原因", "boom" in str(e), str(e)[:40])
+    finally:
+        nodes._get_json = real_get
 
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

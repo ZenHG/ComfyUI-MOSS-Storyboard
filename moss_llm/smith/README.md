@@ -114,7 +114,7 @@ python -m unittest discover -s tests
 python tools/run_live.py --model <gguf> --server <llama-server.exe>
 ```
 
-**依赖：Python 3.9+，核心零第三方依赖。** 没有 PyYAML 也能读 registry（内置 YAML 子集
+**依赖：Python 3.10+，核心零第三方依赖。** 没有 PyYAML 也能读 registry（内置 YAML 子集
 解析器，遇到不支持的语法会**报错而不是猜**）；没有 Pillow 也能反推（原图直传并告警，
 只是不缩放、不转正 EXIF 方向、不合成透明通道）。想更省心：
 

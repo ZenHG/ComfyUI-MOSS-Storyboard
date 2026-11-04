@@ -30,6 +30,7 @@ import os
 import re
 import socket
 import ssl
+import threading
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
@@ -1169,6 +1170,24 @@ def _is_local(endpoint):
     return (host in _LOCAL_HOSTS or host.startswith("127.") or host.endswith(".localhost"))
 
 
+#: opener 缓存：`build_opener()` 每次都要重新加载 CA 证书（实测 ~16ms）。拉清单一次
+#: 并发六条、逐级上溯十来跳，不缓存就等于先白等两百毫秒 —— 比它省下的网络时间还多。
+#: 代理环境变量按进程内不变处理（真要换代理是重启，不是热改）。
+_OPENERS = {}
+_OPENER_LOCK = threading.Lock()
+
+
+def _opener(url):
+    """按端点取 opener：本地端点直连（绕全局代理），公网走系统代理。"""
+    direct = _is_local(url)
+    with _OPENER_LOCK:
+        op = _OPENERS.get(direct)
+        if op is None:
+            op = _OPENERS[direct] = (urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                                     if direct else urllib.request.build_opener())
+        return op
+
+
 def _net_hint(endpoint, exc):
     """网络异常 → 可操作建议。只报主机名与代理变量，绝不回显 Key。"""
     netloc = urllib.parse.urlsplit(endpoint).netloc or endpoint
@@ -1200,8 +1219,7 @@ def _post(endpoint, payload, key=None):
     headers = _proto.headers(_proto.detect(endpoint), key, endpoint)
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(endpoint, data=data, headers=headers)
-    opener = (urllib.request.build_opener(urllib.request.ProxyHandler({}))
-              if _is_local(endpoint) else urllib.request.build_opener())
+    opener = _opener(endpoint)
     try:
         with opener.open(req, timeout=900) as r:
             return _loads(r.read())
@@ -1256,8 +1274,7 @@ def _loads(raw):
 
 def _get_json(url, key, proto, timeout=15):
     req = urllib.request.Request(url, headers=_proto.headers(proto, key, url))
-    opener = (urllib.request.build_opener(urllib.request.ProxyHandler({}))
-              if _is_local(url) else urllib.request.build_opener())
+    opener = _opener(url)
     last = None
     for attempt in range(2):
         try:
@@ -1326,32 +1343,38 @@ def list_models(api_base, api_key="", timeout=15):
         site = root.rsplit("/anthropic", 1)[0]
         add(site, _proto.OPENAI)
 
-    uniq = []
+    seen, uniq = set(), []
     for url, p in tries:
-        if all(url != u for u, _ in uniq):
+        if url not in seen:
+            seen.add(url)
             uniq.append((url, p))
     # 兜底链有好几跳，串行在复杂网络上要等好几秒（点一下像卡住）。并发发出去，
     # 再按候选顺序取第一个有货的 —— 顺序决定优先级，并发只省时间。
+    # ⚠ 命中必须立刻走：`with ThreadPoolExecutor(...)` 退出时 `shutdown(wait=True)`，
+    #    那会把其余候选**全部等完**（各带 15s 超时），命中一条也照样白等 —— 早退才叫省时间。
     errs = []
-    with ThreadPoolExecutor(max_workers=min(6, len(uniq))) as pool:
+    pool = ThreadPoolExecutor(max_workers=min(6, len(uniq)))
+    try:
         futs = [pool.submit(_get_json, u, key, pr, timeout) for u, pr in uniq]
-    # 用下标而不是 zip(strict=)：那是 3.10 才有的参数，ComfyUI 里不少人还跑 3.9。
-    for i, fut in enumerate(futs):
-        url, pr = uniq[i]
-        try:
-            obj = fut.result()
-        except Exception as e:
-            errs.append("%s → %s" % (url, e))
-            continue
-        ids = []
-        for m in (obj.get("data") or obj.get("models") or []):
-            mid = m.get("id") or m.get("name") if isinstance(m, dict) else m
-            if isinstance(mid, str) and mid:
-                # Gemini 的 name 带 "models/" 前缀，去掉才是用户要填的 id。
-                ids.append(mid.split("/")[-1] if pr == _proto.GEMINI else mid)
-        if ids:
-            _MODELS_BY_BASE[url.rsplit("/models", 1)[0]] = sorted(set(ids))
-            return sorted(set(ids)), url
+        for (url, pr), fut in zip(uniq, futs, strict=True):
+            try:
+                obj = fut.result()
+            except Exception as e:
+                errs.append("%s → %s" % (url, e))
+                continue
+            ids = []
+            for m in (obj.get("data") or obj.get("models") or []):
+                mid = m.get("id") or m.get("name") if isinstance(m, dict) else m
+                if isinstance(mid, str) and mid:
+                    # Gemini 的 name 带 "models/" 前缀，去掉才是用户要填的 id。
+                    ids.append(mid.split("/")[-1] if pr == _proto.GEMINI else mid)
+            models = sorted(set(ids))
+            if models:
+                _MODELS_BY_BASE[url.rsplit("/models", 1)[0]] = models
+                return models, url
+    finally:
+        # 还没开跑的候选直接取消；在飞的由各自超时收尾，不拖住返回值。
+        pool.shutdown(wait=False, cancel_futures=True)
     raise RuntimeError("拉不到模型清单：\n%s\n"
                        "确认 api_base / Key 正确；服务商不提供模型列表时手填 api_model 即可。" %
                        "\n".join(errs[-3:]))
