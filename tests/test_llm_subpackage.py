@@ -753,6 +753,18 @@ def main():
           "x-tenant" not in pr.headers(pr.OPENAI, "K", "https://api.deepseek.com/v1"))
     os.environ.pop("MOSS_LLM_EXTRA_HEADERS", None)
 
+    # ---- 403 的两种含义：只对「地区/风控」加话，别的 403 不硬猜
+    check("openai 的地区 403 会被点明「不是 Key 错」",
+          "地区" in nodes._http_hint(
+              403, '{"error":{"code":"unsupported_country_region_territory"}}'), "没提示")
+    check("Cloudflare 的 HTML 403 也归到地区/风控",
+          "风控" in nodes._http_hint(403, "<!DOCTYPE html><title>403 Forbidden</title>"), "没提示")
+    check("凭据无效的 403 不乱加话（novita: INVALID_API_KEY）",
+          nodes._http_hint(403, '{"code":403,"reason":"INVALID_API_KEY"}') == "", "乱加了")
+    check("401 / 400 不加地区提示（避免误导）",
+          nodes._http_hint(401, "country not supported") == ""
+          and nodes._http_hint(400, "region") == "", "串了")
+
     # ---- 400 的归属：缺东西的 400 不能甩锅给「参数不支持」
     oc400 = '{"type":"error","error":{"type":"MissingSessionID","message":"missing x-opencode-session"}}'
     check("缺会话 id 的 400 归为「换参数解决不了」",

@@ -1243,6 +1243,22 @@ def _net_hint(endpoint, exc):
     return via + "%s 连接失败：%r" % (netloc, err)
 
 
+#: 403 有两种含义：凭据无效、地区/风控拦截。后者在主流网关上一律回 403 + 一段英文/HTML，
+#: 用户看不出区别（实测：openai `unsupported_country_region_territory`、cerebras `error code: 1009`、
+#: together / cohere 的 Cloudflare 403 页）。只在报错里加一句可操作的话，不改行为。
+_REGION_403 = re.compile(r"country|region|territory|not allowed|error code: 1009|"
+                         r"cf-error|cloudflare|access denied", re.I)
+
+
+def _http_hint(code, body):
+    """HTTP 错误 → 追加一句人话。拿不准就不说（返回空串），不硬猜。"""
+    text = body or ""
+    if code == 403 and (_REGION_403.search(text) or text.lstrip().startswith("<")):
+        return ("\n    这不是 Key 错：该服务商按出口地区 / 风控拒绝了此请求。"
+                "换一条能直连该地区的网络（或代理出口），或换服务商。")
+    return ""
+
+
 def _post(endpoint, payload, key=None):
     """POST 一次。失败一律 raise 带 body 的中文错误。线格式由端点判定（见 `protocols`）。"""
     headers = _proto.headers(_proto.detect(endpoint), key, endpoint)
@@ -1259,9 +1275,9 @@ def _post(endpoint, payload, key=None):
             body = ""
         if e.code == 400:
             raise _Http400(body or "(无 body)") from e
-        raise RuntimeError("服务端返回 HTTP %s（%s）：%s"
+        raise RuntimeError("服务端返回 HTTP %s（%s）：%s%s"
                            % (e.code, urllib.parse.urlsplit(endpoint).netloc,
-                              body or "(无 body)")) from e
+                              body or "(无 body)", _http_hint(e.code, body))) from e
     except Exception as e:
         raise RuntimeError("请求失败（%s，请求体 %.1f MB）：%r\n%s"
                            % (urllib.parse.urlsplit(endpoint).netloc,
