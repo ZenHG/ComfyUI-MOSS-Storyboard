@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
-"""外部 API 的三种线格式：OpenAI `/chat/completions`、Anthropic `/v1/messages`、
-Google GenAI `:generateContent`。
+"""外部 API 的四种线格式：OpenAI `/chat/completions`、OpenAI `/responses`、
+Anthropic `/v1/messages`、Google GenAI `:generateContent`。
 
 业界两条路：统一内部 IR + 每协议适配器（LLM-Rosetta / LiteLLM / agno），或在边界按协议
 精确翻译、不做最小公分母（AI Gateway）。本节点只有「系统词 + 用户文本 + 可选图」一种输入、
@@ -13,6 +13,7 @@ Google GenAI `:generateContent`。
 import urllib.parse
 
 OPENAI = "openai"
+RESPONSES = "responses"
 ANTHROPIC = "anthropic"
 GEMINI = "gemini"
 
@@ -20,10 +21,23 @@ GEMINI = "gemini"
 ANTHROPIC_VERSION = "2023-06-01"
 #: Gemini 把模型名写进 URL 而不是 body；用户没填模型时用这个官方名。
 GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
+#: urllib 默认 UA 会被 Cloudflare 一类网关按脚本签名拦掉（实测 403 error 1010）。
+USER_AGENT = "Mozilla/5.0 (compatible; ComfyUI-MOSS-Storyboard)"
 
 
 def _path(url):
     return urllib.parse.urlsplit(url or "").path.rstrip("/").lower()
+
+
+def join(url, tail):
+    """给 URL 追加路径段并保留 query/fragment。
+
+    Azure 一类端点把 `?api-version=` 放在 query 上，直接 `base + "/chat/completions"`
+    会把它顶成 `...?api-version=2024/chat/completions`，请求直接失效。
+    """
+    bits = urllib.parse.urlsplit(url or "")
+    return urllib.parse.urlunsplit((bits.scheme, bits.netloc,
+                                    bits.path.rstrip("/") + tail, bits.query, ""))
 
 
 def _is_gemini(url):
@@ -38,6 +52,9 @@ def detect(endpoint):
         return ANTHROPIC
     if _is_gemini(endpoint):
         return GEMINI
+    # `/responses` 与 `/chat/completions` 同一家也可能并存，但 body/回包结构不同，按端点分开。
+    if p.endswith("/responses"):
+        return RESPONSES
     return OPENAI
 
 
@@ -45,21 +62,26 @@ def endpoint(base, model=""):
     """`api_base` → 真正要 POST 的端点。已写全的 URL 原样保留（不重复拼）。"""
     base = (base or "").strip().rstrip("/")
     path = _path(base)
-    if path.endswith(("/chat/completions", "/messages")) or ":generatecontent" in path:
+    if path.endswith(("/chat/completions", "/messages", "/responses")) or ":generatecontent" in path:
         return base
     # `/anthropic` 是 Anthropic 兼容入口：它下面挂的是 /v1/messages，不是 chat/completions。
     if "/anthropic" in path:
-        return base + ("/messages" if path.endswith("/v1") else "/v1/messages")
+        return join(base, "/messages" if path.endswith("/v1") else "/v1/messages")
     if _is_gemini(base):
         return "%s/models/%s:generateContent" % (base, (model or "").strip() or GEMINI_DEFAULT_MODEL)
-    return base + "/chat/completions"
+    return join(base, "/chat/completions")
 
 
-def headers(proto, key):
-    head = {"Content-Type": "application/json"}
+def headers(proto, key, url=""):
+    # 明确不要压缩：网关强制 gzip 时 body 是二进制，json 解析会炸。
+    head = {"Content-Type": "application/json", "User-Agent": USER_AGENT,
+            "Accept-Encoding": "identity"}
     if not key:
         return head
-    if proto == ANTHROPIC:
+    if (urllib.parse.urlsplit(url or "").hostname or "").lower().endswith("openai.azure.com"):
+        # Azure 不认 Bearer，只认 api-key。
+        head["api-key"] = key
+    elif proto == ANTHROPIC:
         head["x-api-key"] = key
         head["anthropic-version"] = ANTHROPIC_VERSION
     elif proto == GEMINI:
@@ -78,6 +100,8 @@ def _image_block(proto, data_url):
                 "source": {"type": "base64", "media_type": media, "data": b64}}
     if proto == GEMINI:
         return {"inline_data": {"mime_type": media, "data": b64}}
+    if proto == RESPONSES:
+        return {"type": "input_image", "image_url": data_url}
     return {"type": "image_url", "image_url": {"url": data_url}}
 
 
@@ -99,6 +123,15 @@ def body(proto, model, system, user, image_url, temperature, max_tokens, seed):
                 "contents": [{"role": "user", "parts": parts}],
                 "generationConfig": {"temperature": float(temperature),
                                      "maxOutputTokens": int(max_tokens)}}
+    if proto == RESPONSES:
+        content = [{"type": "input_text", "text": user or ""}]
+        if image_url:
+            content.append(_image_block(proto, image_url))
+        # Responses 用 instructions + input，没有 messages；max_tokens 叫 max_output_tokens。
+        return {"model": model, "instructions": system.strip(),
+                "input": [{"role": "user", "content": content}],
+                "temperature": float(temperature),
+                "max_output_tokens": int(max_tokens), "store": False}
     blocks = [{"type": "text", "text": (system + "\n\n" + (user or "")).strip()}]
     if image_url:
         blocks.append(_image_block(proto, image_url))
@@ -129,6 +162,19 @@ def read(proto, obj):
                 {"prompt_tokens": u.get("promptTokenCount"),
                  "completion_tokens": u.get("candidatesTokenCount"),
                  "total_tokens": u.get("totalTokenCount")})
+    if proto == RESPONSES:
+        texts = []
+        for item in obj.get("output") or []:
+            if item.get("type") == "message":
+                for c in item.get("content") or []:
+                    if c.get("type") == "output_text":
+                        texts.append(c.get("text") or "")
+        u = obj.get("usage") or {}
+        reason = (obj.get("incomplete_details") or {}).get("reason")
+        return ("".join(texts), reason or obj.get("status"),
+                {"prompt_tokens": u.get("input_tokens"),
+                 "completion_tokens": u.get("output_tokens"),
+                 "total_tokens": u.get("total_tokens")})
     choice = (obj.get("choices") or [{}])[0]
     return ((choice.get("message") or {}).get("content"),
             choice.get("finish_reason"), obj.get("usage") or {})

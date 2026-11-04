@@ -24,6 +24,7 @@ MOSS 两个方言只是其中两项。核心 7 节点不 import 本模块，本�
 两份实现的合流记录与逐项取舍见 `docs/25-两份实现的合流.md`。
 """
 
+import gzip
 import json
 import os
 import re
@@ -31,6 +32,7 @@ import socket
 import ssl
 import time
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -761,7 +763,7 @@ class MossPromptSmith:
         # 两个可选键都发：`chat_template_kwargs.enable_thinking` 是唯一实测能关掉思考的写法
         # （见 _THINKING 注释），vLLM / 火山方舟 / llama-server 都认它；严格 OpenAI 可能拒。
         # 拒了就**逐级摘掉再试**，并在 report 里说清摘了什么 —— 不静默降级，也不假装成功。
-        if proto != _proto.ANTHROPIC:
+        if proto == _proto.OPENAI:
             base["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
             if want_json:
                 # 与 server.py 的 JSON 重复保护同一口径：DRY/presence/frequency 会惩罚
@@ -769,7 +771,7 @@ class MossPromptSmith:
                 base["repeat_penalty"] = _CAPTION_REPEAT_PENALTY
 
         if proto != _proto.OPENAI:
-            # Anthropic / Gemini 都没有 response_format、chat_template_kwargs、repeat_penalty：
+            # Anthropic / Responses / Gemini 都没有 response_format 那套：
             # 结构化交给提示词契约，思考开关归模型 —— 一次请求，不装降级阶梯。
             attempts = [(False, False, "plain", None)]
         else:
@@ -1161,12 +1163,14 @@ def _model_choices():
 
 #: 本地端点绝不走代理：VPN/代理软件设了全局 HTTP(S)_PROXY 时，连 Ollama 都被塞进
 #: 代理隧道（实测 Tunnel connection failed: 502），本地端点必须直连。
-_LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0", "[::1]")
+_LOCAL_HOSTS = ("localhost", "::1", "0.0.0.0", "host.docker.internal",
+                "host.containers.internal", "gateway.docker.internal")
 
 
 def _is_local(endpoint):
     host = (urllib.parse.urlsplit(endpoint).hostname or "").lower()
-    return host in _LOCAL_HOSTS
+    # 127.0.0.0/8 整段都是回环；`*.localhost` 也按回环处理。
+    return (host in _LOCAL_HOSTS or host.startswith("127.") or host.endswith(".localhost"))
 
 
 def _net_hint(endpoint, exc):
@@ -1181,6 +1185,10 @@ def _net_hint(endpoint, exc):
                 "① 把该域名加进 NO_PROXY 走直连；② 换一条能直连的网络；"
                 "③ 复核链路 curl -sS -o /dev/null -w '%%{http_code}' https://%s"
                 "（200/401/404 都算通）" % netloc)
+    if isinstance(err, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(err):
+        return (via + "%s 的证书校验失败：公司代理 / 自签 CA 常见。三条路："
+                "① 把公司根证书装进系统信任链；② 设 SSL_CERT_FILE 指向该 CA；"
+                "③ 换一条直连网络。不要关校验 —— 那等于让中间人随意改内容。" % netloc)
     if isinstance(err, socket.gaierror):
         return via + "域名解析失败（%s）：检查 api_base 拼写与 DNS。" % netloc
     if isinstance(err, ConnectionRefusedError):
@@ -1192,14 +1200,14 @@ def _net_hint(endpoint, exc):
 
 def _post(endpoint, payload, key=None):
     """POST 一次。失败一律 raise 带 body 的中文错误。线格式由端点判定（见 `protocols`）。"""
-    headers = _proto.headers(_proto.detect(endpoint), key)
+    headers = _proto.headers(_proto.detect(endpoint), key, endpoint)
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(endpoint, data=data, headers=headers)
     opener = (urllib.request.build_opener(urllib.request.ProxyHandler({}))
               if _is_local(endpoint) else urllib.request.build_opener())
     try:
         with opener.open(req, timeout=900) as r:
-            return json.loads(r.read().decode("utf-8"))
+            return _loads(r.read())
     except urllib.error.HTTPError as e:
         try:
             body = e.read().decode("utf-8", "replace")[:400]
@@ -1217,66 +1225,127 @@ def _post(endpoint, payload, key=None):
                               _net_hint(endpoint, e))) from e
 
 
+#: 界面上不暴露变量名，只认这个约定名；旧工作流里存过的自定义名仍然生效。
+KEY_ENV_DEFAULT = "MOSS_LLM_API_KEY"
+
+
 def _api_creds(api_key, api_key_env):
-    """Key 解析：写死的 > 环境变量。返回 (key, 来源描述)。"""
+    """Key 解析：写死的 > 环境变量（自定义名，其次约定名）。返回 (key, 来源描述)。"""
     key = (api_key or "").strip()
     src = "写在工作流里（会随 JSON 分享出去）" if key else None
-    env_name = (api_key_env or "").strip()
-    if not key and env_name:
-        key = os.environ.get(env_name, "").strip()
+    names = [(api_key_env or "").strip(), KEY_ENV_DEFAULT]
+    for name in names:
         if key:
-            src = "环境变量 %s" % env_name
+            break
+        if not name:
+            continue
+        value = os.environ.get(name, "").strip()
+        if value:
+            key, src = value, "环境变量 %s" % name
     if not key:
         src = "未提供（本地端点可留空）"
     return key, src
 
 
+def _loads(raw):
+    """响应体 → JSON。网关强制 gzip、或直接回 HTML 错误页时给清楚的话。"""
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    text = raw.decode("utf-8", "replace")
+    try:
+        return json.loads(text)
+    except ValueError as e:
+        head = " ".join(text.lstrip()[:120].split())
+        if head[:1] in ("<", "<!"):
+            raise RuntimeError("这个地址返回的是网页，不是接口数据（多半路径不对或需要登录）：%s…"
+                               "检查 api_base 是不是少了 /v1\n" % head[:60]) from e
+        raise RuntimeError("响应不是 JSON：%s" % (head[:120] or "(空)")) from e
+
+
 def _get_json(url, key, proto, timeout=15):
-    req = urllib.request.Request(url, headers=_proto.headers(proto, key))
+    req = urllib.request.Request(url, headers=_proto.headers(proto, key, url))
     opener = (urllib.request.build_opener(urllib.request.ProxyHandler({}))
               if _is_local(url) else urllib.request.build_opener())
-    try:
-        with opener.open(req, timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", "replace")[:200]
-        raise RuntimeError("HTTP %s %s" % (e.code, body or "(无 body)")) from e
-    except Exception as e:
-        raise RuntimeError("%r；%s" % (e, _net_hint(url, e))) from e
+    last = None
+    for attempt in range(2):
+        try:
+            with opener.open(req, timeout=timeout) as r:
+                return _loads(r.read())
+        except urllib.error.HTTPError as e:
+            # 4xx/5xx 是服务端的答复，重试没有意义。
+            body = e.read().decode("utf-8", "replace")[:200]
+            raise RuntimeError("HTTP %s %s" % (e.code, body or "(无 body)")) from e
+        except Exception as e:
+            last = e
+            if attempt == 0:
+                # 只对连接层瞬断重试一次：清单请求是幂等的，复杂网络下这一次很值。
+                time.sleep(0.4)
+    raise RuntimeError("%r；%s" % (last, _net_hint(url, last))) from last
+
+
+def _model_list_prefixes(root):
+    """`api_base` → 依次尝试的清单前缀。
+
+    清单不一定挂在对话端点那一层：实测 `.../inference/go/openai/v1/responses` 的清单在
+    `.../inference/go/v1/models`。所以从当前层逐级上溯（最多 4 级），越近的越先试。
+    """
+    out = []
+    url = root.rstrip("/")
+    for _ in range(5):
+        out.append(url)
+        bits = urllib.parse.urlsplit(url)
+        seg = [x for x in bits.path.split("/") if x]
+        if len(seg) <= 1:          # 已到站点根，再往上没意义
+            break
+        seg.pop()
+        url = urllib.parse.urlunsplit((bits.scheme, bits.netloc, "/" + "/".join(seg), "", ""))
+    return out
 
 
 def list_models(api_base, api_key="", api_key_env="", timeout=15):
-    """拉服务端模型清单（`GET /models`）。返回 (ids, 实际用的 url)。
+    """拉服务端模型清单。返回 (ids, 实际命中的 url)。
 
-    两种兼容入口都试：`/models` 与 `/v1/models`；`/anthropic` 尾巴下面挂的是 v1。
+    从端点那层开始逐级上溯，每层试 `/models` 与 `/v1/models`，命中即停。
     拉不到就 raise —— 有的服务商不给模型列表，手填 `api_model` 仍然可用，不静默空表。
     """
     root = (api_base or "").strip().rstrip("/")
     if not root:
         raise ValueError("要拉模型清单，请先填「api_base」。")
-    for tail in ("/chat/completions", "/messages"):
+    for tail in ("/chat/completions", "/messages", "/responses"):
         if root.endswith(tail):
             root = root[: -len(tail)]
     key, _src = _api_creds(api_key, api_key_env)
     proto = _proto.detect(root)
+
+    def add(prefix, proto_try):
+        # 已以 /v1 结尾时再拼 /v1/models 只会得到 /v1/v1/models，纯浪费一次往返。
+        for tail in ("/models",) + (() if prefix.rstrip("/").endswith("/v1") else ("/v1/models",)):
+            tries.append((_proto.join(prefix, tail), proto_try))
+
     tries = []
     if proto == _proto.ANTHROPIC:
-        tries.append((root + "/v1/models", _proto.ANTHROPIC))
+        tries.append((_proto.join(root, "/v1/models"), _proto.ANTHROPIC))
     if proto == _proto.GEMINI:
-        tries.append((root + "/models", _proto.GEMINI))
-    tries += [(root + "/models", _proto.OPENAI), (root + "/v1/models", _proto.OPENAI)]
+        tries.append((_proto.join(root, "/models"), _proto.GEMINI))
+    for prefix in _model_list_prefixes(root):
+        add(prefix, _proto.OPENAI)
     if proto == _proto.ANTHROPIC:
         # `/anthropic` 只挂对话接口，模型清单在站点根上（实测 DeepSeek 的该前缀 404）。
         site = root.rsplit("/anthropic", 1)[0]
-        tries += [(site + "/models", _proto.OPENAI), (site + "/v1/models", _proto.OPENAI)]
+        add(site, _proto.OPENAI)
+
     uniq = []
     for url, p in tries:
         if all(url != u for u, _ in uniq):
             uniq.append((url, p))
+    # 兜底链有好几跳，串行在复杂网络上要等好几秒（点一下像卡住）。并发发出去，
+    # 再按候选顺序取第一个有货的 —— 顺序决定优先级，并发只省时间。
     errs = []
-    for url, p in uniq:
+    with ThreadPoolExecutor(max_workers=min(6, len(uniq))) as pool:
+        futs = [pool.submit(_get_json, u, key, pr, timeout) for u, pr in uniq]
+    for (url, pr), fut in zip(uniq, futs, strict=True):
         try:
-            obj = _get_json(url, key, p, timeout)
+            obj = fut.result()
         except Exception as e:
             errs.append("%s → %s" % (url, e))
             continue
@@ -1285,7 +1354,7 @@ def list_models(api_base, api_key="", api_key_env="", timeout=15):
             mid = m.get("id") or m.get("name") if isinstance(m, dict) else m
             if isinstance(mid, str) and mid:
                 # Gemini 的 name 带 "models/" 前缀，去掉才是用户要填的 id。
-                ids.append(mid.split("/")[-1] if p == _proto.GEMINI else mid)
+                ids.append(mid.split("/")[-1] if pr == _proto.GEMINI else mid)
         if ids:
             _MODELS_BY_BASE[url.rsplit("/models", 1)[0]] = sorted(set(ids))
             return sorted(set(ids)), url

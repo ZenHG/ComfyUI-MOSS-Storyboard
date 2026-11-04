@@ -119,6 +119,9 @@ const CSS = `
  color:var(--input-text,#ddd);cursor:pointer;font:12px/1 system-ui,sans-serif}
 .mossllm-pick button:hover{background:var(--comfy-menu-bg,#333)}
 .mossllm-pick button[data-bad="1"]{border-color:#c0504d;color:#e07b78}
+.mossllm-pick button[data-busy="1"]{color:#d9a441;border-color:#8a6d2f;
+ animation:mossllm-spin 1s linear infinite}
+@keyframes mossllm-spin{to{transform:rotate(360deg)}}
 .mossllm-hintrow{flex:0 0 100%;display:flex;align-items:flex-start;gap:6px;min-width:0}
 .mossllm-hint{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;
  /* 🔴 高度必须恒定：悬停换 tooltip 时行数一变，下面每个参数都会跟着位移（实测：鼠标定位失败）。 */
@@ -144,6 +147,7 @@ const I18N = {
         selfCheck: "零模型自检：任务选「编译」",
         fetchTip: "用当前 api_base 与 Key 拉模型清单，灌进这个下拉",
         fetched: "已拉到 %d 个模型，可直接下拉换",
+        fetching: "拉模型清单中… %ds",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
         },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
@@ -158,6 +162,7 @@ const I18N = {
         selfCheck: "No-weight check: set task=compile",
         fetchTip: "Fetch models for this api_base + key into this dropdown",
         fetched: "%d models loaded — pick from the dropdown",
+        fetching: "Fetching model list… %ds",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
         },
 };
@@ -318,6 +323,9 @@ function plan(node, st) {
     const off = new Set();                       // 通道对不上的组（只影响 chip 的标记）
     const inert = new Set();                     // 本次执行读不到、但仍显示并标注的控件
     for (const w of realWidgets(node)) {
+        // 界面不提供 api_key_env：Key 走约定名 MOSS_LLM_API_KEY 就够，填变量名没人用。
+        // 但**不能删 widget** —— 39 格按位置存，删了后面 16 格存档全串位。只隐不删。
+        if (w.name === "api_key_env") continue;
         const g = groupOf(w);
         const outside = gated && !!g.channel && g.channel !== ch;
         if (outside) off.add(g.key);
@@ -521,8 +529,19 @@ async function fetchModels(node, st) {
         apply(node);
         return;
     }
+    syncModelBase(node, st);
     pick.btn.disabled = true;
-    pick.btn.textContent = "…";
+    pick.btn.dataset.busy = "1";
+    pick.err = null;
+    pick.note = "";
+    const t0 = Date.now();
+    // 兜底链最长要几秒，没有可见进度就像点了没反应。
+    pick.busy = fmt(t().fetching, 0);
+    pick.timer = setInterval(() => {
+        pick.busy = fmt(t().fetching, Math.round((Date.now() - t0) / 1000));
+        apply(node);
+    }, 1000);
+    apply(node);
     try {
         const r = await fetch("/moss_llm/models", {
             method: "POST",
@@ -538,6 +557,8 @@ async function fetchModels(node, st) {
         // 拉完必须看得见：空着就选中第一个（否则屏幕上除了下拉内部什么都没变）。
         if (!apiVal(node, "api_model") && d.models.length) setModel(node, d.models[0]);
         pick.note = fmt(t().fetched, d.models.length);
+        pick.autoOpen = true;
+        pick.btn.title = t().fetchTip + (d.url ? "\n" + d.url : "");
     } catch (e) {
         // 失败必须留下痕迹：按钮变红、说明行常驻原因（不靠会过期的一闪而过）。
         pick.err = t().fetchFail + "：" + String((e && e.message) || e).split("\n")[0];
@@ -545,10 +566,45 @@ async function fetchModels(node, st) {
         pick.btn.dataset.bad = "1";
         console.warn("%s: 拉取模型失败", TAG, e);
     } finally {
+        clearInterval(pick.timer);
+        pick.timer = 0;
+        pick.busy = "";
         pick.btn.disabled = false;
+        delete pick.btn.dataset.busy;
         pick.btn.textContent = "↻";
         apply(node);
+        if (pick.autoOpen) {
+            pick.autoOpen = false;
+            setTimeout(() => openCombo(node), 60);
+        }
     }
+}
+
+/** 拉开原生 combo（宿主用 button[role=combobox] 渲染）：拉完直接让用户看见全部可选项。 */
+function openCombo(node) {
+    const row = document.querySelector('[data-widgets-grid-node-id="' + node.id
+        + '"] [data-widget-name="api_model"]');
+    const ctl = row && row.querySelector('[role="combobox"]');
+    if (ctl) ctl.click();
+}
+
+/**
+ * 换了 api_base，上一批模型名就对不上了。不清理会拿旧列表冒充这次的结果
+ * （实测：新端点 404 时下拉里还是上一个服务的模型，看起来像"拉到了"）。
+ */
+function syncModelBase(node, st) {
+    if (!st.pick) return;
+    const base = apiVal(node, "api_base");
+    if (st.pick.base === undefined) {
+        st.pick.base = base;
+        return;
+    }
+    if (st.pick.base === base) return;
+    st.pick.base = base;
+    st.pick.autoDone = false;
+    st.pick.err = null;
+    st.pick.note = "";
+    setModelChoices(node, []);   // 只留当前值与空串
 }
 
 /**
@@ -584,7 +640,7 @@ function pinPicker(node, st) {
             fetchModels(node, st);
         };
         box.append(btn);
-        st.pick = { box, btn, err: null, note: "", autoDone: false };
+        st.pick = { box, btn, err: null, note: "", busy: "", timer: 0, autoDone: false };
     }
     if (st.pick.box.parentElement !== row) row.appendChild(st.pick.box);
     st.pick.btn.title = t().fetchTip;
@@ -668,6 +724,7 @@ function paintBar(node, st, shown, off, meta) {
     // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
     let summary = fmt(L.count, all, all - hidden);
     if (st.pick && st.pick.err) summary += "｜" + st.pick.err.slice(0, 70);
+    else if (st.pick && st.pick.busy) summary += "｜" + st.pick.busy;
     else if (st.pick && st.pick.note) summary += "｜" + st.pick.note;
     if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);
     else if (meta && !meta.compile && meta.task === "caption" && meta.ch === CH_LOCAL) {
@@ -735,6 +792,7 @@ function apply(node) {
     const changed = syncWidgets(node, shown);
     paintInert(node, inert);
     const found = paintHeaders(node, shown);
+    syncModelBase(node, st);
     ensureModelValue(node);
     pinPicker(node, st);
     if (found === 0 && !st.domWarned) {
@@ -803,6 +861,16 @@ function mount(node) {
             // 换通道 ⇒ 把参数面板切到那个通道的组：不切的话用户看不到 api_* / mmproj，
             // 填不了必填项还以为节点坏了。
             focusForChannel(node, st, false);
+            applySoon(node);
+            return r;
+        };
+    }
+    // 换端点 ⇒ 上一批模型名立刻作废。等 1.5s 兜底轮询太慢，更像"没反应"。
+    const bw = widgetOf(node, "api_base");
+    if (bw) {
+        const orig = bw.callback;
+        bw.callback = function (...args) {
+            const r = orig ? orig.apply(this, args) : undefined;
             applySoon(node);
             return r;
         };

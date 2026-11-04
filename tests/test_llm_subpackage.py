@@ -12,6 +12,7 @@ import importlib.machinery
 import importlib.util
 import os
 import struct
+import gzip
 import sys
 import tempfile
 from pathlib import Path
@@ -669,6 +670,66 @@ def main():
           "api_model" in _inspect.getfullargspec(
               nodes.MossPromptSmith.VALIDATE_INPUTS).args
           and nodes.MossPromptSmith.VALIDATE_INPUTS("任何服务商的模型名") is True)
+
+    # ---- 第四种线格式：OpenAI /responses（body 与回包结构都和 chat 不同）
+    rbase = "https://gw.example.com/openai/v1/responses"
+    check("/responses 端点被识别为 responses 线格式",
+          pr.detect(rbase) == pr.RESPONSES, pr.detect(rbase))
+    check("/responses 端点原样保留（不拼 chat/completions）",
+          pr.endpoint(rbase) == rbase, pr.endpoint(rbase))
+    rb = pr.body(pr.RESPONSES, "m", "SYS", "USR", None, 0.3, 16, 1)
+    check("Responses body 用 instructions + input，不用 messages",
+          rb.get("instructions") == "SYS" and "input" in rb and "messages" not in rb,
+          str(sorted(rb)))
+    check("Responses body 用 max_output_tokens 且不带 seed",
+          rb.get("max_output_tokens") == 16 and "seed" not in rb and "max_tokens" not in rb,
+          str(sorted(rb)))
+    rraw, rfin, rusg = pr.read(pr.RESPONSES, {
+        "status": "completed",
+        "output": [{"type": "reasoning", "summary": []},
+                   {"type": "message",
+                    "content": [{"type": "output_text", "text": "hello"}]}],
+        "usage": {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}})
+    check("Responses 回包只取 output_text，跳过 reasoning",
+          rraw == "hello" and rfin == "completed", "%r/%s" % (rraw, rfin))
+    check("Responses usage 映射到统一三个字段",
+          rusg["prompt_tokens"] == 3 and rusg["completion_tokens"] == 2
+          and rusg["total_tokens"] == 5, str(rusg))
+    _r2, rfin2, _u2 = pr.read(pr.RESPONSES, {
+        "status": "incomplete", "incomplete_details": {"reason": "max_output_tokens"},
+        "output": [{"type": "message", "content": [{"type": "output_text", "text": "半句"}]}]})
+    check("Responses 截断时 finish 报原因", rfin2 == "max_output_tokens", str(rfin2))
+
+    # ---- 复杂网络：下面这些不是理论问题，都是实测踩过的
+    az = "https://x.openai.azure.com/openai/deployments/d?api-version=2024"
+    check("带 query 的端点不会被拼坏（Azure api-version）",
+          pr.endpoint(az) == "https://x.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024",
+          pr.endpoint(az))
+    check("Azure 主机用 api-key 头（它不认 Bearer）",
+          "api-key" in pr.headers(pr.OPENAI, "K", "https://x.openai.azure.com/v1")
+          and "Authorization" not in pr.headers(pr.OPENAI, "K", "https://x.openai.azure.com/v1"),
+          str(sorted(pr.headers(pr.OPENAI, "K", "https://x.openai.azure.com/v1"))))
+    check("非 Azure 仍用 Bearer",
+          "Authorization" in pr.headers(pr.OPENAI, "K", "https://api.deepseek.com/v1"), "Bearer")
+    check("出站带 User-Agent（默认 UA 会被 Cloudflare 拦成 403/1010）",
+          "User-Agent" in pr.headers(pr.OPENAI, ""), str(sorted(pr.headers(pr.OPENAI, ""))))
+    check("声明不要压缩（网关强压时 body 是二进制）",
+          pr.headers(pr.OPENAI, "").get("Accept-Encoding") == "identity", "identity")
+    check("127.0.0.0/8 整段算本地（不只 127.0.0.1）",
+          nodes._is_local("http://127.9.9.9:8080") and nodes._is_local("http://app.localhost:8000")
+          and nodes._is_local("http://host.docker.internal:1234/v1"), "local")
+    check("公网地址不算本地", not nodes._is_local("https://api.deepseek.com"), "remote")
+    check("网关强制 gzip 也能解（否则 json 解析必炸）",
+          nodes._loads(gzip.compress(b'{"ok":true}')) == {"ok": True}, "gzip")
+    try:
+        nodes._loads(b"<!DOCTYPE html><html><body>login</body></html>")
+        check("回 HTML 错误页要说人话", False, "没报错")
+    except RuntimeError as e:
+        check("回 HTML 错误页要说人话（不是裸 JSONDecodeError）",
+              "网页" in str(e), str(e)[:40])
+    ups = nodes._model_list_prefixes("https://opencode.ai/inference/go/openai/v1/responses")
+    check("清单地址逐级上溯（清单不一定挂在对话端点那层）",
+          "https://opencode.ai/inference/go" in ups and len(ups) >= 4, str(ups[:3]))
 
 
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))

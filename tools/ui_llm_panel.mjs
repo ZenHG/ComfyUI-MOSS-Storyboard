@@ -183,8 +183,9 @@ await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-3-lo
 
 await clickChip("api");
 r = await visRows(ID);
-check("点「外部 API」⇒ 5 + 4 = 9 行，标题只出现一次",
-    r.shown === 9 && r.heads.length === 1 && r.heads[0] === "外部 API", JSON.stringify(r));
+// 4 行：api_base / api_model / api_key，外加界面上不提供的 api_key_env（不计可见）。
+check("点「外部 API」⇒ 5 + 3 = 8 行，标题只出现一次",
+    r.shown === 8 && r.heads.length === 1 && r.heads[0] === "外部 API", JSON.stringify(r));
 let ca = await chip("api");
 check("通道不在外部 ⇒ api chip 标「通道外」", ca && /通道外/.test(ca.text), JSON.stringify(ca));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-4-api.png"), { y: 30 });
@@ -220,8 +221,10 @@ const names = await page.evaluate(() => {
     return { total: ws.length, hidden: ws.filter((w) => w.options && w.options.hidden).length,
         invisible: ws.filter((w) => typeof n.isWidgetVisible === "function" && !n.isWidgetVisible(w)).map((w) => w.name) };
 });
-check("全展开后 39 个参数一个不少（逐个核 isWidgetVisible）",
-    names.total === 39 && names.hidden === 0 && names.invisible.length === 0,
+// 39 格都在（存档契约），但 api_key_env 界面不提供 —— Key 走约定名，不再让用户填变量名。
+check("全展开后除 api_key_env 外全部可见（39 格存档不变）",
+    names.total === 39 && names.hidden === 1 && names.invisible.length === 1
+    && names.invisible[0] === "api_key_env",
     "widgets=" + names.total + " hidden=" + names.hidden + " 不可见=" + JSON.stringify(names.invisible));
 const bad = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
@@ -315,11 +318,17 @@ const two = await page.evaluate(async () => {
     return { before, after: all.length, fresh: fresh && {
         mounted: !!(fresh.__mossllmBar && fresh.__mossllmBar.nodeType),
         widgets: fresh.widgets.length, values: (fresh.serialize().widgets_values || []).length,
-        hidden: fresh.widgets.filter((w) => w.options && w.options.hidden).length } };
+        hidden: fresh.widgets.filter((w) => w.options && w.options.hidden).length,
+        keyEnvHidden: (() => {
+            const w = fresh.widgets.find((x) => x.name === "api_key_env");
+            return !!w && !!(w.options && w.options.hidden)
+                && (typeof fresh.isWidgetVisible !== "function" || !fresh.isWidgetVisible(w));
+        })() } };
 });
-check("新加的同型节点独立挂载、39 格存档、34 项隐藏（不干扰已有节点）",
+check("新加的同型节点独立挂载、39 格存档、api_key_env 恒隐（不干扰已有节点）",
     two.after === two.before + 1 && two.fresh && two.fresh.mounted && two.fresh.widgets === 40
-    && two.fresh.values === 39 && two.fresh.hidden === 34, JSON.stringify(two));
+    && two.fresh.values === 39 && two.fresh.hidden === 34
+    && two.fresh.keyEnvHidden === true, JSON.stringify(two));
 
 // 接了线的参数不许藏：**造真机条件**——PrimitiveNode 连一根真链到 ctx_size 的输入槽。
 //
@@ -515,7 +524,7 @@ check("切组时焦点落在被隐藏行 ⇒ 移到目标 chip（不丢焦点）
 check("只作用于 MossPromptSmith", await page.evaluate(() => app.graph.nodes.filter((n) => n.type !== "MossPromptSmith")
     .every((n) => !n.__mossllmBar && !(n.widgets || []).some((w) => w && w.name === "mosssb_llm_panel"))));
 
-// —— 拉取模型：api_model 是真 combo，模型清单拉回来要能当场在下拉里选 ——
+// —— 拉取模型：真 combo、有可见进度、拉完自己展开、换端点不留旧值 ——
 const combo = await page.evaluate(async () => {
     const n = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
     const W = (name) => n.widgets.find((x) => x.name === name);
@@ -525,46 +534,70 @@ const combo = await page.evaluate(async () => {
     W("api_base").value = "https://api.example.com/v1";
     await new Promise((r) => setTimeout(r, 900));
 
-    const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
-    const row = grid.querySelector('[data-widget-name="api_model"]');
-    const pick = row && row.querySelector(".mossllm-pick");
+    const grid = () => document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const row = () => grid().querySelector('[data-widget-name="api_model"]');
+    const pick = row() && row().querySelector(".mossllm-pick");
     const w = W("api_model");
-    const typeIsCombo = !!w && (Array.isArray(w.options && w.options.values));
+    const typeIsCombo = !!w && Array.isArray(w.options && w.options.values);
     if (!pick) return { typeIsCombo, pick: false };
 
-    window.fetch = async () => ({ ok: true, status: 200,
-        json: async () => ({ ok: true, models: ["model-a", "model-b"] }) });
+    // 桩故意慢 900ms：好观察「拉取中」有没有可见进度（真网络 2s 起）。
+    window.fetch = async () => {
+        await new Promise((r) => setTimeout(r, 900));
+        return { ok: true, status: 200,
+            json: async () => ({ ok: true, url: "https://api.example.com/v1/models",
+                                 models: ["model-a", "model-b"] }) };
+    };
     pick.querySelector("button").click();
-    await new Promise((r) => setTimeout(r, 1000));
-    const values = (w.options && w.options.values) || [];
-    const ctl = row.querySelector('[role="combobox"]');
-    if (ctl) ctl.click();
-    await new Promise((r) => setTimeout(r, 400));
-    const opts = [...document.querySelectorAll('[role="option"]')]
-        .map((e) => e.textContent.trim()).filter(Boolean);
-    document.body.click();
-    await new Promise((r) => setTimeout(r, 200));
-    const okValue = W("api_model").value;
-    const okHint = (grid.querySelector(".mossllm-hint") || {}).textContent || "";
+    await new Promise((r) => setTimeout(r, 350));
+    const busyAttr = row().querySelector(".mossllm-pick button").dataset.busy || "";
+    const busyHint = (grid().querySelector(".mossllm-hint") || {}).textContent || "";
+    await new Promise((r) => setTimeout(r, 1600));
 
-    // 失败路径：清空选项后重拉，必须标红且说明行留字
+    const values = [...(W("api_model").options.values || [])];
+    // 不手动点下拉：拉完应当自己展开，用户直接就能选。
+    const autoOpts = [...document.querySelectorAll('[role="option"]')]
+        .map((e) => e.textContent.trim()).filter(Boolean);
+    const value = W("api_model").value;
+    const okHint = (grid().querySelector(".mossllm-hint") || {}).textContent || "";
+    document.body.click();
+    await new Promise((r) => setTimeout(r, 250));
+
+    // 换端点：上一批模型名不许留着冒充这次的结果。真实输入走 callback，纯赋值不走。
+    const bw = W("api_base");
+    bw.value = "https://other.example.com/v1";
+    if (bw.callback) bw.callback(bw.value);
+    await new Promise((r) => setTimeout(r, 700));
+    const afterSwap = [...(W("api_model").options.values || [])];
+
+    // 失败路径：标红 + 说明行点名原因
     w.options.values = [""];
     window.fetch = async () => ({ ok: false, status: 401,
         json: async () => ({ ok: false, error: "拉不到模型清单：HTTP 401" }) });
-    pick.querySelector("button").click();
-    await new Promise((r) => setTimeout(r, 1000));
-    const bad = row.querySelector(".mossllm-pick button");
-    return { typeIsCombo, pick: true, values, opts, value: okValue, okHint,
+    row().querySelector(".mossllm-pick button").click();
+    await new Promise((r) => setTimeout(r, 1200));
+    const bad = row().querySelector(".mossllm-pick button");
+    return { typeIsCombo, pick: true, values, autoOpts, value, okHint,
+        busy: busyAttr, busyHint, afterSwap,
         bad: (bad && bad.dataset.bad) || "",
-        hint: (grid.querySelector(".mossllm-hint") || {}).textContent || "" };
+        hint: (grid().querySelector(".mossllm-hint") || {}).textContent || "" };
 });
 check("api_model 是原生 combo（不是手填输入框）", combo.typeIsCombo, JSON.stringify(combo).slice(0, 100));
-check("拉取后下拉里真能选到模型", combo.pick && combo.values.includes("model-a")
-    && combo.opts.includes("model-a") && combo.opts.includes("model-b"),
-    JSON.stringify(combo.opts || combo.values));
+check("拉取中看得出在动（按钮转 + 说明行带秒数）",
+    combo.busy === "1" && /\d+s/.test(combo.busyHint || ""),
+    JSON.stringify({ busy: combo.busy, h: combo.busyHint }));
+check("拉完自己展开下拉，不用再点一次",
+    (combo.autoOpts || []).includes("model-a") && (combo.autoOpts || []).includes("model-b"),
+    JSON.stringify(combo.autoOpts));
+check("拉取后下拉里真能选到模型", combo.pick && combo.values.includes("model-a"),
+    JSON.stringify(combo.values));
 check("拉取后控件里立刻看得见模型名（不是只有下拉内部变了）",
     combo.value === "model-a" && /2/.test(combo.okHint || ""),
     JSON.stringify({ v: combo.value, h: combo.okHint }));
+// 当前选中值要留着（清掉会让存盘丢值），但旧批次里其余名字必须消失。
+const stale = (combo.afterSwap || []).filter((x) => x && x !== combo.value);
+check("换 api_base 后旧模型名不残留（只留当前选中值）",
+    stale.length === 0, JSON.stringify(combo.afterSwap));
 check("拉取失败留得下痕迹（按钮标红 + 说明行点名原因）", combo.bad === "1"
     && combo.hint.includes("401"), JSON.stringify(combo.hint.slice(-40)));
 
