@@ -1,8 +1,8 @@
 {
  "id": "llm-prompt-workbench",
  "revision": 0,
- "last_node_id": 11,
- "last_link_id": 8,
+ "last_node_id": 14,
+ "last_link_id": 11,
  "nodes": [
   {
    "id": 1,
@@ -13,7 +13,7 @@
    ],
    "size": [
     620,
-    780
+    1180
    ],
    "flags": {},
    "order": 0,
@@ -33,7 +33,7 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "## 提示词工作台：反推 / 洗图 / 通用扩写（三组独立）\n\n**这不是一条流水线**：三个组各干各的，默认只开「反推」，其余两组已旁路。\n用哪组就选中该组节点按 Ctrl+B 取消旁路，其余组保持旁路——一次只跑一组，省时间也省显存。\n\n**① 反推**：LoadImage 选图 → caption → prompt + report。\n**② 洗图**：同一张图 → caption（wash=开）→ prompt 拿去改词后重绘。\n**③ 通用扩写**：填 text 想法 → expand（generic_natural）→ 任意模型可用提示词。\n\n### 选模型\nmodel 下拉来自 models/LLM + models/text_encoders；反推/洗图要视觉模型 + mmproj，扩写只要文本模型。本地 GGUF 或「外部 API」都行。\n\n### 边界\n三组共用同一张输入图（②也用 ① 的图）；换图后三组一起变。报告里的 must_keep 行是硬约束对账。"
+    "## 提示词工作台：反推 / 洗图 / 通用扩写 / PE-I2I（四组独立）\n\n**这不是一条流水线**：四组各干各的，默认只开「反推」，其余三组已旁路。\n用哪组就选中该组节点按 Ctrl+B 取消旁路，其余组保持旁路——一次只跑一组，省时间也省显存。\n\n**① 反推**：LoadImage 选图 → caption → prompt + report。\n**② 洗图**：同一张图 → caption（wash=开）→ prompt 拿去改词后重绘。\n**③ 通用扩写**：填 text 想法 → expand（generic_natural）→ 任意模型可用提示词。\n**④ PE-I2I 原生改写**：参考图 + 中文编辑指令 → edit → PE 改写的中文描述。\n\n### ④ 要自备什么（默认旁路，别直接跑）\nPE 权重按 qwen-research 发布，非商用、仅内部使用；本包不含权重、也不含 system_prompt.txt。\n把 PE-I2I GGUF、配套 mmproj 视觉塔、原生 system_prompt.txt 放进 models/LLM 下同一目录；\n然后在本组节点的 model 下拉里选它，mmproj 保持自动。没命中 PE 就是普通编辑路径。\nPE 没有前端开关：选对模型就自动进 PE。命中与否看第二个输出 report 里有没有\n「PE 改写器模式（编辑）」；命中后 dialect / length / must_keep / panels / style_lock\n本次不生效，report 会逐一点名。四步触发与非商用声明见两版 README 的 1.6。\n\n### 选模型\nmodel 下拉来自 models/LLM + models/text_encoders；反推/洗图/PE 要视觉模型 + mmproj，扩写只要文本模型。本地 GGUF 或「外部 API」都行。\n\n### 边界\n①②③ 共用同一张输入图；换图后一起变。报告里的 must_keep 行是硬约束对账。"
    ],
    "title": "这是什么 · 怎么用"
   },
@@ -75,7 +75,8 @@
      "type": "IMAGE",
      "links": [
       1,
-      2
+      2,
+      9
      ]
     },
     {
@@ -134,7 +135,7 @@
     },
     {
      "name": "model",
-     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
+     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
      "link": null,
      "widget": {
       "name": "model"
@@ -419,7 +420,7 @@
     },
     {
      "name": "target",
-     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3']",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
      "link": null,
      "widget": {
       "name": "target"
@@ -531,7 +532,7 @@
     },
     {
      "name": "model",
-     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
+     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
      "link": null,
      "widget": {
       "name": "model"
@@ -816,7 +817,7 @@
     },
     {
      "name": "target",
-     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3']",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
      "link": null,
      "widget": {
       "name": "target"
@@ -928,7 +929,7 @@
     },
     {
      "name": "model",
-     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
+     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
      "link": null,
      "widget": {
       "name": "model"
@@ -1213,7 +1214,7 @@
     },
     {
      "name": "target",
-     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3']",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
      "link": null,
      "widget": {
       "name": "target"
@@ -1487,6 +1488,471 @@
    },
    "widgets_values": [],
    "title": "通用 report（must_keep/tokens）"
+  },
+  {
+   "id": 12,
+   "type": "MossPromptSmith",
+   "pos": [
+    260,
+    1120
+   ],
+   "size": [
+    430,
+    371
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 4,
+   "inputs": [
+    {
+     "name": "task",
+     "type": "['CAPTION', 'EXPAND', 'EDIT', 'COMPILE']",
+     "link": null,
+     "widget": {
+      "name": "task"
+     }
+    },
+    {
+     "name": "channel",
+     "type": "['LOCAL', 'API']",
+     "link": null,
+     "widget": {
+      "name": "channel"
+     }
+    },
+    {
+     "name": "dialect",
+     "type": "['MOSS_IMAGE', 'MOSS_STORYBOARD', 'GENERIC_NATURAL', 'GENERIC_TAGS', 'CINEMATIC', 'CN_NATURAL']",
+     "link": null,
+     "widget": {
+      "name": "dialect"
+     }
+    },
+    {
+     "name": "model",
+     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
+     "link": null,
+     "widget": {
+      "name": "model"
+     }
+    },
+    {
+     "name": "text",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "text"
+     }
+    },
+    {
+     "name": "length",
+     "type": "['BRIEF', 'STANDARD', 'DETAILED']",
+     "link": null,
+     "widget": {
+      "name": "length"
+     }
+    },
+    {
+     "name": "temperature",
+     "type": "FLOAT",
+     "link": null,
+     "widget": {
+      "name": "temperature"
+     }
+    },
+    {
+     "name": "max_tokens",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "max_tokens"
+     }
+    },
+    {
+     "name": "seed",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "seed"
+     }
+    },
+    {
+     "name": "control_after_generate",
+     "type": "COMBO",
+     "link": null,
+     "widget": {
+      "name": "control_after_generate"
+     }
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 9
+    },
+    {
+     "name": "mmproj",
+     "type": "['AUTO', 'NONE', 'GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/MMPROJ-QWEN3VL-4B-INSTRUCT-F16.GGUF', 'MOSS_LLM_6G/MMPROJ-F16.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC.MMPROJ-BF16.GGUF', 'QWEN3.5-9B.MMPROJ-Q8_0.GGUF', 'QWEN3.8/MMPROJ-QWEN3.8-27B-BF16.GGUF']",
+     "link": null,
+     "widget": {
+      "name": "mmproj"
+     }
+    },
+    {
+     "name": "language",
+     "type": "['AUTO', 'ZH', 'EN']",
+     "link": null,
+     "widget": {
+      "name": "language"
+     }
+    },
+    {
+     "name": "thinking",
+     "type": "['OFF', 'ON']",
+     "link": null,
+     "widget": {
+      "name": "thinking"
+     }
+    },
+    {
+     "name": "panels",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "panels"
+     }
+    },
+    {
+     "name": "style_lock",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "style_lock"
+     }
+    },
+    {
+     "name": "must_keep",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "must_keep"
+     }
+    },
+    {
+     "name": "wash",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "wash"
+     }
+    },
+    {
+     "name": "two_pass",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "two_pass"
+     }
+    },
+    {
+     "name": "runtime",
+     "type": "['CURRENT', 'UPDATE']",
+     "link": null,
+     "widget": {
+      "name": "runtime"
+     }
+    },
+    {
+     "name": "api_base",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_base"
+     }
+    },
+    {
+     "name": "api_model",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_model"
+     }
+    },
+    {
+     "name": "api_key",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_key"
+     }
+    },
+    {
+     "name": "api_key_env",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "api_key_env"
+     }
+    },
+    {
+     "name": "ctx_size",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "ctx_size"
+     }
+    },
+    {
+     "name": "gpu_layers",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "gpu_layers"
+     }
+    },
+    {
+     "name": "cache_type_k",
+     "type": "['Q8_0', 'Q4_0', 'F16']",
+     "link": null,
+     "widget": {
+      "name": "cache_type_k"
+     }
+    },
+    {
+     "name": "cache_type_v",
+     "type": "['Q8_0', 'Q4_0', 'F16']",
+     "link": null,
+     "widget": {
+      "name": "cache_type_v"
+     }
+    },
+    {
+     "name": "flash_attn",
+     "type": "['ON', 'OFF']",
+     "link": null,
+     "widget": {
+      "name": "flash_attn"
+     }
+    },
+    {
+     "name": "image_max_tokens",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "image_max_tokens"
+     }
+    },
+    {
+     "name": "ubatch",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "ubatch"
+     }
+    },
+    {
+     "name": "parallel",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "parallel"
+     }
+    },
+    {
+     "name": "fit_on",
+     "type": "['ON', 'OFF']",
+     "link": null,
+     "widget": {
+      "name": "fit_on"
+     }
+    },
+    {
+     "name": "fit_target_mib",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "fit_target_mib"
+     }
+    },
+    {
+     "name": "mtp",
+     "type": "['AUTO', 'ON', 'OFF']",
+     "link": null,
+     "widget": {
+      "name": "mtp"
+     }
+    },
+    {
+     "name": "mtp_draft_n",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "mtp_draft_n"
+     }
+    },
+    {
+     "name": "server_exe",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "server_exe"
+     }
+    },
+    {
+     "name": "port",
+     "type": "INT",
+     "link": null,
+     "widget": {
+      "name": "port"
+     }
+    },
+    {
+     "name": "release_after_run",
+     "type": "BOOLEAN",
+     "link": null,
+     "widget": {
+      "name": "release_after_run"
+     }
+    },
+    {
+     "name": "target",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
+     "link": null,
+     "widget": {
+      "name": "target"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "提示词",
+     "type": "STRING",
+     "links": [
+      10
+     ]
+    },
+    {
+     "name": "report",
+     "type": "STRING",
+     "links": [
+      11
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "MossPromptSmith",
+    "cnr_id": "moss-storyboard",
+    "ver": "0.3.3"
+   },
+   "widgets_values": [
+    "edit",
+    "local",
+    "moss_image",
+    "GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+    "把背景换成雪夜，人物不变",
+    "standard",
+    0.2,
+    1024,
+    0,
+    "fixed",
+    "auto",
+    "auto",
+    "off",
+    4,
+    "",
+    "",
+    false,
+    false,
+    "current",
+    "",
+    "",
+    "",
+    "MOSS_LLM_API_KEY",
+    8192,
+    "",
+    "q8_0",
+    "q8_0",
+    "on",
+    1024,
+    512,
+    1,
+    "on",
+    1024,
+    "auto",
+    2,
+    "",
+    8091,
+    true,
+    "moss-image"
+   ],
+   "title": "🧠 LLM Prompt · PE-I2I edit (bypassed)"
+  },
+  {
+   "id": 13,
+   "type": "PreviewAny",
+   "pos": [
+    740,
+    1840
+   ],
+   "size": [
+    460,
+    380
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 4,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 10
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "PE 编辑提示词（成品）"
+  },
+  {
+   "id": 14,
+   "type": "PreviewAny",
+   "pos": [
+    740,
+    2240
+   ],
+   "size": [
+    460,
+    300
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 4,
+   "inputs": [
+    {
+     "name": "source",
+     "type": "*",
+     "link": 11
+    }
+   ],
+   "outputs": [
+    {
+     "name": "STRING",
+     "type": "STRING",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "title": "PE report（看有没有 PE 改写器模式（编辑））"
   }
  ],
  "links": [
@@ -1553,6 +2019,30 @@
    11,
    0,
    "STRING"
+  ],
+  [
+   9,
+   2,
+   0,
+   12,
+   10,
+   "IMAGE"
+  ],
+  [
+   10,
+   12,
+   0,
+   13,
+   0,
+   "STRING"
+  ],
+  [
+   11,
+   12,
+   1,
+   14,
+   0,
+   "STRING"
   ]
  ],
  "groups": [
@@ -1590,6 +2080,19 @@
     540,
     2100,
     940
+   ],
+   "color": "NO_COLOR",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "④ PE-I2I（默认旁路 · 权重自备 · 非商用）",
+   "bounding": [
+    -840,
+    1060,
+    2100,
+    1320
    ],
    "color": "NO_COLOR",
    "font_size": 24,

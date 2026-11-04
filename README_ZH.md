@@ -99,8 +99,9 @@
 
 1. 把 PE-I2I GGUF、配套的 `mmproj` 视觉塔、原生 `system_prompt.txt`（须含 `ratio_follow`
    或 `rewritten editing instruction`）放在 `<ComfyUI>/models/LLM/` 下同一个目录里，三个文件都自备。
-2. 把 [`examples/llm-pe-i2i.json`](examples/llm-pe-i2i.json) 拖进 ComfyUI，在 `model` 下拉里选这个 GGUF，
-   `mmproj` 保持自动（或手选配对的视觉塔）。
+2. 把 [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json) 拖进 ComfyUI，
+   按 Ctrl+B 取消第 ④ 组旁路，在该组节点的 `model` 下拉里选这个 GGUF，`mmproj` 保持自动
+   （或手选配对的视觉塔）。其余三组保持旁路。
 3. `LoadImage` 选你的图，`text` 写编辑指令，`task` 保持 `edit`，按 Run。
 4. 第二个输出 `report` 出现 `PE 改写器模式（编辑）` 即已命中；`dialect`、`length`、`must_keep`、
    `panels`、`style_lock` 本次被绕过，report 会逐一点名。
@@ -180,7 +181,7 @@ PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但�
 ### 3.1 示例
 
 示例都是 UI 格式（直接拖进画布）。换脸示例要自备 `moss_faceswap_src.png` 与 `moss_faceswap_ref.png`；
-单图换脸示例自带 `assets/` 下两张演示图；`llm-pe-i2i.json` 要自备 PE-I2I GGUF + `mmproj` + `system_prompt.txt`（见 1.6，非商用）；其余示例不需要图。
+单图换脸示例自带 `assets/` 下两张演示图；`llm-prompt-workbench.json` 第 ④ 组要自备 PE-I2I GGUF + `mmproj` + `system_prompt.txt`（见 1.6，非商用）；其余示例不需要图。
 
 | 文件 | 干什么 |
 |---|---|
@@ -193,9 +194,8 @@ PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但�
 | `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图 |
 | `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 |
 | `llm-compile-zero-model.json` | IR → 提示词，零模型（装机自检） |
-| `llm-prompt-workbench.json` | 反推 / 洗图 / 通用扩写三组，按需旁路 |
+| `llm-prompt-workbench.json` | 反推 / 洗图 / 通用扩写 / PE-I2I 四组，按需旁路（PE 组权重自备） |
 | `llm-idea-to-image.json` | 一句话 → 单图或 4 格故事板 |
-| `llm-pe-i2i.json` | Qwen-Image 2.1 PE-I2I：参考图 + 编辑指令 → 精确编辑提示词（权重自备、非商用） |
 
 ### 3.2 文档
 

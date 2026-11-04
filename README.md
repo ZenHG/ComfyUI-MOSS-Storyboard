@@ -102,8 +102,9 @@ To run PE-I2I (image + edit instruction → precise edit prompt):
 1. Put the PE-I2I GGUF, its `mmproj` vision tower, and its native `system_prompt.txt` (must contain
    `ratio_follow` or `rewritten editing instruction`) together in one folder under
    `<ComfyUI>/models/LLM/`. All three are your own files.
-2. Drag [`examples/llm-pe-i2i.json`](examples/llm-pe-i2i.json) into ComfyUI, pick that GGUF in the
-   `model` dropdown, and leave `mmproj` on auto (or select the matching tower).
+2. Drag [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json) into ComfyUI,
+   un-bypass group ④ (Ctrl+B), pick that GGUF in its `model` dropdown, and leave `mmproj` on auto
+   (or select the matching tower). Keep the other three groups bypassed.
 3. Load your image into `LoadImage`, write the edit instruction in `text`, keep `task=edit`, press Run.
 4. The second output `report` prints `PE 改写器模式（编辑）` when PE is active; `dialect`, `length`,
    `must_keep`, `panels` and `style_lock` are bypassed and named in the same report.
@@ -187,8 +188,9 @@ channel in [`SECURITY.md`](SECURITY.md).
 ### 3.1 Examples
 
 Every example is UI format (drag into the canvas). The face-swap examples need your own `moss_faceswap_src.png` and
-`moss_faceswap_ref.png`; the single-photo example ships two demo images under `assets/`; `llm-pe-i2i.json` needs your
-own PE-I2I GGUF + `mmproj` + `system_prompt.txt` (§1.6, non-commercial); the rest need nothing.
+`moss_faceswap_ref.png`; the single-photo example ships two demo images under `assets/`; group ④ of
+`llm-prompt-workbench.json` needs your own PE-I2I GGUF + `mmproj` + `system_prompt.txt` (§1.6, non-commercial);
+the rest need nothing.
 
 | File | Job |
 |---|---|
@@ -201,9 +203,8 @@ own PE-I2I GGUF + `mmproj` + `system_prompt.txt` (§1.6, non-commercial); the re
 | `moss-pose-generate-ui.json` | reference face + prompt → one posed image |
 | `moss-storyboard-4panels-edit.json` | crop one panel → edit → paste back |
 | `llm-compile-zero-model.json` | IR → prompt, no model (install check) |
-| `llm-prompt-workbench.json` | caption / wash / generic expand, three bypassable groups |
+| `llm-prompt-workbench.json` | caption / wash / generic expand / PE-I2I, four bypassable groups (PE group needs your own weights) |
 | `llm-idea-to-image.json` | one line → single image or 4-panel board |
-| `llm-pe-i2i.json` | Qwen-Image 2.1 PE-I2I: image + edit instruction → precise edit prompt (weights not bundled, non-commercial) |
 
 ### 3.2 Docs
 

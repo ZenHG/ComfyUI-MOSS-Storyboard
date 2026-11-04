@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: MIT
-"""生成 `moss_llm` 的三个示例工作流（UI 格式，可直接在 ComfyUI 打开）。
+"""生成 `moss_llm` 的两个示例工作流（UI 格式，可直接在 ComfyUI 打开）。
 
 为什么用脚本而不是手写 JSON：`MossPromptSmith` 有几十个 widget 槽（数量随参数表变），`widgets_values`
 **按位置存** —— 手抄必错一次，而且错得静默（参数串位不报错）。这里先按
@@ -9,7 +9,6 @@
 
 跑法：`python tools/make_llm_examples.py`
 产物：`examples/llm-prompt-workbench.json` / `examples/llm-idea-to-image.json`
-      / `examples/llm-pe-i2i.json`
 """
 
 import importlib.machinery
@@ -176,21 +175,29 @@ def group(gid, title, pos, size, color="NO_COLOR"):
             "color": color, "font_size": 24, "flags": {}}
 
 
-# ───────────────────────────────────────────── 例 5：提示词工作台（三组，按需旁路）
+# ───────────────────────────────────────────── 例 5：提示词工作台（四组，按需旁路）
 def ex_prompt_workbench():
     nodes, links, groups = [], [], []
-    n = note(1, (-840, -440), (620, 780),
-             "## 提示词工作台：反推 / 洗图 / 通用扩写（三组独立）\n\n"
-             "**这不是一条流水线**：三个组各干各的，默认只开「反推」，其余两组已旁路。\n"
+    n = note(1, (-840, -440), (620, 1180),
+             "## 提示词工作台：反推 / 洗图 / 通用扩写 / PE-I2I（四组独立）\n\n"
+             "**这不是一条流水线**：四组各干各的，默认只开「反推」，其余三组已旁路。\n"
              "用哪组就选中该组节点按 Ctrl+B 取消旁路，其余组保持旁路——一次只跑一组，省时间也省显存。\n\n"
              "**① 反推**：LoadImage 选图 → caption → prompt + report。\n"
              "**② 洗图**：同一张图 → caption（wash=开）→ prompt 拿去改词后重绘。\n"
-             "**③ 通用扩写**：填 text 想法 → expand（generic_natural）→ 任意模型可用提示词。\n\n"
+             "**③ 通用扩写**：填 text 想法 → expand（generic_natural）→ 任意模型可用提示词。\n"
+             "**④ PE-I2I 原生改写**：参考图 + 中文编辑指令 → edit → PE 改写的中文描述。\n\n"
+             "### ④ 要自备什么（默认旁路，别直接跑）\n"
+             "PE 权重按 qwen-research 发布，非商用、仅内部使用；本包不含权重、也不含 system_prompt.txt。\n"
+             "把 PE-I2I GGUF、配套 mmproj 视觉塔、原生 system_prompt.txt 放进 models/LLM 下同一目录；\n"
+             "然后在本组节点的 model 下拉里选它，mmproj 保持自动。没命中 PE 就是普通编辑路径。\n"
+             "PE 没有前端开关：选对模型就自动进 PE。命中与否看第二个输出 report 里有没有\n"
+             "「PE 改写器模式（编辑）」；命中后 dialect / length / must_keep / panels / style_lock\n"
+             "本次不生效，report 会逐一点名。四步触发与非商用声明见两版 README 的 1.6。\n\n"
              "### 选模型\n"
-             "model 下拉来自 models/LLM + models/text_encoders；反推/洗图要视觉模型 + mmproj，"
+             "model 下拉来自 models/LLM + models/text_encoders；反推/洗图/PE 要视觉模型 + mmproj，"
              "扩写只要文本模型。本地 GGUF 或「外部 API」都行。\n\n"
              "### 边界\n"
-             "三组共用同一张输入图（②也用 ① 的图）；换图后三组一起变。报告里的 must_keep 行是硬约束对账。")
+             "①②③ 共用同一张输入图；换图后一起变。报告里的 must_keep 行是硬约束对账。")
     img = load_image(2, (-160, -440), (340, 320), "comic-4panel-lineart-sample.png", "① 共用输入图")
     cap = smith_node(3, (260, -440), (430, 371), "🧠 LLM Prompt · caption",
                      {"task": "caption", "dialect": "moss_image", "length": "standard"})
@@ -209,6 +216,10 @@ def ex_prompt_workbench():
     p4 = preview(9, (740, 700), (460, 260), "洗图 report（含 aspect_ratio）")
     p5 = preview(10, (740, 1040), (460, 380), "通用 prompt（接任意文生图节点）")
     p6 = preview(11, (740, 1440), (460, 260), "通用 report（must_keep/tokens）")
+    pe = smith_node(12, (260, 1120), (430, 371), "🧠 LLM Prompt · PE-I2I edit (bypassed)",
+                    {"task": "edit", "text": "把背景换成雪夜，人物不变"})
+    p7 = preview(13, (740, 1840), (460, 380), "PE 编辑提示词（成品）")
+    p8 = preview(14, (740, 2240), (460, 300), "PE report（看有没有 PE 改写器模式（编辑））")
     lid = wire(1, img, 0, cap, cap.slot("image"), "IMAGE", links)
     lid = wire(lid, img, 0, wash, wash.slot("image"), "IMAGE", links)
     lid = wire(lid, cap, 0, p1, 0, "STRING", links)
@@ -216,16 +227,20 @@ def ex_prompt_workbench():
     lid = wire(lid, wash, 0, p3, 0, "STRING", links)
     lid = wire(lid, wash, 1, p4, 0, "STRING", links)
     lid = wire(lid, gen, 0, p5, 0, "STRING", links)
-    wire(lid, gen, 1, p6, 0, "STRING", links)
+    lid = wire(lid, gen, 1, p6, 0, "STRING", links)
+    lid = wire(lid, img, 0, pe, pe.slot("image"), "IMAGE", links)
+    lid = wire(lid, pe, 0, p7, 0, "STRING", links)
+    wire(lid, pe, 1, p8, 0, "STRING", links)
     groups = [
         group(1, "① 反推（默认开）", (-840, -500), (2100, 940)),
         group(2, "② 洗图（默认旁路）", (-840, 20), (2100, 940)),
         group(3, "③ 通用扩写（默认旁路）", (-840, 540), (2100, 940)),
+        group(4, "④ PE-I2I（默认旁路 · 权重自备 · 非商用）", (-840, 1060), (2100, 1320)),
     ]
-    wf = finish(nodes + [n, img, cap, wash, gen, p1, p2, p3, p4, p5, p6], links, groups,
-                "llm-prompt-workbench")
+    wf = finish(nodes + [n, img, cap, wash, gen, p1, p2, p3, p4, p5, p6, pe, p7, p8],
+                links, groups, "llm-prompt-workbench")
     for x in wf["nodes"]:
-        if x["id"] in (4, 8, 9, 5, 10, 11):
+        if x["id"] in (4, 8, 9, 5, 10, 11, 12, 13, 14):
             x["mode"] = 4          # 4 = bypass：默认只跑反推组
     return wf
 
@@ -317,40 +332,6 @@ def ex_idea_to_image():
     return wf
 
 
-# ───────────────────────────────────────────── 例 7：PE-I2I 原生改写器（权重自备、非商用）
-def ex_pe_i2i():
-    nodes, links, groups = [], [], []
-    n = note(1, (-760, -420), (640, 940),
-             "## PE-I2I：用 Qwen-Image 2.1 自己的 system prompt 改写编辑指令\n\n"
-             "**先说许可**：PE 权重（官方 Qwen/Qwen-Image-2.1-PE-I2I 与社区 GGUF）按 qwen-research 发布，"
-             "**非商用、仅内部使用**。本包不含权重、也不含 system_prompt.txt，三件套全部自备；"
-             "商用前自行核对上游许可，不要提交或分发。\n\n"
-             "### 三件套放哪\n"
-             "把 PE-I2I GGUF、配套 mmproj 视觉塔、原生 system_prompt.txt（须含 ratio_follow "
-             "或 rewritten editing instruction）放在 <ComfyUI>/models/LLM/ 下同一个目录。\n\n"
-             "### 拖进来之后四步\n"
-             "① 在 Smith 的 model 下拉里选那个 PE-I2I GGUF（本示例存的是生成时的默认值，不是 PE 模型）；\n"
-             "② mmproj 保持自动或手选配对视觉塔；③ LoadImage 选你的图，text 写中文编辑指令；\n"
-             "④ task=edit、Run。第二个输出 report 出现「PE 改写器模式（编辑）」即命中。\n\n"
-             "### 命中后有什么不同\n"
-             "用模型自带的 system prompt，不走本包提示词；dialect / length / must_keep / panels / "
-             "style_lock 本次不生效，report 会逐一点名。PE-I2I 输出中文描述，画幅仍由上游决定。\n\n"
-             "### 没命中怎么办\n"
-             "report 没有 PE 行就是普通编辑路径：通常是 system_prompt.txt 不在模型同目录、内容不含 "
-             "I2I 契约关键词、或 task 不是 edit。PE-T2I（expand）另需一套 T2I 权重与提示词，本包不带。")
-    img = load_image(2, (-80, -420), (340, 320),
-                     "comic-4panel-lineart-sample.png", "① 参考图（换成你的图）")
-    sm = smith_node(3, (340, -420), (430, 371), "🧠 LLM Prompt · PE-I2I edit",
-                    {"task": "edit", "text": "把背景换成雪夜，人物不变"})
-    p1 = preview(4, (860, -420), (460, 420), "PE 编辑提示词（成品）")
-    p2 = preview(5, (860, 60), (460, 300), "report（看有没有 PE 改写器模式（编辑））")
-    lid = wire(1, img, 0, sm, sm.slot("image"), "IMAGE", links)
-    lid = wire(lid, sm, 0, p1, 0, "STRING", links)
-    wire(lid, sm, 1, p2, 0, "STRING", links)
-    groups = [group(1, "PE-I2I（权重自备 · 非商用）", (-760, -480), (2200, 1020))]
-    return finish(nodes + [n, img, sm, p1, p2], links, groups, "llm-pe-i2i")
-
-
 def _sampler_decl(panels: int):
     out = []
     for name, typ, widget, value in SAMPLER_DECL:
@@ -366,8 +347,7 @@ def main():
     load_pkg()
     os.makedirs(OUT_DIR, exist_ok=True)
     for name, fn in (("llm-prompt-workbench", ex_prompt_workbench),
-                     ("llm-idea-to-image", ex_idea_to_image),
-                     ("llm-pe-i2i", ex_pe_i2i)):
+                     ("llm-idea-to-image", ex_idea_to_image)):
         wf = fn()
         path = os.path.join(OUT_DIR, name + ".json")
         with open(path, "w", encoding="utf-8", newline="\n") as fh:

@@ -359,7 +359,7 @@ def f11_mode_spec():
     spec = m.group(1) if m else ""
 
     def js_list(key):
-        mm = re.search(r"%s:\s*\[(.*?)\]" % key, spec, re.S)
+        mm = re.search(key + r"[ \t]*:[ \t]*\[(.*?)\]", spec, re.S)
         return re.findall(r'"([a-z0-9_\-]+)"', mm.group(1)) if mm else []
 
     tasks, channels = py_list("_TASKS"), py_list("_CHANNELS")

@@ -599,7 +599,8 @@ PE-T2I 是纯文本改写器；做「反推」需要另配视觉模型与 mmproj
 
 1. 自备三件套放进 `<ComfyUI>/models/LLM/` 下同一目录：PE-I2I GGUF、配套 `mmproj` 视觉塔、
    原生 `system_prompt.txt`（须含 `ratio_follow` 或 `rewritten editing instruction`）。
-2. 把 `examples/llm-pe-i2i.json` 拖进画布；在 `model` 下拉里选该 GGUF，`mmproj` 保持自动或手选配对塔。
+2. 把 `examples/llm-prompt-workbench.json` 拖进画布，按 Ctrl+B 取消第 ④ 组旁路（其余三组保持旁路）；
+   在该组节点的 `model` 下拉里选该 GGUF，`mmproj` 保持自动或手选配对塔。
 3. `LoadImage` 选参考图，`text` 写中文编辑指令，`task=edit`，Run。
 4. 看第二个输出 `report`：出现「PE 改写器模式（编辑）」即命中，并列出本次被绕过的参数；
    没有这一行就是普通编辑路径，按上面的候选顺序与识别特征排查。
