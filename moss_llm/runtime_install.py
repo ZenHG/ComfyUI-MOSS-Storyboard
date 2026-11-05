@@ -376,12 +376,14 @@ def _fetch(src, part, min_speed=30 * 1024):
             pos = 0
         total = int(r.headers.get("Content-Length") or 0) + pos
         got, t0 = 0, time.time()
+        tick = _bar(total)          # 前端进度条（没有宿主时是空操作）
         with open(part, mode) as f:
             while True:
                 chunk = r.read(1 << 20)
                 if not chunk:
                     break
                 f.write(chunk)
+                tick(len(chunk))
                 got += len(chunk)
                 pos += len(chunk)
                 el = time.time() - t0
@@ -396,6 +398,20 @@ def _fetch(src, part, min_speed=30 * 1024):
     print()
     if total and pos != total:
         raise RuntimeError("不完整（%d/%d 字节）" % (pos, total))
+
+
+def _bar(total, label=""):
+    """把进度推给 ComfyUI 前端（有 UI 时走它自己的进度条）；不在 ComfyUI 里跑时静默降级。
+
+    只用官方入口 `comfy.utils.ProgressBar`——它内部就是 PromptServer 的 progress 事件，
+    前端已经会画那一圈进度；不自己造事件名，避免和宿主版本漂移。
+    """
+    try:
+        from comfy.utils import ProgressBar
+        bar = ProgressBar(int(total) if total else 1)
+        return lambda n=1: bar.update(int(n) if n else 1)
+    except Exception:
+        return lambda n=1: None
 
 
 def _download(url, dest, size=None, digest=None, sources=None):
@@ -447,15 +463,43 @@ def _sources(url, allow_mirror=True):
 
 
 def _unpack(path, dest):
+    """解压；逐成员推进度（大包有上千个文件，一次 extractall 前端会长时间无反馈）。"""
     if path.name.lower().endswith(".zip"):
         with zipfile.ZipFile(path) as zf:
-            zf.extractall(dest)
+            members = zf.infolist()
+            tick = _bar(len(members))
+            for m in members:
+                zf.extract(m, dest)
+                tick(1)
     else:
         with tarfile.open(path) as tf:
-            try:
-                tf.extractall(dest, filter="data")
-            except TypeError:          # Python < 3.12 没有 filter 参数
-                tf.extractall(dest)
+            members = tf.getmembers()
+            tick = _bar(len(members))
+            for m in members:
+                try:
+                    tf.extract(m, dest, filter="data")
+                except TypeError:      # Python < 3.12 没有 filter 参数
+                    tf.extract(m, dest)
+                tick(1)
+
+
+def _exe_ok(exe, tries=2):
+    """装完立刻验一次：能跑 `--version` 才算装好。
+
+    防的是「解压还没落盘完就被 Popen」那类 WinError 193 —— 文件在，但不是完整的可执行文件。
+    失败重试一次（落盘/杀软扫描常有秒级延迟），仍失败就报清楚，而不是让运行时去撞 193。
+    """
+    if not exe:
+        return False
+    for _ in range(tries):
+        try:
+            p = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=30)
+            if p.returncode == 0 and "version" in ((p.stdout or "") + (p.stderr or "")).lower():
+                return True
+        except Exception:
+            pass
+        time.sleep(1.0)
+    return False
 
 
 def install(force=False, backend="", tag=""):
@@ -520,6 +564,12 @@ def install(force=False, backend="", tag=""):
         shutil.rmtree(old_dir, ignore_errors=True)
     if tag:
         (RUNTIME_DIR / VERSION_FILE).write_text(tag + "\n", encoding="utf-8")
+    exe_now = find_exe()
+    if not _exe_ok(exe_now):
+        raise RuntimeError(
+            "运行时文件已解出，但 llama-server 起不来（多半是防病毒拦截或落盘不完整）：%s\n"
+            "    先手动运行一次这个程序看具体报错；确认没问题再重试，或删掉 %s 重装。"
+            % (exe_now, RUNTIME_DIR))
     note = "来源 %s" % "、".join(sorted(set(used)))
     print("运行时就绪：%s（%s，%s，%s）" % (find_exe(), plat, backend, note))
     return find_exe(), tag, note
