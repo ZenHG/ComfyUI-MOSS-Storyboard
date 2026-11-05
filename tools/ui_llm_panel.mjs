@@ -819,6 +819,75 @@ check("完整说明（要不要视觉塔 / 要不要图）挂在 title 上，不
         })),
     guide.caption.title.slice(0, 40));
 
+// —— (d0) 常用端点下拉：api_base 行内的 select（不是 widget、不改存档）——
+const ep = await page.evaluate(async () => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    const W = (name) => n.widgets.find((x) => x.name === name);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const setW = async (name, v) => {
+        const w = W(name);
+        w.value = v;
+        if (w.callback) w.callback(v);            // 纯赋值不走 callback，面板收不到
+        await wait(700);
+    };
+    // 宿主只为**可见**的控件渲染行：api_base 属于 API 组，折叠时 DOM 里根本没有这一行。
+    // 所以先把视图挪到 API 组，再去找挂在上面的下拉（这也正是用户看得见它的状态）。
+    const selOf = () => {
+        const g = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+        return g ? g.querySelector("[data-mossllm-endpoint]") : null;
+    };
+    const out = {};
+    await setW("api_base", "");
+    await setW("channel", "local");               // 从「本地」起步，才验得出它会切通道
+    globalThis.MOSS_SB_LLM_PANEL.focus("api");
+    await wait(900);
+    let sel = selOf();
+    out.mounted = !!sel;
+    if (!sel) return out;
+    out.idle = { base: W("api_base").value, channel: W("channel").value, sel: sel.value };
+    // a) 选 DeepSeek：写入实测值 + 切通道 + 说明行点名
+    sel.value = "https://api.deepseek.com/v1";
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    await wait(1000);
+    out.pick = { base: W("api_base").value, channel: W("channel").value,
+                 sel: selOf() ? selOf().value : null,
+                 hint: document.querySelector(".mossllm-hint").textContent };
+    // b) 手填自己的网关 ⇒ 下拉回落到「自定义」；再选「自定义」不许改掉它
+    await setW("api_base", "https://my.gateway.example/v1");
+    sel = selOf();
+    out.custom = { sel: sel ? sel.value : null, base: W("api_base").value };
+    if (sel) {
+        sel.value = "";
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+        await wait(700);
+    }
+    const selAfter = selOf();
+    out.customAfter = { sel: selAfter ? selAfter.value : null, base: W("api_base").value };
+    // c) 它不是 widget：控件仍 38 个、存档格数仍 38、没有多出 widget 名
+    out.store = { declared: (globalThis.MOSS_SB_LLM_PANEL.where()[0] || {}).widgets,
+                  saved: globalThis.MOSS_SB_LLM_PANEL.values(),
+                  asWidget: n.widgets.filter((w) => /endpoint/i.test(String(w.name))).length };
+    // 复原现场，别留给后面的用例
+    await setW("api_base", "");
+    await setW("channel", "local");
+    globalThis.MOSS_SB_LLM_PANEL.fold();
+    await wait(400);
+    return out;
+});
+check("选中预置端点 ⇒ api_base 写入实测值、通道从本地切到外部 API、说明行点名",
+    ep.mounted && ep.pick && ep.idle.channel === "local" && ep.idle.sel === ""
+    && ep.pick.base === "https://api.deepseek.com/v1" && ep.pick.channel === "api"
+    && ep.pick.sel === "https://api.deepseek.com/v1" && /DeepSeek/.test(ep.pick.hint),
+    JSON.stringify({ idle: ep.idle, pick: ep.pick }));
+check("选「自定义」不改原值（下拉只是 api_base 的镜像，手填的网关不被覆盖）",
+    ep.custom && ep.custom.sel === "" && ep.custom.base === "https://my.gateway.example/v1"
+    && ep.customAfter.base === "https://my.gateway.example/v1" && ep.customAfter.sel === "",
+    JSON.stringify([ep.custom, ep.customAfter]));
+check("常用端点下拉不是 widget：控件 38 个、存档格数仍是 38、没有新 widget 名",
+    ep.store && ep.store.declared === 38 && ep.store.saved.length > 0
+    && ep.store.saved.every((x) => x === 38) && ep.store.asWidget === 0,
+    JSON.stringify(ep.store));
+
 // —— (e) 窄宽度：加了「通道」前缀后，三个 chip 仍要落在开关条里 ——
 const origSize = await page.evaluate((id) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);

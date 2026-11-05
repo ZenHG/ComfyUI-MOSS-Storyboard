@@ -139,6 +139,16 @@ const CSS = `
 .mossllm-pick button[data-bad="1"]{border-color:#c0504d;color:#e07b78}
 .mossllm-pick button[data-busy="1"]{color:#d9a441;border-color:#8a6d2f;
  animation:mossllm-spin 1s linear infinite}
+/* 「常用端点」贴在 api_base 行右端 —— 与 ↻ 同一套路：控件必须挨着它填的那一格。
+   行本身是 static 网格，设 relative 只为定位，不改宿主布局。 */
+[data-widgets-grid-node-id] [data-widget-name="api_base"]{position:relative}
+.mossllm-ep{position:absolute;right:4px;top:50%;transform:translateY(-50%);z-index:3;max-width:52%}
+.mossllm-ep select{max-width:100%;height:20px;padding:0 3px;border-radius:5px;
+ border:1px solid var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222);
+ color:var(--input-text,#ddd);cursor:pointer;font:11.5px/1 system-ui,sans-serif}
+.mossllm-ep select:hover{background:var(--comfy-menu-bg,#333)}
+/* 输入框右侧留出下拉的宽度，否则长 URL 的尾巴被盖住（只作用于 api_base 这一格）。 */
+[data-widgets-grid-node-id] [data-widget-name="api_base"] input{padding-right:116px}
 @keyframes mossllm-spin{to{transform:rotate(360deg)}}
 .mossllm-hintrow{flex:0 0 100%;display:flex;align-items:flex-start;gap:6px;min-width:0}
 .mossllm-hint{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;
@@ -167,6 +177,12 @@ const I18N = {
         fetched: "已拉到 %d 个模型，可直接下拉换",
         fetching: "拉模型清单中… %ds",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
+        // 常用端点下拉（api_base 行内的 select，不是 widget）
+        ep_custom: "自定义（不改）",
+        ep_deepseek: "DeepSeek", ep_opencode: "OpenCode", ep_odesign: "OpenDesign CoRouter",
+        ep_ollama: "Ollama 本地", ep_lmstudio: "LM Studio 本地",
+        epDone: "已填 %s 端点，点 ↻ 拉模型",
+        epTip: "选常用端点会把地址写进 api_base 并切到「外部 API」；「自定义」不动当前值",
         switched: "通道已切到外部 API",
         apiIdle: "⚠ 端点已填，但通道=本地 —— 本次走本地模型",
         apiIdleFix: "点此改用 API",
@@ -212,6 +228,13 @@ const I18N = {
         fetched: "%d models loaded — pick from the dropdown",
         fetching: "Fetching model list… %ds",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
+        // Preset endpoint select inside the api_base row (not a widget)
+        ep_custom: "Custom (leave as is)",
+        ep_deepseek: "DeepSeek", ep_opencode: "OpenCode", ep_odesign: "OpenDesign CoRouter",
+        ep_ollama: "Ollama (local)", ep_lmstudio: "LM Studio (local)",
+        epDone: "Filled %s endpoint; press the arrow to fetch models",
+        epTip: "Picking a known endpoint writes api_base and switches to External API;"
+            + " Custom leaves the current value alone",
         switched: "channel switched to external API",
         chLocalShort: "Local GGUF", chApiShort: "External API",
         mode_caption: "Caption image", mode_expand: "Expand prompt",
@@ -284,6 +307,18 @@ const MODE_SPEC = {
     inertOnCompile: ["channel", "dialect", "model"],
     pinnedOnCompile: ["target"],
 };
+/**
+ * 常用端点：值与顺序都取自 `docs/20` 的「已实测的 api_base」表（2026-11-05 实测）。
+ * 只放测过能直接跑通的那几个 —— 没实测过的地址不进来，免得「选中即失败」。
+ * 用户自己的网关不在表里：下拉末项「自定义」不改值，手填照样能跑（api_base 仍是 STRING）。
+ */
+const ENDPOINTS = [
+    { id: "deepseek", url: "https://api.deepseek.com/v1" },
+    { id: "opencode", url: "https://opencode.ai/inference/go/openai/v1" },
+    { id: "odesign", url: "https://amr-link.open-design.ai/v1" },
+    { id: "ollama", url: "http://127.0.0.1:11434/v1" },
+    { id: "lmstudio", url: "http://127.0.0.1:1234/v1" },
+];
 /** 接了线的参数不许藏（藏了用户找不到那根线接到哪）。 */
 const isLinked = (node, name) => (node.inputs || [])
     .some((i) => i && i.name === name && i.link != null);
@@ -591,6 +626,19 @@ function setChannel(node, v) {
 }
 
 /**
+ * 写 `api_base` 并走它自己的 callback：挂载时装过钩子（换端点清旧模型 + 切通道），
+ * 绕开 callback 就等于绕过那两件事 —— 用户会看到「填了端点，跑起来还去找本地 LLM」。
+ */
+function setApiBase(node, url) {
+    const w = widgetOf(node, "api_base");
+    if (!w || apiVal(node, "api_base") === url) return false;
+    w.value = url;
+    try { w.callback?.(url); } catch (e) { /* 老前端没有 callback */ }
+    app?.graph?.setDirtyCanvas?.(true, true);
+    return true;
+}
+
+/**
  * 把拉到的模型灌进 `api_model` 这个 combo 的选项。
  * 直接改 `options.values` 宿主不重画（实测下拉仍是旧列表），必须把同一个 widget
  * 在同索引 splice 一次触发响应式；位置不变 ⇒ 存档格数与顺序不受影响。
@@ -774,6 +822,65 @@ function pinPicker(node, st) {
         st.pick.autoDone = true;
         fetchModels(node, st);
     }
+    return true;
+}
+
+/** 下拉只是 `api_base` 的镜像：值以存档为准，每次 apply 对一次，所以不会漂。 */
+function syncEndpointSelect(node, st) {
+    const ep = st.ep;
+    if (!ep) return;
+    const L = t();
+    // 换语言 ⇒ 只改选项文字，不重建 select（别打断可能正开着的那次下拉）。
+    if (ep.L !== L) {
+        ep.L = L;
+        const items = [{ url: "", text: L.ep_custom }]
+            .concat(ENDPOINTS.map((p) => ({ url: p.url, text: L["ep_" + p.id] })));
+        ep.sel.textContent = "";
+        for (const it of items) {
+            const o = document.createElement("option");
+            o.value = it.url;
+            o.textContent = it.text;
+            ep.sel.append(o);
+        }
+        ep.sel.title = L.epTip;
+    }
+    const cur = apiVal(node, "api_base");
+    ep.sel.value = ENDPOINTS.some((p) => p.url === cur) ? cur : "";
+}
+
+/**
+ * 把「常用端点」贴在 api_base 行右端；宿主重建行元素后自愈（与 pinPicker 同一手法，
+ * 两处各管一格：↻ 在 api_model 行，这个在 api_base 行）。
+ * 它**不是 widget**：不进 `widgets_values`，存档格数一格都不动。
+ */
+function pinEndpoints(node, st) {
+    const row = rowOf(node, "api_base");
+    if (!row) return false;
+    if (!st.ep) {
+        const box = document.createElement("span");
+        box.className = "mossllm-ep";
+        const sel = document.createElement("select");
+        sel.className = "mossllm-epsel";
+        sel.dataset.mossllmEndpoint = "1";
+        // 行内控件同样不该把点击变成拖节点（与开关条同一套事件）。
+        for (const ev of ["pointerdown", "mousedown", "dblclick", "click"]) {
+            sel.addEventListener(ev, (e) => e.stopPropagation());
+        }
+        sel.onchange = (e) => {
+            e.stopPropagation();
+            const url = String(sel.value || "");
+            if (!url) { syncEndpointSelect(node, st); return; }   // 「自定义」：一个字节都不改
+            if (setApiBase(node, url)) {
+                const hit = ENDPOINTS.find((p) => p.url === url) || {};
+                noteOnce(node, st, t().epDone.replace("%s", t()["ep_" + hit.id] || url));
+            }
+            applySoon(node);
+        };
+        box.append(sel);
+        st.ep = { box, sel, L: null };
+    }
+    if (st.ep.box.parentElement !== row) row.appendChild(st.ep.box);
+    syncEndpointSelect(node, st);
     return true;
 }
 
@@ -1049,6 +1156,7 @@ function apply(node) {
     syncModelBase(node, st);
     ensureModelValue(node);
     pinPicker(node, st);
+    pinEndpoints(node, st);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;
         console.warn("%s: 这个前端定位不到参数行（旧版画布）⇒ 组标题不画，显隐照常生效", TAG);
