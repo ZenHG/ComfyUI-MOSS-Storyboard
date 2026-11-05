@@ -331,6 +331,21 @@ def push() -> None:
     die("push 四次都没成功 —— 网络层问题（本仓踩过：代理对 CONNECT/POST 打回 502，去代理直连可解）")
 
 
+#: 等 CI 的上限；超时按「未验证」处理，绝不把「还在跑」当绿。
+CI_TIMEOUT_SEC = 45 * 60
+
+
+def ci_verdict(status: str, conclusion: str) -> str:
+    """CI 状态 → "wait" / "ok" / "red"（纯函数，可离线单测）。
+
+    只有 status=completed 且 conclusion=success 才算绿；
+    「还在跑」「排队」「conclusion 为空」一律 wait —— 提前返回非 0 是实测踩过的竞态。
+    """
+    if (status or "").strip() != "completed":
+        return "wait"
+    return "ok" if (conclusion or "").strip() == "success" else "red"
+
+
 def wait_ci(slug: str) -> None:
     say("\n③ 等 CI（必须是**这次提交**的那一轮绿）")
     gh = shutil.which("gh")
@@ -357,13 +372,39 @@ def wait_ci(slug: str) -> None:
         FAILED.append("CI 未验证（找不到本次提交的运行）")
         say("  ⚠️ 没找到 headSha=%s 的运行" % head[:10])
         return
-    r = run([gh, "run", "watch", str(rid), "--repo", slug, "--exit-status", "--interval", "15"])
-    if r.returncode == 0:
-        say("  ✅ CI 绿（run %s）" % rid)
-    else:
-        die("🔴 CI 红（run %s）—— **已经推上去了**，但不能就此发 registry：\n"
-            "    `gh run view %s --repo %s --log-failed`\n"
-            "    修完再跑一次本脚本（registry 那步还没做，版本仍是旧的，安全）。" % (rid, rid, slug))
+    # 🔴 不再用 `gh run watch --exit-status`：实测它会**在 job 还在跑时提前返回非 0**
+    # （2026-11-05：run 41978675581 被判红，四分钟后整个 run 变绿）。
+    # 判据只认**终态**：`--json status,conclusion`，status=completed 才看 conclusion。
+    deadline = time.time() + CI_TIMEOUT_SEC
+    while True:
+        r = run([gh, "run", "view", str(rid), "--repo", slug,
+                 "--json", "status,conclusion,headSha"], quiet=True)
+        status, conclusion, sha = "", "", ""
+        try:
+            j = json.loads(r.stdout or "{}")
+            status = (j.get("status") or "").strip()
+            conclusion = (j.get("conclusion") or "").strip()
+            sha = (j.get("headSha") or "").strip()
+        except Exception:
+            status = conclusion = ""
+        if sha and sha != head:
+            die("🔴 CI 运行 %s 的 headSha=%s 不是本次提交 %s —— 别拿别人的绿当自己的。"
+                % (rid, sha[:10], head[:10]))
+        verdict = ci_verdict(status, conclusion)
+        if verdict == "ok":
+            say("  ✅ CI 绿（run %s）" % rid)
+            return
+        if verdict == "red":
+            die("🔴 CI 红（run %s，conclusion=%s）—— **已经推上去了**，但不能就此发 registry：\n"
+                "    `gh run view %s --repo %s --log-failed`\n"
+                "    修完再跑一次本脚本（registry 那步还没做，版本仍是旧的，安全）。"
+                % (rid, conclusion or "unknown", rid, slug))
+        if time.time() > deadline:
+            die("🔴 等 CI 超时（%d 分钟，run %s 仍是 %s/%s）。\n"
+                "    去看：`gh run view %s --repo %s`；确认没问题后可加 `--skip-ci-wait` 自行承担风险。"
+                % (CI_TIMEOUT_SEC // 60, rid, status or "unknown",
+                   conclusion or "-", rid, slug))
+        time.sleep(15)
 
 
 def _find_comfy() -> str:
