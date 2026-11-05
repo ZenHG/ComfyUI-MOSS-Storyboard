@@ -19,6 +19,39 @@
 
 ---
 
+## 0.4.3 — 2026-11-05
+
+**调参更快、端点更好填、Key 不再随工作流泄露。**
+
+- 参数面板加了「草稿 / 精修 / 恢复默认」三个一次性预设，只在展开「常用调优」时出现。
+- `compile` 更名为 `assemble`（中文显示「拼装」）：旧工作流打开自动转换，中文旧值也认。
+- `api_base` 那一行多了一个常用端点下拉（DeepSeek / OpenCode / CoRouter / Ollama / LM Studio），
+  选一下就把地址填好并切到外部 API；自己填的网关不会被覆盖。
+- 🔴 **Key 保存时会自动清空**：分享工作流不再带 Key。代价是**重开工作流要重填**；
+  想免填就设宿主进程的环境变量 `MOSS_LLM_API_KEY`。
+- 文档补了「一次大概多少钱」：四档场景的量级、批量成本、什么情况下才会截断。
+- 示例便签写清了默认模型文件从哪个仓库下载（含国内镜像与外部 API 两条路）。
+
+**升级动作**：无需改配置。若你把 Key 写在节点里，保存后会清空，重开时重填一次。
+
+<!-- EN -->
+
+**Faster tuning, an endpoint picker, and keys that no longer leak into shared workflows.**
+
+- Three one-shot presets (Draft / Fine / Reset) appear only while the tuning group is expanded.
+- `compile` is renamed to `assemble`; old workflows convert automatically, and the legacy
+  Chinese value is still accepted.
+- The `api_base` row now has a common-endpoint picker (DeepSeek / OpenCode / CoRouter / Ollama /
+  LM Studio). Picking one fills the URL and switches to the external API channel; a gateway you
+  typed yourself is never overwritten.
+- 🔴 **The API key is cleared when you save**, so a shared workflow no longer carries it.
+  You will have to re-enter it after reopening; set `MOSS_LLM_API_KEY` in the host environment
+  to skip typing it.
+- Docs now include a rough cost table (four scenarios), batch cost, and when truncation happens.
+- Example notes now say which repository the default model files come from (mirror and API paths).
+
+**Action required**: none. If you stored a key in the node, it is cleared on save; re-enter it once.
+
 ## 0.4.2 — 2026-11-03
 
 **LLM 运行时的三处易用性修复 + 更短的 README。**
