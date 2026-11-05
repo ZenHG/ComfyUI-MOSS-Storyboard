@@ -363,6 +363,7 @@ def missing_exe_error():
     """找不到 llama-server 时说什么：按「最省事 → 已有 → 不用本机」排序。"""
     return (
         "找不到 llama-server 可执行文件。三条路，任选一条：\n"
+        "    No llama-server executable found. Pick one of three options:\n"
         "  ① 节点内一键装（推荐）：把「运行时 / runtime」设为「更新到最新版」，再运行。\n"
         "     自动按本机后端选 CUDA/ROCm/Vulkan/SYCL/Metal/CPU；国内慢设 MOSS_LLM_MIRROR=<前缀>，\n"
         "     选错后端设 MOSS_LLM_BACKEND=cuda|vulkan|rocm|sycl|metal|cpu。\n"
@@ -594,12 +595,14 @@ class LlamaServer:
                 self.notes.append("端口 %d 上正是同一个实例（alias 相符），直接复用" % self.port)
                 return self
             self.notes.append(
-                "端口 %d 被另一个 llama-server 占用（它在跑 %s），不借用它的模型" % (self.port, got))
+                "端口 %d 被另一个 llama-server 占用（它在跑 %s），不借用它的模型\n"
+                "    Port is held by another llama-server; not borrowing its model." % (self.port, got))
         if not port_free(self.port):
             new_port = pick_free_port(self.port + 1)
             if new_port is None:
                 raise RuntimeError(
                     "端口 %d 起连续 20 个端口都被占用，无法启动侧车。\n"
+                    "    Ports from this one are all busy; cannot start the sidecar.\n"
                     "  请释放一个端口，或把节点的「端口」改到空闲值。" % self.port)
             self.notes.append("端口 %d 被占用，自动改用 %d" % (self.port, new_port))
             self.port = new_port

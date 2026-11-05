@@ -464,7 +464,8 @@ class MossPromptSmith:
             models, mmprojs = _scan_gguf()
             model_path = models.get(model, "")
             if not model_path or not Path(model_path).is_file():
-                raise ValueError("模型不存在或未选中：%r。请在下拉里选一个存在的 GGUF" % (model,))
+                raise ValueError("模型不存在或未选中：%r。请在下拉里选一个存在的 GGUF\n"
+                             "    Model missing or not selected. Pick an existing GGUF." % (model,))
             pe_text, pe_path = _pe_system_for(task, model_path)
 
         pack = load_pack(_PROMPTS_DIR)
@@ -517,7 +518,8 @@ class MossPromptSmith:
             models, mmprojs = _scan_gguf()
             model_path = models.get(model, "")
             if not model_path or not Path(model_path).is_file():
-                raise ValueError("模型不存在或未选中：%r。请在下拉里选一个存在的 GGUF" % (model,))
+                raise ValueError("模型不存在或未选中：%r。请在下拉里选一个存在的 GGUF\n"
+                             "    Model missing or not selected. Pick an existing GGUF." % (model,))
             if mmproj == _MMPROJ_NONE:
                 mmproj_path, pair_note = "", ""
             else:
@@ -529,7 +531,8 @@ class MossPromptSmith:
                     "任务=%s 需要视觉投影（mmproj），但没找到。三条路：\n"
                     "    ① 在「mmproj」下拉里显式选一个 *mmproj*.gguf；\n"
                     "    ② 换用 VL 一体模型（如 Qwen3-VL-4B-Instruct，不用另配 mmproj）；\n"
-                    "    ③ 把 mmproj 放到模型同目录。" % task)
+                    "    ③ 把 mmproj 放到模型同目录。\n"
+                    "    A vision projector (mmproj) is required but not found. Three options." % task)
             if image is not None and not mmproj_path and mmproj != _MMPROJ_NONE:
                 report.append(_VISION_HINT)
 
@@ -677,7 +680,7 @@ class MossPromptSmith:
         try:
             r = compile_ir(text, target or "moss-image")
         except ValueError as e:                      # CompileError 是 ValueError 的子类
-            raise ValueError("拼装失败：%s" % e) from e
+            raise ValueError("拼装失败：%s\n    Assemble failed; see above." % e) from e
 
         prompt = r["positive"]
         if not prompt.strip():
@@ -1283,12 +1286,14 @@ def _http_hint(code, body, url=""):
     text = body or ""
     if code == 403 and (_REGION_403.search(text) or text.lstrip().startswith("<")):
         return ("\n    这不是 Key 错：该服务商按出口地区 / 风控拒绝了此请求。"
-                "换一条能直连该地区的网络（或代理出口），或换服务商。")
+                "换一条能直连该地区的网络（或代理出口），或换服务商。\n"
+                "    Not a key problem: blocked by region or risk control. Use a network that reaches that region, or switch providers.")
     # 404 且路径里没有版本段：多半是把主机根当成了端点（Ollama / LM Studio 的经典填法）。
     path = urllib.parse.urlsplit(url or "").path
     if code == 404 and path and not re.search(r"/v\d", path):
         return ("\n    路径不对：OpenAI 兼容端点一般在 `/v1` 下 —— "
-                "把 api_base 写成 `http://主机:端口/v1`（Ollama 是 `http://127.0.0.1:11434/v1`）。")
+                "把 api_base 写成 `http://主机:端口/v1`（Ollama 是 `http://127.0.0.1:11434/v1`）。\n"
+                "    Wrong path: OpenAI-compatible endpoints usually live under /v1.")
     return ""
 
 
@@ -1309,10 +1314,12 @@ def _post(endpoint, payload, key=None):
         if e.code == 400:
             raise _Http400(body or "(无 body)") from e
         raise RuntimeError("服务端返回 HTTP %s（%s）：%s%s"
+                           "\n    Server returned an HTTP error; see the body above."
                            % (e.code, urllib.parse.urlsplit(endpoint).netloc,
                               body or "(无 body)", _http_hint(e.code, body, endpoint))) from e
     except Exception as e:
         raise RuntimeError("请求失败（%s，请求体 %.1f MB）：%r\n%s"
+                           "\n    Request failed; see the exception above."
                            % (urllib.parse.urlsplit(endpoint).netloc,
                               len(data) / 1048576.0, e,
                               _net_hint(endpoint, e))) from e
@@ -1346,7 +1353,8 @@ def _loads(raw):
         head = " ".join(text.lstrip()[:120].split())
         if head.startswith("<"):
             raise RuntimeError("这个地址返回的是网页，不是接口数据（多半路径不对或需要登录）：%s…"
-                               "检查 api_base 是不是少了 /v1\n" % head[:60]) from e
+                               "检查 api_base 是不是少了 /v1\n"
+                               "    This URL returned a web page, not API data (wrong path or login required)." % head[:60]) from e
         raise RuntimeError("响应不是 JSON：%s" % (head[:120] or "(空)")) from e
 
 
@@ -1397,7 +1405,8 @@ def list_models(api_base, api_key="", timeout=15):
     """
     root = (api_base or "").strip().rstrip("/")
     if not root:
-        raise ValueError("要拉模型清单，请先填「api_base」。")
+        raise ValueError("要拉模型清单，请先填「api_base」。\n"
+                         "    Fill in api_base before fetching the model list.")
     for tail in ("/chat/completions", "/messages", "/responses"):
         if root.endswith(tail):
             root = root[: -len(tail)]
@@ -1454,7 +1463,8 @@ def list_models(api_base, api_key="", timeout=15):
         # 还没开跑的候选直接取消；在飞的由各自超时收尾，不拖住返回值。
         pool.shutdown(wait=False, cancel_futures=True)
     raise RuntimeError("拉不到模型清单：\n%s\n"
-                       "确认 api_base / Key 正确；服务商不提供模型列表时手填 api_model 即可。" %
+                       "确认 api_base / Key 正确；服务商不提供模型列表时手填 api_model 即可。\n"
+                       "    Could not fetch the model list; check api_base and the key." %
                        "\n".join(errs[-3:]))
 
 
@@ -1468,9 +1478,11 @@ def _api_setup(api_base, api_model, api_key):
     if not base:
         raise ValueError("通道=外部 API 必须填「api_base」。"
                          "例：`https://api.openai.com/v1`、`https://ark.cn-beijing.volces.com/api/v3`、"
-                         "`http://127.0.0.1:11434/v1`（Ollama）")
+                         "`http://127.0.0.1:11434/v1`（Ollama）\n"
+                         "    channel=External API requires api_base.")
     if not (api_model or "").strip():
-        raise ValueError("通道=外部 API 必须填「api_model」（服务商给的模型 id）。")
+        raise ValueError("通道=外部 API 必须填「api_model」（服务商给的模型 id）。\n"
+                         "    channel=External API requires api_model (the provider model id).")
     key, src = _api_creds(api_key)
     return _proto.endpoint(base, api_model), key, src
 

@@ -841,6 +841,22 @@ def main():
         nodes._get_json = real_get
 
 
+    # 15 条高频报错必须中英双写（T04）：英文行紧跟中文行、且 ≥20 个 ASCII 字母
+    import re as _re
+    root = Path(__file__).resolve().parent.parent
+    hits = 0
+    for rel in ("moss_llm/nodes.py", "moss_llm/server.py"):
+        lines = (root / rel).read_text(encoding="utf-8").splitlines()
+        for i, ln in enumerate(lines):
+            s = ln.strip()
+            if not s.startswith('"    '):
+                continue
+            if len([c for c in s if c.isascii() and c.isalpha()]) < 20:
+                continue
+            if i and _re.search(r"[\u4e00-\u9fff]", lines[i - 1]):
+                hits += 1
+    check("15 条高频报错中英双写（英文紧跟中文、≥20 个 ASCII 字母）", hits >= 15, "命中 %d 条" % hits)
+
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     for f in FAIL:
         print("  - " + f)
