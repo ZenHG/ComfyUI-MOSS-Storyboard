@@ -8,7 +8,7 @@
    被忽略——用户不知道该往里填什么、两个输出的 state 又该拿去干嘛。
 
 2. `examples/llm-compile-zero-model.json` —— **第一次打开就能跑**的入门工作流：
-   `MossPromptSmith` 的 `task=compile`（把一段 IR 编译成某后端提示词），
+   `MossPromptSmith` 的 `task=assemble`（把一段 IR 拼装成某后端提示词），
    **不开模型、不加载权重、毫秒级**。为什么值得单列：其余三个 `llm-*` 示例都要 6G
    档模型；新用户第一次拖进画布时最需要的是「按 Run 就有输出」，而不是先配侧车。
 
@@ -32,11 +32,11 @@ OUT_LLM_COMPILE = os.path.join(ROOT, "examples", "llm-compile-zero-model.json")
 #: 只接线的类型（不是 widget）——与 `tools/check_ui_workflow.LINK_ONLY` 同一口径。
 LINK_ONLY = {"MODEL", "CLIP", "VAE", "IMAGE", "LATENT", "CONDITIONING", "MASK", "SIGMAS"}
 
-#: 生成示例时写进 `model` 下拉的值。compile 任务**不会加载它**，写一个稳定值只是
+#: 生成示例时写进 `model` 下拉的值。assemble 任务**不会加载它**，写一个稳定值只是
 #: 为了让「同一份示例在任何机器上槽位一致」；CI 用同名空文件占位（见 ci.yml）。
 ZERO_WEIGHT_MODEL = "GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
 
-#: 零权重示例里贴的 IR：人像单主体，最小可编译形状（compile 不需要任何模型）。
+#: 零权重示例里贴的 IR：人像单主体，最小可拼装形状（assemble 不需要任何模型）。
 ZERO_WEIGHT_IR = json.dumps({
     "task": "t2i",
     "canvas": {"aspect_ratio": "1:1"},
@@ -92,18 +92,18 @@ NOTE = """## 草稿编译（`MossPromptCompiler`）
 """
 
 #: 零权重入门示例的说明卡。⚠ 不要用反引号（ComfyUI 的 MarkdownNote 渲染不支持嵌套）。
-NOTE_ZERO = """## 第一次打开：零模型编译（LLM Prompt · task=compile）
+NOTE_ZERO = """## 第一次打开：零模型拼装（LLM Prompt · task=assemble）
 
 **不用下模型、不占显存、按 Run 就有输出。** 这是最快的「装好了吗」自检：
 
 ### 怎么跑
 1. 拖进画布 → 直接按 **Run**（队列里秒出，通常几十毫秒量级）。
 2. 看右侧两个预览：
-   - 「提示词」= 编译结果；
-   - 「report」= 这次编译改了什么（方言 / 长度 / 丢弃项）。
+   - 「提示词」= 拼装结果；
+   - 「report」= 这次拼装改了什么（方言 / 长度 / 丢弃项）。
 
 ### 它是什么
-左上「📝 文字输入」里是一段 **IR（JSON）**；节点把 IR 编译成 **target** 选的图像后端提示词。
+左上「📝 文字输入」里是一段 **IR（JSON）**；节点把 IR 拼装成 **target** 选的图像后端提示词。
 本示例 target=moss-image。改 target 可看 qwen-image-2_1 / krea2 / flux3 / sdxl 的方言差异。
 
 ### 下一步
@@ -204,7 +204,7 @@ def build_compiler():
 
 
 # ─────────────────────────────────────────────────────────────
-# 示例 2：零权重入门（MossPromptSmith · task=compile）
+# 示例 2：零权重入门（MossPromptSmith · task=assemble）
 # ─────────────────────────────────────────────────────────────
 
 def load_smith_class():
@@ -272,9 +272,9 @@ def build_llm_compile():
     names = expected_widgets(cls)
     specs = widget_specs(cls)
 
-    #: 覆盖项：compile 只需要 task/text/target；model 写稳定值（不加载，只保证槽位可复现）。
+    #: 覆盖项：assemble 只需要 task/text/target；model 写稳定值（不加载，只保证槽位可复现）。
     overrides = {
-        "task": "compile",
+        "task": "assemble",
         "channel": "local",
         "model": ZERO_WEIGHT_MODEL,
         "text": ZERO_WEIGHT_IR,
@@ -301,10 +301,10 @@ def build_llm_compile():
     nodes.append(node(2, "MossPromptSmith", (0, -260), (480, 700), widgets,
                       inputs=[inp("image", "IMAGE")],
                       outputs=[out("提示词", "STRING"), out("report", "STRING")],
-                      title="🧠 LLM Prompt · zero-model compile", order=1))
+                      title="🧠 LLM Prompt · zero-model assemble", order=1))
     nodes.append(node(3, "PreviewAny", (560, -260), (440, 330),
                       [], inputs=[inp("source", "*", 1)],
-                      outputs=[out("STRING", "STRING")], title="编译出的提示词", order=2, ours=False))
+                      outputs=[out("STRING", "STRING")], title="拼装出的提示词", order=2, ours=False))
     nodes.append(node(4, "PreviewAny", (560, 90), (440, 350),
                       [], inputs=[inp("source", "*", 2)],
                       outputs=[out("STRING", "STRING")], title="report（改了什么）", order=3, ours=False))

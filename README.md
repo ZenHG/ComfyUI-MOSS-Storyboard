@@ -57,7 +57,7 @@ Download the three files from the official tutorial
 
 - Optional distilled LoRA: any `*.safetensors` → `<ComfyUI>/models/loras/`. Without it use **50 steps / cfg 3 / euler / sgm_uniform**;
   with a 4-step LoRA use **4 steps / cfg 1.0**.
-- **LLM node:** `compile` needs **no model**, and the `api` channel needs no local weights. For `local`, put GGUF files under
+- **LLM node:** `assemble` needs **no model**, and the `api` channel needs no local weights. For `local`, put GGUF files under
   `<ComfyUI>/models/LLM/` or `<ComfyUI>/models/text_encoders/` (both scanned recursively). `caption` / `edit` need a vision model
   **plus** its `mmproj` in the same folder; `expand` needs a text model only.
 
@@ -110,7 +110,7 @@ To run PE-I2I (image + edit instruction → precise edit prompt):
    `must_keep`, `panels` and `style_lock` are bypassed and named in the same report.
 
 PE-T2I (`task=expand`) needs a separate T2I prompt file and weights — the code branch exists but this
-pack neither ships nor installs any T2I weights. `caption`, `compile` and the `api` channel never
+pack neither ships nor installs any T2I weights. `caption`, `assemble` and the `api` channel never
 enter PE. Reference: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
 
 ## 2 · Troubleshooting

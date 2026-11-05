@@ -9,11 +9,11 @@ PromptSmith / PromptCheck，合成 `MossPromptSmith` 一个全功能节点；对
 
 四件事，靠 `task` 分流（见 `_TASKS`）：
 
-    反推 caption / 扩写 expand / 编辑指令 edit   → 模型在环，llama-server 或外部 API
-    编译 compile                                 → **零模型**，IR 直接渲染成后端方言
+    反推 caption / 扩写 expand / 编辑指令 edit  → 模型在环，llama-server 或外部 API
+    拼装 assemble                              → **零模型**，IR 直接渲染成后端方言
 
-`compile` 是 2026-10-31 合流时接进来的：`moss_llm/smith/` 那套 IR 编译器本来只有 CLI，
-接上之后同一个节点在有权重时能出词、没权重时也能用——确定性、毫秒级、可复现，
+`assemble`（原名 `compile`）是 2026-10-31 合流时接进来的：`moss_llm/smith/` 那套 IR
+编译器本来只有 CLI，接上之后同一个节点在有权重时能出词、没权重时也能用——确定性、毫秒级、可复现，
 而且顺带拿到了方言机检与 M1–M6 不变式。它不 import 侧车，也不读任何权重。
 
 通用性（开源前提）：不绑定任何具体模型/仓库——模型与 mmproj 从
@@ -64,10 +64,10 @@ CATEGORY = "LLM"
 #: 中文只说在显示层 —— `web/moss_sb_i18n.js` 的 `COMBOS`（切中文时显示），
 #: 切英文时回落成下面这些 id。把中文写进 `widgets_values` 会让英文用户的工作流里
 #: 出现中文，也让值变成"已经翻译过一次"的一次性数据。
-_TASKS = ["caption", "expand", "edit", "compile"]
+_TASKS = ["caption", "expand", "edit", "assemble"]
 _DIALECTS = ["moss_image", "moss_storyboard", "generic_natural", "generic_tags",
              "cinematic", "cn_natural"]
-#: `task=compile` 的目标后端。**与 `dialect` 是两件事**：
+#: `task=assemble` 的目标后端。**与 `dialect` 是两件事**：
 #: dialect 是「让模型按哪种方言写字」，target 是「让确定性编译器往哪个后端渲染」。
 #: 列表取自 `smith/data/model-registry.yaml`（唯一事实源），下面这份是它的镜像，
 #: 只用于 V1 参数表——组合框必须能在不 import 编译器时也有值。
@@ -98,8 +98,11 @@ _THINKING = ["off", "on"]
 
 #: 旧稿兼容：2026-10-30 的初版把中文写进了枚举值。载入旧工作流时在这里归一，
 #: 归一过的字段写进 report（不静默改用户的图）。
+#: `assemble` 这一格有**两个**键：`编译` 是中文旧稿，`compile` 是英文旧稿
+#: （2026-11-05 改名前的值）。缺任一条 ⇒ 那一类存档打开即报「未知任务」。
 _LEGACY_VALUES = {
-    "反推": "caption", "扩写": "expand", "编辑指令": "edit", "编译": "compile",
+    "反推": "caption", "扩写": "expand", "编辑指令": "edit", "编译": "assemble",
+    "compile": "assemble",
     "本地 GGUF": "local", "外部 API": "api",
     "简短": "brief", "标准": "standard", "详细": "detailed",
     "自动": "auto", "中文": "zh", "英文": "en",
@@ -205,7 +208,7 @@ def _pe_system_prompt(model_path, kind: str = "t2i"):
 
 
 def _pe_system_for(task, model_path):
-    """PE 模式：expand 只认 T2I，edit 只认 I2I；caption/compile 不启用。"""
+    """PE 模式：expand 只认 T2I，edit 只认 I2I；caption/assemble 不启用。"""
     kind = {"expand": "t2i", "edit": "i2i"}.get(task)
     if not kind:
         return "", ""
@@ -219,7 +222,7 @@ def _pe_system_for(task, model_path):
 
 
 class MossPromptSmith:
-    """LLM 提示词节点：反推 / 扩写 / 编辑指令 / 编译，一个 llama-server sidecar 跑完即还显存。"""
+    """LLM 提示词节点：反推 / 扩写 / 编辑指令 / 拼装，一个 llama-server sidecar 跑完即还显存。"""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -233,8 +236,9 @@ class MossPromptSmith:
                 "task": (_TASKS, {"default": "caption",
                     "tooltip": "反推=看图写提示词（必须接图片）；扩写=把想法扩成完整画面描述（必须填文字）；"
                                "编辑指令=图生图的一条改法（接图片+填要改什么）；"
-                               "编译=把一段 IR 直接渲染成提示词（**不开模型**、毫秒级，"
-                               "IR 贴在「文字输入」里，方向由 target 选）"}),
+                               "拼装=把一份结构化草稿（IR，JSON）拼成成品提示词；不加载模型、毫秒级。"
+                               "IR 来自官方 prompt-enhancer / 本包 smith 子包"
+                               "（贴在「文字输入」里，方向由 target 选）"}),
                 "channel": (_CHANNELS, {"default": "local",
                     "tooltip": "出词通道。本地 GGUF=起 llama-server 侧车（不联网、跑完还显存）；"
                                "外部 API=任何 OpenAI 兼容端点（OpenAI/火山方舟/智谱/Kimi/MiniMax/"
@@ -250,7 +254,7 @@ class MossPromptSmith:
                                "反推任务需要视觉能力：主模型+mmproj，或直接用 VL 一体模型"}),
                 "text": ("STRING", {"default": "", "multiline": True,
                     "tooltip": "扩写=你的想法（固定项写进 must_keep，不要混在这里）；"
-                               "编辑指令=要改什么；编译=一段 IR（JSON 或 YAML，"
+                               "编辑指令=要改什么；拼装=一段 IR（JSON 或 YAML，"
                                "也可以填 .json/.yaml 文件路径）。反推任务下留空"}),
                 "length": (_LENGTHS, {"default": "standard",
                     "tooltip": "简短 80–120 词 / 标准 160–260 词 / 详细 280–360 词。"
@@ -360,10 +364,10 @@ class MossPromptSmith:
                 # 放在**最后**：ComfyUI 的 widgets_values 是按位置存的，插在中间会让
                 # 老工作流的每个值往后错一位。新增控件只能往后加。
                 "target": (_TARGETS, {"default": "moss-image",
-                    "tooltip": "仅 task=编译 用：往哪个后端渲染。moss-image=MOSS 单图；"
+                    "tooltip": "仅 task=拼装 用：往哪个后端渲染。moss-image=MOSS 单图；"
                                "qwen-image-2_1 / krea2 / flux3 / flux1_dev / sdxl 是各自的方言；"
                                "minimax-h3 是视频（IR 里要有 timeline）。"
-                               "编译是确定性 Python，不开模型、毫秒级、可复现"}),
+                               "拼装是确定性 Python，不开模型、毫秒级、可复现"}),
             },
         }
 
@@ -385,14 +389,14 @@ class MossPromptSmith:
     _degraded = []
     _thinking_unsupported = False
     DESCRIPTION = ("通用 LLM 提示词节点（不限 MOSS）：反推（看图写提示词）/ 扩写（想法→完整画面描述）/ "
-                   "编辑指令（图生图一条改法）/ 编译（IR→7 个后端方言，零模型）。"
-                   "前三个走 llama-server sidecar，跑完释放显存；编译是确定性 Python，"
+                   "编辑指令（图生图一条改法）/ 拼装（结构化草稿→7 个后端方言，零模型）。"
+                   "前三个走 llama-server sidecar，跑完释放显存；拼装是确定性 Python，"
                    "毫秒级可复现。输出可直接接 CLIPTextEncode 或采样器 positive。")
     SEARCH_ALIASES = ["llm", "llm prompt", "prompt llm", "prompt generator",
                       "prompt smith", "reverse prompt", "caption", "expand", "prompt enhance",
                       "反推", "扩写", "caption", "expand", "洗图", "提示词生成", "提示词节点",
-                      "本地LLM", "gguf", "compile", "ir", "编译", "确定性", "flux", "sdxl", "krea",
-                      "通用提示词", "prompt generator"]
+                      "本地LLM", "gguf", "compile", "assemble", "ir", "编译", "拼装",
+                      "确定性", "flux", "sdxl", "krea", "通用提示词", "prompt generator"]
 
     # ------------------------------------------------------------------ 主流程
 
@@ -435,10 +439,10 @@ class MossPromptSmith:
         if legacy:
             report.append("旧稿枚举值已归一：" + "；".join(legacy))
 
-        # 编译任务先走：它**不开模型**，下面所有通道/权重/显存参数都与它无关。
+        # 拼装任务先走：它**不开模型**，下面所有通道/权重/显存参数都与它无关。
         # 放在这里而不是拆成第二个节点，是因为「一个节点吃下全部功能」是本包的形态选择
         # （见模块文档）——多一个节点就多一层「配置在哪、提示词从哪来」的追踪成本。
-        if task == "compile":
+        if task == "assemble":
             return self._compile(text, target, report, t0)
 
         # 任务边界与通道无关，先判：反推/编辑必须接图；扩写必须有文字
@@ -649,7 +653,7 @@ class MossPromptSmith:
             return _strip_fences(raw2), None, usage
         return _pick_prompt(obj), obj, usage
 
-    # ------------------------------------------------------------------ 确定性编译
+    # ------------------------------------------------------------------ 确定性拼装
 
     def _compile(self, text, target, report, t0):
         """IR → 提示词。零模型、零网络、毫秒级。
@@ -658,27 +662,29 @@ class MossPromptSmith:
         事实不变；再叠上 lint（方言规则）与 M1–M6 不变式（不需要 ground truth 的自检）。
         报告要能让用户判断「这段提示词为什么长这样」，所以把砍掉的子句、越界的预算、
         失败的判据逐条列出来，不只给一个「成功」。
+
+        方法名保留 `_compile`：它是内部实现名，不是存档里的 task 值（对外叫「拼装」）。
         """
         try:
             from .smith.api import compile_ir
         except Exception as e:                       # 编译器目录被删/损坏
             raise RuntimeError(
-                "编译任务需要 `moss_llm/smith/`（语义 IR 与多方言编译器），但它加载失败：%r\n"
+                "拼装任务需要 `moss_llm/smith/`（语义 IR 与多方言编译器），但它加载失败：%r\n"
                 "    其它三个任务（反推/扩写/编辑指令）不依赖它，可以照常用。" % (e,)) from e
 
         try:
             r = compile_ir(text, target or "moss-image")
         except ValueError as e:                      # CompileError 是 ValueError 的子类
-            raise ValueError("编译失败：%s" % e) from e
+            raise ValueError("拼装失败：%s" % e) from e
 
         prompt = r["positive"]
         if not prompt.strip():
-            raise RuntimeError("编译结果为空：IR 里没有可渲染的内容。"
+            raise RuntimeError("拼装结果为空：IR 里没有可渲染的内容。"
                                "检查 entities 是否为空、importance 是否全为 0。")
 
         n_err = sum(1 for i in r["issues"] if i["level"] == "error")
         n_warn = len(r["issues"]) - n_err
-        report.append("编译：%s｜%s｜%d 个实体｜tokens %s/%s｜耗时 %.0fms"
+        report.append("拼装：%s｜%s｜%d 个实体｜tokens %s/%s｜耗时 %.0fms"
                       % (r["target"], "确定性（未调用模型）", r["ir"]["entities"],
                          r["token_count"], r["token_limit"] or "不限",
                          (time.time() - t0) * 1000))

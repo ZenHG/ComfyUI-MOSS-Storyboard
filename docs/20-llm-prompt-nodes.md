@@ -78,7 +78,7 @@ Ollama 的原生 `/api/chat` 与云端的 `/api/tags` 不在这条线格式内�
   `confidence.risks` / `omitted_low_confidence` / `uncertainties` / `open_choices` 的条数与内容。
   「好不好看 / 像不像」不交给自动判官。
 - 主判据链的失败面全部 raise 带操作指引的中文错误：反推没接图、扩写没填字、mmproj 找不到、
-  llama-server 起不来、panels 越界。`compile` 首段直接返回、PE 分支跳过 `_checks`，这两条路径
+  llama-server 起不来、panels 越界。`assemble` 首段直接返回、PE 分支跳过 `_checks`，这两条路径
   **不走主判据链**；PE 模式下被绕过的参数写进 `report`，接了参考图却没有视觉投影时也会出声，
   不静默忽略。
 - 两处**出声的**降级，不假装成功：MTP 起不来 → 回退普通模式；服务端 400 拒
@@ -169,7 +169,7 @@ MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外�
 任务边界报错、旧稿中文枚举归一、mmproj 宽度配对（同名 > 同目录唯一 > 全局唯一，多候选报错），
 以及 2026-10-31 合流后新增的四组：侧车启动命令（fit / KV 量化 / ubatch / parallel /
 MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不加）、图像预处理（张量入口
-最长边 1536 + JPEG 444 + 透明合成白底）、`task=compile`（零模型、确定性、换后端换方言、
+最长边 1536 + JPEG 444 + 透明合成白底）、`task=assemble`（零模型、确定性、换后端换方言、
 坏 IR 与未知后端的报错话术、`target` 与 registry 不许漂移）、以及
 `smith.llm.LlamaServer is server.LlamaServer` 这条**防再抄一份**的断言。
 
@@ -181,7 +181,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 ✅ **子包节点已与核心 7 节点共用同一套 i18n 表**（`web/moss_sb_i18n.js`）：
 `NODES`（后端当前显示名 `LLM Prompt`；更早的 `MOSS Prompt Smith` 收进 legacy，老工作流标题也能换）、
 `LABELS`（38 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
-`COMBOS`（任务/通道/方言/编译目标/篇幅/语言/思考/运行时/mmproj/KV 精度/开关，共 17 组）、
+`COMBOS`（任务/通道/方言/拼装目标/篇幅/语言/思考/运行时/mmproj/KV 精度/开关，共 17 组）、
 `TIPS`（38 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
 **存档值一律 ASCII id**（`caption` / `local` / `standard` …），中文只在显示层 ——
 英文用户的工作流里不会出现中文枚举；初版已写进存档的中文由 `_LEGACY_VALUES` 在运行时就地
@@ -272,7 +272,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
   在干什么」。完整说明（要不要视觉塔、要不要图）挂在悬停 `title` 上，不占视觉宽度。
 - 状态块第二个用途：**执行前就指出还缺什么** ——「⚠ 本机没有 GGUF 模型」/「⚠ 还没填 api_base」/
   「⚠ 还没选模型名」。点它只把对应分组展开，**不替用户改值**（修复动作是填一个值，不是按一个按钮）。
-  **Key 留空不算缺**：Ollama / LM Studio / vLLM 本来就不要 Key；`compile` 任务不开模型，也不报缺。
+  **Key 留空不算缺**：Ollama / LM Studio / vLLM 本来就不要 Key；`assemble` 任务不开模型，也不报缺。
 - 两者与「通道矛盾」共用同一个琥珀色块，且天然互斥：通道矛盾要求 `api_base` 非空，缺端点要求它为空。
 
 已知代价（不装成优点）：点「全部展开」时，参数顺序决定标题仍会出现 3 次「本地引擎」（组被切断），
@@ -285,7 +285,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 开关条在参数上方且是 `widgets[0]`（**重开后也自愈回首位**）/ 悬停换说明时开关条高度与参数 top 都不动（不抖）/
 节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 38 个 `isWidgetVisible` /
 **存盘→重开 `widgets_values` 逐位一致** / 折叠状态不进存档 / 两个同型节点各自独立 /
-只作用于本节点 / 页面无 JS 异常 / **按 `task` 动态常驻**（compile 提 `target`、给 3 个 inert
+只作用于本节点 / 页面无 JS 异常 / **按 `task` 动态常驻**（assemble 提 `target`、给 3 个 inert
 控件加文字标注）/ api 工作流冷载入自动聚焦 / 切组焦点保护 / **拉取模型有可见进度、拉完自己展开下拉、换端点不留旧模型名** /
 **填端点即切通道、通道=本地时状态块显眼且可一键改道、旧存档打开自动对齐** /
 **模式摘要随 task·channel 变、执行前指出缺项且点开对应组、Key 空不算缺**。
@@ -297,7 +297,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 **2026-10-31 合流后的依赖方向是单向的**：`smith` 可以 import 父包的运行时
 （侧车 `server.py` / 图像预处理 `vision.py` / 装包器 `runtime_install.py`），
-父包**只在 `task=compile` 时懒加载** `smith.api`。所以删掉 `moss_llm/smith/`
+父包**只在 `task=assemble` 时懒加载** `smith.api`。所以删掉 `moss_llm/smith/`
 不影响另外三个任务、也不影响核心 7 节点（`moss_llm.smith_available()` 用
 `find_spec` 探测，平时不付加载成本）。哪一半归谁、为什么这么切，见
 历史记录（git 历史）。
@@ -305,12 +305,12 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 | | `MossPromptSmith` 节点 | `moss_llm.smith` |
 |---|---|---|
 | 形态 | 一次 LLM 调用 → 成品提示词 + report | 结构化 IR ⇄ N 个方言，确定性编译 |
-| 用模型吗 | 必须（`compile` 任务除外） | 可选（只有反推/扩写用，编译不用）|
+| 用模型吗 | 必须（`assemble` 任务除外） | 可选（只有反推/扩写用，拼装不用）|
 | 换方言 | 换 `dialect` 旋钮，重出一次词 | 同一份 IR 直接编译，事实集合不变 |
 | 自检 | `_checks` 报数不裁决 | 6 条不变式 + 往返校验 + 覆盖率 |
 | H3 | 不管 | 时间线进 IR 一等维度 |
 
-**节点里的 `task=compile` 就是这一层的入口**：把 IR 贴进「文字输入」，
+**节点里的 `task=assemble` 就是这一层的入口**：把 IR 贴进「文字输入」，
 `target` 选后端，零模型、毫秒级、可复现，report 里带方言机检与 M1–M6 结论。
 没有权重也能用——这是合流带来的最大可用性变化。
 

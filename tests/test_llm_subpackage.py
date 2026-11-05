@@ -437,12 +437,12 @@ def main():
                   any("白底" in n for n in pf.notes), str(pf.notes))
             check("文件入口同样出 JPEG", pf.data_url.startswith("data:image/jpeg;base64,"))
 
-    print("\n== 12. 合流：compile 任务（零模型、确定性、可断言）==")
+    print("\n== 12. 合流：assemble / 拼装任务（零模型、确定性、可断言）==")
     ex_dir = os.path.join(ROOT, "moss_llm", "smith", "examples")
     with open(os.path.join(ex_dir, "01-portrait-photoreal.json"), encoding="utf-8") as f:
         ir_text = f.read()
     # channel=api 且 api_base 为空：真去调模型会立刻报错。能出结果就证明没走模型。
-    base_c = {"task": "compile", "channel": "api", "api_base": "",
+    base_c = {"task": "assemble", "channel": "api", "api_base": "",
               "dialect": "moss_image", "model": "(未找到 GGUF 模型)", "text": ir_text,
               "length": "standard", "temperature": 0.2, "max_tokens": 512, "seed": 0}
     out, rep = smith.smith(target="moss-image", **base_c)
@@ -483,8 +483,17 @@ def main():
     check("节点的 target 列表与 registry 双向一致（%d 个，镜像不许漂移）"
           % len(nodes._TARGETS), not extra and not missing,
           "多=%s 漏=%s" % (extra, missing))
-    check("compile 在任务枚举里", "compile" in nodes._TASKS)
-    check("编译任务的中文旧值也有归一映射", nodes._LEGACY_VALUES.get("编译") == "compile")
+    check("拼装在任务枚举里", "assemble" in nodes._TASKS)
+    check("拼装的中文旧值也有归一映射", nodes._LEGACY_VALUES.get("编译") == "assemble")
+    # 改名前的英文值 `compile`：旧存档打开必须仍能跑。走的是既有 _LEGACY_VALUES，
+    # 删掉那条别名后这里立刻红（会掉进模型通道、报缺 api_base，或报「未知任务」）。
+    try:
+        o_old, rep_old = smith.smith(target="moss-image", **{**base_c, "task": "compile"})
+    except Exception as e:                       # 别名丢了 ⇒ 这里接住，判红而不是崩
+        o_old, rep_old = None, "（抛异常）%s" % e
+    check("英文旧值 compile 仍能用（归一成 assemble，输出与拼装逐字节相同）",
+          o_old == out and any("compile→assemble" in ln for ln in rep_old.splitlines()),
+          rep_old.splitlines()[0][:90])
 
     print("\n== 13. 合流：llama-server 只有一个查找入口，转发不是副本 ==")
     paths_mod = importlib.import_module("moss_sb_t.moss_llm.smith.paths")

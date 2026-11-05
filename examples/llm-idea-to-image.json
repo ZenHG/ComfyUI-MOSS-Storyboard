@@ -207,7 +207,7 @@
    "inputs": [
     {
      "name": "task",
-     "type": "['CAPTION', 'EXPAND', 'EDIT', 'COMPILE']",
+     "type": "['CAPTION', 'EXPAND', 'EDIT', 'ASSEMBLE']",
      "link": null,
      "widget": {
       "name": "task"
@@ -913,7 +913,7 @@
    "inputs": [
     {
      "name": "task",
-     "type": "['CAPTION', 'EXPAND', 'EDIT', 'COMPILE']",
+     "type": "['CAPTION', 'EXPAND', 'EDIT', 'ASSEMBLE']",
      "link": null,
      "widget": {
       "name": "task"

@@ -57,7 +57,7 @@
 
 - 可选蒸馏 LoRA：任意 `*.safetensors` → `<ComfyUI>/models/loras/`。不叠它用 **50 步 / cfg 3 / euler / sgm_uniform**；
   叠 4 步 LoRA 用 **4 步 / cfg 1.0**。
-- **LLM 节点**：`compile` **不需要任何模型**，`api` 通道也不需要本地权重。走 `local` 时，GGUF 放
+- **LLM 节点**：`assemble` **不需要任何模型**，`api` 通道也不需要本地权重。走 `local` 时，GGUF 放
   `<ComfyUI>/models/LLM/` 或 `<ComfyUI>/models/text_encoders/` 下任意子目录（两处都会递归扫描）。`caption` / `edit`
   要视觉模型 **+** 同目录的 `mmproj`；`expand` 只要文本模型。
 
@@ -107,7 +107,7 @@
    `panels`、`style_lock` 本次被绕过，report 会逐一点名。
 
 PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但本包既不随包分发、也不安装任何 T2I 权重。
-`caption` / `compile` 与 `api` 通道永不进入 PE。详见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
+`caption` / `assemble` 与 `api` 通道永不进入 PE。详见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
 
 ## 2 · 常见问题
 

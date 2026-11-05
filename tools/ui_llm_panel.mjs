@@ -97,7 +97,7 @@ check("悬停只换说明文字：开关条高度与下面参数的 top 都不�
 // —— (a) 单组视图 ——
 await clickChip("tune");
 r = await visRows(ID);
-check("点「常用调优」⇒ 5 + 12 = 17 行（seed 的控件不单独占行；target 只在 compile 时有用，也归这组）",
+check("点「常用调优」⇒ 5 + 12 = 17 行（seed 的控件不单独占行；target 只在 assemble 时有用，也归这组）",
     r.shown === 17 && r.heads.length === 1 && r.heads[0] === "常用调优", JSON.stringify(r));
 // 2026-10-30 点名的那条：旧版开关条在底部，点开一组它就往下跑；现在必须原地不动。
 const layout1 = await page.evaluate(() => {
@@ -500,7 +500,7 @@ const t14 = await page.evaluate(async () => {
     const clearHover = () => document.body.dispatchEvent(
         new PointerEvent("pointerover", { bubbles: true }));
 
-    W("task").value = "compile";
+    W("task").value = "assemble";
     globalThis.MOSS_SB_LLM_PANEL.focus(null);
     await wait(1900);
     clearHover();
@@ -516,14 +516,14 @@ const t14 = await page.evaluate(async () => {
     const cap = { names: shown(), inert: inert(), hint: hint() };
     return { c, cap };
 });
-check("compile ⇒ target 提为常驻（6 行），不再折叠在 tune 组",
+check("assemble ⇒ target 提为常驻（6 行），不再折叠在 tune 组",
     t14.c.names.length === 6 && t14.c.names.includes("target"), JSON.stringify(t14.c.names));
-check("compile ⇒ channel/dialect/model 标 inert（不隐藏，带文字）",
+check("assemble ⇒ channel/dialect/model 标 inert（不隐藏，带文字）",
     ["channel", "dialect", "model"].every((x) => t14.c.inert.includes(x))
     && /不生效|No effect/.test(t14.c.title),
     JSON.stringify(t14.c.inert) + " title=" + t14.c.title);
-check("compile ⇒ 说明行点名被绕过的参数",
-    /编译模式|Compile:/.test(t14.c.hint), t14.c.hint.slice(0, 70));
+check("assemble ⇒ 说明行点名被绕过的参数",
+    /拼装模式|Assemble:/.test(t14.c.hint), t14.c.hint.slice(0, 70));
 check("切回 caption ⇒ 恢复 5 行、inert 清除、出现零模型自检引导",
     t14.cap.names.length === 5 && t14.cap.inert.length === 0
     && /零模型自检|No-weight check/.test(t14.cap.hint), JSON.stringify(t14.cap));
@@ -772,8 +772,8 @@ const guide = await page.evaluate(async () => {
     await set("api_model", "model-a");
     out.noKey = { shown: !badge().hidden, text: badge().hidden ? "" : badge().textContent };
 
-    // ⑤ 编译任务不开模型 ⇒ 不该报缺模型
-    await set("task", "compile");
+    // ⑤ 拼装任务不开模型 ⇒ 不该报缺模型
+    await set("task", "assemble");
     await wait(500);
     out.compile = { shown: !badge().hidden, hint: hint().textContent };
 
@@ -804,8 +804,8 @@ check("有端点没模型名 ⇒ 指出缺模型名",
     guide.lackName.shown && /模型名/.test(guide.lackName.text), JSON.stringify(guide.lackName.text));
 check("Key 留空不算缺（Ollama / LM Studio 本来就不要 Key）",
     !guide.noKey.shown, JSON.stringify(guide.noKey));
-check("编译任务不报缺模型（它不开模型）",
-    !guide.compile.shown && /编译/.test(guide.compile.hint), JSON.stringify(guide.compile));
+check("拼装任务不报缺模型（它不开模型）",
+    !guide.compile.shown && /拼装/.test(guide.compile.hint), JSON.stringify(guide.compile));
 check("摘要行说人话：现在是哪个模式 + 哪个通道",
     /扩写/.test(guide.expand.hint) && /外部 API/.test(guide.expand.hint)
     && /读图/.test(guide.caption.hint), JSON.stringify([guide.expand.hint, guide.caption.hint]));

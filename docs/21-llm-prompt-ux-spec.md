@@ -12,7 +12,7 @@
 | 能力 | 判据在哪 |
 |---|---|
 | 参数分组、常驻 5 行、开关条置顶且自愈 | `tools/ui_llm_panel.mjs` |
-| 按 `task` 动态常驻、compile 提 `target`、inert 文字标注 | 同上 + `check_frontend.py` F11 |
+| 按 `task` 动态常驻、assemble 提 `target`、inert 文字标注 | 同上 + `check_frontend.py` F11 |
 | 拉模型清单：多协议 / 逐级上溯 / 并发 / 可见进度 / 换端点清旧 | `tests/test_llm_subpackage.py` |
 | 通道跟随端点、状态块可一键改道、旧存档打开对齐 | `ui_llm_panel.mjs` |
 | 模式摘要 + 执行前缺项提示 | 同上 |

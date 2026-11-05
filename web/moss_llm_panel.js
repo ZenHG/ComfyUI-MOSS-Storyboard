@@ -63,8 +63,8 @@ const GROUPS = [
     { key: "core", always: true, items: ["task", "channel", "dialect", "model", "text"] },
     { key: "tune", items: ["length", "temperature", "max_tokens", "seed", "control_after_generate",
         "language", "thinking", "panels", "style_lock", "must_keep", "wash", "two_pass",
-        // 编译目标放 tune 而不是 core：core 是「常驻 5 行」的口径（见 docs/20 §九），
-        // 多一项就把默认视图改成 6 行。它只在 task=compile 时有意义。
+        // 拼装目标放 tune 而不是 core：core 是「常驻 5 行」的口径（见 docs/20 §九），
+        // 多一项就把默认视图改成 6 行。它只在 task=assemble 时有意义。
         "target"] },
     { key: "local", channel: CH_LOCAL, items: ["mmproj", "runtime", "ctx_size", "gpu_layers",
         "cache_type_k", "cache_type_v", "flash_attn", "image_max_tokens", "ubatch", "parallel",
@@ -160,9 +160,9 @@ const I18N = {
         expandTip: "一次展开全部 %d 项，包括当前通道用不到的旋钮",
         hideTip: "隐藏只是不画出来：参数还在工作流里，值不变",
         backTip: "恢复分组：默认只露常驻，一次看一组",
-        inert: "本次不生效（编译任务不开模型）",
-        inertHint: "编译模式：%d 项本次不生效",
-        selfCheck: "零模型自检：任务选「编译」",
+        inert: "本次不生效（拼装任务不开模型）",
+        inertHint: "拼装模式：%d 项本次不生效",
+        selfCheck: "零模型自检：任务选「拼装」",
         fetchTip: "用当前 api_base 与 Key 拉模型清单，灌进这个下拉",
         fetched: "已拉到 %d 个模型，可直接下拉换",
         fetching: "拉模型清单中… %ds",
@@ -177,12 +177,12 @@ const I18N = {
         // 模式摘要：首屏唯一一处解释「这个节点现在要干什么」的地方（不新增控件、不动存档）。
         chLocalShort: "本地 GGUF", chApiShort: "外部 API",
         mode_caption: "读图说话", mode_expand: "扩写提示词",
-        mode_edit: "按指令改图", mode_compile: "只编译提示词",
+        mode_edit: "按指令改图", mode_assemble: "只拼装提示词",
         modeTip_caption: "读图说话：把输入图写成提示词。本地要 GGUF 模型 + 视觉塔（mmproj）；"
             + "切到外部 API 则用服务商的视觉模型",
         modeTip_expand: "扩写：纯文字 → 更详细的提示词。不需要图，也不需要视觉塔",
         modeTip_edit: "按指令改图：接输入图 + 指令，输出改写后的提示词。本地需要视觉塔",
-        modeTip_compile: "只编译提示词：不开模型、不占显存，用来检查拼装结果",
+        modeTip_assemble: "只拼装提示词：不开模型、不占显存，用来检查拼装结果",
         // 执行前就能看出来的缺项（Key 空不算缺 —— Ollama / LM Studio 本来就不要 Key）
         lackBase: "⚠ 还没填 api_base", lackName: "⚠ 还没选模型名",
         lackModel: "⚠ 本机没有 GGUF 模型",
@@ -205,9 +205,9 @@ const I18N = {
         expandTip: "Show all %d params, including the other channel's",
         hideTip: "Hiding only affects the canvas — values stay in the workflow",
         backTip: "Back to grouped view (Basic only, one group at a time)",
-        inert: "No effect in this run (compile does not load a model)",
-        inertHint: "Compile: %d controls have no effect",
-        selfCheck: "No-weight check: set task=compile",
+        inert: "No effect in this run (assemble does not load a model)",
+        inertHint: "Assemble: %d controls have no effect",
+        selfCheck: "No-weight check: set task=assemble",
         fetchTip: "Fetch models for this api_base + key into this dropdown",
         fetched: "%d models loaded — pick from the dropdown",
         fetching: "Fetching model list… %ds",
@@ -215,13 +215,13 @@ const I18N = {
         switched: "channel switched to external API",
         chLocalShort: "Local GGUF", chApiShort: "External API",
         mode_caption: "Caption image", mode_expand: "Expand prompt",
-        mode_edit: "Edit by instruction", mode_compile: "Compile only",
+        mode_edit: "Edit by instruction", mode_assemble: "Assemble only",
         modeTip_caption: "Caption: turn the input image into a prompt. Local needs a GGUF model "
             + "plus a vision tower (mmproj); the API channel uses the provider's vision model",
         modeTip_expand: "Expand: plain text to a longer prompt. No image, no vision tower",
         modeTip_edit: "Edit: input image plus instruction, output the rewritten prompt. "
             + "Local needs a vision tower",
-        modeTip_compile: "Compile only: no model, no VRAM, just check the assembled prompt",
+        modeTip_assemble: "Assemble only: no model, no VRAM, just check the assembled prompt",
         lackBase: "Missing api_base", lackName: "No model name yet",
         lackModel: "No local GGUF found",
         lackTipBase: "api_base is empty, so this run cannot work. Click to open External API.",
@@ -268,8 +268,9 @@ const widgetOf = (node, name) => (node.widgets || []).find((w) => w && w.name ==
 const hideable = (w) => !!w && typeof w.syncVisibilityFromOptions === "function";
 const realWidgets = (node) => (node.widgets || []).filter((w) => w && w.name !== BAR_NAME);
 const groupOf = (w) => BY_NAME.get(w.name) || OTHER;
-/** 旧稿把中文写进 task 枚举；归一口径与后端 _LEGACY_VALUES 一致。 */
-const TASK_LEGACY = { "反推": "caption", "扩写": "expand", "编辑指令": "edit", "编译": "compile" };
+/** 旧稿把中文写进 task 枚举；归一口径与后端 _LEGACY_VALUES 一致（`compile` 是改名前的英文值）。 */
+const TASK_LEGACY = { "反推": "caption", "扩写": "expand", "编辑指令": "edit",
+    "编译": "assemble", "compile": "assemble" };
 const taskOf = (node) => {
     const w = widgetOf(node, "task");
     const v = w ? String(w.value) : "";
@@ -278,7 +279,7 @@ const taskOf = (node) => {
 /** 可静态判定的模式知识；tasks/channels 由 check_frontend.py 的 F11 与后端常量对账。
  *  PE 命中取决于模型目录里的文件，属运行时探测，不进这张表（docs/21 A2'）。 */
 const MODE_SPEC = {
-    tasks: ["caption", "expand", "edit", "compile"],
+    tasks: ["caption", "expand", "edit", "assemble"],
     channels: ["local", "api"],
     inertOnCompile: ["channel", "dialect", "model"],
     pinnedOnCompile: ["target"],
@@ -395,7 +396,7 @@ function plan(node, st) {
         console.warn("%s: 不认识 channel 取值 %j ⇒ 停用通道标记（分组仍可用）", TAG, ch);
     }
     const task = taskOf(node);
-    const compile = MODE_SPEC.tasks.includes(task) && task === "compile";
+    const assemble = MODE_SPEC.tasks.includes(task) && task === "assemble";
     const shown = new Set();
     const off = new Set();                       // 通道对不上的组（只影响 chip 的标记）
     const inert = new Set();                     // 本次执行读不到、但仍显示并标注的控件
@@ -403,14 +404,14 @@ function plan(node, st) {
         const g = groupOf(w);
         const outside = gated && !!g.channel && g.channel !== ch;
         if (outside) off.add(g.key);
-        if (compile && MODE_SPEC.inertOnCompile.includes(w.name)) inert.add(w.name);
-        // compile 唯一有效的旋钮是 target；它排在存档末尾，折叠时用户换不了后端。
-        const pinned = compile && MODE_SPEC.pinnedOnCompile.includes(w.name);
-        // 优先级：接了线 > 一键全开 > compile 必填 > 常驻 > 当前聚焦组
+        if (assemble && MODE_SPEC.inertOnCompile.includes(w.name)) inert.add(w.name);
+        // 拼装任务唯一有效的旋钮是 target；它排在存档末尾，折叠时用户换不了后端。
+        const pinned = assemble && MODE_SPEC.pinnedOnCompile.includes(w.name);
+        // 优先级：接了线 > 一键全开 > 拼装必填 > 常驻 > 当前聚焦组
         const ok = isLinked(node, w.name) || st.force || pinned || !!g.always || g.key === st.focus;
         if (ok) shown.add(w.name);
     }
-    return { shown, off, inert, compile, task, ch };
+    return { shown, off, inert, assemble, task, ch };
 }
 
 function syncWidgets(node, shown) {
@@ -893,7 +894,7 @@ function applyPreset(node, st, key) {
  * llama-server 有没有也不在这里判断（那要碰文件系统），交给执行期那条定向报错。
  */
 function lacksOf(node, meta) {
-    if (!meta || meta.compile) return null;          // 编译任务不开模型
+    if (!meta || meta.assemble) return null;         // 拼装任务不开模型
     if (meta.ch === CH_API) {
         if (!apiVal(node, "api_base").trim()) return "base";
         if (!apiVal(node, "api_model").trim()) return "name";
@@ -979,7 +980,7 @@ function paintBar(node, st, shown, off, meta) {
     else if (st.pick && st.pick.note) summary += "｜" + st.pick.note;
     else if (st.note) summary += "｜" + st.note;
     if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);
-    else if (meta && !meta.compile && meta.task === "caption" && meta.ch === CH_LOCAL) {
+    else if (meta && !meta.assemble && meta.task === "caption" && meta.ch === CH_LOCAL) {
         summary += "｜" + L.selfCheck;
     }
     if (!st.hint.dataset.hover) st.hint.textContent = summary;

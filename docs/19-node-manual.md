@@ -575,7 +575,7 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 | `edit` | PE-I2I（图 + 编辑指令 → 精确编辑提示词） | 含 `ratio_follow` 或 `rewritten editing instruction` |
 
 候选文件按顺序找：`system_prompt.txt`、`<模型文件名去扩展>.system_prompt.txt`、
-`*.system_prompt.txt`；内容对不上当前任务就跳过。`caption` / `compile` 不启用。
+`*.system_prompt.txt`；内容对不上当前任务就跳过。`caption` / `assemble` 不启用。
 不新增 widget，不改默认行为；没有这些文件的模型完全走原路径。
 
 - 命中后 report 写 `PE 改写器模式…` / `PE 改写器模式（编辑）…`；该模式下**跳过**本包的长度带与
@@ -606,4 +606,4 @@ PE-T2I 是纯文本改写器；做「反推」需要另配视觉模型与 mmproj
    没有这一行就是普通编辑路径，按上面的候选顺序与识别特征排查。
 5. 权重与提示词不随包分发，许可见上；中英 README 的 §1.6 有同样步骤与示例链接。
 
-`caption` / `compile` 与 `api` 通道永不进入 PE；PE-T2I 需另配 T2I 权重与提示词，本包不带。
+`caption` / `assemble` 与 `api` 通道永不进入 PE；PE-T2I 需另配 T2I 权重与提示词，本包不带。
