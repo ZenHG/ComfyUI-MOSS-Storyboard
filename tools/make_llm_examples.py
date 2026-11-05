@@ -196,6 +196,13 @@ def ex_prompt_workbench():
              "### 选模型\n"
              "model 下拉来自 models/LLM + models/text_encoders；反推/洗图/PE 要视觉模型 + mmproj，"
              "扩写只要文本模型。本地 GGUF 或「外部 API」都行。\n\n"
+             "**这四个节点默认用的模型**\n"
+             "指向 models/LLM/GGUF/Qwen/.../Qwen3VL-4B-Instruct-Q4_K_M.gguf（视觉塔走 auto）。\n"
+             "本包不带权重；没这个文件时节点会直接说「本机没有 GGUF 模型」，两种走法：\n"
+             "① 从 Qwen/Qwen3-VL-4B-Instruct-GGUF（HF 官方，Apache-2.0）下这两个文件放进 models/LLM：\n"
+             "   Qwen3VL-4B-Instruct-Q4_K_M.gguf + mmproj-Qwen3VL-4B-Instruct-F16.gguf\n"
+             "   （目录同名即可，mmproj=auto 会按投影宽度自己配对）；国内可换 hf-mirror.com；\n"
+             "② 通道切「外部 API」，填端点与 Key（↻ 能拉清单）。\n\n"
              "### 边界\n"
              "①②③ 共用同一张输入图；换图后一起变。报告里的 must_keep 行是硬约束对账。")
     img = load_image(2, (-160, -440), (340, 320), "comic-4panel-lineart-sample.png", "① 共用输入图")
