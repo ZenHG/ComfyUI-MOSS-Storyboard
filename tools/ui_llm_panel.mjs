@@ -42,10 +42,42 @@ const clickChip = async (key) => {
     await page.waitForTimeout(700);
 };
 
+/**
+ * 有界轮询：条件成立就往下走，等不到返回 null。
+ *
+ * 为什么需要它：面板的挂载靠 `setInterval(guard, 1500)` 那一拍，而"某一行 / 挂在行上的
+ * 行内控件"要等宿主下一次重绘才出现。固定 `wait(900)` 会随机落在两次轮询之间 ——
+ * 同一份字节跑三次能出 78/3 与 81/0 两种结果（审校实测）。调大等待只是换个抽签概率，
+ * 所以改成「每 100ms 探一次，最多 4000ms」。等不到**不跳过**：调用方照旧读状态、照旧断言，
+ * 该红还是红。
+ */
+const pollUntil = async (probe, timeoutMs = 4000, stepMs = 100, pg = page) => {
+    const t0 = Date.now();
+    for (;;) {
+        const v = await probe();
+        if (v) return v;
+        if (Date.now() - t0 >= timeoutMs) return null;
+        await pg.waitForTimeout(stepMs);
+    }
+};
+
 await boot(page, URL_);
 const wf = JSON.parse(readFileSync(join(ROOT, "examples", "llm-prompt-workbench.json"), "utf8"));
 check("载入 examples/llm-prompt-workbench.json", (await loadGraph(page, wf)).ok);
-await page.waitForTimeout(2500);
+// 原为固定 `waitForTimeout(2500)`（等面板挂上）。改成有界轮询：等「四个节点都 mounted
+// 且网格里至少有 5 行是真渲染出来的」，最多 4000ms；等不到就往下走，断言照旧判红。
+const ready = await pollUntil(() => page.evaluate(() => {
+    const api = globalThis.MOSS_SB_LLM_PANEL;
+    if (!api) return 0;
+    const rows = api.where();
+    if (!rows.length || !rows.every((r) => r.mounted)) return 0;
+    const grids = [...document.querySelectorAll("[data-widgets-grid-node-id]")];
+    const visible = grids.reduce((acc, g) => acc + [...g.querySelectorAll("[data-widget-name]")]
+        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel"
+            && e.getBoundingClientRect().height > 0).length, 0);
+    return visible >= 5 ? rows.length : 0;
+}));
+console.log("  面板挂载轮询 =", ready ? (ready + " 个节点就绪") : "4000ms 内未就绪（下面照旧判红）");
 const loaded = await where();
 check("面板已挂载（DOM 组件行）", loaded && loaded[0] && loaded[0].mounted, JSON.stringify(loaded));
 check("参数控件仍是 38 个（一个不多一个不少）", loaded && loaded[0].widgets === 38, "widgets=" + (loaded && loaded[0].widgets));
@@ -573,10 +605,20 @@ const combo = await page.evaluate(async () => {
     cw.value = "api";
     if (cw.callback) cw.callback("api");
     W("api_base").value = "https://api.example.com/v1";
-    await new Promise((r) => setTimeout(r, 900));
-
     const grid = () => document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
-    const row = () => grid().querySelector('[data-widget-name="api_model"]');
+    const row = () => {
+        const g = grid();
+        return g ? g.querySelector('[data-widget-name="api_model"]') : null;
+    };
+    // 行内的 ↻ 是面板 apply 时贴到 api_model 行上的，而那次 apply 可能来自
+    // setInterval(guard, 1500)：固定等 900ms 会随机落在两次轮询之间（与「常用端点下拉」
+    // 是同一个竞态）。改成每 100ms 探一次、最多 4000ms；等不到 pick=false，下面照旧判红。
+    const t1 = Date.now();
+    while (Date.now() - t1 < 4000) {
+        const r0 = row();
+        if (r0 && r0.querySelector(".mossllm-pick")) break;
+        await new Promise((r) => setTimeout(r, 100));
+    }
     const pick = row() && row().querySelector(".mossllm-pick");
     const w = W("api_model");
     const typeIsCombo = !!w && Array.isArray(w.options && w.options.values);
@@ -705,7 +747,14 @@ const adopted = await page2.evaluate(async () => {
     return true;
 });
 await loadGraph(page2, wf2);
-await page2.waitForTimeout(3000);
+// 原为固定 `waitForTimeout(3000)`（等面板挂上并 apply 过一次）。改成有界轮询：
+// 等这个节点出现「说明行摘要」（= 面板已完成一次 apply，adoptApiIntent 就在那次 apply 里），
+// 最多 4000ms；等不到就往下走，断言照旧判红。
+const adoptedReady = await pollUntil(() => page2.evaluate(() => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    return !!(n && n.__mossllm && n.__mossllm.summary);
+}), 4000, 100, page2);
+console.log("  page2 面板就绪轮询 =", adoptedReady ? "已 apply 过一次" : "4000ms 内未就绪（下面照旧判红）");
 const adopt = await page2.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
     const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
@@ -840,9 +889,17 @@ const ep = await page.evaluate(async () => {
     await setW("api_base", "");
     await setW("channel", "local");               // 从「本地」起步，才验得出它会切通道
     globalThis.MOSS_SB_LLM_PANEL.focus("api");
-    await wait(900);
-    let sel = selOf();
+    // 原为固定 wait(900)：下拉要等宿主重绘出 api_base 那一行、再等面板下一次 apply 挂上去，
+    // 而那次 apply 可能来自 setInterval(guard, 1500) ⇒ 900ms 常落在两次轮询之间。
+    // 改成每 100ms 探一次、最多 4000ms；等不到 mounted=false，下面的断言照旧判红。
+    const t0 = Date.now();
+    let sel = null;
+    while (!sel && Date.now() - t0 < 4000) {
+        sel = selOf();
+        if (!sel) await wait(100);
+    }
     out.mounted = !!sel;
+    out.waited = Date.now() - t0;                 // 实际等了多久（证明不是靠调大超时蒙）
     if (!sel) return out;
     out.idle = { base: W("api_base").value, channel: W("channel").value, sel: sel.value };
     // a) 选 DeepSeek：写入实测值 + 切通道 + 说明行点名
