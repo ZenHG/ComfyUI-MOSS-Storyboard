@@ -178,7 +178,7 @@ const I18N = {
         fetching: "拉模型清单中… %ds",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
         // 常用端点下拉（api_base 行内的 select，不是 widget）
-        ep_custom: "自定义（不改）",
+        ep_custom: "自定义（不动）",
         ep_deepseek: "DeepSeek", ep_opencode: "OpenCode", ep_odesign: "OpenDesign CoRouter",
         ep_ollama: "Ollama 本地", ep_lmstudio: "LM Studio 本地",
         epDone: "已填 %s 端点，点 ↻ 拉模型",
@@ -285,7 +285,8 @@ function t() {
     return T;
 }
 
-const fmt = (s, ...a) => String(s).replace(/%d/g, () => String(a.shift()));
+/** 占位替换按**出现顺序**吃参数：模板里 %s 与 %d 混用（「已套用「%s」，改了 %d 项」）也照填。 */
+const fmt = (s, ...a) => String(s).replace(/%[sd]/g, () => String(a.shift()));
 
 const widgetOf = (node, name) => (node.widgets || []).find((w) => w && w.name === name);
 const hideable = (w) => !!w && typeof w.syncVisibilityFromOptions === "function";

@@ -139,9 +139,9 @@ const clickPreset = async (key) => {
 check("「常用调优」展开时预设按钮才出现（不常驻占位）", (await presetState()).hidden === false);
 await clickPreset("draft");
 const pDraft = await presetState();
-check("点「草稿」⇒ length=brief / temperature=0.9 / max_tokens=512，且说明行说「已套用」",
+check("点「草稿」⇒ length=brief / temperature=0.9 / max_tokens=512，说明行是整句「已套用「草稿（快）」，改了 N 项」",
     pDraft.length === "brief" && pDraft.temperature === "0.9" && pDraft.max_tokens === "512"
-    && /已套用/.test(pDraft.summary), JSON.stringify(pDraft));
+    && /已套用「草稿（快）」，改了 \d+ 项/.test(pDraft.summary), JSON.stringify(pDraft));
 // 对照组：先给「本地引擎」组的 gpu_layers 塞一个非默认值，验证恢复默认不越组。
 // ⚠️ 不许用 temperature 当判据：默认值与「精修」都是 0.2，恢复前后没差别。
 const gpuSet = await page.evaluate((id) => {
