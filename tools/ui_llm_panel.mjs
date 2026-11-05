@@ -71,11 +71,17 @@ const ready = await pollUntil(() => page.evaluate(() => {
     if (!api) return 0;
     const rows = api.where();
     if (!rows.length || !rows.every((r) => r.mounted)) return 0;
-    const grids = [...document.querySelectorAll("[data-widgets-grid-node-id]")];
-    const visible = grids.reduce((acc, g) => acc + [...g.querySelectorAll("[data-widget-name]")]
-        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel"
-            && e.getBoundingClientRect().height > 0).length, 0);
-    return visible >= 5 ? rows.length : 0;
+    // 按节点逐个判：每个已挂载节点**自己的网格**里都要有 ≥5 行真渲染的行。
+    // 早先写成「全页所有网格合计 ≥5」，14 个网格里任一节点画完 5 行就放行，
+    // 实际只有 4 个该类节点 ⇒ 把这 2.48s 的整体等待提前放掉了（审校实测 3ms 就放行）。
+    const ok = rows.every((r) => {
+        const g = document.querySelector('[data-widgets-grid-node-id="' + r.id + '"]');
+        if (!g) return false;
+        return [...g.querySelectorAll("[data-widget-name]")]
+            .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel"
+                && e.getBoundingClientRect().height > 0).length >= 5;
+    });
+    return ok ? rows.length : 0;
 }));
 console.log("  面板挂载轮询 =", ready ? (ready + " 个节点就绪") : "4000ms 内未就绪（下面照旧判红）");
 const loaded = await where();
@@ -680,7 +686,8 @@ check("拉取后控件里立刻看得见模型名（不是只有下拉内部变�
 // 当前选中值要留着（清掉会让存盘丢值），但旧批次里其余名字必须消失。
 const stale = (combo.afterSwap || []).filter((x) => x && x !== combo.value);
 check("换 api_base 后旧模型名不残留（只留当前选中值）",
-    stale.length === 0, JSON.stringify(combo.afterSwap));
+    // ⚠️ afterSwap 缺失时 filter 出空数组会假绿（早于本批的既有问题）：必须先确认它是数组。
+    Array.isArray(combo.afterSwap) && stale.length === 0, JSON.stringify(combo.afterSwap));
 check("拉取失败留得下痕迹（按钮标红 + 说明行点名原因）", combo.bad === "1"
     && combo.hint.includes("401"), JSON.stringify(combo.hint.slice(-40)));
 
@@ -931,6 +938,7 @@ const ep = await page.evaluate(async () => {
     await wait(400);
     return out;
 });
+console.log("  端点下拉轮询等待 =", ep.waited, "ms", ep.mounted ? "（挂上了）" : "（4000ms 未挂上，下面照旧判红）");
 check("选中预置端点 ⇒ api_base 写入实测值、通道从本地切到外部 API、说明行点名",
     ep.mounted && ep.pick && ep.idle.channel === "local" && ep.idle.sel === ""
     && ep.pick.base === "https://api.deepseek.com/v1" && ep.pick.channel === "api"
