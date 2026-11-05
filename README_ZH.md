@@ -8,7 +8,7 @@
 
 - **故事板** —— 一张画布分成 3 / 4 / 6 / 8 / 9 格，每格一段描述，同时把每格裁出来。
 - **局部编辑** —— 只改一格、或把一张脸换进一格；改完贴回，其它格逐像素不动。
-- **提示词** —— 可选 LLM 节点做反推 / 扩写 / 编辑 / 编译；**不绑定 MOSS**，也支持 Flux、SDXL、Qwen-Image。
+- **提示词** —— 可选 LLM 节点做反推 / 扩写 / 编辑 / 拼装；**不绑定 MOSS**，也支持 Flux、SDXL、Qwen-Image。
 
 > 🔴 **先记这一句：画布上的框是参考，不是坐标。** 框会变成一句带坐标的文字进提示词，模型自己决定画在哪。
 > 会画偏、会揉框、也可能完全不理。细节见[节点手册 §1](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
@@ -64,11 +64,14 @@
 ### 1.3 第一次运行
 
 - **最快自检（零权重）**：把 [`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) 拖进 ComfyUI，按 Run。
-  毫秒级把 IR 编译成提示词，能跑通就说明包装对了。
+  毫秒级把 IR 拼装成提示词，能跑通就说明包装对了。
 - **第一张故事板**：拖 [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json)，按 Run。
   产物在 `output/moss/storyboard/`（`grid_*.png` 与 `panel_*.png`）。
 - **第一段提示词**：拖 [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json)。默认只开反推组，
   其余组已旁路（`Ctrl+B` 可启用）。
+- **面板小工具**：展开「常用调优」时，参数条上有三个一键预设（草稿 / 精修 / 恢复默认）；
+  `api_base` 那一行有常用端点下拉（DeepSeek / OpenCode / CoRouter / Ollama / LM Studio），
+  选一下就填好地址并切换连接方式。
 
 ### 1.4 下一步
 
@@ -196,7 +199,7 @@ PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但�
 | `moss-faceswap-single-ui.json` | 单张照片 → 换脸 → 整张出 |
 | `moss-pose-generate-ui.json` | 参考脸 + 提示词 → 一张带动作的图 |
 | `moss-storyboard-4panels-edit.json` | 裁一格 → 指令编辑 → 贴回 |
-| `llm-compile-zero-model.json` | IR → 提示词，零模型（装机自检） |
+| `llm-compile-zero-model.json` | IR → 拼装提示词，零模型（装机自检） |
 | `llm-prompt-workbench.json` | 反推 / 洗图 / 通用扩写 / PE-I2I 四组，按需旁路（PE 组权重自备） |
 | `llm-idea-to-image.json` | 一句话 → 单图或 4 格故事板 |
 

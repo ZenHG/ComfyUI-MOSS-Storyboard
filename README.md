@@ -8,7 +8,7 @@
 
 - **Storyboard** — one canvas split into 3 / 4 / 6 / 8 / 9 panels, one caption per panel, exact crops.
 - **Local edit** — fix one panel, or put a reference face into one panel, then paste it back. Other panels stay pixel-identical.
-- **Prompt** — optional LLM node: caption / expand / edit / compile. **Not MOSS-only**: also targets Flux, SDXL and Qwen-Image.
+- **Prompt** — optional LLM node: caption / expand / edit / assemble. **Not MOSS-only**: also targets Flux, SDXL and Qwen-Image.
 
 > 🔴 **A box is a hint, not a coordinate.** It becomes one line of text in the prompt; the model decides where to draw.
 > It can overshoot, merge boxes, or ignore them. Details: [manual §1](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
@@ -64,11 +64,14 @@ Download the three files from the official tutorial
 ### 1.3 First run
 
 - **Fastest check (no weights):** drag [`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) into ComfyUI and press Run.
-  It compiles an IR to a prompt in milliseconds and proves the install.
+  It assembles an IR into a prompt in milliseconds and proves the install.
 - **First storyboard:** drag [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json), press Run.
   Output goes to `output/moss/storyboard/` (`grid_*.png` + `panel_*.png`).
 - **First prompt:** drag [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json). Only the caption group is on;
   other groups are bypassed (`Ctrl+B` to enable).
+- **Panel extras:** with the **Common tuning** group open, three one-click presets (Draft / Fine / Reset)
+  sit on the parameter bar; the `api_base` row has a common-endpoint picker (DeepSeek / OpenCode / CoRouter /
+  Ollama / LM Studio) that fills the URL and switches the channel for you.
 
 ### 1.4 Where to go next
 
@@ -207,7 +210,7 @@ the rest need nothing.
 | `moss-faceswap-single-ui.json` | one photo → face swap → image out |
 | `moss-pose-generate-ui.json` | reference face + prompt → one posed image |
 | `moss-storyboard-4panels-edit.json` | crop one panel → edit → paste back |
-| `llm-compile-zero-model.json` | IR → prompt, no model (install check) |
+| `llm-compile-zero-model.json` | IR → prompt via `assemble`, no model (install check) |
 | `llm-prompt-workbench.json` | caption / wash / generic expand / PE-I2I, four bypassable groups (PE group needs your own weights) |
 | `llm-idea-to-image.json` | one line → single image or 4-panel board |
 
