@@ -279,7 +279,7 @@ def build_llm_compile():
         "model": ZERO_WEIGHT_MODEL,
         "text": ZERO_WEIGHT_IR,
         "target": "moss-image",
-        "runtime": "current",
+        "runtime": "auto",
     }
     for key in overrides:
         if key not in specs:

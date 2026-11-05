@@ -45,6 +45,36 @@ def register_models_route():
             except Exception as e:
                 return web.json_response({"ok": False, "error": str(e)}, status=400)
 
+
+        @PromptServer.instance.routes.post("/moss_llm/runtime/install")
+        async def _runtime_install(request):
+            # 一键装/更新 llama.cpp：下载要几十秒到几分钟，丢到线程里，别阻塞事件循环。
+            import asyncio
+            from . import runtime_install as rt
+            loop = asyncio.get_event_loop()
+            try:
+                exe, tag, src = await loop.run_in_executor(None, lambda: rt.install(force=True))
+                return web.json_response({"ok": True, "exe": exe, "tag": tag, "source": src})
+            except Exception as e:
+                return web.json_response({"ok": False, "error": str(e)}, status=400)
+
+        @PromptServer.instance.routes.post("/moss_llm/runtime/probe")
+        async def _runtime_probe(request):
+            # 只跑 --version：不加载模型、不占显存，用来在运行前判定这个 exe 能不能用。
+            from .server import find_server_exe
+            try:
+                data = await request.json()
+                exe = find_server_exe(data.get("server_exe") or "", data.get("source") or "auto")
+                if not exe:
+                    return web.json_response({"ok": False, "error": "没找到 llama-server"})
+                import subprocess
+                p = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30)
+                lines = ((p.stdout or "") + (p.stderr or "")).strip().splitlines()
+                return web.json_response({"ok": p.returncode == 0, "exe": exe,
+                                          "version": lines[0] if lines else ""})
+            except Exception as e:
+                return web.json_response({"ok": False, "error": str(e)}, status=400)
+
         return True
     except Exception:            # 不在 ComfyUI 里（单测 / CLI）⇒ 没有路由可挂
         return False

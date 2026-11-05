@@ -356,7 +356,7 @@
     },
     {
      "name": "runtime",
-     "type": "['CURRENT', 'UPDATE']",
+     "type": "['AUTO', 'RUNTIME', 'PATH', 'CUSTOM']",
      "link": null,
      "widget": {
       "name": "runtime"
@@ -553,7 +553,7 @@
     "关东煮；雨夜",
     false,
     false,
-    "current",
+    "auto",
     "",
     "",
     "",
@@ -1062,7 +1062,7 @@
     },
     {
      "name": "runtime",
-     "type": "['CURRENT', 'UPDATE']",
+     "type": "['AUTO', 'RUNTIME', 'PATH', 'CUSTOM']",
      "link": null,
      "widget": {
       "name": "runtime"
@@ -1259,7 +1259,7 @@
     "路上小心；关东煮",
     false,
     false,
-    "current",
+    "auto",
     "",
     "",
     "",

@@ -115,6 +115,7 @@ const CSS = `
 /* 一次性预设：只在「常用调优」展开时出现。按钮不是 widget ⇒ 不进 widgets_values。 */
 .mossllm-presets{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
 .mossllm-presets[hidden]{display:none}
+  .mossllm-rt{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
 .mossllm-preset{padding:0 7px;border-radius:6px;border:1px dashed var(--border-color,#4e4e4e);
  background:transparent;color:var(--input-text,#ddd);font:11px/1.7 system-ui,sans-serif;cursor:pointer}
 .mossllm-preset:hover{background:var(--comfy-input-bg,#222)}
@@ -212,6 +213,11 @@ const I18N = {
         presetTip_fine: "一次写入：长度=详细 · 温度 0.2 · 上限 2048 tokens。要出成品时用",
         presetTip_reset: "把「常用调优」这一组恢复成默认值（不动其它组、不动通道）",
         presetDone: "已套用「%s」，改了 %d 项",
+    rtInstall: "安装/更新", rtTest: "测试",
+    rtInstallTip: "从 GitHub 官方 release 下载并安装最新 llama.cpp（下载与解压都会显示进度）",
+    rtTestTip: "只跑 --version：不加载模型、不占显存，用来确认这个 exe 能不能用",
+    rtInstalling: "正在安装/更新 llama.cpp…", rtInstalled: "已就绪：%s",
+    rtProbeOk: "可用：%s", rtProbeFail: "不可用：%s",
         presetResetDone: "「常用调优」已恢复默认值",
         },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
@@ -257,6 +263,11 @@ const I18N = {
         presetTip_fine: "Writes: length=detailed, temp 0.2, max 2048 tokens. For final output",
         presetTip_reset: "Restore this group to defaults (other groups and the channel are untouched)",
         presetDone: "Applied %s, %d values changed",
+    rtInstall: "Install/update", rtTest: "Test",
+    rtInstallTip: "Download and install the latest llama.cpp release (progress is shown)",
+    rtTestTip: "Runs --version only: no model load, no VRAM",
+    rtInstalling: "Installing/updating llama.cpp…", rtInstalled: "Ready: %s",
+    rtProbeOk: "Usable: %s", rtProbeFail: "Not usable: %s",
         presetResetDone: "Common settings restored to defaults",
         apiIdle: "Endpoint filled but channel=local — this run uses local",
         apiIdleFix: "Click to use the API",
@@ -888,6 +899,62 @@ function pinEndpoints(node, st) {
     return true;
 }
 
+
+/**
+ * 把「安装/更新」与「测试」贴在 runtime 行右端（与 ↻、常用端点同一手法）。
+ * 两个按钮都**不是 widget**：不进 `widgets_values`，存档格数一格不动。
+ */
+function pinRuntimeTools(node, st) {
+    const row = rowOf(node, "runtime");
+    if (!row) return false;
+    const L = t();
+    const post = async (url, body) => {
+        const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body || {}) });
+        try { return await r.json(); } catch (e) { return { ok: false, error: "HTTP " + r.status }; }
+    };
+    const mk = (key, run) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "mossllm-preset";
+        b.dataset.mossllmRuntime = key;
+        for (const ev of ["pointerdown", "mousedown", "dblclick", "click"]) {
+            b.addEventListener(ev, (e) => e.stopPropagation());
+        }
+        b.onclick = async (e) => {
+            e.stopPropagation();
+            if (b.disabled) return;
+            b.disabled = true;
+            try { await run(b); } finally { b.disabled = false; applySoon(node); }
+        };
+        return b;
+    };
+    if (!st.rt) {
+        const box = document.createElement("span");
+        box.className = "mossllm-rt";
+        const install = mk("install", async () => {
+            noteOnce(node, st, t().rtInstalling);
+            const j = await post("/moss_llm/runtime/install");
+            noteOnce(node, st, j.ok ? fmt(t().rtInstalled, j.tag || j.exe || "")
+                : fmt(t().rtProbeFail, j.error || ""));
+        });
+        const test = mk("test", async () => {
+            const j = await post("/moss_llm/runtime/probe",
+                { source: apiVal(node, "runtime"), server_exe: apiVal(node, "server_exe") });
+            noteOnce(node, st, j.ok ? fmt(t().rtProbeOk, j.version || j.exe || "")
+                : fmt(t().rtProbeFail, j.error || ""));
+        });
+        box.append(install, test);
+        st.rt = { box, install, test };
+    }
+    if (st.rt.box.parentElement !== row) row.appendChild(st.rt.box);
+    st.rt.install.textContent = L.rtInstall;
+    st.rt.test.textContent = L.rtTest;
+    st.rt.install.title = L.rtInstallTip;
+    st.rt.test.title = L.rtTestTip;
+    return true;
+}
+
 function buildBar(node, st) {
     const bar = document.createElement("div");
     bar.className = "mossllm-bar";
@@ -1160,6 +1227,7 @@ function apply(node) {
     syncModelBase(node, st);
     ensureModelValue(node);
     pinPicker(node, st);
+    pinRuntimeTools(node, st);
     pinEndpoints(node, st);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;

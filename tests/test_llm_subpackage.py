@@ -876,6 +876,22 @@ def main():
     check("find_exe 只认 .exe（同目录有 -impl.dll 时不会选错）",
           bool(_picked) and _picked.endswith("llama-server.exe"), repr(_picked))
 
+    # 旧存档值归一（T11）：current/update 都变成 auto，且不会触发下载
+    for _old in ("current", "update", "用现有", "更新到最新版"):
+        check("旧值 %s 归一为 auto" % _old, nodes._LEGACY_VALUES.get(_old) == "auto",
+              repr(nodes._LEGACY_VALUES.get(_old)))
+    check("运行时枚举只剩四个来源", list(nodes._RUNTIMES) == ["auto", "runtime", "path", "custom"],
+          repr(nodes._RUNTIMES))
+    # 单一权威：explicit 只有 source=custom 时才生效
+    server_mod = __import__("moss_llm.server", fromlist=["server"])
+    with _tf.TemporaryDirectory() as _td2:
+        _fake = Path(_td2) / "llama-server.exe"
+        _fake.write_bytes(b"MZ")
+        _custom = server_mod.find_server_exe(str(_fake), "custom")
+        _auto = server_mod.find_server_exe(str(_fake), "auto")
+    check("custom 只认显式路径", _custom == str(_fake), repr(_custom))
+    check("auto 不认显式路径（不再和服务器程序抢）", _auto != str(_fake), repr(_auto))
+
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     for f in FAIL:
         print("  - " + f)

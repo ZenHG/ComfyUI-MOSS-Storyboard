@@ -75,7 +75,7 @@ _TARGETS = ["moss-image", "qwen-image-2_1", "krea2", "flux3", "flux1_dev",
             "sdxl", "minimax-h3", "nano-banana"]
 _LENGTHS = ["brief", "standard", "detailed"]
 _LANGS = ["auto", "zh", "en"]
-_RUNTIMES = ["current", "update"]
+_RUNTIMES = ["auto", "runtime", "path", "custom"]
 _ONOFF = ["on", "off"]
 _MTP = ["auto", "on", "off"]
 _KV = ["q8_0", "q4_0", "f16"]
@@ -107,7 +107,8 @@ _LEGACY_VALUES = {
     "简短": "brief", "标准": "standard", "详细": "detailed",
     "自动": "auto", "中文": "zh", "英文": "en",
     "关": "off", "开": "on",
-    "用现有": "current", "更新到最新版": "update",
+    "用现有": "auto", "更新到最新版": "auto",   # 旧存档：直接归一到「自动」，且不会触发下载
+    "current": "auto", "update": "auto",
     "自动匹配": _MMPROJ_AUTO, "(不使用/纯文本)": _MMPROJ_NONE,
 }
 
@@ -299,11 +300,13 @@ class MossPromptSmith:
                 "two_pass": ("BOOLEAN", {"default": False,
                     "tooltip": "反推专用：先结构化盘点再写散文。洗图/高保真时开；"
                                "单遍快、双遍稳（两次调用同一 sidecar）"}),
-                "runtime": (_RUNTIMES, {"default": "current",
-                    "tooltip": "用现有=按「服务器程序/环境变量/本包 runtime/PATH」找 llama-server；"
-                               "更新到最新版=先从 GitHub 官方 release 下载并安装最新 llama.cpp（默认落在 moss_llm/runtime/；可用 MOSS_LLM_RUNTIME_DIR 改到 models 下的持久目录；CPU 约 35MB，CUDA/ROCm 可能数百 MB）"
-                               "（自动按本机后端选 CUDA/ROCm/Vulkan/SYCL/Metal/CPU 包；"
-                               "国内慢可用 MOSS_LLM_MIRROR 指镜像，选错后端用 MOSS_LLM_BACKEND 覆盖），再用它"}),
+                "runtime": (_RUNTIMES, {"default": "auto",
+                    "tooltip": "从哪里找 llama-server（只有一个权威来源，不再和「服务器程序」抢）：\n"
+                               "自动=环境变量 MOSS_LLM_SERVER → LLAMA_CPP_HOME → 本包 runtime/ → PATH；\n"
+                               "本包 runtime=只认 moss_llm/runtime/（可用 MOSS_LLM_RUNTIME_DIR 改到持久目录）；\n"
+                               "PATH=只认 PATH 里的 llama-server；\n"
+                               "自定义路径=只用「服务器程序」那一格填的完整路径。\n"
+                               "想装/更新：点面板上的「安装/更新 llama.cpp」按钮（CPU 约 35MB；CUDA/ROCm 可能数百 MB）"}),
                 "api_base": ("STRING", {"default": "",
                     "tooltip": "外部 API 端点，OpenAI 兼容。填 `https://xxx/v1` 或直接填 "
                                "`.../v1/chat/completions` 都行。例：`https://api.openai.com/v1`、"
@@ -497,7 +500,7 @@ class MossPromptSmith:
                 # 只出声、不改道：通道是用户的显式选择。把「为什么还去找本地」说在运行结果里。
                 report.append("⚠ 通道=本地 GGUF，但 api_base 已填（%s）⇒ 本次用本地模型，端点不生效；"
                               "要用外部 API 请把「通道」切到「外部 API」" % _host_of(api_base))
-            if runtime == "update":
+            if runtime == "update":   # 兼容：安装已改为面板按钮，旧值已被归一成 auto
                 from . import runtime_install      # 只在真要装时才 import（CLI 也用它）
                 dest = runtime_install.RUNTIME_DIR
                 report.append("运行时下载目录：%s（CPU 包约 35MB；CUDA/ROCm 可能数百 MB）" % dest)
@@ -536,7 +539,7 @@ class MossPromptSmith:
             if image is not None and not mmproj_path and mmproj != _MMPROJ_NONE:
                 report.append(_VISION_HINT)
 
-            if (api_base or "").strip() and runtime != "update" and not find_server_exe(server_exe):
+            if (api_base or "").strip() and runtime != "update" and not find_server_exe(server_exe if runtime == "custom" else "", runtime):
                 raise RuntimeError(
                     "「通道」= 本地 GGUF，但本机没有 llama-server；而你已填 api_base=%s\n"
                     "    ⇒ 想用这个 API：把「通道」选成「外部 API」即可（端点与模型名都填好了，不用重填）。\n"
@@ -549,7 +552,8 @@ class MossPromptSmith:
                 ubatch=int(ubatch), parallel=int(parallel), fit_on=(fit_on == "on"),
                 fit_target_mib=int(fit_target_mib),
                 mtp={"auto": "auto", "on": True, "off": False}.get(mtp, "auto"),
-                port=int(port), server_exe=server_exe, draft_n_max=int(mtp_draft_n))
+                port=int(port), server_exe=server_exe, draft_n_max=int(mtp_draft_n),
+                source=runtime)
             report.extend(notes)
             # 侧车自己带了 `--api-key comfyui-local`：这是本机口令、不是秘密，随请求发出去无害
             key = "comfyui-local"

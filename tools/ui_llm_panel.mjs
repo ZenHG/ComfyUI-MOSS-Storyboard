@@ -986,6 +986,21 @@ check("存盘时 api_key 被清空（存档里搜不到该串），节点内存�
 check("清空 api_key 不动其它存档格、格数仍是 38",
     keySave.changed.length === 0 && keySave.len === 38, JSON.stringify(keySave));
 
+// —— (d3) 运行时来源：安装/测试两个按钮，且不产生新 widget ——
+await clickChip("local");
+await page.waitForTimeout(700);
+const rt = await page.evaluate(() => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    return { install: !!document.querySelector('[data-mossllm-runtime="install"]'),
+        test: !!document.querySelector('[data-mossllm-runtime="test"]'),
+        widgets: n.widgets.length,
+        slots: Array.isArray(n.widgets_values) ? n.widgets_values.length : -1,
+        value: String(n.widgets.find((w) => w.name === "runtime").value) };
+});
+check("本地引擎行上有「安装/更新」与「测试」两个按钮", rt.install && rt.test, JSON.stringify(rt));
+check("运行时来源仍是四选一，默认 auto（按钮不新增 widget 格）",
+    ["auto", "runtime", "path", "custom"].includes(rt.value) && rt.slots === 38, JSON.stringify(rt));
+
 // —— (e) 窄宽度：加了「通道」前缀后，三个 chip 仍要落在开关条里 ——
 const origSize = await page.evaluate((id) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);

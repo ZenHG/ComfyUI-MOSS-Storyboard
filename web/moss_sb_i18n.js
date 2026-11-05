@@ -318,7 +318,7 @@ export const COMBOS = {
     length: { brief: "简短", standard: "标准", detailed: "详细" },
     language: { auto: "自动", zh: "中文", en: "英文" },
     thinking: { off: "关（推荐）", on: "开" },
-    runtime: { current: "用现有", update: "更新到最新版" },
+    runtime: { auto: "自动", runtime: "本包 runtime", path: "PATH", custom: "自定义路径" },
     mmproj: { auto: "自动匹配", none: "不使用（纯文本）" },
     cache_type_k: { q8_0: "q8_0（省一半）", q4_0: "q4_0（再省一半）", f16: "f16（不省）" },
     cache_type_v: { q8_0: "q8_0（省一半）", q4_0: "q4_0（再省一半）", f16: "f16（不省）" },

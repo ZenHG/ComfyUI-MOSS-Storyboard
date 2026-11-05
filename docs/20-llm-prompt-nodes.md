@@ -377,6 +377,27 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 | 非当前连接方式的那一组 | chip 标 **「本次不用」**（原「通道外」），弱化样式 |
 
 判据：除显式点击外，任何交互都不改 `widgets_values`；`ui_llm_panel.mjs` 84 条断言覆盖。
+## 十三、运行时与服务器程序：单一权威（2026-11-05）
+
+**一个决定只由一个控件说**：`runtime` 选**来源**，`server_exe` 只在来源=自定义时生效。
+
+| 来源 | 找哪里 |
+|---|---|
+| `auto`（默认） | 环境变量 `MOSS_LLM_SERVER` → `LLAMA_CPP_HOME` → 本包 `runtime/` → `PATH` |
+| `runtime` | 只认本包 `moss_llm/runtime/`（可用 `MOSS_LLM_RUNTIME_DIR` 指到持久目录） |
+| `path` | 只认 `PATH` 里的 `llama-server` |
+| `custom` | 只用「服务器程序」那一格 |
+
+**安装不再是“值”**：`runtime` 里原本的 `更新到最新版` 已废除——把动作存成状态会让“打开旧工作流”
+变成“自动下载几百 MB”。现在改为本地引擎行上的「安装/更新」按钮（不是 widget，不进 `widgets_values`），
+下载与解压都走 ComfyUI 自己的进度条。旁边「测试」按钮只跑 `--version`，不加载模型、不占显存。
+
+**旧存档**：`current` / `update` / `用现有` / `更新到最新版` 全部归一为 `auto`，打开不会触发下载。
+
+> 判据：`find_server_exe(path, "auto") != path`（auto 不再认显式路径）；
+> 同目录同时有 `llama-server.exe` 与 `-impl.dll` 时只选 exe；
+> `ui_llm_panel` 86 条、`test_llm_subpackage` 180 条覆盖。
+
 
 
 

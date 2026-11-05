@@ -326,36 +326,47 @@ def _env_server():
     return ""
 
 
-def find_server_exe(explicit=""):
-    """定位 llama-server：显式路径 > 环境变量 > LLAMA_CPP_HOME > 本包 runtime/ > PATH。
+def find_server_exe(explicit="", source="auto"):
+    """按来源定位 llama-server（单一权威，不做隐式回退）。
+
+    source 取值：
+      auto    —— 环境变量 > LLAMA_CPP_HOME > 本包 runtime/ > PATH（默认）
+      runtime —— 只认本包 runtime/（含 MOSS_LLM_RUNTIME_DIR）
+      path    —— 只认 PATH 里的 llama-server
+      custom  —— 只认显式传入的 server_exe
 
     刻意**不扫**别的节点包的 runtime 目录：那等于把「用户装过某工具」写成本项目的
-    隐性依赖。找不到返回 None，由调用方给出可执行的下一步（不是一句「找不到」）。
+    隐性依赖。找不到返回 None，由调用方给出可执行的下一步。
     """
-    cands = [explicit, _env_server()]
-    home = os.environ.get("LLAMA_CPP_HOME", "")
-    if home:
-        for sub in ("build/bin/Release", "build/bin", "bin", ""):
-            cands.append(str(Path(home) / sub / _exe_name()))
-    here = Path(__file__).resolve()
-    # `moss_llm/server.py` → `moss_llm/` 与仓库根；两个位置都认（打包方式不同）
-    bases = [here.parent, here.parent.parent]
-    custom_rt = os.environ.get("MOSS_LLM_RUNTIME_DIR", "").strip()
-    if custom_rt:
-        bases.insert(0, Path(custom_rt).expanduser())
-    for base in bases:
-        for sub in ("runtime", "bin"):
-            d = base / sub
-            if d.is_dir():
-                cands.extend(str(p) for p in sorted(d.glob("**/" + _exe_name())))
+    from shutil import which
+    if source == "custom":
+        return str(explicit) if explicit and Path(str(explicit)).is_file() else None
+    cands = []
+    if source == "auto":
+        cands.append(_env_server())
+        home = os.environ.get("LLAMA_CPP_HOME", "")
+        if home:
+            for sub in ("build/bin/Release", "build/bin", "bin", ""):
+                cands.append(str(Path(home) / sub / _exe_name()))
+    if source in ("auto", "runtime"):
+        here = Path(__file__).resolve()
+        bases = [here.parent, here.parent.parent]
+        custom_rt = os.environ.get("MOSS_LLM_RUNTIME_DIR", "").strip()
+        if custom_rt:
+            bases.insert(0, Path(custom_rt).expanduser())
+        for base in bases:
+            for sub in ("runtime", "bin"):
+                d = base / sub
+                if d.is_dir():
+                    cands.extend(str(p) for p in sorted(d.glob("**/" + _exe_name())))
     for c in cands:
         if c and Path(c).is_file():
             return str(c)
-    from shutil import which
-    for name in ("llama-server", "llama-server.exe"):
-        hit = which(name)
-        if hit:
-            return hit
+    if source in ("auto", "path"):
+        for name in ("llama-server", "llama-server.exe"):
+            hit = which(name)
+            if hit:
+                return hit
     return None
 
 
@@ -388,11 +399,12 @@ class LlamaServer:
                  lora="", lora_scale=None,
                  cache_type_k="q8_0", cache_type_v="q8_0", ubatch=512, parallel=1,
                  fit_on=True, fit_target_mib=1024, flash_attn=True,
-                 mtp="auto", draft_n_max=2, api_key=""):
+                 mtp="auto", draft_n_max=2, api_key="", source="auto"):
         self.model = str(Path(model).resolve()) if model else ""
         self.model_id = model_id.strip()
         self._served_model_id = ""
         self.exe = exe if exe is not None else ""
+        self.source = source          # auto / runtime / path / custom（单一权威）
         self.port = int(port)
         self.ctx = int(ctx)
         self.ngl = ngl
@@ -498,7 +510,7 @@ class LlamaServer:
         return flags
 
     def find_exe(self):
-        hit = find_server_exe(self.exe)
+        hit = find_server_exe(self.exe, getattr(self, "source", "auto"))
         if not hit:
             raise RuntimeError(missing_exe_error())
         return hit
@@ -891,8 +903,8 @@ class GgufLocalServer:
         return cls._server is not None and cls._server.alive()
 
     @classmethod
-    def find_exe(cls, server_exe=""):
-        return find_server_exe(server_exe)
+    def find_exe(cls, server_exe="", source="auto"):
+        return find_server_exe(server_exe, source)
 
     @classmethod
     def stop(cls):
@@ -906,7 +918,7 @@ class GgufLocalServer:
                 cache_type_k="q8_0", cache_type_v="q8_0", flash_attn=True,
                 image_max_tokens=1024, ubatch=512, parallel=1,
                 fit_on=True, fit_target_mib=1024, mtp="auto",
-                port=8091, server_exe="", timeout=300, draft_n_max=2):
+                port=8091, server_exe="", timeout=300, draft_n_max=2, source="auto"):
         """返回 `(base_url, notes)`。失败一律 raise 带排查指引的中文错误，不静默回退。"""
         with cls._lock:
             model_path = str(Path(model_path).resolve())
@@ -919,7 +931,7 @@ class GgufLocalServer:
                 cur.stop()                       # 模型/端口变了，或进程已死：清残壳
                 cls._server = None
             srv = LlamaServer(
-                model=model_path, exe=server_exe, port=port, ctx=ctx_size,
+                model=model_path, exe=server_exe, source=source, port=port, ctx=ctx_size,
                 ngl=gpu_layers if gpu_layers not in (None, "") else "auto",
                 mmproj=mmproj, timeout=timeout, vision_tokens=image_max_tokens,
                 cache_type_k=cache_type_k, cache_type_v=cache_type_v,
