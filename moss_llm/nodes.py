@@ -264,7 +264,8 @@ class MossPromptSmith:
                                "同 seed+同 prompt+同模型可复现"}),
                 "max_tokens": ("INT", {"default": 1024, "min": 64, "max": 32768, "step": 64,
                     "tooltip": "输出上限。反推 512–1024；扩写 768–1024。"
-                               "长 system+严格 JSON 可能偶发截断，留量即可"}),
+                               "长 system+严格 JSON 可能偶发截断，留量即可。\n"
+                               "32768 是能力上限不是建议值：API 按输出计费，提示词通常 200–500 token，1024 一般够"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff,
                     "control_after_generate": True,
                     "tooltip": "同 seed + 同 prompt + 同模型可复现。改 seed 只换采样，不换提示词内容"}),
