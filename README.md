@@ -123,15 +123,20 @@ The file is in the wrong folder, or ComfyUI was not restarted. Check the exact p
 
 The core storyboard nodes do **not** need it; the startup warning alone is harmless. Pick one route:
 
-1. **One click:** set the node's `runtime` to **update**, run again. It downloads an official llama.cpp build
-   (CPU ≈ 35 MB; CUDA/ROCm can be hundreds of MB) into
-   `<custom_nodes>/ComfyUI-MOSS-Storyboard/moss_llm/runtime/`. Set `MOSS_LLM_RUNTIME_DIR` to relocate it.
-2. **Existing binary:** click the node's **Local engine** group and fill `server_exe`, or set `MOSS_LLM_SERVER`.
+1. **One click:** expand the node's **Local engine** group and press **Install / update** on the parameter bar.
+   The download and extraction show ComfyUI's own progress. It lands in
+   `<custom_nodes>/ComfyUI-MOSS-Storyboard/moss_llm/runtime/`; set `MOSS_LLM_RUNTIME_DIR` to relocate it.
+   **Test** next to it runs `--version` only, so you can confirm the binary before loading a model.
+2. **Existing binary:** set `runtime` to **custom** and fill `server_exe`, or set `MOSS_LLM_SERVER`.
+   With any other `runtime` value `server_exe` is ignored — one setting decides, not two.
 3. **Existing OpenAI-compatible service** (LM Studio / Ollama / llama-swap / remote): set `channel` to `api`,
    fill `api_base` (with `/v1`) and `api_model`.
 
 Port is only a starting point: if it is occupied, the node automatically picks the next free port.
 Only the same model instance is reused; another model on that port is never borrowed.
+
+**The API key is not saved with the workflow:** it is cleared on save, so a shared graph carries no secret.
+Re-enter it after reopening, or set `MOSS_LLM_API_KEY` in the host environment.
 
 ### 2.3 VRAM and speed
 

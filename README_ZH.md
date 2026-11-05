@@ -119,14 +119,17 @@ PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但�
 
 核心故事板节点**不需要**它；启动日志那行警告不影响使用。三条路任选：
 
-1. **一键装**：把节点 `runtime` 选成 **更新到最新版**，再运行。会下载官方 llama.cpp 构建
-   （CPU 约 35MB；CUDA/ROCm 可能数百 MB）到
-   `<custom_nodes>/ComfyUI-MOSS-Storyboard/moss_llm/runtime/`。设 `MOSS_LLM_RUNTIME_DIR` 可改到持久目录。
-2. **已有二进制**：点节点里的 **本地引擎** 组，在 `server_exe` 填路径；或设 `MOSS_LLM_SERVER`。
+1. **一键装**：展开节点 **本地引擎** 组，点参数条上的 **安装/更新**。下载与解压都走 ComfyUI 自己的进度条。
+   落在 `<custom_nodes>/ComfyUI-MOSS-Storyboard/moss_llm/runtime/`；设 `MOSS_LLM_RUNTIME_DIR` 可改到持久目录。
+   旁边的 **测试** 只跑 `--version`，不加载模型就能确认这个 exe 能不能用。
+2. **已有二进制**：把 `runtime` 选 **自定义路径**，在 `server_exe` 填路径；或设 `MOSS_LLM_SERVER`。
+   其余 `runtime` 取值下 `server_exe` 不生效——一个决定只由一个控件说。
 3. **已有 OpenAI 兼容服务**（LM Studio / Ollama / llama-swap / 远端）：`channel` 选 `api`，
    填 `api_base`（要带 `/v1`）和 `api_model`。
 
 端口只是首选值：被占用会自动往后找空闲端口。只有同一模型实例才复用；端口上是别的模型时不会借用。
+
+**Key 不随工作流保存**：保存时会被清空，分享出去的图不带密钥。重开要重填，或设宿主环境变量 `MOSS_LLM_API_KEY`。
 
 ### 2.3 显存与速度
 
