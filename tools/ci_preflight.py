@@ -30,6 +30,8 @@ CI 跑在无 GPU、无宿主、无浏览器的 runner 上。有些闸只能在�
     python tools/ci_preflight.py --probe-only     # 只探测环境与计划，不跑任何闸
     python tools/ci_preflight.py --require-all    # 发布前：缺环境/未启用 GPU 即退出码 2
     python tools/ci_preflight.py --require-all --with-gpu   # 发布前全量（会真出图）
+    python tools/ci_preflight.py --changed        # 按改动面选闸（对比 HEAD；只碰 LLM 面板就不跑全量）
+    python tools/ci_preflight.py --changed origin/main   # 对比某个基线
     python tools/ci_preflight.py --json           # 机器可读结果
 
 退出码：0 = 没有 FAIL（SKIP 允许）；1 = 有 FAIL；2 = `--require-all` 下仍有 SKIP。
@@ -167,7 +169,51 @@ def detect_environment(environ=None, which=None, runner=None) -> dict:
 # 步骤计划
 # ─────────────────────────────────────────────────────────────
 
-def build_steps(env: dict, *, with_gpu: bool = False) -> list[dict]:
+#: 影响面判定在 `impact_scope()` 里按**完整路径**做；这里不再用子串表（会误判同名文件）。
+
+
+def changed_paths(base):
+    '''相对 base 的改动路径（含未跟踪文件）；git 不可用返回 None。'''
+    out = []
+    for cmd in (["git", "diff", "--name-only", base],
+                ["git", "ls-files", "--others", "--exclude-standard"]):
+        try:
+            r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=60)
+        except Exception:
+            return None
+        if r.returncode != 0:
+            return None
+        out.extend(x.strip() for x in (r.stdout or "").splitlines() if x.strip())
+    return sorted(set(out))
+
+
+def impact_scope(paths):
+    '''按改动面给要跑的闸集合；None = 全量（拿不准就全跑，不猜）。
+
+    判定按**路径**而不是子串：`"nodes.py" in "moss_llm/nodes.py"` 会误判成核心。
+    '''
+    if not paths:
+        return None
+    norm = [x.replace(chr(92), "/") for x in paths]
+
+    def is_core(p):
+        return (p in ("nodes.py", "__init__.py", "pyproject.toml")
+                or p.startswith(("v3/", "tools/"))
+                or p in ("web/moss_sb_widget_order.js", "web/moss_sb_i18n_ui.js"))
+
+    def is_llm(p):
+        return (p.startswith(("moss_llm/", "docs/", "examples/llm-"))
+                or p in ("web/moss_llm_panel.js", "web/moss_sb_i18n.js",
+                         "README.md", "README_ZH.md"))
+
+    if any(is_core(p) for p in norm):
+        return None
+    if all(is_llm(p) for p in norm):
+        return {"ui-llm-panel"}
+    return None
+
+
+def build_steps(env: dict, *, with_gpu: bool = False, scope=None) -> list[dict]:
     """按环境与开关生成步骤。每步：{name, kind, cmd, skip}；skip 非空即不跑。"""
     host = env.get("host")
     pw = env.get("playwright")
@@ -209,6 +255,12 @@ def build_steps(env: dict, *, with_gpu: bool = False) -> list[dict]:
         "cmd": [sys.executable, os.path.join("tools", "e2e_matrix.py"), "--no-doc"],
         "skip": why,
     })
+    # 按影响面选闸：没被选中的步骤标记成「跳过」，但不计入「未跑」。
+    if scope is not None:
+        for st in steps:
+            if st["name"] not in scope:
+                st["skip"] = "按影响面跳过（本次改动未触及）"
+                st["impact"] = True
     return steps
 
 
@@ -225,7 +277,8 @@ def run_step(step: dict, runner=None) -> dict:
     runner = runner or _run
     if step["skip"]:
         return {"name": step["name"], "kind": step["kind"], "status": SKIP,
-                "detail": step["skip"], "exit": None, "seconds": 0.0}
+                "detail": step["skip"], "exit": None, "seconds": 0.0,
+                "impact": bool(step.get("impact"))}
     t0 = time.time()
     rc, out = runner(step["cmd"])
     dt = round(time.time() - t0, 1)
@@ -294,6 +347,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="发布前用：缺任何环境/未启用 GPU 即退出码 2（SKIP 升级为「未过」）")
     p.add_argument("--with-gpu", action="store_true",
                    help="跑 GPU 端到端矩阵（会真实出图、占显存；缺权重/工作流则 SKIP）")
+    p.add_argument("--changed", nargs="?", const="HEAD", default=None,
+                   help="按改动面选闸（默认对比 HEAD）：只碰 LLM 面板时不再跑全量")
     p.add_argument("--probe-only", action="store_true",
                    help="只探测环境并列出计划，不跑任何闸")
     p.add_argument("--json", action="store_true", help="机器可读输出（stdout 只输出 JSON）")
@@ -304,7 +359,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     env = detect_environment()
-    steps = build_steps(env, with_gpu=args.with_gpu)
+    scope = None
+    if args.changed is not None:
+        paths = changed_paths(args.changed)
+        scope = impact_scope(paths)
+        if not args.json:
+            print("影响面：%s ⇒ %s" % ("、".join(paths or ["（无改动，按全量）"]),
+                                        "全量" if scope is None else "、".join(sorted(scope))))
+    steps = build_steps(env, with_gpu=args.with_gpu, scope=scope)
 
     def emit(payload):
         if args.json:
@@ -326,8 +388,9 @@ def main(argv=None) -> int:
         if not args.json:
             print("…… %s" % step["name"], flush=True)
         results.append(run_step(step, runner=lambda cmd: _run(cmd, timeout=args.timeout)))
+    judged = [r for r in results if not r.get("impact")]
     n = counts(results)
-    code = exit_code(results, require_all=args.require_all)
+    code = exit_code(judged, require_all=args.require_all)
     summary = format_results(results)
     if args.require_all and n[SKIP]:
         summary += "\nREQUIRE-ALL 未过：有 %d 项没跑（缺环境或未启用）" % n[SKIP]
