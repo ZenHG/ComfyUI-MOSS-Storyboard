@@ -1211,6 +1211,8 @@ function mount(node) {
     node.__mossllmBar = bar;
     ensureBarFirst(node, st);
     installSaveCleanup(node);
+    // 存盘时清空 Key（依赖倒置：通用模块只认字段名集合，不认识业务字段）。
+    node.__mosssbOmitOnSave = new Set(["api_key"]);
     installHintListener();
     focusForChannel(node, st, true);
     applySoon(node);

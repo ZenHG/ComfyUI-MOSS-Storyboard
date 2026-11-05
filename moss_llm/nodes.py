@@ -313,8 +313,9 @@ class MossPromptSmith:
                     "tooltip": "外部 API 的模型名。点右边的 ↻ 用当前端点+Key 拉一次清单就能下拉选；"
                                "拉不到也能手填服务商给的 id。channel=外部 API 时必填", "advanced": True}),
                 "api_key": ("STRING", {"default": "",
-                    "tooltip": "API Key。注意：写在这里会随工作流 JSON 一起保存/分享出去。"
-                               "要发给别人就清空它，改设宿主进程的环境变量 MOSS_LLM_API_KEY", "advanced": True}),
+                    "tooltip": "API Key。Key 只存在这次会话里 —— **保存工作流时会自动清空**，避免分享时泄露。"
+                               "想免填就设宿主进程的环境变量 MOSS_LLM_API_KEY（节点会自动回落到它）。\n"
+                               "注意：保存后重开要重填，这是有意的", "advanced": True}),
                 "ctx_size": ("INT", {"default": 8192, "min": 1024, "max": 262144, "step": 512,
                     "tooltip": "反推图片 token 多，建议 ≥8192。越大占显存越多（KV cache）",
                     "advanced": True}),

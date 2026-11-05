@@ -953,6 +953,28 @@ check("常用端点下拉不是 widget：控件 38 个、存档格数仍是 38�
     && ep.store.saved.every((x) => x === 38) && ep.store.asWidget === 0,
     JSON.stringify(ep.store));
 
+// —— (d2) 存盘清空 api_key：按行为断言，不依赖下标（存档里没有开关条那一格）——
+const keySave = await page.evaluate(() => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
+    const keyW = n.widgets.find((w) => w.name === "api_key");
+    const base = n.serialize();
+    keyW.value = "sk-should-not-be-saved";
+    const saved = n.serialize();
+    const leaked = saved.widgets_values.filter((v) => typeof v === "string" && v.includes("sk-should-not-be-saved"));
+    const changed = [];
+    const len = Math.max(base.widgets_values.length, saved.widgets_values.length);
+    for (let i = 0; i < len; i += 1) {
+        if (JSON.stringify(base.widgets_values[i]) !== JSON.stringify(saved.widgets_values[i])) changed.push(i);
+    }
+    const out = { mem: keyW.value, leaked: leaked.length, len: saved.widgets_values.length, changed };
+    keyW.value = "";                       // 复原，别把现场留给后面的用例
+    return out;
+});
+check("存盘时 api_key 被清空（存档里搜不到该串），节点内存值仍在",
+    keySave.leaked === 0 && keySave.mem === "sk-should-not-be-saved", JSON.stringify(keySave));
+check("清空 api_key 不动其它存档格、格数仍是 38",
+    keySave.changed.length === 0 && keySave.len === 38, JSON.stringify(keySave));
+
 // —— (e) 窄宽度：加了「通道」前缀后，三个 chip 仍要落在开关条里 ——
 const origSize = await page.evaluate((id) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);

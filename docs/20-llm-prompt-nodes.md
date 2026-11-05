@@ -237,6 +237,9 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 | 本地引擎 · llama.cpp (`local`) | `mmproj` `runtime` `ctx_size` `gpu_layers` `cache_type_k/v` `flash_attn` `image_max_tokens` `ubatch` `parallel` `fit_on` `fit_target_mib` `mtp` `mtp_draft_n` `server_exe` `port` `release_after_run` | 收起；`channel` 不是「本地 GGUF」时 chip 标「通道外」 |
 | 外部 API (`api`) | `api_base` `api_model` `api_key` | 收起；切到外部通道时自动展开 |
 
+> **Key 不落盘**：`api_key` 在保存工作流时被清成空串（通用存盘钩子按 `__mosssbOmitOnSave` 声明的字段名清，不认业务字段）。
+> 节点内存里的值本次照常可用；**重开工作流需要重填**——这是有意的，不是 bug。想完全免填就设宿主进程的 `MOSS_LLM_API_KEY`。
+
 四条实测依据（前端 1.57.6 / 本机宿主 **Vue 节点模式**，都写进代码头注）：
 
 1. 折叠只走 `widget.options.hidden = true` + `syncVisibilityFromOptions()`；存档按
