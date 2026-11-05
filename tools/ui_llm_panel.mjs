@@ -274,7 +274,8 @@ r = await visRows(ID);
 check("点「外部 API」⇒ 5 + 3 = 8 行，标题只出现一次",
     r.shown === 8 && r.heads.length === 1 && r.heads[0] === "外部 API", JSON.stringify(r));
 let ca = await chip("api");
-check("通道不在外部 ⇒ api chip 标「通道外」", ca && /通道外/.test(ca.text), JSON.stringify(ca));
+check("点「外部 API」chip ⇒ 该 chip 不标「本次不用」（此时连接方式就是它）",
+    ca && !/本次不用/.test(ca.text), JSON.stringify(ca));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-4-api.png"), { y: 30 });
 
 // —— (b) 换通道 ⇒ 面板自动切到那一组 ——
@@ -287,7 +288,7 @@ await page.waitForTimeout(700);
 let after = await where();
 check("切到外部 API ⇒ 焦点自动落在 api 组", after && after[0].focus === "api", JSON.stringify(after));
 cl = await chip("local");
-check("本地 chip 变成「通道外」且不展开", cl && /通道外/.test(cl.text) && cl.state === "closed", JSON.stringify(cl));
+check("本地 chip 变成「本次不用」且不展开", cl && /本次不用/.test(cl.text) && cl.state === "closed", JSON.stringify(cl));
 await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
     const w = n.widgets.find((x) => x.name === "channel");
@@ -339,6 +340,9 @@ check("「回到分组」按回聚焦组（local），不是全收起",
 
 // —— (d) 存盘 → 重开：widgets_values 逐位一致 ——
 const save = await page.evaluate(async () => {
+    // chip 现在会切 channel ⇒ 存盘前把它对齐到示例文件的取值（纯赋值、不调 callback，
+    // 避免触发聚焦把「重开后 5 行」那条撞翻）。
+
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
     n.widgets.find((x) => x.name === "temperature").value = 0.55;      // 改一个值，验证它回得来
     n.widgets.find((x) => x.name === "must_keep").value = "路上小心";
@@ -499,9 +503,12 @@ const reloadLinked = await page.evaluate(async () => {
     const after = m2 ? JSON.parse(JSON.stringify(m2.widgets_values)) : [];
     const diff = [];
     for (let i = 0; i < Math.max(orig.length, after.length); i += 1) {
+        // 第 1 格是 channel（连接方式）：chip 现在会切它，而重开走的是示例文件，
+        // 两边来源不同 ⇒ 单独用下面那条断言核，不混进「逐位一致」。
+        if (i === 1) continue;
         if (JSON.stringify(orig[i]) !== JSON.stringify(after[i])) diff.push([i, orig[i], after[i]]);
     }
-    return { slotLink: slot2 ? slot2.link : null,
+    return { chanAfter: after[1], slotLink: slot2 ? slot2.link : null,
         hidden: w2 ? !!((w2.options || {}).hidden) : null,
         suppressed: w2 ? !!w2.connectionSuppressed : null,
         ubatchHidden: u2 ? !!((u2.options || {}).hidden) : null,
@@ -510,7 +517,9 @@ const reloadLinked = await page.evaluate(async () => {
 });
 check("重开工作流后真链还在（ctx_size 输入槽 slot.link 非空）",
     reloadLinked.slotLink != null, "slot.link=" + reloadLinked.slotLink);
-check("重开后 widgets_values 逐位一致（38 格；接线与折叠都不写存档）",
+check("重开后连接方式取自示例文件（channel=api），与 chip 的显式选择解耦",
+    reloadLinked.chanAfter === "api", JSON.stringify(reloadLinked.chanAfter));
+check("重开后 widgets_values 逐位一致（38 格；除第 1 格 channel 外）",
     reloadLinked.len === 38 && reloadLinked.diff.length === 0,
     "len=" + reloadLinked.len + " diff=" + JSON.stringify(reloadLinked.diff));
 check("重开后已接线参数仍不被面板藏（hidden=false；宿主 byConnection 抑制控件本身是宿主行为，如实记录）",
@@ -706,8 +715,9 @@ const autoChan = await page.evaluate(async () => {
     await wait(400);
     return String(W("channel").value);
 });
-check("填端点即把通道拨到外部 API（不用记得还有第二个开关）",
-    autoChan === "api", autoChan);
+// L2：填端点不再自动拨通道（UI 不擅自改值），状态块负责说明并提供一键修复。
+check("填端点后连接方式仍是本地（不再自动拨），交给状态块提示",
+    autoChan === "local", autoChan);
 
 const idle = await page.evaluate(async () => {
     const n = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[0];
@@ -769,8 +779,9 @@ const adopt = await page2.evaluate(() => {
              hint: grid ? ((grid.querySelector(".mossllm-hint") || {}).textContent || "") : "" };
 });
 await page2.close();
-check("打开「端点已填、通道还写本地」的存档 ⇒ 自动对齐到外部 API，并在摘要里说一句",
-    adopt.ch === "api" && /外部 API|External API/.test(adopt.hint), JSON.stringify(adopt));
+// L2：存档优先，载入不擅自改值（旧工作流行为不变）。
+check("打开「端点已填、通道还写本地」的存档 ⇒ 按存档跑本地，不再自动对齐",
+    adopt.ch === "local", JSON.stringify(adopt));
 
 // —— 模式摘要（B）与执行前缺项（C）：都要靠真页面读 DOM，不能只测函数 ——
 const guide = await page.evaluate(async () => {
@@ -939,9 +950,9 @@ const ep = await page.evaluate(async () => {
     return out;
 });
 console.log("  端点下拉轮询等待 =", ep.waited, "ms", ep.mounted ? "（挂上了）" : "（4000ms 未挂上，下面照旧判红）");
-check("选中预置端点 ⇒ api_base 写入实测值、通道从本地切到外部 API、说明行点名",
+check("选中预置端点 ⇒ api_base 写入实测值、连接方式仍由用户决定（不自动切）",
     ep.mounted && ep.pick && ep.idle.channel === "local" && ep.idle.sel === ""
-    && ep.pick.base === "https://api.deepseek.com/v1" && ep.pick.channel === "api"
+    && ep.pick.base === "https://api.deepseek.com/v1" && ep.pick.channel === "local"
     && ep.pick.sel === "https://api.deepseek.com/v1" && /DeepSeek/.test(ep.pick.hint),
     JSON.stringify({ idle: ep.idle, pick: ep.pick }));
 check("选「自定义」不改原值（下拉只是 api_base 的镜像，手填的网关不被覆盖）",

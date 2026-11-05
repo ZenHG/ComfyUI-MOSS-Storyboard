@@ -164,7 +164,7 @@ const CSS = `
 
 const I18N = {
     zh: { core: "常驻", tune: "常用调优", local: "本地引擎 · llama.cpp", api: "外部 API",
-        other: "其它", offchannel: "通道外", expand: "全部展开", back: "回到分组",
+        other: "其它", offchannel: "本次不用", expand: "全部展开", back: "回到分组",
         count: "%d 个参数 · %d 个可见", dirty: "%d 项与默认不同",
         openTip: "只展开这一组（其余收起来）", closeTip: "收起，回到常驻",
         expandTip: "一次展开全部 %d 项，包括当前通道用不到的旋钮",
@@ -206,7 +206,7 @@ const I18N = {
         lackTipName: "模型名还没选。点一下展开「外部 API」组，或先用 ↻ 拉一份清单。",
         lackTipModel: "本地通道要一个 GGUF 模型才能跑。点一下展开「本地引擎」组；"
             + "或把通道切到「外部 API」。",
-        kindChannel: "通道",
+        kindChannel: "连接",
         preset_draft: "草稿（快）", preset_fine: "精修（细）", preset_reset: "恢复默认",
         presetTip_draft: "一次写入：长度=简短 · 温度 0.9 · 上限 512 tokens。先看方向对不对时用，最省时间",
         presetTip_fine: "一次写入：长度=详细 · 温度 0.2 · 上限 2048 tokens。要出成品时用",
@@ -215,7 +215,7 @@ const I18N = {
         presetResetDone: "「常用调优」已恢复默认值",
         },
     en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
-        other: "Other", offchannel: "other channel", expand: "Show all", back: "Grouped",
+        other: "Other", offchannel: "not used now", expand: "Show all", back: "Grouped",
         count: "%d params · %d visible", dirty: "%d differ from default",
         openTip: "Show only this group", closeTip: "Fold back to Basic",
         expandTip: "Show all %d params, including the other channel's",
@@ -592,9 +592,13 @@ function makeChip(node, st, g) {
     b.append(caret, label, count, dot);
     b.onclick = (e) => {
         e.stopPropagation();
+        // 连接方式互斥：点哪个 chip 就把 channel 拨到那个通道（幂等；第二下仍收起视图）。
+        // 先算视图目标：切 channel 会触发宿主 callback 自动聚焦该组，先切再算会把「收起」抵消。
         const wasForce = st.force;
+        const next = wasForce ? g.key : (st.focus === g.key ? null : g.key);
+        if (g.channel) setChannel(node, g.key === "local" ? CH_LOCAL : CH_API);
         st.force = false;
-        st.focus = wasForce ? g.key : (st.focus === g.key ? null : g.key);
+        st.focus = next;
         applySoon(node);
     };
     return { b, caret, label, count, dot, kind };
@@ -784,9 +788,8 @@ function ensureModelValue(node) {
 function adoptApiIntent(node, st) {
     if (st.chanAligned || !apiVal(node, "api_base").trim()) return;
     st.chanAligned = true;
-    if (chanOf(apiVal(node, "channel")) !== CH_API && setChannel(node, CH_API)) {
-        noteOnce(node, st, t().chanAuto);
-    }
+    // L2 契约：UI 只显示、不擅自改值。存档里「端点已填 + 通道=本地」按存档跑，
+    // 由开关条上的状态块说明并给一键修复，不替用户拨通道。
 }
 
 /** 一次性说明：把状态的改变说出来，但不能一直占着摘要行（8s 后自己收）。 */
@@ -1237,7 +1240,7 @@ function mount(node) {
         const orig = bw.callback;
         bw.callback = function (...args) {
             const r = orig ? orig.apply(this, args) : undefined;
-            if (String(args[0] == null ? "" : args[0]).trim()) setChannel(node, CH_API);
+            // L2：填端点不再自动拨通道；只有用户显式点 chip 或状态块才改连接方式。
             applySoon(node);
             return r;
         };
@@ -1261,7 +1264,7 @@ function mount(node) {
         const orig = mw.callback;
         mw.callback = function (...args) {
             const r = orig ? orig.apply(this, args) : undefined;
-            if (String(args[0] == null ? "" : args[0]).trim()) setChannel(node, CH_API);
+            // L2：手填模型名同样不自动拨通道（只重画，让状态块去说明）。
             applySoon(node);
             return r;
         };
