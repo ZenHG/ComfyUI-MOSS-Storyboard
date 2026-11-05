@@ -116,6 +116,7 @@ const CSS = `
 .mossllm-presets{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
 .mossllm-presets[hidden]{display:none}
   .mossllm-rt{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
+  .mossllm-rt[hidden]{display:none}
 .mossllm-preset{padding:0 7px;border-radius:6px;border:1px dashed var(--border-color,#4e4e4e);
  background:transparent;color:var(--input-text,#ddd);font:11px/1.7 system-ui,sans-serif;cursor:pointer}
 .mossllm-preset:hover{background:var(--comfy-input-bg,#222)}
@@ -904,10 +905,19 @@ function pinEndpoints(node, st) {
  * 把「安装/更新」与「测试」贴在 runtime 行右端（与 ↻、常用端点同一手法）。
  * 两个按钮都**不是 widget**：不进 `widgets_values`，存档格数一格不动。
  */
-function pinRuntimeTools(node, st) {
-    const row = rowOf(node, "runtime");
-    if (!row) return false;
+
+/**
+ * 运行时动作：安装/更新 与 测试。
+ *
+ * 为什么不贴到 runtime 行右端：那一行由 widget 占满，塞文本按钮会溢出/错位（实测）。
+ * 这里与预设按钮同一处——放在开关条里、只在该组展开时显示，行布局一个像素都不动，
+ * 也不新增 widget（存档仍 38 格）。
+ */
+function buildRuntimeTools(node, st) {
     const L = t();
+    const box = document.createElement("span");
+    box.className = "mossllm-rt";
+    box.hidden = true;
     const post = async (url, body) => {
         const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body || {}) });
@@ -918,41 +928,27 @@ function pinRuntimeTools(node, st) {
         b.type = "button";
         b.className = "mossllm-preset";
         b.dataset.mossllmRuntime = key;
-        for (const ev of ["pointerdown", "mousedown", "dblclick", "click"]) {
-            b.addEventListener(ev, (e) => e.stopPropagation());
-        }
         b.onclick = async (e) => {
             e.stopPropagation();
             if (b.disabled) return;
             b.disabled = true;
-            try { await run(b); } finally { b.disabled = false; applySoon(node); }
+            try { await run(); } finally { b.disabled = false; applySoon(node); }
         };
         return b;
     };
-    if (!st.rt) {
-        const box = document.createElement("span");
-        box.className = "mossllm-rt";
-        const install = mk("install", async () => {
-            noteOnce(node, st, t().rtInstalling);
-            const j = await post("/moss_llm/runtime/install");
-            noteOnce(node, st, j.ok ? fmt(t().rtInstalled, j.tag || j.exe || "")
-                : fmt(t().rtProbeFail, j.error || ""));
-        });
-        const test = mk("test", async () => {
-            const j = await post("/moss_llm/runtime/probe",
-                { source: apiVal(node, "runtime"), server_exe: apiVal(node, "server_exe") });
-            noteOnce(node, st, j.ok ? fmt(t().rtProbeOk, j.version || j.exe || "")
-                : fmt(t().rtProbeFail, j.error || ""));
-        });
-        box.append(install, test);
-        st.rt = { box, install, test };
-    }
-    if (st.rt.box.parentElement !== row) row.appendChild(st.rt.box);
-    st.rt.install.textContent = L.rtInstall;
-    st.rt.test.textContent = L.rtTest;
-    st.rt.install.title = L.rtInstallTip;
-    st.rt.test.title = L.rtTestTip;
-    return true;
+    const install = mk("install", async () => {
+        noteOnce(node, st, t().rtInstalling);
+        const j = await post("/moss_llm/runtime/install");
+        noteOnce(node, st, j.ok ? fmt(t().rtInstalled, j.tag || j.exe || "") : fmt(t().rtProbeFail, j.error || ""));
+    });
+    const test = mk("test", async () => {
+        const j = await post("/moss_llm/runtime/probe",
+            { source: apiVal(node, "runtime"), server_exe: apiVal(node, "server_exe") });
+        noteOnce(node, st, j.ok ? fmt(t().rtProbeOk, j.version || j.exe || "") : fmt(t().rtProbeFail, j.error || ""));
+    });
+    box.append(install, test);
+    st.rt = { box, install, test, L };
+    return box;
 }
 
 function buildBar(node, st) {
@@ -1024,7 +1020,8 @@ function buildBar(node, st) {
         };
         st.presets.appendChild(pb);
     }
-    bar.append(st.warn, st.presets, st.btn, hintRow);
+    st.rtBox = buildRuntimeTools(node, st);
+    bar.append(st.warn, st.presets, st.rtBox, st.btn, hintRow);
     return bar;
 }
 
@@ -1133,8 +1130,15 @@ function paintBar(node, st, shown, off, meta) {
     // 预设按钮跟着调参组走：展开才有意义，收起时别占地方。
     if (st.presets) {
         st.presets.hidden = !(st.force || st.focus === "tune");
+        if (st.rtBox) st.rtBox.hidden = st.force || st.focus !== "local";
         if (!st.presets.hidden) {
-            for (const pb of st.presets.children) {
+            if (st.rt && !st.rtBox.hidden) {
+            st.rt.install.textContent = L.rtInstall;
+            st.rt.test.textContent = L.rtTest;
+            st.rt.install.title = L.rtInstallTip;
+            st.rt.test.title = L.rtTestTip;
+        }
+        for (const pb of st.presets.children) {
                 const k = pb.dataset.mossPreset;
                 pb.textContent = L["preset_" + k];
                 pb.title = L["presetTip_" + k];
@@ -1227,7 +1231,6 @@ function apply(node) {
     syncModelBase(node, st);
     ensureModelValue(node);
     pinPicker(node, st);
-    pinRuntimeTools(node, st);
     pinEndpoints(node, st);
     if (found === 0 && !st.domWarned) {
         st.domWarned = true;
