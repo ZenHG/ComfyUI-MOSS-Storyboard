@@ -321,8 +321,14 @@ def installed_tag():
 def find_exe():
     for base in (RUNTIME_DIR, RUNTIME_DIR / "build" / "bin"):
         if base.is_dir():
-            hits = sorted(h for h in base.glob("**/llama-server*")
-                          if h.is_file() and (h.suffix == ".exe" or os.access(h, os.X_OK)))
+            # 只认 .exe：Win32 上 os.access(X_OK) 对任何存在的文件都为真，
+            # 早先的写法会把 llama-server-impl.dll 也收进来，而按名字排序时
+            # 「-」排在「.」前面 ⇒ 返回 DLL，Popen 直接 WinError 193。
+            hits = sorted(
+                (h for h in base.glob("**/llama-server*")
+                 if h.is_file() and h.suffix.lower() == ".exe"),
+                key=lambda h: (h.name.lower() != "llama-server.exe", str(h)),
+            )
             if hits:
                 return str(hits[0])
     return None

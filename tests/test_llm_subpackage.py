@@ -857,6 +857,25 @@ def main():
                 hits += 1
     check("15 条高频报错中英双写（英文紧跟中文、≥20 个 ASCII 字母）", hits >= 15, "命中 %d 条" % hits)
 
+    # 回归：运行时目录里同时有 llama-server.exe 与 llama-server-impl.dll 时必须选 exe。
+    # 早先按名字排序会把 -impl.dll 排在前面（"-" < "."），Popen 直接 WinError 193。
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from moss_llm import runtime_install as _rt
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as _td:
+        _p = Path(_td)
+        (_p / "llama-server.exe").write_bytes(b"MZ")
+        (_p / "llama-server-impl.dll").write_bytes(b"MZ")
+        _old = _rt.RUNTIME_DIR
+        try:
+            _rt.RUNTIME_DIR = _p
+            _picked = _rt.find_exe()
+        finally:
+            _rt.RUNTIME_DIR = _old
+    check("find_exe 只认 .exe（同目录有 -impl.dll 时不会选错）",
+          bool(_picked) and _picked.endswith("llama-server.exe"), repr(_picked))
+
     print("\n结果：通过 %d / 失败 %d" % (len(PASS), len(FAIL)))
     for f in FAIL:
         print("  - " + f)
