@@ -76,7 +76,36 @@ _TARGETS = ["moss-image", "qwen-image-2_1", "krea2", "flux3", "flux1_dev",
 #: H3 六段式档名。与 `smith/adapters/h3.py::SIX_SECTION_PROFILES` 同口径
 #: （单测钉住两边一致）——这里只用它决定「扩写要哪种 H3 骨架」，不参与拼装校验。
 _SIX_PROFILES = ("six-section", "six_section", "h3-six-section")
+#: 结构性方言（不是措辞风格）：宫格稿要 `[PANEL]`，标签串是逗号短词。
+#: 事实源 = `smith/data/model-registry.yaml` 的 `structured_output`：只有 moss-image
+#: 同时有 caption / layout_json / tag；krea2 / qwen-image-2_1 / flux3 / nano-banana 只有 caption。
+#: 把结构稿喂给只吃 caption 的后端不会报错，但产物是对方根本不吃的格式 —— 静默错。
+_STRUCTURE_DIALECTS = frozenset(("moss_storyboard", "generic_tags"))
+_TAG_TARGETS = frozenset(("sdxl", "flux1_dev"))     # legacy 标签系
 _LENGTHS = ["brief", "standard", "detailed"]
+
+
+def _dialect_for_target(dialect, target, task, report):
+    """把「结构稿 + 只吃 caption 的后端」纠正成对方能吃的写法。
+
+    只挡**明确错**的组合，不优化「好不好」：四个 prose 方言（措辞风格）
+    任何 prose 后端都能读，不动。H3 走 target/profile，dialect 本来就不生效，也不动。
+
+    不改 widget 值、不改存档：只影响本次 system prompt。旧存档打开仍能跑，
+    report 里明说改了什么 —— 本仓一贯的「不静默」口径。
+    """
+    if task != "expand" or dialect not in _STRUCTURE_DIALECTS:
+        return dialect
+    t = str(target or "moss-image").strip().lower()
+    if t in ("minimax-h3", "moss-image"):
+        return dialect                        # H3 不用 dialect；MOSS 两种结构都支持
+    if dialect == "generic_tags" and t in _TAG_TARGETS:
+        return dialect                        # legacy 标签系就是吃标签串
+    fallback = "generic_tags" if t in _TAG_TARGETS else "generic_natural"
+    report.append("⚠ 后端 %s 只吃连贯描述，不接受 %s ⇒ 本次改用 %s"
+                  "（存档里的「方言」值不变；要保留结构稿请把 target 选回 moss-image）"
+                  % (t, dialect, fallback))
+    return fallback
 _LANGS = ["auto", "zh", "en"]
 _RUNTIMES = ["auto", "runtime", "path", "custom"]
 _ONOFF = ["on", "off"]
@@ -578,7 +607,9 @@ class MossPromptSmith:
                               "长度带与 must_keep 判据不适用" % pe_path)
             report.append("PE 绕过参数：%s —— 本次不生效" % " / ".join(_PE_BYPASSED))
         else:
-            system = self._build_system(pack, task, dialect, length, panels, style_lock,
+            # 结构稿不能喂给只吃 caption 的后端。只改本次 system，不动存档；report 出声。
+            eff_dialect = _dialect_for_target(dialect, target, task, report)
+            system = self._build_system(pack, task, eff_dialect, length, panels, style_lock,
                                         must_keep, wash, two_pass, language,
                                         target=target, profile=profile)
             if h3_mode and not pe_mode:

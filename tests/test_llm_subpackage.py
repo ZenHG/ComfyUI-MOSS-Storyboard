@@ -527,6 +527,43 @@ def main():
           and "Return one JSON object" not in s_cap)
     check("caption + six-section ⇒ 六段式看图契约",
           "subject_definitions" in s_cap6 and "reference image" in s_cap6)
+    # ---- dialect × target 联合校验：结构稿不能喂给只吃 caption 的后端 ----
+    # 事实源 = registry 的 structured_output（moss-image 有 layout_json/tag，其余多为 caption 单值）
+    def conv(dialect, target, task="expand"):
+        rep = []
+        return nodes._dialect_for_target(dialect, target, task, rep), rep
+
+    bad, rep_bad = conv("moss_storyboard", "krea2")
+    check("Krea 2 + 宫格稿 ⇒ 纠正成通用自然语言（产物不再是中文 [PANEL] 稿）",
+          bad == "generic_natural" and any("只吃连贯描述" in x for x in rep_bad),
+          str((bad, rep_bad)))
+    s_bad = inst0._build_system(pack0, "expand", "moss_storyboard", "standard", 4, "", "",
+                                False, False, "auto")
+    s_fix = inst0._build_system(pack0, "expand", bad, "standard", 4, "", "",
+                                False, False, "auto", target="krea2")
+    check("纠正后 system 真的换了模板（不是只改了个返回值）",
+          "[PANEL" in s_bad and "[PANEL" not in s_fix and "100-200 words" in s_fix,
+          s_fix[:70])
+    q, rep_q = conv("generic_tags", "qwen-image-2_1")
+    check("Qwen-Image 2.1 + 标签串 ⇒ 纠正（它只吃 caption）",
+          q == "generic_natural" and bool(rep_q), str((q, rep_q)))
+    check("moss-image 两种结构稿都放行（它 registry 里就有 layout_json / tag）",
+          conv("moss_storyboard", "moss-image")[0] == "moss_storyboard"
+          and conv("generic_tags", "moss-image")[0] == "generic_tags")
+    check("sdxl / flux1_dev 仍吃标签串（legacy tag 系，别一刀切）",
+          conv("generic_tags", "sdxl")[0] == "generic_tags"
+          and conv("generic_tags", "flux1_dev")[0] == "generic_tags")
+    check("H3 走 target/profile，dialect 不生效 ⇒ 不纠正（六段式是 H3 专有）",
+          conv("moss_storyboard", "minimax-h3")[0] == "moss_storyboard")
+    check("caption 走固定模板，dialect 不生效 ⇒ 不纠正",
+          conv("moss_storyboard", "krea2", "caption")[0] == "moss_storyboard")
+    check("prose 措辞方言一律不拦（只挡明确错，不优化好不好）",
+          all(conv(d, "krea2")[0] == d for d in
+              ("moss_image", "generic_natural", "cinematic", "cn_natural")))
+    check("纠正只影响本次 system，存档值不变（纯函数不写回 widget）",
+          nodes._DIALECTS == ["moss_image", "moss_storyboard", "generic_natural",
+                              "generic_tags", "cinematic", "cn_natural"])
+
     check("方言表没有被塞进 H3 值（保持 6 个）",
           len(nodes._DIALECTS) == 6 and not any("h3" in d for d in nodes._DIALECTS),
           repr(nodes._DIALECTS))
