@@ -94,7 +94,7 @@
     {
       "id": "expand.h3.en",
       "path": "expand.h3.en.txt",
-      "sha256": "df118e03a2d457a834e886845b160a3f0be899173d60f25b752505bab296b590",
+      "sha256": "44c189f628b7be6338a382141c84220213ea3e91ee688732e4174823607f834f",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -102,7 +102,7 @@
     {
       "id": "expand.h3_six.en",
       "path": "expand.h3_six.en.txt",
-      "sha256": "780b94594accb3ff4428020f56f73e4841172cd0d8bae6b1ad9a2f2624f37dc5",
+      "sha256": "f8b2eca4958c3a91db5ce5977efdca2c22a15e38f85b90e3cb4af949ed077d49",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -110,7 +110,7 @@
     {
       "id": "caption.h3.en",
       "path": "caption.h3.en.txt",
-      "sha256": "fbe05ae0686e84ee3f39527bc2ec4283863262a27f279570d0f854e50828abfd",
+      "sha256": "6685a49dc65df53eac8ec7d272bae18e35b357e83b0c2146ea99f8ee8c1d28f0",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -118,7 +118,7 @@
     {
       "id": "caption.h3_six.en",
       "path": "caption.h3_six.en.txt",
-      "sha256": "6822fa5122b6c93527383ce1700bc2d4cd61355a0f93c146f141be9303f5cd9e",
+      "sha256": "ecb63a5e0b04332fe8d63ff3ec243b0ed92c50471f8b809d2241589b7ace5735",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
