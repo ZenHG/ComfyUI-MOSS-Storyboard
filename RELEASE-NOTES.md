@@ -19,6 +19,46 @@
 
 ---
 
+## 0.5.1 — 2026-11-07
+
+**LLM 提示词节点界面重做，预设可以嵌套选。**
+
+- 顶部现在是一张状态卡：直接写明当前在做什么、还缺什么；缺项标红，通道不一致标琥珀。
+- 「做什么」「用哪个」改成一排分段按钮，点一下就切换，界面立刻跟着变。
+- 默认首屏只留 4 项；方言选项只在「扩写」时出现，别的时候不再占位置。
+- 新增嵌套预设：展开「预设」后先选「连接」或「采样」，再选具体档位。连接里是常用端点，
+  采样里是草稿 / 精修 / 恢复默认。收起时只占一行。
+- 底部单独一条「高级」入口，展开后能看到全部参数；同一张图里会记住你展开过。
+- 改任意参数马上出反馈，不再等一拍；展开一组时顶条不再被撑高。
+- 结构稿不会再喂给只吃连贯描述的后端；遇到不合适的组合会改用通用写法，并在运行报告里说明。
+
+**升级动作**：不用改现有工作流，存档格数与顺序完全不变。刷新一次浏览器页面即可看到新界面。
+
+<!-- EN -->
+
+**The LLM prompt node has a redesigned panel, with nested presets.**
+
+- A status card at the top says what the node is doing and what is still missing.
+  Missing required values are red; a channel mismatch is amber.
+- "What" and "Backend" are now segmented buttons. One click switches the task or the
+  channel, and the panel updates immediately.
+- The default view shows four fields. The dialect selector appears only for Expand,
+  instead of taking space in every task.
+- Presets are nested: open Presets, choose Connect or Sampling, then pick a concrete
+  entry. Connect lists common endpoints; Sampling offers Draft, Fine and Reset.
+  When closed, the whole section is a single line.
+- A separate Advanced row opens every parameter and remembers that choice for the
+  current session.
+- Changing any value gives immediate feedback instead of waiting for a periodic
+  refresh, and expanding a group no longer stretches the top bar.
+- Structured drafts are no longer sent to backends that only accept plain
+  descriptions. The node falls back to a compatible wording and says so in the run report.
+
+**Action required**: none. Saved workflows keep their slot count and order. Reload the
+browser page once to see the new panel.
+
+---
+
 ## 0.5.0 — 2026-11-07
 
 **多图参考与 H3 音视频格式。**

@@ -17,7 +17,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.5.0** |
+| Version | **0.5.1** |
 | License | **MIT** (credits: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support) |
 | Dependencies | **Zero** extra pip packages for the core nodes. Face Swap's auto mask is **on by default** and needs `insightface` + `onnxruntime` **plus** `det_10g.onnx` (`~/.insightface/models/buffalo_l/`, or `MOSS_INSIGHTFACE_ROOT`). Without them, wire a `mask` manually or turn `auto_mask` off; the node raises a clear error and never downloads weights |
@@ -81,9 +81,13 @@ Download the three files from the official tutorial
   Output goes to `output/moss/storyboard/` (`grid_*.png` + `panel_*.png`).
 - **First prompt:** drag [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json). Only the caption group is on;
   other groups are bypassed (`Ctrl+B` to enable).
-- **Panel extras:** with the **Common tuning** group open, three one-click presets (Draft / Fine / Reset)
-  sit on the parameter bar; the `api_base` row has a common-endpoint picker (DeepSeek / OpenCode / CoRouter /
-  Ollama / LM Studio) that fills the URL and switches the channel for you.
+- **The LLM panel (0.5.1):** a status card on top says what the node is doing and what is still
+  missing; "What" and "Backend" are segmented buttons; the default view shows only four fields.
+  Presets are **nested** — open Presets, choose *Connect* (common endpoints: DeepSeek / OpenCode /
+  CoRouter / Ollama / LM Studio) or *Sampling* (Draft / Fine / Reset), then pick an entry.
+  A separate *Advanced* row opens all parameters and remembers that choice for the session.
+  The `api_base` row still has its inline endpoint picker. Changing any value updates the panel
+  immediately; no periodic refresh wait.
 
 ### 1.4 Where to go next
 
@@ -229,7 +233,7 @@ the rest need nothing.
 ### 3.2 Docs
 
 - Full parameters, glossary and measured limits: [`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
-- LLM node (dialects, 38 widgets): [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 above.
+- LLM node (dialects, 39 widgets): [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 above.
 - Docs index: [`docs/README.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/README.md).
 
 > Manuals live in the GitHub repository only; the published package does not ship `docs/`. Links above point to the repository.

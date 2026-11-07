@@ -16,7 +16,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.5.0** |
+| 版本 | **0.5.1** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（原生支持 MOSS-Image） |
 | 依赖 | 核心**零**额外 pip 依赖。换脸自动蒙版**默认开**，需 `insightface` + `onnxruntime` **以及** `det_10g.onnx` 权重（默认 `~/.insightface/models/buffalo_l/`，可用 `MOSS_INSIGHTFACE_ROOT` 改目录）；缺任一项请手接 `mask` 或关掉 `auto_mask`，节点会明确报错且不会联网下载 |
@@ -78,9 +78,11 @@
   产物在 `output/moss/storyboard/`（`grid_*.png` 与 `panel_*.png`）。
 - **第一段提示词**：拖 [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json)。默认只开反推组，
   其余组已旁路（`Ctrl+B` 可启用）。
-- **面板小工具**：展开「常用调优」时，参数条上有三个一键预设（草稿 / 精修 / 恢复默认）；
-  `api_base` 那一行有常用端点下拉（DeepSeek / OpenCode / CoRouter / Ollama / LM Studio），
-  选一下就填好地址并切换连接方式。
+- **LLM 面板（0.5.1）**：顶部一张状态卡写明当前在做什么、还缺什么；「做什么」「用哪个」
+  是分段按钮；默认首屏只留 4 项。预设改成**嵌套**：展开「预设」后先选「连接」（常用端点：
+  DeepSeek / OpenCode / CoRouter / Ollama / LM Studio）或「采样」（草稿 / 精修 / 恢复默认），
+  再选具体档位。底部单独一条「高级」可展开全部参数，并记住本次展开状态。
+  `api_base` 行内的端点下拉仍保留。改任意参数都会立刻出反馈，不用等下一轮刷新。
 
 ### 1.4 下一步
 
@@ -215,7 +217,7 @@ PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但�
 ### 3.2 文档
 
 - 全部参数、术语与实测边界：[`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
-- LLM 节点（方言 / 38 个参数）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见上面 1.6。
+- LLM 节点（方言 / 39 个参数）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见上面 1.6。
 - 文档索引：[`docs/README.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/README.md)。
 
 > 手册只在 GitHub 仓库里，发布包不含 `docs/`；上面的链接指向仓库。
