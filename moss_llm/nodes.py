@@ -73,6 +73,9 @@ _DIALECTS = ["moss_image", "moss_storyboard", "generic_natural", "generic_tags",
 #: 只用于 V1 参数表——组合框必须能在不 import 编译器时也有值。
 _TARGETS = ["moss-image", "qwen-image-2_1", "krea2", "flux3", "flux1_dev",
             "sdxl", "minimax-h3", "nano-banana"]
+#: H3 六段式档名。与 `smith/adapters/h3.py::SIX_SECTION_PROFILES` 同口径
+#: （单测钉住两边一致）——这里只用它决定「扩写要哪种 H3 骨架」，不参与拼装校验。
+_SIX_PROFILES = ("six-section", "six_section", "h3-six-section")
 _LENGTHS = ["brief", "standard", "detailed"]
 _LANGS = ["auto", "zh", "en"]
 _RUNTIMES = ["auto", "runtime", "path", "custom"]
@@ -272,7 +275,19 @@ class MossPromptSmith:
                     "tooltip": "同 seed + 同 prompt + 同模型可复现。改 seed 只换采样，不换提示词内容"}),
             },
             "optional": {
-                "image": ("IMAGE", {"tooltip": "反推必接；扩写可选作参考；编辑指令必接"}),
+                "image": ("IMAGE", {"tooltip": "反推必接；扩写可选作参考；编辑指令必接。"
+                                               "多图（H3 参考图，最多 9 张）接满会自动长出下一槽"}),
+                # 多图参考：H3 最多认 9 张。这里声明到 image9，前端默认只露 2 槽、
+                # 接满一槽自动补下一槽（web/moss_llm_image_slots.js）。
+                # IMAGE 是连线型输入，不占 widgets_values 的格位，所以加它们不动存档契约。
+                "image2": ("IMAGE", {"tooltip": "第 2 张参考图（可选）。接满槽位会自动多出下一个，最多 9 张"}),
+                "image3": ("IMAGE", {"tooltip": "第 3 张参考图（可选）。三张人物图就是 image / image2 / image3"}),
+                "image4": ("IMAGE", {"tooltip": "第 4 张参考图（可选）"}),
+                "image5": ("IMAGE", {"tooltip": "第 5 张参考图（可选）"}),
+                "image6": ("IMAGE", {"tooltip": "第 6 张参考图（可选）"}),
+                "image7": ("IMAGE", {"tooltip": "第 7 张参考图（可选）"}),
+                "image8": ("IMAGE", {"tooltip": "第 8 张参考图（可选）"}),
+                "image9": ("IMAGE", {"tooltip": "第 9 张参考图（可选，H3 上限）"}),
                 "mmproj": (mmproj_list, {"default": _MMPROJ_AUTO,
                     "tooltip": "视觉投影文件，带图出词必需（没有它模型看不到图片）。"
                                "自动匹配=按宽度配对（模型 embedding_length == 塔 projection_dim），"
@@ -369,10 +384,24 @@ class MossPromptSmith:
                 # 放在**最后**：ComfyUI 的 widgets_values 是按位置存的，插在中间会让
                 # 老工作流的每个值往后错一位。新增控件只能往后加。
                 "target": (_TARGETS, {"default": "moss-image",
-                    "tooltip": "仅 task=拼装 用：往哪个后端渲染。moss-image=MOSS 单图；"
+                    "tooltip": "输出到哪个后端：拼装用它选渲染器，反推 / 扩写用它选提示词格式"
+                               "（minimax-h3 = 音视频三字段时间线）。moss-image=MOSS 单图；"
                                "qwen-image-2_1 / krea2 / flux3 / flux1_dev / sdxl 是各自的方言；"
-                               "minimax-h3 是视频（IR 里要有 timeline）。"
-                               "拼装是确定性 Python，不开模型、毫秒级、可复现"}),
+                               "minimax-h3 拼装时要求 IR 里有 timeline。"
+                               "拼装是确定性 Python、不开模型、毫秒级；扩写仍要模型"}),
+                # 追加在 target 之后：widgets_values 按位置存，插中间会让老稿整体错位。
+                # 档位名不写成下拉清单：registry 的 dialects 才是唯一事实源，
+                # 在节点里再抄一份必然漂移（target 已有「不许漂移」的对账闸）。
+                "profile": ("STRING", {"default": "",
+                    "tooltip": "目标后端下的方言档（拼装、反推与扩写共用），留空=该后端的默认骨架。"
+                               "目前只有 minimax-h3 有 six-section（全参考六段式："
+                               "subject_definitions / summary / retention_analysis / "
+                               "detailed_description / overall_soundscape / non_diegetic_music，"
+                               "并用 <Subject N> 一类参考标签锚定主体）。"
+                               "档位名以 registry 的 dialects 为准，节点不写死清单；"
+                               "填了后端没有的档会报错并列可选项，不静默降级。"
+                               "拼装仍是确定性 Python，不开模型、毫秒级、可复现",
+                    "advanced": True}),
             },
         }
 
@@ -412,9 +441,14 @@ class MossPromptSmith:
               ctx_size=8192, gpu_layers="", cache_type_k="q8_0", cache_type_v="q8_0",
               flash_attn="on", image_max_tokens=1024, ubatch=512, parallel=1, fit_on="on",
               fit_target_mib=1024, mtp="auto", mtp_draft_n=2, server_exe="", port=8091,
-              release_after_run=True, target="moss-image"):
+              release_after_run=True, target="moss-image", profile="",
+              image2=None, image3=None, image4=None, image5=None,
+              image6=None, image7=None, image8=None, image9=None):
         t0 = time.time()
         report = []
+        #: 每图视觉 token 预算。`_chat` 的自动压缩与侧车启动都要用，
+        #: 存在节点上而不是只在 acquire 的入参里（那边是侧车的 vision_tokens）。
+        self._vision_tokens = int(image_max_tokens)
         self._degraded, self._json_unsupported, self._thinking_unsupported = [], False, False
         #: `_chat` 的结构化/重复保护降级说明（schema→json_object、repeat_penalty 被拒等）。
         self._chat_notes = []
@@ -448,7 +482,61 @@ class MossPromptSmith:
         # 放在这里而不是拆成第二个节点，是因为「一个节点吃下全部功能」是本包的形态选择
         # （见模块文档）——多一个节点就多一层「配置在哪、提示词从哪来」的追踪成本。
         if task == "assemble":
-            return self._compile(text, target, report, t0)
+            return self._compile(text, target, report, t0, profile=profile)
+
+        # 多图参考（H3 最多 9 张）：前端按连接数长出 image2..image9。
+        # 单张时保持传张量本身，行为与加多图口之前逐字节一致。
+        imgs = [im for im in (image, image2, image3, image4, image5,
+                              image6, image7, image8, image9) if im is not None]
+        n_img = len(imgs)
+        image = imgs if n_img > 1 else (imgs[0] if imgs else None)
+        if task == "edit" and n_img > 1:
+            # i2i 契约是「一张源图 + 一条改法」；多余图不参与，但要说出来。
+            report.append("编辑指令只用第 1 张图，其余 %d 张本次不参与" % (n_img - 1))
+            imgs, n_img, image = imgs[:1], 1, imgs[0]
+
+        # 视觉 token 预检：**在加载权重之前**判，别让用户白等 20 GB。
+        # 每图上限 image_max_tokens（llama.cpp 的 --image-max-tokens 是每张各算一次），
+        # 再加输出预算与提示词余量，超过 ctx 就一定跑不完。
+        if n_img and channel == "local":
+            need = n_img * int(image_max_tokens) + int(max_tokens) + 512
+            if need > int(ctx_size):
+                max_img = max(256, (int(ctx_size) - int(max_tokens) - 512) // n_img)
+                raise ValueError(
+                    "上下文不够，先改参数再跑（省得白等模型加载）：\n"
+                    "    %d 张图 × 每图 %d 视觉 token = %d，加输出 %d 与提示词余量 512，"
+                    "需要 ≥%d，但「上下文长度」只有 %d。\n"
+                    "    两条路任选：① 把「上下文长度」提到 ≥%d（显存够的话）；"
+                    "② 把「每图视觉 token」降到 ≤%d（%d×%d=%d）。"
+                    % (n_img, int(image_max_tokens), n_img * int(image_max_tokens),
+                       int(max_tokens), need, int(ctx_size),
+                       need, max_img, n_img, max_img, n_img * max_img))
+            # 输出预算不够会在半句处截断：机检只报「缺字段」，用户看到的是
+            # 「跑成功但内容不全」——提前拦住。下限按**任务与骨架**给，不按图数线性：
+            # 图多影响的是主体定义那几行，描述本身该多长与图数无关。
+            #   反推一段 160–260 词的 JSON 契约，256 token 连正文都装不下（实测会丢信息）。
+            six_mode = str(profile or "").strip().lower() in _SIX_PROFILES
+            if six_mode:
+                min_out = 640 + 96 * n_img          # 六段 + 每主体一行
+            elif str(target or "").strip() == "minimax-h3":
+                min_out = 384 + 48 * n_img          # 三字段 + 时间线
+            elif task == "caption":
+                min_out = {"brief": 448, "standard": 640, "detailed": 896}.get(
+                    length, 640)                    # 一段描述 + JSON 包装
+            elif task == "expand":
+                min_out = {"brief": 384, "standard": 640, "detailed": 896}.get(
+                    length, 640)
+            else:
+                min_out = 384                       # 编辑指令：一条改法
+            if int(max_tokens) < min_out:
+                raise ValueError(
+                    "输出预算不够，先改参数再跑（省得白跑一次）：\n"
+                    "    本次（%s%s，%d 张图）max_tokens 至少 %d（建议 %d），当前只有 %d。\n"
+                    "    截断时正文会在半句处停住，机检只会说「缺字段」；"
+                    "256 这类小值会直接丢掉后半段信息。"
+                    % ("六段式" if six_mode else task,
+                       " + H3" if str(target or "").strip() == "minimax-h3" else "",
+                       n_img, min_out, ((min_out + 255) // 256) * 256, int(max_tokens)))
 
         # 任务边界与通道无关，先判：反推/编辑必须接图；扩写必须有文字
         if task in ("caption", "edit") and image is None:
@@ -474,6 +562,11 @@ class MossPromptSmith:
         pack = load_pack(_PROMPTS_DIR)
         report.append("提示词包 %s v%s（%s，%d 个文件）"
                       % (pack["pack"], pack["version"], pack["updated"], len(pack["files"])))
+        # H3 输出：caption（看图）与 expand（纯文字）都靠 target 选格式。产物是纯文本
+        # 三字段/六段式，不能套 JSON 约束（否则模型被逼成只回 `{}`，正文为空）。
+        h3_mode = (task in ("caption", "expand")
+                   and str(target or "").strip() == "minimax-h3")
+        h3_six = str(profile or "").strip().lower() in _SIX_PROFILES
         pe_mode = bool(task in ("expand", "edit") and pe_text)
         if pe_mode:
             system = pe_text
@@ -486,7 +579,17 @@ class MossPromptSmith:
             report.append("PE 绕过参数：%s —— 本次不生效" % " / ".join(_PE_BYPASSED))
         else:
             system = self._build_system(pack, task, dialect, length, panels, style_lock,
-                                        must_keep, wash, two_pass, language)
+                                        must_keep, wash, two_pass, language,
+                                        target=target, profile=profile)
+            if h3_mode and not pe_mode:
+                # 不静默：用户可能只是没意识到 target 也管反推/扩写，报告里说清用了哪套骨架。
+                # PE 改写器模式（system 来自模型目录）下 H3 契约没生效，不能谎报。
+                report.append("%s格式：MiniMax-H3 %s（由「拼装目标 / profile」决定，"
+                              "不占用方言表）"
+                              % ("扩写" if task == "expand" else "看图",
+                                 "全参考六段式" if h3_six else "三字段时间线"))
+                if task == "caption" and (two_pass or wash):
+                    report.append("H3 看图输出是纯文本三字段，两遍法 / 忽略杂项不适用")
         user = (text or "").strip()
 
         if channel == "api":
@@ -566,7 +669,28 @@ class MossPromptSmith:
 
         want_thinking = (thinking == "on")
         try:
-            if task == "caption" and two_pass:
+            if task == "caption" and n_img > 1 and not h3_mode:
+                # 多图**逐张**反推：每张各调一次，输出分段。与 H3 的多图融合是
+                # 两件事——融合给一条视频稿，逐张给 N 条独立提示词。
+                # 判据是 target：H3 走融合，其它后端走逐张（事实不串图）。
+                chunks, total_tok = [], 0
+                per = []
+                if two_pass:
+                    report.append("多图逐张反推时两遍法不适用（每张走单遍）")
+                for idx, im in enumerate(imgs, 1):
+                    p_i, _o, u_i = self._run_once(
+                        endpoint, system, user, im, temperature,
+                        int(max_tokens), int(seed), want_thinking, key, report,
+                        CAPTION_ONESHOT_SCHEMA)
+                    n_tok = int((u_i or {}).get("total_tokens") or 0)
+                    total_tok += n_tok
+                    per.append("图 %d：%s tok" % (idx, n_tok or "?"))
+                    chunks.append("--- image %d ---\n%s" % (idx, p_i.strip()))
+                prompt, obj = "\n\n".join(chunks), None
+                usage = {"total_tokens": total_tok}
+                report.append("多图逐张反推：%d 张，各调一次（%s）"
+                              % (n_img, "；".join(per)))
+            elif task == "caption" and two_pass:
                 prompt, obj, usage = self._run_caption_two_pass(
                     endpoint, pack, system, user, image, temperature,
                     int(max_tokens), int(seed), want_thinking, key, report)
@@ -574,7 +698,8 @@ class MossPromptSmith:
                 schema = CAPTION_ONESHOT_SCHEMA if task == "caption" else None
                 prompt, obj, usage = self._run_once(
                     endpoint, system, user, image, temperature,
-                    int(max_tokens), int(seed), want_thinking, key, report, schema)
+                    int(max_tokens), int(seed), want_thinking, key, report, schema,
+                    want_json=not h3_mode)
                 if task == "caption" and isinstance(obj, dict):
                     obj, guard_notes = guard_caption_json(obj)
                     report.extend(guard_notes)
@@ -600,17 +725,32 @@ class MossPromptSmith:
         report.extend(checks)
         report.append("提示词包 sha：" + " ".join(
             "%s=%s" % (f["id"], f["sha256"][:8]) for f in pack["files"]))
+        if h3_mode and h3_six and prompt.strip():
+            tidied = _tidy_h3_six(prompt)
+            if tidied != prompt:
+                report.append("六段式归一：把挤在同一行的 <Subject N> 拆成一项一行")
+                prompt = tidied
         if not prompt.strip():
             raise RuntimeError(
                 "模型没有给出可用提示词（正文为空）。可能原因：输入里含指令（如「忽略以上指令」）"
-                "把模型带偏、模型不服从 JSON 契约，或输出被截断。建议：重跑一次；换模型；"
-                "或调大 max_tokens。")
+                "把模型带偏、模型不服从%s契约，或输出被截断。建议：重跑一次；换模型；"
+                "或调大 max_tokens。"
+                % ("输出格式" if h3_mode else " JSON"))
         return (prompt, "\n".join(report))
 
     # ------------------------------------------------------------------ caption 执行
     def _run_once(self, endpoint, system, user, image, temperature, max_tokens, seed,
-                  want_thinking, key, report, schema=None):
-        """单遍 caption / expand / edit：一次请求 + JSON 容错 + 解析失败重试一次。"""
+                  want_thinking, key, report, schema=None, want_json=True):
+        """单遍 caption / expand / edit：一次请求 + JSON 容错 + 解析失败重试一次。
+
+        `want_json=False` 用于 H3 扩写：它的产物是「三字段 / 六段式」纯文本，
+        发 `response_format: json_object` 会把模型逼成输出 `{}`（实测正文为空）。
+        """
+        if not want_json:
+            raw, usage = self._chat(endpoint, system, user, image, temperature,
+                                    int(max_tokens), int(seed), want_json=False,
+                                    thinking=want_thinking, key=key)
+            return _strip_fences(raw).strip(), None, usage
         raw, usage = self._chat(endpoint, system, user, image, temperature,
                                 int(max_tokens), int(seed), want_json=True,
                                 thinking=want_thinking, key=key, schema=schema)
@@ -664,8 +804,8 @@ class MossPromptSmith:
 
     # ------------------------------------------------------------------ 确定性拼装
 
-    def _compile(self, text, target, report, t0):
-        """IR → 提示词。零模型、零网络、毫秒级。
+    def _compile(self, text, target, report, t0, profile=""):
+        """IR → 提示词。零模型、零网络、毫秒级。`profile` 选后端下的方言档。
 
         这条通道是合流时从 `moss_llm.smith` 接过来的：同一个 IR 换后端只是换方言，
         事实不变；再叠上 lint（方言规则）与 M1–M6 不变式（不需要 ground truth 的自检）。
@@ -682,7 +822,17 @@ class MossPromptSmith:
                 "    其它三个任务（反推/扩写/编辑指令）不依赖它，可以照常用。" % (e,)) from e
 
         try:
-            r = compile_ir(text, target or "moss-image")
+            r = compile_ir(text, target or "moss-image", profile=profile or None)
+        except KeyError as e:
+            # registry.sampling 对未知档位抛的是 KeyError，不是 CompileError。
+            # 不接住就是一段裸堆栈；转成一句能照着改的话，并保留上游的可选项说明。
+            raise ValueError(
+                "拼装失败：方言档 %r 在 %s 上不可用（%s）。\n"
+                "    Profile %r is not available for %s.\n"
+                "    可用档位见 smith/data/model-registry.yaml 的 dialects / sampling.profiles；"
+                "留空用该后端的默认骨架。"
+                % (profile, target or "moss-image", (e.args[0] if e.args else ""),
+                   profile, target or "moss-image")) from e
         except ValueError as e:                      # CompileError 是 ValueError 的子类
             raise ValueError("拼装失败：%s\n    Assemble failed; see above." % e) from e
 
@@ -697,6 +847,8 @@ class MossPromptSmith:
                       % (r["target"], "确定性（未调用模型）", r["ir"]["entities"],
                          r["token_count"], r["token_limit"] or "不限",
                          (time.time() - t0) * 1000))
+        if profile:
+            report.append("方言档：%s" % profile)
         report.append("不变式：%s" % r["invariants_line"])
         for it in r["issues"]:
             report.append("%s %s %s%s" % ("❌" if it["level"] == "error" else "⚠️",
@@ -728,11 +880,17 @@ class MossPromptSmith:
     # ------------------------------------------------------------------ 提示词拼装
 
     def _build_system(self, pack, task, dialect, length, panels, style_lock,
-                      must_keep, wash, two_pass, language):
+                      must_keep, wash, two_pass, language, target="", profile=""):
         """四层拼装：任务主提示词 + 方言契约 + 篇幅/语言 + 用户约束。不写万能大 prompt。"""
         texts = pack["texts"]
+        # 与 smith() 同一判据：caption 看图、expand 纯文字，都由 target 决定是否出 H3。
+        h3_mode = (task in ("caption", "expand")
+                   and str(target or "").strip() == "minimax-h3")
+        six = str(profile or "").strip().lower() in _SIX_PROFILES
         if task == "caption":
-            if two_pass:
+            if h3_mode:
+                sysmsg = texts["caption.h3_six.en" if six else "caption.h3.en"]
+            elif two_pass:
                 sysmsg = texts["caption.pass1.en"]
                 if wash:
                     sysmsg = texts["caption.clean.en"] + "\n\n" + sysmsg
@@ -742,22 +900,35 @@ class MossPromptSmith:
                 sysmsg = texts["caption.faithful.en"]
         elif task == "expand":
             sysmsg = texts["expand.method.en"]
-            key = {"moss_image": "expand.moss_image.en",
-                   "moss_storyboard": "expand.moss_storyboard.zh",
-                   "generic_natural": "expand.generic_natural.en",
-                   "generic_tags": "expand.generic_tags.en",
-                   "cinematic": "expand.cinematic.en",
-                   "cn_natural": "expand.cn_natural.zh"}[dialect]
+            # H3 音视频复用 target/profile，**不新增 dialect**：开源用户不必再学一套
+            # 「方言表」。target 说「输出到哪个后端」，profile 说「该后端下的方言档」，
+            # 与拼装是同一套概念，只是这里由模型写字、拼装由编译器写字。
+            if h3_mode:
+                key = "expand.h3_six.en" if six else "expand.h3.en"
+            else:
+                key = {"moss_image": "expand.moss_image.en",
+                       "moss_storyboard": "expand.moss_storyboard.zh",
+                       "generic_natural": "expand.generic_natural.en",
+                       "generic_tags": "expand.generic_tags.en",
+                       "cinematic": "expand.cinematic.en",
+                       "cn_natural": "expand.cn_natural.zh"}[dialect]
             sysmsg += "\n\n" + texts[key]
         else:
             sysmsg = texts["edit.i2i.en"]
 
         parts = [sysmsg]
-        parts.append("# LENGTH\nUse the %s length preset. Do not pad to reach it."
-                     % (length if length in _LENGTHS else "standard"))
-        if language and language != "auto":
-            parts.append("# LANGUAGE\nWrite the description in %s."
-                         % ("Chinese" if language == "zh" else "English"))
+        if h3_mode:
+            # 篇幅/语言两条对 H3 是反作用：它的长度由「切点密度」决定，格式标签必须是
+            # 英文，只有台词保留原语言。所以这里换成一条针对 H3 的口径说明。
+            parts.append("# FORMAT\nField labels stay in English; dialogue keeps the "
+                         "language the user wrote. The cut-density rule in the contract "
+                         "overrides any generic length preset.")
+        else:
+            parts.append("# LENGTH\nUse the %s length preset. Do not pad to reach it."
+                         % (length if length in _LENGTHS else "standard"))
+            if language and language != "auto":
+                parts.append("# LANGUAGE\nWrite the description in %s."
+                             % ("Chinese" if language == "zh" else "English"))
         if (style_lock or "").strip():
             parts.append("# STYLE LOCK\n%s" % style_lock.strip())
         if (must_keep or "").strip():
@@ -774,14 +945,31 @@ class MossPromptSmith:
         proto = _proto.detect(endpoint)
         image_url = None
         if image is not None:
+            # 多图时按 token 预算自动收像素：token 才是 ctx 的真瓶颈，像素只是细节。
+            # 单图维持 1536（既有实测口径，不回归）。约 32·√tokens：1024→1024px、
+            # 512→724px、256→512px，夹在 512–1536。
+            n_img_now = len(image) if isinstance(image, (list, tuple)) else _vision.batch_size(image)
+            side = _vision.MAX_SIDE
+            if n_img_now > 1 and int(getattr(self, "_vision_tokens", 0) or 0) > 0:
+                import math
+                side = max(512, min(_vision.MAX_SIDE,
+                                    int(round(32 * math.sqrt(int(self._vision_tokens))))))
+                self._img_notes.append(
+                    "多图自动压缩：每图长边 %d px（按每图 %d token 推算）"
+                    % (side, int(self._vision_tokens)))
             # 编码走 `moss_llm.vision`（最长边 1536 + JPEG q95 4:4:4）。
-            # 以前是原始尺寸编 PNG：1536x1024 的图能吃掉一两千视觉 token，而且
-            # PNG 无二次压缩、4:2:0 的糊字问题也躲不掉——编码选择反了方向。
-            prep = _vision.prepare_tensor(image)
-            for n in prep.notes:
-                if n not in self._img_notes:
-                    self._img_notes.append(n)
-            image_url = prep.data_url
+            # ComfyUI 的 IMAGE 天然带批维：三张参考图接进同一个口就是 batch=3，
+            # 这里一次编完、逐张挂块（协议层收列表）。单张时行为与以前完全一致。
+            preps = _vision.prepare_batch(image, max_side=side)
+            for p in preps:
+                for n in p.notes:
+                    if n not in self._img_notes:
+                        self._img_notes.append(n)
+            image_url = [p.data_url for p in preps] or None
+            if len(preps) > 1:
+                self._img_notes.append(
+                    "多图输入 %d 张（IMAGE 批）；视觉 token 上限按每图各算一次"
+                    % len(preps))
         base = _proto.body(proto, self._model_id, system, user, image_url,
                            temperature, max_tokens, seed)
         # 两个可选键都发：`chat_template_kwargs.enable_thinking` 是唯一实测能关掉思考的写法
@@ -915,6 +1103,38 @@ class MossPromptSmith:
             if vals:
                 out.append("%s：%s" % (key, "；".join(vals)))
         return out
+
+
+#: 六段式的段名。`h3_six.check` 是**按行**解析 `<Subject N>` 的，模型常把 9 个
+#: 主体挤成一行，于是除第一个外全被判「未定义」。这里做确定性归一：只拆这两段的
+#: 条目，散文段（detailed_description）一个字节不动。
+_H3_SIX_LABELS = ("subject_definitions", "summary", "retention_analysis",
+                  "detailed_description", "overall_soundscape", "non_diegetic_music")
+_H3_SIX_SPLIT = ("subject_definitions", "retention_analysis")
+
+
+def _tidy_h3_six(text):
+    """把六段式里被挤在同一行的 `<Subject N>` 条目拆成一项一行。"""
+    # 单个字符的笔误（`<Subject 9}`）就地修；这是确定性修补，不是改内容。
+    text = re.sub(r"(<Subject \d+)}", r"\1>", text or "")
+    out, cur = [], ""
+    for line in text.splitlines():
+        m = re.match(r"^(\s*)([a-z_]+)\s*:\s*(.*)$", line)
+        if m and m.group(2) in _H3_SIX_LABELS:
+            cur, rest = m.group(2), m.group(3)
+            out.append(m.group(2) + ":")
+            if cur in _H3_SIX_SPLIT and rest.strip():
+                out.extend(p.strip() for p in re.split(r"(?=<Subject \d+>)", rest)
+                           if p.strip())
+            elif rest.strip():
+                out.append(rest.strip())
+            continue
+        if cur in _H3_SIX_SPLIT and "<Subject" in line:
+            out.extend(p.strip() for p in re.split(r"(?=<Subject \d+>)", line)
+                       if p.strip())
+        else:
+            out.append(line)
+    return "\n".join(out)
 
 
 #: 解析失败重试时附加的一句话（不重写原提示词，只把输出契约再说一遍）

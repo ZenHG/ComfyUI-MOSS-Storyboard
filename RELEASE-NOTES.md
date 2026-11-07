@@ -19,6 +19,40 @@
 
 ---
 
+## 0.5.0 — 2026-11-07
+
+**多图参考与 H3 音视频格式。**
+
+- 参考图最多 9 张：`image` 接满后自动长出下一个槽；只增删输入槽，存档格数与顺序不变。
+- `target=minimax-h3` 时，反推与扩写直接出 H3 三字段时间线；`profile=six-section` 出全参考六段式。
+- 多图且目标不是 H3 时，每张图各反推一次，输出按 `--- image N ---` 分段，各段事实不串图。
+- 多图会按每图 token 预算自动缩小长边（单图仍 1536）。
+- 上下文或 `max_tokens` 不够时，节点在**加载权重之前**报错，并指出该改哪个值。
+
+**升级动作**：不用改现有工作流。老存档（38 格）按默认空档位打开；要用多图就继续接线，
+要用 H3 就把「拼装目标」设为 `minimax-h3`。
+
+<!-- EN -->
+
+**Multiple reference images and the H3 audio-video format.**
+
+- Up to 9 reference images: a new slot appears when the previous one is connected.
+  Only input slots change, so saved workflows keep their slot count and order.
+- With `target=minimax-h3`, caption and expand write the H3 three-field timeline
+  directly; `profile=six-section` writes the full-reference six-section manuscript.
+- More than one image with any other target: each image is captioned separately and
+  the output is split by `--- image N ---`, so facts never mix between images.
+- Multi-image input is downscaled to fit the per-image token budget (a single image
+  keeps 1536).
+- If the context or `max_tokens` is too small, the node fails **before loading any
+  weights** and names the value to change.
+
+**Action required**: none. Existing workflows keep working; old 38-slot saves open
+with the new slot left empty. Connect more image slots to use multi-image, or set
+the compile target to `minimax-h3` for the H3 format.
+
+---
+
 ## 0.4.3 — 2026-11-05
 
 **调参更快、端点更好填、Key 不再随工作流泄露。**

@@ -9,13 +9,15 @@
 - **Storyboard** — one canvas split into 3 / 4 / 6 / 8 / 9 panels, one caption per panel, exact crops.
 - **Local edit** — fix one panel, or put a reference face into one panel, then paste it back. Other panels stay pixel-identical.
 - **Prompt** — optional LLM node: caption / expand / edit / assemble. **Not MOSS-only**: also targets Flux, SDXL and Qwen-Image.
+  Up to 9 reference images (a new slot appears when the last one is connected); with `target=minimax-h3`, caption and
+  expand write the audio-video H3 format directly.
 
 > 🔴 **A box is a hint, not a coordinate.** It becomes one line of text in the prompt; the model decides where to draw.
 > It can overshoot, merge boxes, or ignore them. Details: [manual §1](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
 
 | Item | Value |
 |---|---|
-| Version | **0.4.3** |
+| Version | **0.5.0** |
 | License | **MIT** (credits: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support) |
 | Dependencies | **Zero** extra pip packages for the core nodes. Face Swap's auto mask is **on by default** and needs `insightface` + `onnxruntime` **plus** `det_10g.onnx` (`~/.insightface/models/buffalo_l/`, or `MOSS_INSIGHTFACE_ROOT`). Without them, wire a `mask` manually or turn `auto_mask` off; the node raises a clear error and never downloads weights |
@@ -65,6 +67,16 @@ Download the three files from the official tutorial
 
 - **Fastest check (no weights):** drag [`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) into ComfyUI and press Run.
   It assembles an IR into a prompt in milliseconds and proves the install.
+  For the H3 full-reference six-section manuscript, set `target=minimax-h3` and `profile=six-section`;
+  leaving `profile` empty keeps the default three-field skeleton. Both are deterministic and model-free.
+- **Let the model expand an idea into H3 format:** pick task `expand` and `target=minimax-h3` to get the
+  audio-video three-field timeline; add `profile=six-section` for the full-reference manuscript.
+  The dialect list is unchanged on purpose.
+- **Multiple reference images (up to 9):** connect one image and a second slot appears; keep connecting to grow.
+  With `target=minimax-h3` they are **fused** into one H3 manuscript (one `<Subject N>` per image); with any other
+  target each image is captioned **separately** and the output is split by `--- image N ---`.
+  Multi-image input is downscaled to fit the token budget; if the context or `max_tokens` is too small, the node
+  fails **before loading the weights** and tells you which value to change.
 - **First storyboard:** drag [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json), press Run.
   Output goes to `output/moss/storyboard/` (`grid_*.png` + `panel_*.png`).
 - **First prompt:** drag [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json). Only the caption group is on;

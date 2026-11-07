@@ -93,9 +93,9 @@ export function installSaveCleanup(node) {
                 // 按 this.widgets 求出的索引会错位一格 —— 清掉的就不是目标字段。
                 // 所以用同一个长度判断做守卫：已经被别人包过 ⇒ 宁可这次不清，也不清错位。
                 const omit = this.__mosssbOmitOnSave;
-                // 口径必须是「原样 39 格」：orig 返回的 widgets_values 与 this.widgets 一一对应
-                // （含开关条那一格），dropVirtual 之后才剔掉它。实测 vlen=39 / wlen=39，
-                // 若拿过滤后的 38 去比，守卫永远不放行（于是 Key 会漏进存档）。
+                // 口径必须是「原样 40 格」：orig 返回的 widgets_values 与 this.widgets 一一对应
+                // （含开关条那一格），dropVirtual 之后才剔掉它。实测 vlen=40 / wlen=40，
+                // 若拿过滤后的 39 去比，守卫永远不放行（于是 Key 会漏进存档）。
                 const list = this.widgets || [];
                 if (omit && omit.size && Array.isArray(out.widgets_values)
                     && out.widgets_values.length === list.length) {

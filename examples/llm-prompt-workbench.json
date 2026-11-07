@@ -479,7 +479,7 @@
     8091,
     true,
     "moss-image"
-   ],
+   , ""],
    "title": "🧠 LLM Prompt · caption"
   },
   {
@@ -867,7 +867,7 @@
     8091,
     true,
     "moss-image"
-   ],
+   , ""],
    "title": "🧠 LLM Prompt · wash (bypassed)"
   },
   {
@@ -1255,7 +1255,7 @@
     8091,
     true,
     "moss-image"
-   ],
+   , ""],
    "title": "🧠 LLM Prompt · expand (bypassed)"
   },
   {
@@ -1847,7 +1847,7 @@
     8091,
     true,
     "moss-image"
-   ],
+   , ""],
    "title": "🧠 LLM Prompt · PE-I2I edit (bypassed)"
   },
   {

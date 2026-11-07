@@ -146,6 +146,7 @@ export const LABELS_EN = {
     server_exe: "llama-server path",
     port: "port",
     release_after_run: "free VRAM after run",
+    profile: "dialect profile",
 };
 
 export const LABELS = {
@@ -178,6 +179,14 @@ export const LABELS = {
     border_px: "线宽",
     shave: "内缩",
     image: "图像",
+    image2: "参考图 2",
+    image3: "参考图 3",
+    image4: "参考图 4",
+    image5: "参考图 5",
+    image6: "参考图 6",
+    image7: "参考图 7",
+    image8: "参考图 8",
+    image9: "参考图 9",
     target_aspect: "目标比例",
     padding_mode: "填充方式",
     resize_edge: "输出长边",
@@ -234,6 +243,7 @@ export const LABELS = {
     server_exe: "服务器程序",
     port: "端口",
     release_after_run: "跑完释放显存",
+    profile: "方言档",
 };
 
 //: **同名参数在不同节点上含义不同** —— 全局标签只能取一个，所以这里按节点覆盖。
@@ -687,10 +697,20 @@ export const TIPS = {
             + "Leave empty for caption.",
     },
     "MossPromptSmith.target": {
-        en: "[assemble only] Which backend to render for. moss-image = MOSS single image;\n"
-            + "qwen-image-2_1 / krea2 / flux3 / flux1_dev / sdxl are their own dialects;\n"
-            + "minimax-h3 is video (the IR needs a timeline). Assembling is deterministic Python:\n"
-            + "no model is loaded, it takes milliseconds, and the same IR always gives the same text.",
+        en: "[assemble + expand] Which backend to write for: assemble picks the renderer,\n"
+            + "caption / expand pick the prompt format (minimax-h3 = the audio-video timeline).\n"
+            + "moss-image = MOSS single image; qwen-image-2_1 / krea2 / flux3 / flux1_dev / sdxl\n"
+            + "are their own dialects; minimax-h3 needs a timeline in the IR when assembling.\n"
+            + "Assembling is deterministic Python (no model, milliseconds); expand still needs one.",
+    },
+    "MossPromptSmith.profile": {
+        en: "[assemble + caption + expand] Dialect profile under the chosen backend; leave empty for that backend's\n"
+            + "default skeleton. Currently only minimax-h3 offers six-section (full-reference\n"
+            + "six-field manuscript: subject_definitions / summary / retention_analysis /\n"
+            + "detailed_description / overall_soundscape / non_diegetic_music, with <Subject N>\n"
+            + "style reference tags). Profile names come from the registry's dialects, not from a\n"
+            + "hard-coded list here; an unknown profile raises a clear error instead of silently\n"
+            + "falling back. Still deterministic Python: no model, milliseconds, reproducible.",
     },
     "MossPromptSmith.length": {
         en: "[What to enter] brief 80-120 words / standard 160-260 / detailed 280-360, with a per-dialect cap.\n"
@@ -709,7 +729,33 @@ export const TIPS = {
             + "not what the prompt says.",
     },
     "MossPromptSmith.image": {
-        en: "[Wire] Required for caption; optional reference for expand; required for edit.",
+        en: "[Wire] Required for caption; optional reference for expand; required for edit.\n"
+            + "Extra slots (up to 9) appear as you connect them: the second image grows a third slot,\n"
+            + "and so on. H3 reads up to 9 reference images.",
+    },
+    "MossPromptSmith.image2": {
+        en: "[Wire] Reference image 2 (optional). Slots grow automatically as you connect them, max 9.",
+    },
+    "MossPromptSmith.image3": {
+        en: "[Wire] Reference image 3 (optional). Slots grow automatically as you connect them, max 9.",
+    },
+    "MossPromptSmith.image4": {
+        en: "[Wire] Reference image 4 (optional). Slots grow automatically as you connect them, max 9.",
+    },
+    "MossPromptSmith.image5": {
+        en: "[Wire] Reference image 5 (optional). Slots grow automatically as you connect them, max 9.",
+    },
+    "MossPromptSmith.image6": {
+        en: "[Wire] Reference image 6 (optional). Slots grow automatically as you connect them, max 9.",
+    },
+    "MossPromptSmith.image7": {
+        en: "[Wire] Reference image 7 (optional). Slots grow automatically as you connect them, max 9.",
+    },
+    "MossPromptSmith.image8": {
+        en: "[Wire] Reference image 8 (optional). Slots grow automatically as you connect them, max 9.",
+    },
+    "MossPromptSmith.image9": {
+        en: "[Wire] Reference image 9 (optional). Slots grow automatically as you connect them, max 9.",
     },
     "MossPromptSmith.mmproj": {
         en: "[Vision tower] Required whenever an image goes in (without it the model cannot see the image).\n"

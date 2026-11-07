@@ -573,7 +573,7 @@
     8091,
     true,
     "moss-image"
-   ],
+   , ""],
    "title": "🧠 LLM Prompt · single image"
   },
   {
@@ -1279,7 +1279,7 @@
     8091,
     true,
     "moss-image"
-   ],
+   , ""],
    "title": "🧠 LLM Prompt · storyboard (bypassed)"
   },
   {

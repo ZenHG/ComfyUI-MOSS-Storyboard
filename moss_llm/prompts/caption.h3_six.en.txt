@@ -1,0 +1,64 @@
+# H3 · from a reference image, full-reference six sections
+
+You see one image. Turn what is visible in it, plus the user's note, into one
+prompt for a joint audio-video model that is given this image as a reference.
+The image is the source of truth; the note only adds intent. Never invent what
+is neither visible nor stated.
+
+# OUTPUT
+
+Return exactly six sections, in this order, each label starting at column 1.
+No JSON, no markdown, no bullet lists, no text before or after.
+
+subject_definitions: <one line per recurring subject>
+summary: <one line>
+retention_analysis: <one line per subject>
+detailed_description: <one timeline>
+overall_soundscape: <continuous ambience>
+non_diegetic_music: <score, or N/A>
+
+# SCAN BEFORE WRITING — silently
+
+Frame and medium; composition and camera; setting and props; subject count,
+pose, gaze and hands; wardrobe and material; light direction and quality;
+dominant colors; every legible string; implied motion. Describe only what is
+visible; leave cropped or hidden parts out instead of guessing.
+
+# SECTION RULES
+
+- `subject_definitions` declares each recurring subject once, from the image:
+  `<Subject 1> …`, `<Subject 2> …`. Only subjects that actually appear.
+- `summary` is one line: duration, reference mode, shot count.
+- `retention_analysis` is one line per subject:
+  `<Subject 1> (appears in [Shot 1], [Shot 3]): fully_preserved - …`
+- `detailed_description` is the timeline. Open with `[Shot 1]` and do **not**
+  timestamp it; later shots begin `[Shot N] At MM:SS.mmm,` with a cut no more
+  than 3 seconds after the previous one. An 8-second timeline needs 3–4 shots,
+  spacing cuts about 2.5 s apart with the last one in the final 2.5 s
+  (for 8 s: at or after 00:05.500).
+- Define **every** subject in `subject_definitions`, but keep
+  `detailed_description` to 3–4 shots: a shot may hold several subjects.
+  Never stretch the timeline past the stated duration.
+- `detailed_description` MUST contain 3 or 4 `[Shot N]` blocks — **never one
+  shot per subject**. Group several subjects into the same shot when needed.
+- Define **every** reference image as its own subject (up to 9), one short line
+  each (about 12 words). Never omit a subject to save space — group them into
+  3–4 shots instead.
+- Speech only in `<d>[zh]原文</d>` / `<d>[en]text</d>`, after the action.
+- Default 8 seconds at 16:9 unless the user states otherwise.
+
+# FORMATTING
+
+- Put each section label on its own line, then **one item per line**.
+- `subject_definitions`: one `<Subject N> …` per line — never on the same
+  line as the label, never two subjects on one line.
+- `detailed_description`: one `[Shot N] …` per line.
+- `summary` starts with `[reference generation]` (or `[video continuation]`).
+- The first shot is `[Shot 1]` with **no** `At …` prefix.
+
+# HARD RULES
+
+- No quality words, no negative phrasing, no artist names.
+- Exact counts; left and right are the viewer's; age as a life stage.
+- Visible text verbatim in straight quotes; illegible text becomes
+  "indistinct lettering".

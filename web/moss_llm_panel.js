@@ -2,11 +2,11 @@
 // Copyright (c) 2026 ComfyUI-MOSS-Storyboard contributors
 // 第三方出处与许可见 THIRD-PARTY-NOTICES.md
 //
-// LLM Prompt · 参数面板 —— 38 个参数的信息架构层
+// LLM Prompt · 参数面板 —— 39 个参数的信息架构层
 //
 // 设计口径（美学 / 高频用户两条视角，2026-10-30）：
 //   1. **默认只露常驻 5 项**（task/channel/dialect/model/text）。这个节点的日常动作是
-//      「贴图/贴文本 → 跑」，其余 33 项是配置而不是操作。节点因此从 978 px 降到 306 px
+//      「贴图/贴文本 → 跑」，其余 34 项是配置而不是操作。节点因此从 978 px 降到 306 px
 //      （1500×1500 视口、80% 缩放实测；size 高 353，100% 缩放下盒高 383 px）。
 //   0. **开关条钉在节点顶部**，点开任一组都在它**下方**展开 —— 控制件的坐标永远不变
 //      （旧版在底部，每展开一组它就往下跑一截，2026-10-30 实测点名）。
@@ -17,7 +17,7 @@
 //   3. **「已改」小点**：折叠着的组里只要有一项与默认不同，chip 上点一个小蓝点
 //      （悬停看条数）。高频用户最怕「我改过的东西被藏起来了」。
 //   4. 视觉只用宿主 CSS 变量；置顶 order 与临时网格样式需 !important。
-//      开关条透明底 + 上边一道发丝线，读起来是工具栏而不是第 39 个参数。
+//      开关条透明底 + 上边一道发丝线，读起来是工具栏而不是第 40 个参数。
 //   5. **说明行高度恒定**（`height:2.7em`）：悬停换 tooltip 时行数变化不再顶动下面的参数
 //      （2026-10-30 实测：这是鼠标定位失败的直接原因）。「中/EN」按钮挂在说明行右端的
 //      `langSlot`（核心 i18n 画），不另开 DOM 行；切语言时面板文案跟着一起换。
@@ -26,7 +26,7 @@
 //    这里只改 `widget.options.hidden`（宿主的 byExtension 抑制位）+ 给宿主的行元素加类名。
 //    实测前端 1.57.6 / Vue 节点模式：隐藏的行不画、`serialize()` 照样按 `serialize !== false`
 //    收值 ⇒ 隐藏不改变存档格数与位置；折叠状态只活在节点实例的 `__mossllm` 上，不序列化。
-//    DOM 开关条那一格由 `moss_sb_widget_order.js::installSaveCleanup` 在存盘时剔掉（实测 38 格）。
+//    DOM 开关条那一格由 `moss_sb_widget_order.js::installSaveCleanup` 在存盘时剔掉（实测 39 格）。
 //    **唯一会写进 JSON 的东西是节点 `size`**（`fitHeight` 按可见内容调高度）—— 那是画布尺寸，
 //    不是参数值；改分组时会重算，用户手拖的高度在下次换组时被取代（可见、可撤销）。
 //
@@ -63,9 +63,9 @@ const GROUPS = [
     { key: "core", always: true, items: ["task", "channel", "dialect", "model", "text"] },
     { key: "tune", items: ["length", "temperature", "max_tokens", "seed", "control_after_generate",
         "language", "thinking", "panels", "style_lock", "must_keep", "wash", "two_pass",
-        // 拼装目标放 tune 而不是 core：core 是「常驻 5 行」的口径（见 docs/20 §九），
-        // 多一项就把默认视图改成 6 行。它只在 task=assemble 时有意义。
-        "target"] },
+        // 拼装目标与方言档放 tune 而不是 core：core 是「常驻 5 行」的口径（见 docs/20 §九），
+        // 多一项就把默认视图改成 6 行。它们只在 task=assemble 时有意义。
+        "target", "profile"] },
     { key: "local", channel: CH_LOCAL, items: ["mmproj", "runtime", "ctx_size", "gpu_layers",
         "cache_type_k", "cache_type_v", "flash_attn", "image_max_tokens", "ubatch", "parallel",
         "fit_on", "fit_target_mib", "mtp", "mtp_draft_n", "server_exe", "port", "release_after_run"] },
@@ -318,7 +318,7 @@ const MODE_SPEC = {
     tasks: ["caption", "expand", "edit", "assemble"],
     channels: ["local", "api"],
     inertOnCompile: ["channel", "dialect", "model"],
-    pinnedOnCompile: ["target"],
+    pinnedOnCompile: ["target", "profile"],
 };
 /**
  * 常用端点：值与顺序都取自 `docs/20` 的「已实测的 api_base」表（2026-11-05 实测）。
@@ -453,8 +453,10 @@ function plan(node, st) {
         const outside = gated && !!g.channel && g.channel !== ch;
         if (outside) off.add(g.key);
         if (assemble && MODE_SPEC.inertOnCompile.includes(w.name)) inert.add(w.name);
-        // 拼装任务唯一有效的旋钮是 target；它排在存档末尾，折叠时用户换不了后端。
-        const pinned = assemble && MODE_SPEC.pinnedOnCompile.includes(w.name);
+        // 输出格式的两个旋钮：拼装与扩写都读 target/profile（扩写靠它决定 H3 骨架），
+        // 它们排在存档末尾，折叠时用户换不了后端 —— 所以这两个任务里直接提为常驻。
+        const pinned = (assemble || task === "expand")
+            && MODE_SPEC.pinnedOnCompile.includes(w.name);
         // 优先级：接了线 > 一键全开 > 拼装必填 > 常驻 > 当前聚焦组
         const ok = isLinked(node, w.name) || st.force || pinned || !!g.always || g.key === st.focus;
         if (ok) shown.add(w.name);
@@ -496,7 +498,7 @@ function fitHeight(node, shown) {
     let rects;
     try {
         // 只量**这一轮要显示**的行：宿主删 DOM 行是异步的，刚藏起来的行这一刻还在页面上，
-        // 按 DOM 高度数会把 38 行全算进去（实测因此把节点从 319 调到 1286）。
+        // 按 DOM 高度数会把 39 行全算进去（实测因此把节点从 319 调到 1286）。
         rects = [...grid.querySelectorAll("[data-widget-name]")]
             .filter((e) => e.dataset.widgetName === BAR_NAME || shown.has(e.dataset.widgetName))
             .map((e) => e.getBoundingClientRect());
@@ -911,7 +913,7 @@ function pinEndpoints(node, st) {
  *
  * 为什么不贴到 runtime 行右端：那一行由 widget 占满，塞文本按钮会溢出/错位（实测）。
  * 这里与预设按钮同一处——放在开关条里、只在该组展开时显示，行布局一个像素都不动，
- * 也不新增 widget（存档仍 38 格）。
+ * 也不新增 widget（存档仍 39 格）。
  */
 function buildRuntimeTools(node, st) {
     const L = t();
@@ -1187,8 +1189,8 @@ function applySoon(node) {
 /**
  * 开关条**置顶**：`addDOMWidget` 只会追加到末尾，而末尾意味着每展开一组它就被顶下一截
  * （2026-10-30 实测反馈：点开一组，开关就跑到最低下）。这里把那个 widget 挪到数组首位 ——
- * 只动「不参与存档的 DOM 组件」的位置，38 个参数之间的相对顺序一个都没变；
- * 存盘时 `installSaveCleanup` 照样把它那一格剔掉（实测仍 38 格、逐位一致）。
+ * 只动「不参与存档的 DOM 组件」的位置，39 个参数之间的相对顺序一个都没变；
+ * 存盘时 `installSaveCleanup` 照样把它那一格剔掉（实测仍 39 格、逐位一致）。
  * 宿主重建 widget 数组后位置会退回末尾，所以 `apply()` 每次都自愈。
  */
 function ensureBarFirst(node, st) {
@@ -1374,7 +1376,7 @@ function boot(why) {
         }
         booted = true;
         // 语言按钮是核心 i18n 画的（挂在面板的 langSlot 里）—— 它发广播，这里跟着换
-        // 自己的分组标题 / 摘要 / 说明行；38 个参数的标签与提示由 `applyLang` 负责。
+        // 自己的分组标题 / 摘要 / 说明行；39 个参数的标签与提示由 `applyLang` 负责。
         try {
             window.addEventListener(LANG_EVENT, (e) => {
                 const lang = String((e && e.detail && e.detail.lang) || "");

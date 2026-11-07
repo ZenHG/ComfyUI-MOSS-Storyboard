@@ -179,3 +179,31 @@ def prepare_tensor(image, index=0, max_side=MAX_SIDE, quality=95):
     data_url, w, h = _encode(im, notes, max_side, quality)
     return Prepared(data_url, w, h, notes, "tensor[%d]" % index)
 
+
+def batch_size(image):
+    """ComfyUI 的 IMAGE 是 `(B,H,W,C)`；单张也可能没有 B 维。返回 ≥1。"""
+    shape = getattr(image, "shape", None)
+    if shape is None:
+        try:
+            import numpy as np
+            shape = np.asarray(image).shape
+        except Exception:
+            return 1
+    return int(shape[0]) if len(shape) == 4 else 1
+
+
+def prepare_batch(image, max_side=MAX_SIDE, quality=95):
+    """IMAGE 张量 → Prepared 列表（多图一次编完）。
+
+    ComfyUI 的 IMAGE 天然带批维：三张参考图接进同一个输入口就是 batch=3。
+    单张时结果与 `prepare_tensor` 完全等价（同一个函数、同一个 index=0）。
+    """
+    # 节点多图口给的是「一组张量」（每张尺寸可以不同），不是堆好的 batch：
+    # 逐张独立编码，各自保持自己的宽高比，不做拉伸拼接。
+    if isinstance(image, (list, tuple)):
+        return [prepare_tensor(im, index=0, max_side=max_side, quality=quality)
+                for im in image if im is not None]
+    n = batch_size(image)
+    return [prepare_tensor(image, index=i, max_side=max_side, quality=quality)
+            for i in range(max(n, 1))]
+

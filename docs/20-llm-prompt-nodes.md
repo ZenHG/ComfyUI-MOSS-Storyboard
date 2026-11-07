@@ -180,9 +180,9 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 ✅ **子包节点已与核心 7 节点共用同一套 i18n 表**（`web/moss_sb_i18n.js`）：
 `NODES`（后端当前显示名 `LLM Prompt`；更早的 `MOSS Prompt Smith` 收进 legacy，老工作流标题也能换）、
-`LABELS`（38 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
+`LABELS`（39 个参数全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
 `COMBOS`（任务/通道/方言/拼装目标/篇幅/语言/思考/运行时/mmproj/KV 精度/开关，共 17 组）、
-`TIPS`（38 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
+`TIPS`（39 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
 **存档值一律 ASCII id**（`caption` / `local` / `standard` …），中文只在显示层 ——
 英文用户的工作流里不会出现中文枚举；初版已写进存档的中文由 `_LEGACY_VALUES` 在运行时就地
 归一，并把「哪几格被改」写进 report（不静默迁移）。
@@ -211,7 +211,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 ## 九、参数面板 `web/moss_llm_panel.js`
 
-38 个参数平铺是一堵墙。面板只做三件事：**默认只露常驻**、**一次只看一组**、**把改动标出来**。
+39 个参数平铺是一堵墙。面板只做三件事：**默认只露常驻**、**一次只看一组**、**把改动标出来**。
 
 - **默认 5 项**（`task` `channel` `dialect` `model` `text`）。这个节点的日常动作是
   「贴图/贴文本 → 跑」，其余参数都是配置不是操作。默认状态节点 `size` 高 **353 画布单位**；
@@ -233,7 +233,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 | 组 | 内容 | 默认 |
 |---|---|---|
 | 常驻 (`core`) | `task` `channel` `dialect` `model` `text`（+ `image` 口与两条输出） | 常显，不给折叠 |
-| 常用调优 (`tune`) | `length` `temperature` `max_tokens` `seed`(+控制项) `language` `thinking` `panels` `style_lock` `must_keep` `wash` `two_pass` | 收起，一次点开 |
+| 常用调优 (`tune`) | `length` `temperature` `max_tokens` `seed`(+控制项) `language` `thinking` `panels` `style_lock` `must_keep` `wash` `two_pass` `target` `profile` | 收起，一次点开；`task=assemble` / `task=expand` 时把 `target` / `profile` 提到常驻 |
 | 本地引擎 · llama.cpp (`local`) | `mmproj` `runtime` `ctx_size` `gpu_layers` `cache_type_k/v` `flash_attn` `image_max_tokens` `ubatch` `parallel` `fit_on` `fit_target_mib` `mtp` `mtp_draft_n` `server_exe` `port` `release_after_run` | 收起；`channel` 不是「本地 GGUF」时 chip 标「通道外」 |
 | 外部 API (`api`) | `api_base` `api_model` `api_key` | 收起；切到外部通道时自动展开 |
 
@@ -286,9 +286,9 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 
 真机闸：`node tools/ui_llm_panel.mjs` = **73/0**（只读界面、不排队）。断言含：默认 5 行 /
 开关条在参数上方且是 `widgets[0]`（**重开后也自愈回首位**）/ 悬停换说明时开关条高度与参数 top 都不动（不抖）/
-节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 38 个 `isWidgetVisible` /
+节点按内容变矮 / 单组切换 / 「已改」计数 / 切通道自动聚焦 / 全展开 39 个 `isWidgetVisible` /
 **存盘→重开 `widgets_values` 逐位一致** / 折叠状态不进存档 / 两个同型节点各自独立 /
-只作用于本节点 / 页面无 JS 异常 / **按 `task` 动态常驻**（assemble 提 `target`、给 3 个 inert
+只作用于本节点 / 页面无 JS 异常 / **按 `task` 动态常驻**（assemble 提 `target` / `profile`、给 3 个 inert
 控件加文字标注）/ api 工作流冷载入自动聚焦 / 切组焦点保护 / **拉取模型有可见进度、拉完自己展开下拉、换端点不留旧模型名** /
 **填端点即切通道、通道=本地时状态块显眼且可一键改道、旧存档打开自动对齐** /
 **模式摘要随 task·channel 变、执行前指出缺项且点开对应组、Key 空不算缺**。
@@ -314,8 +314,25 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 | H3 | 不管 | 时间线进 IR 一等维度 |
 
 **节点里的 `task=assemble` 就是这一层的入口**：把 IR 贴进「文字输入」，
-`target` 选后端，零模型、毫秒级、可复现，report 里带方言机检与 M1–M6 结论。
-没有权重也能用——这是合流带来的最大可用性变化。
+`target` 选后端、`profile` 选该后端下的方言档，零模型、毫秒级、可复现，
+report 里带方言机检与 M1–M6 结论。没有权重也能用——这是合流带来的最大可用性变化。
+
+**反推与扩写也读同一对旋钮，不新增 dialect**：`task=caption`（看图）或 `task=expand`（纯文字）+ `target=minimax-h3` 时，
+system 换成 H3 音视频契约（三字段时间线），再加 `profile=six-section` 换成六段式。
+理由是可理解性——`dialect` 那一列本来就是「按哪种方言写字」，再塞两个 H3 值等于让
+开源用户多学一套词；而 `target` 已经表示「输出到哪个后端」，扩写只是把「谁来写」
+从编译器换成模型。report 会写明本次用了哪套骨架，不静默改变输出。
+
+`profile` 是 STRING 而不是下拉，因为档位名的唯一事实源是
+`smith/data/model-registry.yaml` 的 `dialects`（`target` 已有「与 registry 不许漂移」的对账闸，
+这里再抄一份必然漂移）。目前只有 `minimax-h3` 有 `six-section`：官方全参考六段式，
+字段固定为 `subject_definitions` / `summary` / `retention_analysis` /
+`detailed_description` / `overall_soundscape` / `non_diegetic_music`，
+并用 `<Subject N>` / `<Video N>` / `<Audio N>` / `<Picture N>` 参考标签锚定主体。
+留空=三字段基础模式；填了后端不认的档会报错并列可选项（不静默降级），
+report 会写明本次用了哪个档。
+同一份 `05-h3-t2va.json` 实测：默认 272 token / 3 字段，`six-section` 418 token / 6 字段，
+两者都是 32 ms 级、0 issues、6/6 不变式通过。
 
 边界：`smith` 的几何/布局归核心编辑器（`core/prompt.py` 的 bbox 系列），它只写文字描述；
 反过来，节点的 `_checks` 也不裁决「好不好看」。两边都不越界。

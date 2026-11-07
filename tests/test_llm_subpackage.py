@@ -69,7 +69,8 @@ def main():
     print("== 1. 提示词包：sha 校验与篡改检测 ==")
     pdir = os.path.join(ROOT, "moss_llm", "prompts")
     pack = pack_mod.load_pack(pdir)
-    check("包能加载且 12 个文件", len(pack["files"]) == 12, str(len(pack["files"])))
+    check("包能加载且文件数与清单一致（%d 个）" % len(pack_mod.FILES),
+          len(pack["files"]) == len(pack_mod.FILES), str(len(pack["files"])))
     check("每个 sha 都是 64 位十六进制",
           all(len(f["sha256"]) == 64 for f in pack["files"]))
     check("每条都有许可与语言标注",
@@ -318,6 +319,26 @@ def main():
           str(pick("windows-x64", "cuda", (13, 9))))
     check("AMD/Intel 走 Vulkan", pick("windows-x64", "vulkan", None)[0].endswith("vulkan-x64.zip"))
     check("AMD 显式要 ROCm 时给 ROCm 包", pick("windows-x64", "rocm", None)[0].endswith("rocm-10.0-x64.zip"))
+
+    # 跨 build 同摘要资产复用：cudart 换个 b<build> 就是新文件名，按名字查缓存
+    # 每升一级都要重下几百 MiB；按 GitHub API 给的 size + sha256 认出来就不联网。
+    with tempfile.TemporaryDirectory() as td_cache:
+        cd = Path(td_cache)
+        body = b"cudart bytes " * 4096
+        old = cd / "cudart-llama-b12018-bin-win-cuda-13.4-x64.zip"
+        old.write_bytes(body)
+        digest = hashlib.sha256(body).hexdigest()
+        dest = cd / "cudart-llama-b12180-bin-win-cuda-13.4-x64.zip"
+        check("同名不同 build 的 cudart 按 sha256 命中缓存",
+              ri._cached_by_digest(dest, len(body), digest) == old)
+        check("摘要不符不复用（绝不猜）",
+              ri._cached_by_digest(dest, len(body), "0" * 64) is None)
+        check("size 不符不复用", ri._cached_by_digest(dest, len(body) + 1, digest) is None)
+        check("没有 size/digest 时不做猜测",
+              ri._cached_by_digest(dest, None, None) is None)
+        (cd / "half.zip.part").write_bytes(body)
+        check(".part 半成品不参与复用",
+              ri._cached_by_digest(dest, len(body), digest) == old)
     check("无卡走 CPU 包", pick("windows-x64", "cpu", None)[0].endswith("win-cpu-x64.zip"))
     check("Linux CPU 包没有 backend token 也要认",
           pick("linux-x64", "cpu", None) == ["llama-b12018-bin-ubuntu-x64.tar.gz"])
@@ -460,6 +481,70 @@ def main():
     check("视频后端也走同一条路（timeline 是 IR 的一等字段）",
           "[Shot 1]" in out3, out3[:40])
 
+    # profile 是追加在 optional 末尾的旋钮：位置契约 + 默认零行为变化 + 档位真生效。
+    opt_keys = list(nodes.MossPromptSmith.INPUT_TYPES()["optional"])
+    check("profile 追加在 optional 最末尾（widgets_values 按位置存）",
+          opt_keys[-1] == "profile" and opt_keys[-2] == "target", str(opt_keys[-3:]))
+    check("profile 默认是空串（老工作流不传也照常跑）",
+          nodes.MossPromptSmith.INPUT_TYPES()["optional"]["profile"][1]["default"] == "")
+    check("留空 profile 的输出与未加该参数时逐字节相同",
+          out3 == smith.smith(target="minimax-h3", profile="", **{**base_c, "text": h3_ir})[0])
+    out6, rep6 = smith.smith(target="minimax-h3", profile="six-section",
+                             **{**base_c, "text": h3_ir})
+    six_fields = ("subject_definitions", "summary", "retention_analysis",
+                  "detailed_description", "overall_soundscape", "non_diegetic_music")
+    check("six-section 出官方全参考六段式（六个字段 + 参考标签）",
+          all(("%s:" % k) in out6 for k in six_fields)
+          and "<Subject 1>" in out6 and out6 != out3, out6[:60])
+    check("report 里出声记了方言档", "方言档：six-section" in rep6, str(rep6.splitlines()[:3]))
+    # H3 扩写：走 target/profile，**不往 dialect 枚举里塞新词**（开源用户不必再学一套）。
+    # 这里只测 system 拼装（纯函数、零模型）；真出词在真机取证。
+    pack0 = pack_mod.load_pack(os.path.join(ROOT, "moss_llm", "prompts"))
+    inst0 = nodes.MossPromptSmith()
+    s_h3 = inst0._build_system(pack0, "expand", "moss_image", "standard", 4, "", "",
+                               False, False, "auto", target="minimax-h3", profile="")
+    s_six = inst0._build_system(pack0, "expand", "moss_image", "standard", 4, "", "",
+                                False, False, "auto", target="minimax-h3",
+                                profile="six-section")
+    s_img = inst0._build_system(pack0, "expand", "moss_image", "standard", 4, "", "",
+                                False, False, "auto")
+    check("expand + target=minimax-h3 ⇒ H3 三字段契约", "integrated_multimodal_description" in s_h3
+          and "overall_soundscape" in s_h3 and "subject_definitions" not in s_h3)
+    check("H3 扩写不套用图像篇幅/语言段（会与切点密度打架）",
+          "# LENGTH" not in s_h3 and "# LANGUAGE" not in s_h3 and "# FORMAT" in s_h3)
+    check("加 profile=six-section ⇒ 换成六段式契约",
+          "subject_definitions" in s_six and "retention_analysis" in s_six
+          and s_six != s_h3)
+    check("不设 target 时仍走原图像方言（行为不变）",
+          "# LENGTH" in s_img and "integrated_multimodal_description" not in s_img)
+    s_cap = inst0._build_system(pack0, "caption", "moss_image", "standard", 4, "", "",
+                                False, False, "auto", target="minimax-h3", profile="")
+    s_cap6 = inst0._build_system(pack0, "caption", "moss_image", "standard", 4, "", "",
+                                 False, False, "auto", target="minimax-h3",
+                                 profile="six-section")
+    check("caption + target=minimax-h3 ⇒ 看图出 H3（不套 JSON 契约）",
+          "reference image" in s_cap and "integrated_multimodal_description" in s_cap
+          and "Return one JSON object" not in s_cap)
+    check("caption + six-section ⇒ 六段式看图契约",
+          "subject_definitions" in s_cap6 and "reference image" in s_cap6)
+    check("方言表没有被塞进 H3 值（保持 6 个）",
+          len(nodes._DIALECTS) == 6 and not any("h3" in d for d in nodes._DIALECTS),
+          repr(nodes._DIALECTS))
+    h3_ad_mod = importlib.import_module("moss_sb_t.moss_llm.smith.adapters.h3")
+    check("节点的六段式档名与 adapter 白名单一致（不许漂移）",
+          set(nodes._SIX_PROFILES) == set(h3_ad_mod.SIX_SECTION_PROFILES),
+          repr(nodes._SIX_PROFILES))
+
+    try:
+        smith.smith(target="minimax-h3", profile="no-such-profile",
+                    **{**base_c, "text": h3_ir})
+        check("未知档位要给人话报错（不是裸 KeyError）", False, "没报错")
+    except ValueError as e:
+        check("未知档位要给人话报错（不是裸 KeyError）",
+              "no-such-profile" in str(e) and "拼装失败" in str(e), str(e).splitlines()[0][:80])
+    except KeyError as e:
+        check("未知档位要给人话报错（不是裸 KeyError）", False, "裸 KeyError: %r" % e)
+
     for bad, needle, tag in [
         ("{}", "entities", "缺 entities"),
         ("", "空的", "空输入"),
@@ -517,6 +602,25 @@ def main():
                 os.environ.pop("MOSS_LLM_SERVER", None)
             else:
                 os.environ["MOSS_LLM_SERVER"] = old
+
+    # CLI 的 --server 必须把 source 标成 custom：定位逻辑刻意规定「explicit 只在
+    # custom 下生效」，只传 exe 会被静默忽略（2026-11-07 实测踩到，h3 rewrite 起不来）。
+    cli_mod = importlib.import_module("moss_sb_t.moss_llm.smith.cli")
+
+    class _NS:
+        pass
+
+    ns = _NS()
+    ns.model = "m.gguf"
+    ns.server = os.path.join(tempfile.gettempdir(), "llama-server-fake.exe")
+    ns.port, ns.ctx, ns.ngl, ns.startup_timeout = 8093, 8192, "auto", 240.0
+    ns.base_url, ns.model_id, ns.lora, ns.lora_scale = "", "", "", None
+    srv2 = cli_mod._text_server(ns)
+    check("CLI --server 显式路径带 source=custom（否则被静默忽略）",
+          srv2.source == "custom" and srv2.exe.endswith("llama-server-fake.exe"), srv2.source)
+    ns.server = ""
+    check("不给 --server 时仍走 auto（不跟环境变量抢）",
+          cli_mod._text_server(ns).source == "auto")
 
     print("\n== 14 · 运行时目录可配（MOSS_LLM_RUNTIME_DIR） ==")
     old_rt = os.environ.get("MOSS_LLM_RUNTIME_DIR")
@@ -633,8 +737,21 @@ def main():
                 return nodes.MossPromptSmith().smith(
                     task=task, channel="local", dialect="moss_image", model=key,
                     text="把背景换成雪夜", length="standard", temperature=0.2,
-                    max_tokens=256, seed=0, image=image, mmproj=mmproj,
+                    # 1024 是节点默认；256 会被输出预算预检拦下（单图反推也要 ≥640）
+                    max_tokens=1024, seed=0, image=image, mmproj=mmproj,
                     release_after_run=False)[1]
+
+    # 输出预算：单图 256 也必须被拦 —— 一段 160–260 词的 JSON 契约装不下，
+    # 截断后机检只会报「缺字段」，用户看到的是「跑成功但内容不全」。
+    try:
+        nodes.MossPromptSmith().smith(
+            task="caption", channel="local", dialect="moss_image", model="m",
+            text="", length="standard", temperature=0.2, max_tokens=256, seed=0,
+            image=object(), mmproj="none", release_after_run=False)
+        check("单图 256 被输出预算预检拦下", False, "没报错")
+    except ValueError as e:
+        check("单图 256 被输出预算预检拦下", "至少 640" in str(e),
+              str(e).splitlines()[1][:70])
 
     rep_pe = smith_report("edit", object(), "auto", "PE", "/fake/stub.mmproj.gguf",
                           _PE_BYPASSED=("SENTINEL_PE",))
@@ -708,6 +825,27 @@ def main():
     check("Responses usage 映射到统一三个字段",
           rusg["prompt_tokens"] == 3 and rusg["completion_tokens"] == 2
           and rusg["total_tokens"] == 5, str(rusg))
+
+    # ---- 多图（IMAGE 批）：单张行为必须一字不变，多张逐张挂块
+    u1, u2 = "data:image/jpeg;base64,AAA", "data:image/jpeg;base64,BBB"
+    b1 = pr.body(pr.OPENAI, "m", "S", "U", u1, 0.3, 16, 1)
+    b1l = pr.body(pr.OPENAI, "m", "S", "U", [u1], 0.3, 16, 1)
+    check("单张图：str 与单元素列表产出完全相同", b1 == b1l)
+    b3 = pr.body(pr.OPENAI, "m", "S", "U", [u1, u2], 0.3, 16, 1)
+    imgs = [c for c in b3["messages"][0]["content"] if c.get("type") == "image_url"]
+    check("多图：每张各挂一个 image_url 块", len(imgs) == 2, str(len(imgs)))
+    for p in (pr.ANTHROPIC, pr.GEMINI, pr.RESPONSES):
+        s_p = str(pr.body(p, "m", "S", "U", [u1, u2], 0.3, 16, 1))
+        check("多图：%s 线格式两张都在" % p,
+              s_p.count("AAA") == 1 and s_p.count("BBB") == 1)
+    vis = importlib.import_module("moss_sb_t.moss_llm.vision")
+    try:
+        import numpy as _np
+        check("IMAGE 批大小：4 维取 B，3 维当 1 张",
+              vis.batch_size(_np.zeros((3, 8, 8, 3), "float32")) == 3
+              and vis.batch_size(_np.zeros((8, 8, 3), "float32")) == 1)
+    except ImportError:
+        check("IMAGE 批大小（numpy 缺失，跳过）", True)
     _r2, rfin2, _u2 = pr.read(pr.RESPONSES, {
         "status": "incomplete", "incomplete_details": {"reason": "max_output_tokens"},
         "output": [{"type": "message", "content": [{"type": "output_text", "text": "半句"}]}]})

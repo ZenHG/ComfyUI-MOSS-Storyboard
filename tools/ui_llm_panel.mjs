@@ -8,7 +8,7 @@
 // 必须一个字节不变（存盘→重开逐位比）。截图落 `docs/_local/`（已 ignore）。
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { arg, boot, checks, launch, loadGraph, ROOT, shotNode } from "./ui_kit.mjs";
+import { arg, boot, checks, launch, loadGraph, reload, ROOT, setSetting, shotNode } from "./ui_kit.mjs";
 
 const URL_ = arg("url", process.env.COMFY_API || "http://127.0.0.1:8188");
 const browser = await launch("chromium", { headless: true });
@@ -62,6 +62,17 @@ const pollUntil = async (probe, timeoutMs = 4000, stepMs = 100, pg = page) => {
 };
 
 await boot(page, URL_);
+// 这个闸断言的是 Vue 节点模式下的 DOM 网格（`[data-widgets-grid-node-id]`）。
+// headless 用全新配置档，`Comfy.VueNodes.Enabled` 默认是 false —— 不显式打开，
+// 整条闸连元素都探不到，看起来像面板坏了。这是闸的环境前提，不是用例结论。
+const vueOn = await page.evaluate(() => {
+    try { return !!app.ui.settings.getSettingValue("Comfy.VueNodes.Enabled"); } catch (e) { return false; }
+});
+if (!vueOn) {
+    await setSetting(page, "Comfy.VueNodes.Enabled", true);
+    await reload(page);
+    console.log("  Vue 节点模式原本是关的，已打开并重载（闸的 DOM 网格依赖它）");
+}
 const wf = JSON.parse(readFileSync(join(ROOT, "examples", "llm-prompt-workbench.json"), "utf8"));
 check("载入 examples/llm-prompt-workbench.json", (await loadGraph(page, wf)).ok);
 // 原为固定 `waitForTimeout(2500)`（等面板挂上）。改成有界轮询：等「四个节点都 mounted
@@ -86,7 +97,7 @@ const ready = await pollUntil(() => page.evaluate(() => {
 console.log("  面板挂载轮询 =", ready ? (ready + " 个节点就绪") : "4000ms 内未就绪（下面照旧判红）");
 const loaded = await where();
 check("面板已挂载（DOM 组件行）", loaded && loaded[0] && loaded[0].mounted, JSON.stringify(loaded));
-check("参数控件仍是 38 个（一个不多一个不少）", loaded && loaded[0].widgets === 38, "widgets=" + (loaded && loaded[0].widgets));
+check("参数控件仍是 39 个（一个不多一个不少）", loaded && loaded[0].widgets === 39, "widgets=" + (loaded && loaded[0].widgets));
 const ID = await page.evaluate(() => app.graph.nodes.find((x) => x.type === "MossPromptSmith").id);
 // 面板文案与核心 i18n 同源（节点标题/标签/说明会一起换）⇒ 先钉中文，后面断言的
 // 「常用调优 / 本地引擎 / 通道外 / 已改」才有确定口径。宿主自己的 `<html lang>` 可能是 en。
@@ -135,8 +146,8 @@ check("悬停只换说明文字：开关条高度与下面参数的 top 都不�
 // —— (a) 单组视图 ——
 await clickChip("tune");
 r = await visRows(ID);
-check("点「常用调优」⇒ 5 + 12 = 17 行（seed 的控件不单独占行；target 只在 assemble 时有用，也归这组）",
-    r.shown === 17 && r.heads.length === 1 && r.heads[0] === "常用调优", JSON.stringify(r));
+check("点「常用调优」⇒ 5 + 13 = 18 行（seed 的控件不单独占行；target / profile 只在 assemble 时有用，也归这组）",
+    r.shown === 18 && r.heads.length === 1 && r.heads[0] === "常用调优", JSON.stringify(r));
 // 2026-10-30 点名的那条：旧版开关条在底部，点开一组它就往下跑；现在必须原地不动。
 const layout1 = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
@@ -309,8 +320,8 @@ const names = await page.evaluate(() => {
     return { total: ws.length, hidden: ws.filter((w) => w.options && w.options.hidden).length,
         invisible: ws.filter((w) => typeof n.isWidgetVisible === "function" && !n.isWidgetVisible(w)).map((w) => w.name) };
 });
-check("全展开后 38 个参数一个不少（逐个核 isWidgetVisible）",
-    names.total === 38 && names.hidden === 0 && names.invisible.length === 0,
+check("全展开后 39 个参数一个不少（逐个核 isWidgetVisible）",
+    names.total === 39 && names.hidden === 0 && names.invisible.length === 0,
     "widgets=" + names.total + " hidden=" + names.hidden + " 不可见=" + JSON.stringify(names.invisible));
 const bad = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
@@ -364,12 +375,12 @@ const diff = [];
 for (let i = 0; i < Math.max(save.orig.length, save.after.length); i += 1) {
     if (JSON.stringify(save.orig[i]) !== JSON.stringify(save.after[i])) diff.push([i, save.orig[i], save.after[i]]);
 }
-check("存档里 widgets_values 长度 38（DOM 组件那格被剔掉）", save.orig.length === 38, "len=" + save.orig.length);
+check("存档里 widgets_values 长度 39（DOM 组件那格被剔掉）", save.orig.length === 39, "len=" + save.orig.length);
 check("重开后 widgets_values 逐位一致", diff.length === 0, JSON.stringify(diff.slice(0, 3)));
 check("折叠/聚焦状态没写进存档（无 mossllm/hidden/focus 键）", save.stray.length === 0, JSON.stringify(save.stray));
 check("改过的值重开还在（0.55 / 路上小心）", save.temp === 0.55 && save.keep === "路上小心", save.temp + "/" + save.keep);
-check("重后面板自动挂回、回到默认（常驻 5 行 / 33 项隐藏 / 无聚焦组）",
-    save.mounted && save.hidden === 33 && save.focus === null, "mounted=" + save.mounted
+check("重后面板自动挂回、回到默认（常驻 5 行 / 34 项隐藏 / 无聚焦组）",
+    save.mounted && save.hidden === 34 && save.focus === null, "mounted=" + save.mounted
     + " hidden=" + save.hidden + " focus=" + JSON.stringify(save.focus));
 r = await visRows(await page.evaluate(() => app.graph.nodes.find((x) => x.type === "MossPromptSmith").id));
 check("重开后界面上仍是 5 行", r && r.shown === 5, JSON.stringify(r));
@@ -409,9 +420,9 @@ const two = await page.evaluate(async () => {
         widgets: fresh.widgets.length, values: (fresh.serialize().widgets_values || []).length,
         hidden: fresh.widgets.filter((w) => w.options && w.options.hidden).length } };
 });
-check("新加的同型节点独立挂载、38 格存档（不干扰已有节点）",
-    two.after === two.before + 1 && two.fresh && two.fresh.mounted && two.fresh.widgets === 39
-    && two.fresh.values === 38 && two.fresh.hidden === 33, JSON.stringify(two));
+check("新加的同型节点独立挂载、39 格存档（不干扰已有节点）",
+    two.after === two.before + 1 && two.fresh && two.fresh.mounted && two.fresh.widgets === 40
+    && two.fresh.values === 39 && two.fresh.hidden === 34, JSON.stringify(two));
 
 // 接了线的参数不许藏：**造真机条件**——PrimitiveNode 连一根真链到 ctx_size 的输入槽。
 //
@@ -519,8 +530,8 @@ check("重开工作流后真链还在（ctx_size 输入槽 slot.link 非空）",
     reloadLinked.slotLink != null, "slot.link=" + reloadLinked.slotLink);
 check("重开后连接方式取自示例文件（channel=api），与 chip 的显式选择解耦",
     reloadLinked.chanAfter === "api", JSON.stringify(reloadLinked.chanAfter));
-check("重开后 widgets_values 逐位一致（38 格；除第 1 格 channel 外）",
-    reloadLinked.len === 38 && reloadLinked.diff.length === 0,
+check("重开后 widgets_values 逐位一致（39 格；除第 1 格 channel 外）",
+    reloadLinked.len === 39 && reloadLinked.diff.length === 0,
     "len=" + reloadLinked.len + " diff=" + JSON.stringify(reloadLinked.diff));
 check("重开后已接线参数仍不被面板藏（hidden=false；宿主 byConnection 抑制控件本身是宿主行为，如实记录）",
     reloadLinked.hidden === false && reloadLinked.suppressed === true
@@ -563,8 +574,9 @@ const t14 = await page.evaluate(async () => {
     const cap = { names: shown(), inert: inert(), hint: hint() };
     return { c, cap };
 });
-check("assemble ⇒ target 提为常驻（6 行），不再折叠在 tune 组",
-    t14.c.names.length === 6 && t14.c.names.includes("target"), JSON.stringify(t14.c.names));
+check("assemble ⇒ target / profile 提为常驻（7 行），不再折叠在 tune 组",
+    t14.c.names.length === 7 && t14.c.names.includes("target")
+    && t14.c.names.includes("profile"), JSON.stringify(t14.c.names));
 check("assemble ⇒ channel/dialect/model 标 inert（不隐藏，带文字）",
     ["channel", "dialect", "model"].every((x) => t14.c.inert.includes(x))
     && /不生效|No effect/.test(t14.c.title),
@@ -938,7 +950,7 @@ const ep = await page.evaluate(async () => {
     }
     const selAfter = selOf();
     out.customAfter = { sel: selAfter ? selAfter.value : null, base: W("api_base").value };
-    // c) 它不是 widget：控件仍 38 个、存档格数仍 38、没有多出 widget 名
+    // c) 它不是 widget：控件仍 39 个、存档格数仍 39、没有多出 widget 名
     out.store = { declared: (globalThis.MOSS_SB_LLM_PANEL.where()[0] || {}).widgets,
                   saved: globalThis.MOSS_SB_LLM_PANEL.values(),
                   asWidget: n.widgets.filter((w) => /endpoint/i.test(String(w.name))).length };
@@ -959,9 +971,9 @@ check("选「自定义」不改原值（下拉只是 api_base 的镜像，手填
     ep.custom && ep.custom.sel === "" && ep.custom.base === "https://my.gateway.example/v1"
     && ep.customAfter.base === "https://my.gateway.example/v1" && ep.customAfter.sel === "",
     JSON.stringify([ep.custom, ep.customAfter]));
-check("常用端点下拉不是 widget：控件 38 个、存档格数仍是 38、没有新 widget 名",
-    ep.store && ep.store.declared === 38 && ep.store.saved.length > 0
-    && ep.store.saved.every((x) => x === 38) && ep.store.asWidget === 0,
+check("常用端点下拉不是 widget：控件 39 个、存档格数仍是 39、没有新 widget 名",
+    ep.store && ep.store.declared === 39 && ep.store.saved.length > 0
+    && ep.store.saved.every((x) => x === 39) && ep.store.asWidget === 0,
     JSON.stringify(ep.store));
 
 // —— (d2) 存盘清空 api_key：按行为断言，不依赖下标（存档里没有开关条那一格）——
@@ -983,8 +995,8 @@ const keySave = await page.evaluate(() => {
 });
 check("存盘时 api_key 被清空（存档里搜不到该串），节点内存值仍在",
     keySave.leaked === 0 && keySave.mem === "sk-should-not-be-saved", JSON.stringify(keySave));
-check("清空 api_key 不动其它存档格、格数仍是 38",
-    keySave.changed.length === 0 && keySave.len === 38, JSON.stringify(keySave));
+check("清空 api_key 不动其它存档格、格数仍是 39",
+    keySave.changed.length === 0 && keySave.len === 39, JSON.stringify(keySave));
 
 // —— (d3) 运行时来源：安装/测试两个按钮，且不产生新 widget ——
 await clickChip("local");
@@ -999,7 +1011,7 @@ const rt = await page.evaluate(() => {
 });
 check("本地引擎行上有「安装/更新」与「测试」两个按钮", rt.install && rt.test, JSON.stringify(rt));
 check("运行时来源仍是四选一，默认 auto（按钮不新增 widget 格）",
-    ["auto", "runtime", "path", "custom"].includes(rt.value) && rt.slots === 38, JSON.stringify(rt));
+    ["auto", "runtime", "path", "custom"].includes(rt.value) && rt.slots === 39, JSON.stringify(rt));
 
 // —— (e) 窄宽度：加了「通道」前缀后，三个 chip 仍要落在开关条里 ——
 const origSize = await page.evaluate((id) => {

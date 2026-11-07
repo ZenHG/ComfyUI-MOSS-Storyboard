@@ -9,13 +9,14 @@
 - **故事板** —— 一张画布分成 3 / 4 / 6 / 8 / 9 格，每格一段描述，同时把每格裁出来。
 - **局部编辑** —— 只改一格、或把一张脸换进一格；改完贴回，其它格逐像素不动。
 - **提示词** —— 可选 LLM 节点做反推 / 扩写 / 编辑 / 拼装；**不绑定 MOSS**，也支持 Flux、SDXL、Qwen-Image。
+  参考图最多 9 张（接满一槽自动长出下一槽）；`target=minimax-h3` 时反推 / 扩写直接出音视频 H3 格式。
 
 > 🔴 **先记这一句：画布上的框是参考，不是坐标。** 框会变成一句带坐标的文字进提示词，模型自己决定画在哪。
 > 会画偏、会揉框、也可能完全不理。细节见[节点手册 §1](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.4.3** |
+| 版本 | **0.5.0** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（原生支持 MOSS-Image） |
 | 依赖 | 核心**零**额外 pip 依赖。换脸自动蒙版**默认开**，需 `insightface` + `onnxruntime` **以及** `det_10g.onnx` 权重（默认 `~/.insightface/models/buffalo_l/`，可用 `MOSS_INSIGHTFACE_ROOT` 改目录）；缺任一项请手接 `mask` 或关掉 `auto_mask`，节点会明确报错且不会联网下载 |
@@ -65,6 +66,14 @@
 
 - **最快自检（零权重）**：把 [`examples/llm-compile-zero-model.json`](examples/llm-compile-zero-model.json) 拖进 ComfyUI，按 Run。
   毫秒级把 IR 拼装成提示词，能跑通就说明包装对了。
+  想看 H3 全参考六段式：把 `target` 设成 `minimax-h3`、`profile` 填 `six-section`，
+  同一份 IR 就从三字段基础模式切到六段式；两者都是零模型、毫秒级、可复现。
+- **让模型把想法扩写成 H3 格式**：任务选「扩写」，`target` 选 `minimax-h3` 即出音视频
+  三字段时间线；再填 `profile=six-section` 出全参考六段式。方言表不用动。
+- **多图参考（最多 9 张）**：`image` 之后接满一个槽就自动多出一个。`target=minimax-h3` 时
+  多图**融合**成一条 H3 稿（每张图各定义一个 `<Subject N>`）；其它目标则**逐张**反推，
+  输出用 `--- image N ---` 分段，各条互不影响。多图会按 token 预算自动缩小长边；
+  上下文或 `max_tokens` 不够时，节点在**加载权重之前**就报错，并给出该改哪个值。
 - **第一张故事板**：拖 [`examples/moss-storyboard-4panels-ui.json`](examples/moss-storyboard-4panels-ui.json)，按 Run。
   产物在 `output/moss/storyboard/`（`grid_*.png` 与 `panel_*.png`）。
 - **第一段提示词**：拖 [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json)。默认只开反推组，

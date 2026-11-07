@@ -12,7 +12,7 @@ import { repairValues } from "./moss_sb_widget_order.js";
 
 const TAG = "[MOSS SB] compat";
 //: LLM 子包的面板条在 `configure` **之前**就挂上了（`serialize:false` 的 DOM 组件），
-//: 存档 38 值 / 当刻 39 个控件 —— 位置修复会把它当成旧稿错位而补一格。该节点是新加的，
+//: 存档 39 值 / 当刻 40 个控件 —— 位置修复会把它当成旧稿错位而补一格。该节点是新加的，
 //: 没有旧参数表要修；`moss_llm/nodes.py` 自己会把旧中文字面量归一。
 const OWN = new Set(Object.keys(NODES).filter((t) => t !== "MossPromptSmith"));
 

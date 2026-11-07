@@ -359,11 +359,14 @@ def _text_server(args) -> LlamaServer:
             "需要二选一：\n"
             "  --base-url http://127.0.0.1:8080   （连一个已经跑着的 OpenAI 兼容端点）\n"
             "  --model <gguf>                     （本地拉起；读 prompt 不需要 mmproj）")
+    # 显式 `--server` 必须同时把 source 标成 custom：定位逻辑刻意规定
+    # 「explicit 只在 custom 下生效」（不跟 auto 抢），只传 exe 会被静默忽略。
     return LlamaServer(args.model, exe=args.server, port=args.port, ctx=args.ctx,
                        ngl=args.ngl, timeout=args.startup_timeout,
                        base_url=args.base_url, model_id=getattr(args, "model_id", ""),
                        lora=getattr(args, "lora", "") or "",
-                       lora_scale=getattr(args, "lora_scale", None))
+                       lora_scale=getattr(args, "lora_scale", None),
+                       source="custom" if (args.server or "").strip() else "auto")
 
 
 def cmd_decompose(args) -> int:
@@ -583,7 +586,9 @@ def cmd_h3_rewrite(args) -> int:
     dest = outdir / (Path(args.prompt).stem + ".h3.txt"
                      if Path(args.prompt).exists() else "rewritten.h3.txt")
     dest.write_text(out.positive, encoding="utf-8")
-    issues = h3.check(out.positive)
+    # 必须带 ir：时间戳三条（HEAD/TAIL/GAP）要靠 ir.duration_s 才判得了。
+    # 不带 ir 时这些规则静默跳过，同一份稿子 adapter 报 error、这里报 pass。
+    issues = h3.check(out.positive, ir)
     if args.json:
         print(json.dumps({"prompt": out.positive, "verdict": h3.verdict(issues),
                           "issues": [i.__dict__ for i in issues]},

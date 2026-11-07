@@ -131,36 +131,50 @@ def _image_block(proto, data_url):
     return {"type": "image_url", "image_url": {"url": data_url}}
 
 
+def _urls(image_url):
+    """单图（str）与多图（list）都收。空值 → []，调用方逐张挂块。"""
+    if not image_url:
+        return []
+    if isinstance(image_url, (list, tuple)):
+        return [u for u in image_url if u]
+    return [image_url]
+
+
 def body(proto, model, system, user, image_url, temperature, max_tokens, seed):
-    """同一份语义 → 三套 body。system 在 OpenAI 并进正文、在另两家是独立字段。"""
+    """同一份语义 → 三套 body。system 在 OpenAI 并进正文、在另两家是独立字段。
+
+    `image_url` 可以是单张 data URL，也可以是列表（IMAGE 批 = 多张参考图）。
+    单张时输出的 JSON 与改动前逐字节相同。
+    """
+    urls = _urls(image_url)
     if proto == ANTHROPIC:
         blocks = [{"type": "text", "text": user or ""}]
-        if image_url:
-            blocks.append(_image_block(proto, image_url))
+        for u in urls:
+            blocks.append(_image_block(proto, u))
         return {"model": model, "system": system.strip(),
                 "messages": [{"role": "user", "content": blocks}],
                 "max_tokens": int(max_tokens), "temperature": float(temperature),
                 "stream": False}
     if proto == GEMINI:
         parts = [{"text": user or ""}]
-        if image_url:
-            parts.append(_image_block(proto, image_url))
+        for u in urls:
+            parts.append(_image_block(proto, u))
         return {"systemInstruction": {"parts": [{"text": system.strip()}]},
                 "contents": [{"role": "user", "parts": parts}],
                 "generationConfig": {"temperature": float(temperature),
                                      "maxOutputTokens": int(max_tokens)}}
     if proto == RESPONSES:
         content = [{"type": "input_text", "text": user or ""}]
-        if image_url:
-            content.append(_image_block(proto, image_url))
+        for u in urls:
+            content.append(_image_block(proto, u))
         # Responses 用 instructions + input，没有 messages；max_tokens 叫 max_output_tokens。
         return {"model": model, "instructions": system.strip(),
                 "input": [{"role": "user", "content": content}],
                 "temperature": float(temperature),
                 "max_output_tokens": int(max_tokens), "store": False}
     blocks = [{"type": "text", "text": (system + "\n\n" + (user or "")).strip()}]
-    if image_url:
-        blocks.append(_image_block(proto, image_url))
+    for u in urls:
+        blocks.append(_image_block(proto, u))
     return {"model": model, "messages": [{"role": "user", "content": blocks}],
             "temperature": float(temperature), "max_tokens": int(max_tokens),
             "seed": int(seed), "stream": False}

@@ -420,6 +420,30 @@ def _bar(total, label=""):
         return lambda n=1: None
 
 
+def _cached_by_digest(dest, size, digest):
+    """跨 build 复用字节完全相同的资产，命中就不用再下载。
+
+    官方 release 的 cudart 包文件名有时带 `b<build>` 前缀：同一份字节换个 tag
+    就是另一个文件名，按名字查缓存会每次重下几百 MiB。GitHub API 给了 size 与
+    sha256，先按 size 过滤再算摘要，就能在不联网的情况下认出「这份我有了」。
+    没有 size/digest（直链、镜像不带摘要）时不做猜测，返回 None 走原路。
+    """
+    if not (size and digest):
+        return None
+    for p in sorted(dest.parent.glob("*")):
+        # 同后缀才可能是同一类 release 资产；别把源文件、日志、半成品当缓存。
+        if not p.is_file() or p == dest or p.suffix != dest.suffix:
+            continue
+        try:
+            if p.stat().st_size != size:
+                continue
+            if _sha256(p) == digest:
+                return p
+        except OSError:
+            continue
+    return None
+
+
 def _download(url, dest, size=None, digest=None, sources=None):
     """依次尝试各来源，只有**大小与 sha256 都对**才落盘；返回 (路径, 实际来源)。"""
     dest = Path(dest)
@@ -427,6 +451,11 @@ def _download(url, dest, size=None, digest=None, sources=None):
     if dest.is_file() and dest.stat().st_size and _matches(dest, size, digest):
         print("用缓存 %s" % dest.name)
         return dest, "缓存"
+    # 显式给了 sources（直链 / 单测 / 用户覆盖）时按调用方要求真去取，不用缓存顶替。
+    reused = _cached_by_digest(dest, size, digest) if sources is None else None
+    if reused is not None:
+        print("复用同摘要资产 %s（跨 build，省一次下载）" % reused.name)
+        return reused, "缓存(同摘要)"
     dest.unlink(missing_ok=True)
     part = dest.with_name(dest.name + ".part")
     tried = []

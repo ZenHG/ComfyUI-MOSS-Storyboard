@@ -27,6 +27,12 @@ FILES = [
     ("expand.generic_natural.en", "expand.generic_natural.en.txt", "en"),
     ("expand.generic_tags.en", "expand.generic_tags.en.txt", "en"),
     ("expand.cinematic.en", "expand.cinematic.en.txt", "en"),
+    # H3 音视频：扩写任务 + target=minimax-h3 时启用（不占 dialect 枚举）
+    ("expand.h3.en", "expand.h3.en.txt", "en"),
+    ("expand.h3_six.en", "expand.h3_six.en.txt", "en"),
+    # 看图出 H3：图 + 一句补充 → 三字段 / 六段式
+    ("caption.h3.en", "caption.h3.en.txt", "en"),
+    ("caption.h3_six.en", "caption.h3_six.en.txt", "en"),
     ("edit.i2i.en", "edit.i2i.en.txt", "en"),
 ]
 
@@ -51,7 +57,7 @@ def write_manifest(prompts_dir):
             raise FileNotFoundError("提示词包缺文件：%s" % p)
         files.append({"id": fid, "path": rel, "sha256": sha256_file(p), "lang": lang,
                       "license": "MIT", "source": "Original; method informed by public sources"})
-    man = {"pack": PACK_NAME, "version": "1.0.0", "updated": _today(),
+    man = {"pack": PACK_NAME, "version": "1.8.0", "updated": _today(),
            "files": files}
     (prompts_dir / "manifest.json").write_text(
         json.dumps(man, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

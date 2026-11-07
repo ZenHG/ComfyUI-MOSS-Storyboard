@@ -23,8 +23,11 @@ LINK_ONLY = {"MODEL", "CLIP", "VAE", "IMAGE", "LATENT", "CONDITIONING", "MASK", 
 #: 0.2.0 追加在末尾的 widget。0.1.x 存的工作流只有前 20 个值（positive … shave），
 #: 尾部两个按默认走。**只认这个后缀**：别的位置少值/错位一律判红 —— 错位比缺省危险。
 #: `char_boxes` 同理：0.2.3 才追加在 Layout 末尾，0.1.x 的夹具只有前 12 个值。
+#: `profile` 同理：拼装方言档 2026-11-07 追加在 LLM 节点末尾，存量的 38 格工作流
+#: 少这一格是合法的（ComfyUI 按默认值补），不是错位。别的位置少值仍然判红。
 LEGACY_TAIL = {"MossStoryboardSampler": ("mode", "sample_edge"),
-               "MossStoryboardLayout": ("char_boxes",)}
+               "MossStoryboardLayout": ("char_boxes",),
+               "MossPromptSmith": ("profile",)}
 
 PASS, FAIL = [], []
 
