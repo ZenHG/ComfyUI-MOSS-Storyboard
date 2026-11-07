@@ -17,7 +17,8 @@
 - `local` 通道：在本机 loopback 启动 `llama-server` 侧车，用你选的 GGUF；**GGUF 由你自备，包内不含权重**。
 - `runtime = 更新到最新版`：会从 **GitHub 官方 llama.cpp release** 下载预编译包，校验 GitHub API 给出的
   sha256 后解压到 `moss_llm/runtime/`，再通过 `subprocess` 启动它；也支持用 `server_exe` 指向你已有的程序。
-- `api` 通道：把你输入的文字与图片（base64）发到**你自己填的** OpenAI 兼容端点；不经过本包的中转。
+- `api` 通道：把你输入的文字与图片（最多 9 张，base64）发到**你自己填的** OpenAI 兼容端点；不经过本包的中转。
+  多图逐张反推（`caption` 且目标不是 `minimax-h3`）会对**每张图各发一次请求**，外发次数等于图数。
 - 这些行为只在用户主动使用 LLM 节点时发生，核心故事板节点不会触发。
 
 ### 可选换脸自动蒙版（`insightface` + `buffalo_l`）

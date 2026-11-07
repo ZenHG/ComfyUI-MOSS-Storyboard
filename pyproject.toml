@@ -10,7 +10,7 @@
 [project]
 name = "moss-storyboard"
 version = "0.5.0"
-description = "ComfyUI nodes for MOSS-Image: storyboard grids (3/4/6/8/9), visual layout editor, face swap, and a generic LLM prompt node (caption / expand / edit / compile) that also targets Flux, SDXL and Qwen-Image. Zero extra dependencies, MIT."
+description = "ComfyUI nodes for MOSS-Image: storyboard grids (3/4/6/8/9), visual layout editor, face swap, and an LLM prompt node (caption / expand / edit / assemble) with up to 9 reference images and MiniMax-H3 output; also targets Flux, SDXL and Qwen-Image. No extra pip dependencies for the core nodes, MIT."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
