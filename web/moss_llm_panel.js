@@ -100,6 +100,8 @@ const CSS = `
 .mossllm-chip[data-state="open"]{border-color:var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222)}
 .mossllm-chip[data-state="closed"]{color:var(--descrip-text,#999)}
 .mossllm-chip[data-state="outside"]{color:var(--descrip-text,#999);opacity:.65}
+/* 嵌套第 2 层：本次任务会用到的组，左边一道蓝线标出来。不展开、不改行数。 */
+.mossllm-chip[data-need="1"]{border-left:2px solid #185FA5}
 /* 「端点已填，但通道=本地」：这不是提示语，是当前状态 —— 用琥珀色块钉在开关条上，
    而不是缩成摘要里的一小段灰字（实测那样等于没看见）。点它即可切到外部 API。 */
 .mossllm-warn{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:2px 8px;
@@ -208,7 +210,7 @@ const I18N = {
         lackTipName: "模型名还没选。点一下展开「外部 API」组，或先用 ↻ 拉一份清单。",
         lackTipModel: "本地通道要一个 GGUF 模型才能跑。点一下展开「本地引擎」组；"
             + "或把通道切到「外部 API」。",
-        kindChannel: "连接",
+        kindChannel: "连接", kindNeed: "本次", needTip: "这个任务会用到这组",
         preset_draft: "草稿（快）", preset_fine: "精修（细）", preset_reset: "恢复默认",
         presetTip_draft: "一次写入：长度=简短 · 温度 0.9 · 上限 512 tokens。先看方向对不对时用，最省时间",
         presetTip_fine: "一次写入：长度=详细 · 温度 0.2 · 上限 2048 tokens。要出成品时用",
@@ -258,7 +260,7 @@ const I18N = {
         lackTipName: "Pick a model name. Click to open External API, or press the arrow to fetch a list.",
         lackTipModel: "The local channel needs a GGUF model. Click to open Local engine, "
             + "or switch the channel to External API.",
-        kindChannel: "ch",
+        kindChannel: "ch", kindNeed: "now", needTip: "used by this task",
         preset_draft: "Draft (fast)", preset_fine: "Fine (slow)", preset_reset: "Reset",
         presetTip_draft: "Writes: length=brief, temp 0.9, max 512 tokens. Cheapest way to check direction",
         presetTip_fine: "Writes: length=detailed, temp 0.2, max 2048 tokens. For final output",
@@ -318,7 +320,6 @@ const MODE_SPEC = {
     tasks: ["caption", "expand", "edit", "assemble"],
     channels: ["local", "api"],
     inertOnCompile: ["channel", "dialect", "model"],
-    pinnedOnCompile: ["target", "profile"],
 };
 /**
  * 常用端点：值与顺序都取自 `docs/20` 的「已实测的 api_base」表（2026-11-05 实测）。
@@ -427,11 +428,24 @@ function stateOf(node) {
     if (!st) {
         st = node.__mossllm = {
             focus: null,           // null = 只看常驻；否则是某组 key
-            force: false,          // 一键全展开
+            force: !!node.__mossPanelAdv,   // 会话内记住「高级」展开，不进存档
             warnedChannel: false,
         };
     }
     return st;
+}
+
+/**
+ * 嵌套第 2 层：本次任务会用到哪几组。只用于 **chip 标记**，不自动展开、不改行数。
+ * 判据全部来自「任务 / 通道」这两个与模型无关的维度；不含 dialect / target / profile 知识。
+ */
+function needsOf(task, ch) {
+    const s = new Set();
+    if (ch === CH_API) s.add("api");
+    else if (ch === CH_LOCAL) s.add("local");
+    // 拼装与扩写会读 tune 组里的参数；点一下 chip 即可展开，不替用户撑开首屏。
+    if (task === "assemble" || task === "expand") s.add("tune");
+    return s;
 }
 
 /** 该显示哪些。通道标签认不出来时**不做通道门控**（宁可多显示，不可藏错）。 */
@@ -453,15 +467,12 @@ function plan(node, st) {
         const outside = gated && !!g.channel && g.channel !== ch;
         if (outside) off.add(g.key);
         if (assemble && MODE_SPEC.inertOnCompile.includes(w.name)) inert.add(w.name);
-        // 输出格式的两个旋钮：拼装与扩写都读 target/profile（扩写靠它决定 H3 骨架），
-        // 它们排在存档末尾，折叠时用户换不了后端 —— 所以这两个任务里直接提为常驻。
-        const pinned = (assemble || task === "expand")
-            && MODE_SPEC.pinnedOnCompile.includes(w.name);
-        // 优先级：接了线 > 一键全开 > 拼装必填 > 常驻 > 当前聚焦组
-        const ok = isLinked(node, w.name) || st.force || pinned || !!g.always || g.key === st.focus;
+        // 优先级：接了线 > 高级全开 > 常驻 > 当前聚焦组。
+        // 不再有 pinned：首屏行数恒定，target/profile 回到它们所在的组里。
+        const ok = isLinked(node, w.name) || st.force || !!g.always || g.key === st.focus;
         if (ok) shown.add(w.name);
     }
-    return { shown, off, inert, assemble, task, ch };
+    return { shown, off, inert, assemble, task, ch, needs: needsOf(task, ch) };
 }
 
 function syncWidgets(node, shown) {
@@ -598,11 +609,9 @@ function makeChip(node, st, g) {
     dot.className = "mossllm-dot";
     // 通道组带一个前缀小字：三个 chip 并排时，「常用调优」是参数分组、
     // 「本地引擎 / 外部 API」是通道，不是同一维度，不标出来就会被当成同级三选一。
-    const kind = g.channel ? document.createElement("span") : null;
-    if (kind) {
-        kind.className = "mossllm-kind";
-        b.append(kind);
-    }
+    const kind = document.createElement("span");
+    kind.className = "mossllm-kind";
+    b.append(kind);
     b.append(caret, label, count, dot);
     b.onclick = (e) => {
         e.stopPropagation();
@@ -612,6 +621,7 @@ function makeChip(node, st, g) {
         const next = wasForce ? g.key : (st.focus === g.key ? null : g.key);
         if (g.channel) setChannel(node, g.key === "local" ? CH_LOCAL : CH_API);
         st.force = false;
+        node.__mossPanelAdv = false;
         st.focus = next;
         applySoon(node);
     };
@@ -978,6 +988,7 @@ function buildBar(node, st) {
     st.btn.onclick = (e) => {
         e.stopPropagation();
         st.force = !st.force;
+        node.__mossPanelAdv = st.force;
         applySoon(node);
     };
     st.hint = document.createElement("span");
@@ -1096,13 +1107,16 @@ function paintBar(node, st, shown, off, meta) {
         const vis = g.items.filter((n) => shown.has(n)).length;
         hidden += total - vis;
         caret.textContent = expanded ? "▾" : "▸";
-        if (kind) kind.textContent = L.kindChannel;
+        const need = meta.needs.has(g.key);
+        kind.textContent = g.channel ? L.kindChannel : (need ? L.kindNeed : "");
+        b.dataset.need = need ? "1" : "0";
         label.textContent = L[g.key] + (outside ? " · " + L.offchannel : "");
         count.textContent = total;
         b.dataset.state = expanded ? (outside ? "outside" : "open") : "closed";
         const dirty = countDirty(node, g);
         b.title = (expanded ? L.closeTip : L.openTip)
             + (dirty ? "｜" + fmt(L.dirty, dirty) : "")
+            + (need ? "｜" + L.needTip : "")
             + "｜" + L.hideTip;
         b.dataset.dirty = dirty ? "1" : "0";
         dot.title = dirty ? fmt(L.dirty, dirty) : "";

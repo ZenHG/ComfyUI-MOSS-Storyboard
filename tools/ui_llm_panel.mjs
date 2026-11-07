@@ -566,17 +566,37 @@ const t14 = await page.evaluate(async () => {
     const chanRow = grid.querySelector('[data-widget-name="channel"]');
     const c = { names: shown(), inert: inert(), hint: hint(), title: chanRow ? chanRow.title : "" };
 
-    W("task").value = "caption";
+    const needTags = () => [...grid.querySelectorAll('.mossllm-chip[data-need="1"]')]
+        .map((e) => e.textContent.trim());
+    const sample = async (v) => {
+        W("task").value = v;
+        globalThis.MOSS_SB_LLM_PANEL.focus(null);
+        await wait(1900);
+        clearHover();
+        await wait(100);
+        return { names: shown(), hint: hint(), need: needTags(), inert: inert() };
+    };
+    const cap = await sample("caption");
+    const exp = await sample("expand");
+    const ed = await sample("edit");
+    W("task").value = "assemble";
     globalThis.MOSS_SB_LLM_PANEL.focus(null);
     await wait(1900);
-    clearHover();
-    await wait(100);
-    const cap = { names: shown(), inert: inert(), hint: hint() };
-    return { c, cap };
+    return { c, cap, exp, ed };
 });
-check("assemble ⇒ target / profile 提为常驻（7 行），不再折叠在 tune 组",
-    t14.c.names.length === 7 && t14.c.names.includes("target")
-    && t14.c.names.includes("profile"), JSON.stringify(t14.c.names));
+check("前端零格式知识：assemble 不再把 target / profile 提为首屏（回到各自组里）",
+    !t14.c.names.includes("target") && !t14.c.names.includes("profile"),
+    JSON.stringify(t14.c.names));
+check("首屏行数恒定：caption / expand / edit / assemble 四任务可见集逐项相同",
+    t14.c.names.length === t14.cap.names.length
+    && t14.c.names.length === t14.exp.names.length
+    && t14.c.names.length === t14.ed.names.length
+    && t14.c.names.every((x, i) => x === t14.cap.names[i] && x === t14.exp.names[i]
+        && x === t14.ed.names[i]),
+    JSON.stringify({ a: t14.c.names, cap: t14.cap.names, exp: t14.exp.names, ed: t14.ed.names }));
+check("嵌套第 2 层：本次必要组随 task 变（expand 比 caption 多标 tune）",
+    t14.exp.need.length > t14.cap.need.length,
+    JSON.stringify({ cap: t14.cap.need, exp: t14.exp.need }));
 check("assemble ⇒ channel/dialect/model 标 inert（不隐藏，带文字）",
     ["channel", "dialect", "model"].every((x) => t14.c.inert.includes(x))
     && /不生效|No effect/.test(t14.c.title),
@@ -1042,6 +1062,32 @@ await page.evaluate(([id, w, h]) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);
     n.setSize([w, h]);
 }, [ID, origSize[0], origSize[1]]);
+
+// —— 嵌套第 3 层：高级展开会话内记住，且不进存档 ——
+const adv = await page.evaluate(async () => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith"
+        && !(x.inputs || []).some((i) => i && i.link != null));
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const btn = grid.querySelector(".mossllm-btn");
+    n.__mossPanelAdv = false;
+    const before = (n.serialize().widgets_values || []).length;
+    btn.click();
+    await wait(600);
+    const on = n.__mossPanelAdv === true;
+    const ser = n.serialize();
+    const leaked = "__mossPanelAdv" in ser;
+    const cells = (ser.widgets_values || []).length;
+    btn.click();
+    await wait(600);
+    return { on, leaked, cells, before, off: n.__mossPanelAdv === false };
+});
+check("点「高级」把展开状态记在节点实例上（会话内）",
+    adv.on && adv.off, JSON.stringify(adv));
+check("展开状态不进 serialize（不污染存档、不跨工作流）",
+    !adv.leaked, JSON.stringify(adv));
+check("记住展开状态后 widgets_values 格数前后一致（不写死数字）",
+    adv.cells === adv.before, JSON.stringify({ before: adv.before, after: adv.cells }));
 
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();
