@@ -1070,24 +1070,70 @@ const adv = await page.evaluate(async () => {
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const grid = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
     const btn = grid.querySelector(".mossllm-btn");
-    n.__mossPanelAdv = false;
+    const st = n.__mossllm;
+    st.force = false;
     const before = (n.serialize().widgets_values || []).length;
     btn.click();
     await wait(600);
-    const on = n.__mossPanelAdv === true;
+    const on = st.force === true;
     const ser = n.serialize();
-    const leaked = "__mossPanelAdv" in ser;
+    const leaked = "__mossllm" in ser || "__mossPanelAdv" in ser;
     const cells = (ser.widgets_values || []).length;
+    const other = app.graph.nodes.filter((x) => x.type === "MossPromptSmith")[1];
+    const otherForce = other ? !!(other.__mossllm && other.__mossllm.force) : null;
     btn.click();
     await wait(600);
-    return { on, leaked, cells, before, off: n.__mossPanelAdv === false };
+    return { on, leaked, cells, before, otherForce, off: st.force === false };
 });
-check("点「高级」把展开状态记在节点实例上（会话内）",
+check("点「高级」把展开状态记在节点实例上（会话内，单一事实源 st.force）",
     adv.on && adv.off, JSON.stringify(adv));
-check("展开状态不进 serialize（不污染存档、不跨工作流）",
-    !adv.leaked, JSON.stringify(adv));
+check("展开状态不进 serialize（不污染存档、不跨工作流、不跨节点）",
+    !adv.leaked && adv.otherForce === false, JSON.stringify(adv));
 check("记住展开状态后 widgets_values 格数前后一致（不写死数字）",
     adv.cells === adv.before, JSON.stringify({ before: adv.before, after: adv.cells }));
+
+// —— 回归：高级全开时点状态块不能「点了没反应」——
+const warnFix = await page.evaluate(async () => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith"
+        && !(x.inputs || []).some((i) => i && i.link != null));
+    const W = (name) => n.widgets.find((w) => w.name === name);
+    const grid = () => document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const count = () => [...grid().querySelectorAll("[data-widget-name]")]
+        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel"
+            && e.getBoundingClientRect().height > 0).length;
+    const st = n.__mossllm;
+    st.force = false; st.focus = null;
+    W("channel").value = "api"; if (W("channel").callback) W("channel").callback("api");
+    W("api_base").value = ""; if (W("api_base").callback) W("api_base").callback("");
+    await wait(1800);
+    grid().querySelector(".mossllm-btn").click();
+    await wait(700);
+    const all = count();
+    const warn = grid().querySelector(".mossllm-warn");
+    const act = warn.dataset.act;
+    warn.click();
+    await wait(700);
+    return { act, all, after: count(), force: st.force, focus: st.focus };
+});
+check("高级全开时点缺项状态块 ⇒ 收起到对应组（不是点了没反应）",
+    /^open-/.test(warnFix.act) && warnFix.force === false
+    && warnFix.after < warnFix.all && warnFix.focus === "api",
+    JSON.stringify(warnFix));
+// 微优化：caption 时非通道 chip 的空小字位不占 margin
+const emptyKind = await page.evaluate(async () => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith"
+        && !(x.inputs || []).some((i) => i && i.link != null));
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const W = (name) => n.widgets.find((w) => w.name === name);
+    W("task").value = "caption"; if (W("task").callback) W("task").callback("caption");
+    await wait(1800);
+    const g = document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const empties = [...g.querySelectorAll(".mossllm-kind:empty")];
+    return { n: empties.length, allHidden: empties.every((e) => getComputedStyle(e).display === "none") };
+});
+check("空的小字位不占位（caption 时 tune 无「本次」标记）",
+    emptyKind.n > 0 && emptyKind.allHidden, JSON.stringify(emptyKind));
 
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();

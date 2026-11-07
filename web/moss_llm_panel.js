@@ -114,6 +114,7 @@ const CSS = `
 /* 三个 chip 并排，但「常用调优」是参数分组、「本地引擎 / 外部 API」是通道 —— 不是同一维度。
    给通道两个加前缀小字，别让人以为调优属于本地引擎。 */
 .mossllm-kind{font-size:9.5px;line-height:1;opacity:.45;margin-right:3px;letter-spacing:.04em}
+.mossllm-kind:empty{display:none}
 /* 一次性预设：只在「常用调优」展开时出现。按钮不是 widget ⇒ 不进 widgets_values。 */
 .mossllm-presets{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
 .mossllm-presets[hidden]{display:none}
@@ -428,7 +429,8 @@ function stateOf(node) {
     if (!st) {
         st = node.__mossllm = {
             focus: null,           // null = 只看常驻；否则是某组 key
-            force: !!node.__mossPanelAdv,   // 会话内记住「高级」展开，不进存档
+            force: false,          // 会话内记住「高级」展开：st 挂在 node.__mossllm 上，
+                                   // 实例在则状态在、重开工作流则新建 st 回到收起。不另存第二份状态。
             warnedChannel: false,
         };
     }
@@ -621,7 +623,6 @@ function makeChip(node, st, g) {
         const next = wasForce ? g.key : (st.focus === g.key ? null : g.key);
         if (g.channel) setChannel(node, g.key === "local" ? CH_LOCAL : CH_API);
         st.force = false;
-        node.__mossPanelAdv = false;
         st.focus = next;
         applySoon(node);
     };
@@ -988,7 +989,6 @@ function buildBar(node, st) {
     st.btn.onclick = (e) => {
         e.stopPropagation();
         st.force = !st.force;
-        node.__mossPanelAdv = st.force;
         applySoon(node);
     };
     st.hint = document.createElement("span");
@@ -1008,6 +1008,8 @@ function buildBar(node, st) {
         const act = st.warn.dataset.act || "chan";
         // 缺项：只把对应分组展开（不替用户改值）—— 修复动作是「填一个值」，不该由按钮代填。
         if (act === "open-api" || act === "open-local") {
+            // 高级全开时 st.force 让所有组都可见，只改 focus 等于没点 ⇒ 先收起再聚焦。
+            st.force = false;
             st.focus = act === "open-api" ? "api" : "local";
             applySoon(node);
             return;
