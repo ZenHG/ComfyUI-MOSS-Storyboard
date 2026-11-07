@@ -86,6 +86,42 @@ const CSS = `
    把它的 wrapper 排到最前（但仍低于开关条），避免用户漏看；只改视觉顺序，不动存档。 */
 [data-widgets-grid-node-id] > div:has([data-widget-name="server_exe"]){order:-1 !important}
 [data-widgets-grid-node-id] > div:has([data-widget-name="mosssb_llm_panel"]){order:-2 !important}
+/* V1 状态卡：模式与「还缺什么」合成一块独立卡片，按严重度变色，不再混在 chip 行里。 */
+.mossllm-status{flex:0 0 100%;display:flex;flex-direction:column;gap:1px;
+ padding:3px 9px 3px;border-radius:8px;box-sizing:border-box;
+ border:0.5px solid var(--border-color,#4e4e4e);
+ background:var(--color-background-secondary,rgba(127,127,127,.08))}
+.mossllm-status[data-level="danger"]{background:#FCEBEB;border-color:#A32D2D;color:#501313}
+.mossllm-status[data-level="warn"]{background:#FAEEDA;border-color:#854F0B;color:#633806}
+.mossllm-status .mossllm-hint{font-size:13px;font-weight:500;opacity:1;height:2.2em}
+.mossllm-status .mossllm-warn{background:transparent;border:0;padding:0;font-weight:400;
+ font-size:11px;color:inherit;white-space:normal;text-overflow:clip}
+.mossllm-status .mossllm-warn:hover{background:transparent;text-decoration:underline}
+/* V2 决策区：分段按钮替代两个平铺 combo，视觉上独立成区。 */
+.mossllm-chipsrow{display:flex;flex-wrap:wrap;flex:0 0 100%;gap:2px 4px;align-items:center}
+.mossllm-decision{flex:0 0 100%;display:flex;flex-wrap:wrap;gap:3px 8px;align-items:center;
+ padding:2px 2px 5px;border-bottom:0.5px solid var(--border-color,#4e4e4e)}
+.mossllm-decision-label{font-size:10px;opacity:.6;letter-spacing:.04em;flex:0 0 auto}
+.mossllm-segs{display:inline-flex;gap:3px;flex-wrap:wrap}
+.mossllm-seg{padding:2px 7px;border-radius:5px;border:0.5px solid var(--border-color,#4e4e4e);
+ background:transparent;color:var(--input-text,#ddd);font:11px/1.5 system-ui,sans-serif;cursor:pointer}
+.mossllm-seg[data-on="1"]{background:#185FA5;color:#fff;border-color:transparent}
+/* V5 预设嵌套：顶层两类 → 子档，默认收起只占一行。 */
+.mossllm-presetzone{flex:0 0 100%;display:flex;flex-direction:column;gap:3px;padding:3px 2px;
+ border-top:0.5px solid var(--border-color,#4e4e4e)}
+.mossllm-pztoggle{align-self:flex-start;padding:0;border:0;background:transparent;cursor:pointer;
+ color:var(--descrip-text,#999);font:11px/1.6 system-ui,sans-serif;text-decoration:underline}
+.mossllm-pzbody{display:flex;flex-direction:column;gap:4px;padding:2px 0}
+.mossllm-pzbody[hidden]{display:none}
+.mossllm-pzgroups,.mossllm-pzsub{display:flex;flex-wrap:wrap;gap:4px}
+.mossllm-pzitem{padding:2px 7px;border-radius:5px;border:0.5px solid var(--border-color,#4e4e4e);
+ background:transparent;color:var(--input-text,#ddd);font:11px/1.5 system-ui,sans-serif;cursor:pointer}
+.mossllm-pzitem[data-on="1"]{background:var(--comfy-input-bg,#222);border-color:#185FA5}
+.mossllm-pzitem:hover{background:var(--comfy-input-bg,#222)}
+/* V6 高级底栏：与决策区、预设区分开，独立一条。 */
+.mossllm-advrow{flex:0 0 100%;display:flex;justify-content:space-between;align-items:center;
+ border-top:0.5px solid var(--border-color,#4e4e4e);padding-top:3px;margin-top:2px}
+.mossllm-advlabel{font-size:10px;opacity:.6}
 .mossllm-bar{display:flex;flex-wrap:wrap;align-content:flex-start;flex:0 0 auto;
  align-items:center;gap:2px 4px;
  box-sizing:border-box;width:100%;padding:6px 2px 1px;
@@ -212,6 +248,11 @@ const I18N = {
         lackTipModel: "本地通道要一个 GGUF 模型才能跑。点一下展开「本地引擎」组；"
             + "或把通道切到「外部 API」。",
         kindChannel: "连接", kindNeed: "本次", needTip: "这个任务会用到这组",
+        decWhat: "做什么", decChan: "用哪个", presetTitle: "预设",
+        presetConnect: "连接", presetTune: "采样", presetOpenTip: "先选一类，再选具体档",
+        advTitle: "高级 · 全部参数",
+        segCaption: "反推", segExpand: "扩写", segEdit: "改图", segAssemble: "拼装",
+        segLocal: "本地", segApi: "API",
         preset_draft: "草稿（快）", preset_fine: "精修（细）", preset_reset: "恢复默认",
         presetTip_draft: "一次写入：长度=简短 · 温度 0.9 · 上限 512 tokens。先看方向对不对时用，最省时间",
         presetTip_fine: "一次写入：长度=详细 · 温度 0.2 · 上限 2048 tokens。要出成品时用",
@@ -262,6 +303,11 @@ const I18N = {
         lackTipModel: "The local channel needs a GGUF model. Click to open Local engine, "
             + "or switch the channel to External API.",
         kindChannel: "ch", kindNeed: "now", needTip: "used by this task",
+        decWhat: "What", decChan: "Backend", presetTitle: "Presets",
+        presetConnect: "Connect", presetTune: "Sampling", presetOpenTip: "Pick a group, then a preset",
+        advTitle: "Advanced · all parameters",
+        segCaption: "Caption", segExpand: "Expand", segEdit: "Edit", segAssemble: "Assemble",
+        segLocal: "Local", segApi: "API",
         preset_draft: "Draft (fast)", preset_fine: "Fine (slow)", preset_reset: "Reset",
         presetTip_draft: "Writes: length=brief, temp 0.9, max 512 tokens. Cheapest way to check direction",
         presetTip_fine: "Writes: length=detailed, temp 0.2, max 2048 tokens. For final output",
@@ -424,6 +470,15 @@ function installHintListener() {
 // ---------------------------------------------------------------------------
 // 状态（只在内存，绝不进存档）
 // ---------------------------------------------------------------------------
+/** 分段按钮写回 widget：值与 callback 都走宿主那一套，不另存状态。 */
+function setWidgetValue(node, name, value) {
+    const w = widgetOf(node, name);
+    if (!w || String(w.value) === String(value)) return false;
+    w.value = value;
+    try { w.callback?.(value); } catch (e) { /* 老前端没有 callback */ }
+    return true;
+}
+
 function stateOf(node) {
     let st = node.__mossllm;
     if (!st) {
@@ -432,6 +487,8 @@ function stateOf(node) {
             force: false,          // 会话内记住「高级」展开：st 挂在 node.__mossllm 上，
                                    // 实例在则状态在、重开工作流则新建 st 回到收起。不另存第二份状态。
             warnedChannel: false,
+            presetOpen: false,        // V5 预设区是否展开（会话内，不进存档）
+            presetGroup: null,        // 顶层选中的预设类别
         };
     }
     return st;
@@ -471,7 +528,12 @@ function plan(node, st) {
         if (assemble && MODE_SPEC.inertOnCompile.includes(w.name)) inert.add(w.name);
         // 优先级：接了线 > 高级全开 > 常驻 > 当前聚焦组。
         // 不再有 pinned：首屏行数恒定，target/profile 回到它们所在的组里。
-        const ok = isLinked(node, w.name) || st.force || !!g.always || g.key === st.focus;
+        // dialect 只对 expand 生效 ⇒ 默认藏起来；切到扩写或打开高级时出现。
+        // 它仍归 core，存档位置不动，所以不会像「移到 tune」那样多切出一段分组标题。
+        const always = !!g.always && w.name !== "dialect";
+        const dialectNow = w.name === "dialect" && (task === "expand" || st.force);
+        const ok = isLinked(node, w.name) || st.force || always || dialectNow
+            || g.key === st.focus;
         if (ok) shown.add(w.name);
     }
     return { shown, off, inert, assemble, task, ch, needs: needsOf(task, ch) };
@@ -529,7 +591,9 @@ function fitHeight(node, shown) {
     let gaps = 0;
     for (let i = 1; i < rects.length; i += 1) gaps += Math.max(0, rects[i].top - rects[i - 1].bottom);
     const content = rects.reduce((a, r) => a + r.height, 0) + gaps
-        + Math.max(0, rects[0].top - gr.top) + 4 * zoom;
+        + Math.max(0, rects[0].top - gr.top) + 8 * zoom;
+    // 8px 余量：状态卡是开关条内独立卡片，有自己的 padding/border；
+    // 行数多时累积误差会顶出 4px（实测 21 行时 scrollHeight 775 / clientHeight 771）。
     // 实测宿主：节点盒高 =（size 高 + 30）× zoom ⇒ size = 盒高 / zoom − 30。
     const want = Math.round((br.height - gr.height + content) / zoom - 30);
     if (!Number.isFinite(want) || want < 120) return false;
@@ -977,11 +1041,13 @@ function buildBar(node, st) {
         bar.addEventListener(ev, (e) => e.stopPropagation());
     }
     st.chips = {};
+    st.chipsRow = document.createElement("div");
+    st.chipsRow.className = "mossllm-chipsrow";
     for (const g of GROUPS) {
         if (g.always) continue;
         const c = makeChip(node, st, g);
         st.chips[g.key] = c;
-        bar.appendChild(c.b);
+        st.chipsRow.appendChild(c.b);
     }
     st.btn = document.createElement("button");
     st.btn.type = "button";
@@ -1000,6 +1066,9 @@ function buildBar(node, st) {
     const hintRow = document.createElement("div");
     hintRow.className = "mossllm-hintrow";
     hintRow.append(st.hint, st.langSlot);
+    st.statusCard = document.createElement("div");
+    st.statusCard.className = "mossllm-status";
+    st.statusCard.dataset.level = "ok";
     st.warn = document.createElement("span");
     st.warn.className = "mossllm-warn";
     st.warn.hidden = true;
@@ -1036,7 +1105,84 @@ function buildBar(node, st) {
         st.presets.appendChild(pb);
     }
     st.rtBox = buildRuntimeTools(node, st);
-    bar.append(st.warn, st.presets, st.rtBox, st.btn, hintRow);
+    st.statusCard.append(hintRow, st.warn);
+
+    // V2 决策区：分段按钮只写 widget 值，不存自己的状态；paintBar 每帧从 widget 读回选中态。
+    st.decisionRow = document.createElement("div");
+    st.decisionRow.className = "mossllm-decision";
+    const mkLabel = (txt) => {
+        const e = document.createElement("span");
+        e.className = "mossllm-decision-label";
+        e.textContent = txt;
+        return e;
+    };
+    const mkSegs = (kind, items) => {
+        const box = document.createElement("span");
+        box.className = "mossllm-segs";
+        for (const [v, label] of items) {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "mossllm-seg";
+            b.dataset.dec = kind;
+            b.dataset.value = v;
+            b.textContent = label;
+            b.onclick = (e) => {
+                e.stopPropagation();
+                if (kind === "chan") setChannel(node, v);
+                else setWidgetValue(node, "task", v);
+                applySoon(node);
+            };
+            box.appendChild(b);
+        }
+        return box;
+    };
+    st.decLabelWhat = mkLabel("");
+    st.decLabelChan = mkLabel("");
+    st.decTaskSegs = mkSegs("task", [["caption", ""], ["expand", ""], ["edit", ""], ["assemble", ""]]);
+    st.decChanSegs = mkSegs("chan", [[CH_LOCAL, ""], [CH_API, ""]]);
+    st.decisionRow.append(st.decLabelWhat, st.decTaskSegs, st.decLabelChan, st.decChanSegs);
+
+    // V5 预设嵌套：顶层两类 → 子档。默认收起，只占一行。
+    st.presetZone = document.createElement("div");
+    st.presetZone.className = "mossllm-presetzone";
+    st.presetToggle = document.createElement("button");
+    st.presetToggle.type = "button";
+    st.presetToggle.className = "mossllm-pztoggle";
+    st.presetToggle.onclick = (e) => {
+        e.stopPropagation();
+        st.presetOpen = !st.presetOpen;
+        applySoon(node);
+    };
+    st.presetBody = document.createElement("div");
+    st.presetBody.className = "mossllm-pzbody";
+    st.presetBody.hidden = true;
+    st.presetGroups = document.createElement("div");
+    st.presetGroups.className = "mossllm-pzgroups";
+    st.presetSub = document.createElement("div");
+    st.presetSub.className = "mossllm-pzsub";
+    for (const grp of ["connect", "tune"]) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "mossllm-pzitem";
+        b.dataset.pzGroup = grp;
+        b.onclick = (e) => {
+            e.stopPropagation();
+            st.presetGroup = st.presetGroup === grp ? null : grp;
+            applySoon(node);
+        };
+        st.presetGroups.appendChild(b);
+    }
+    st.presetBody.append(st.presetGroups, st.presetSub);
+    st.presetZone.append(st.presetToggle, st.presetBody);
+
+    // V6 高级底栏：全部参数入口独立一条，不再混在 chip 行里。
+    st.advRow = document.createElement("div");
+    st.advRow.className = "mossllm-advrow";
+    st.advLabel = document.createElement("span");
+    st.advLabel.className = "mossllm-advlabel";
+    st.advRow.append(st.advLabel, st.btn);
+
+    bar.append(st.statusCard, st.decisionRow, st.chipsRow, st.rtBox, st.presetZone, st.advRow);
     return bar;
 }
 
@@ -1095,9 +1241,63 @@ function lacksOf(node, meta) {
     return (!m || m.startsWith("(")) ? "model" : null;
 }
 
+const SEG_KEY = { caption: "Caption", expand: "Expand", edit: "Edit",
+    assemble: "Assemble", local: "Local", api: "Api" };
+
+/** V2/V5/V6：三个区每帧从 widget / st 读回，不另存与真实值可能漂移的状态。 */
+function paintZones(node, st, L, meta) {
+    st.decLabelWhat.textContent = L.decWhat;
+    st.decLabelChan.textContent = L.decChan;
+    for (const b of st.decisionRow.querySelectorAll(".mossllm-seg")) {
+        const v = b.dataset.value;
+        b.textContent = L["seg" + SEG_KEY[v]] || v;
+        const cur = b.dataset.dec === "chan" ? meta.ch : meta.task;
+        b.dataset.on = String(v) === String(cur) ? "1" : "0";
+    }
+    st.presetToggle.textContent = (st.presetOpen ? "▾ " : "▸ ") + L.presetTitle;
+    st.presetToggle.title = L.presetOpenTip;
+    st.presetBody.hidden = !st.presetOpen;
+    st.advLabel.textContent = L.advTitle;
+    for (const b of st.presetGroups.children) {
+        b.textContent = L[b.dataset.pzGroup === "connect" ? "presetConnect" : "presetTune"];
+        b.dataset.on = st.presetGroup === b.dataset.pzGroup ? "1" : "0";
+    }
+    st.presetSub.textContent = "";
+    if (st.presetGroup === "tune") {
+        st.presetSub.appendChild(st.presets);   // 草稿 / 精修 / 恢复默认
+        st.presets.hidden = false;
+    } else if (st.presetGroup === "connect") {
+        for (const ep of ENDPOINTS) {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "mossllm-pzitem";
+            b.dataset.pzEndpoint = ep.id;
+            b.textContent = L["ep_" + ep.id] || ep.id;
+            b.title = ep.url;
+            b.onclick = (e) => {
+                e.stopPropagation();
+                setWidgetValue(node, "api_base", ep.url);
+                setChannel(node, CH_API);
+                applySoon(node);
+            };
+            st.presetSub.appendChild(b);
+        }
+        st.presets.hidden = true;
+    } else {
+        st.presets.hidden = true;
+    }
+    for (const pb of st.presets.children) {
+        const k = pb.dataset.mossPreset;
+        pb.textContent = L["preset_" + k];
+        pb.title = L["presetTip_" + k];
+    }
+}
+
 function paintBar(node, st, shown, off, meta) {
     const L = t();
+    // 统计所有隐藏项（含 always 组里按任务隐藏的 dialect），否则摘要的「N 个可见」会多算。
     let hidden = 0;
+    for (const w of realWidgets(node)) if (!shown.has(w.name)) hidden += 1;
     for (const g of GROUPS) {
         if (g.always) continue;
         const { b, caret, label, count, dot, kind } = st.chips[g.key];
@@ -1106,8 +1306,6 @@ function paintBar(node, st, shown, off, meta) {
         if (!total) continue;
         const expanded = st.force || st.focus === g.key;
         const outside = off.has(g.key);
-        const vis = g.items.filter((n) => shown.has(n)).length;
-        hidden += total - vis;
         caret.textContent = expanded ? "▾" : "▸";
         const need = meta.needs.has(g.key);
         kind.textContent = g.channel ? L.kindChannel : (need ? L.kindNeed : "");
@@ -1122,6 +1320,12 @@ function paintBar(node, st, shown, off, meta) {
             + "｜" + L.hideTip;
         b.dataset.dirty = dirty ? "1" : "0";
         dot.title = dirty ? fmt(L.dirty, dirty) : "";
+    }
+    if (st.statusCard) {
+        const idleNow = chanOf(apiVal(node, "channel")) !== CH_API
+            && !!apiVal(node, "api_base").trim();
+        st.statusCard.dataset.level = idleNow ? "warn"
+            : (lacksOf(node, meta) ? "danger" : "ok");
     }
     const all = realWidgets(node).length;
     st.btn.textContent = st.force ? L.back : L.expand;
@@ -1145,24 +1349,14 @@ function paintBar(node, st, shown, off, meta) {
         }
     }
 
-    // 预设按钮跟着调参组走：展开才有意义，收起时别占地方。
-    if (st.presets) {
-        st.presets.hidden = !(st.force || st.focus === "tune");
-        if (st.rtBox) st.rtBox.hidden = st.force || st.focus !== "local";
-        if (!st.presets.hidden) {
-            if (st.rt && !st.rtBox.hidden) {
-            st.rt.install.textContent = L.rtInstall;
-            st.rt.test.textContent = L.rtTest;
-            st.rt.install.title = L.rtInstallTip;
-            st.rt.test.title = L.rtTestTip;
-        }
-        for (const pb of st.presets.children) {
-                const k = pb.dataset.mossPreset;
-                pb.textContent = L["preset_" + k];
-                pb.title = L["presetTip_" + k];
-            }
-        }
+    if (st.rtBox) st.rtBox.hidden = st.force || st.focus !== "local";
+    if (st.rt && st.rtBox && !st.rtBox.hidden) {
+        st.rt.install.textContent = L.rtInstall;
+        st.rt.test.textContent = L.rtTest;
+        st.rt.install.title = L.rtInstallTip;
+        st.rt.test.title = L.rtTestTip;
     }
+    if (st.presetZone) paintZones(node, st, L, meta);
 
     // 模式摘要：首屏唯一解释「这个节点现在要干什么」的一行（不加控件、不动存档）。
     // 完整说明（要不要视觉塔、要不要图）放 title，不占视觉宽度。
@@ -1359,6 +1553,7 @@ function mount(node) {
         };
         mw.__mossChanHooked = true;
     }
+    hookAllRepaint(node);
     const oc = node.onConfigure;
     node.onConfigure = function (...args) {
         const r = oc ? oc.apply(this, args) : undefined;
@@ -1374,11 +1569,30 @@ const smiths = () => (app?.graph?.nodes || []).filter((n) => n && n.type === TYP
 let booted = false;
 let tries = 0;
 
+/** 已有专用回调的 widget（它们自己会调 applySoon）不重复包装。 */
+const REPAINT_SKIP = new Set(["channel", "api_base", "api_model", "task", "model"]);
+/** 其余 widget 一改值立刻重画；宿主重建 widget 后由 guard 补挂。 */
+function hookAllRepaint(node) {
+    for (const w of realWidgets(node)) {
+        if (!w || w.__mossRepaintHooked || REPAINT_SKIP.has(w.name)) continue;
+        const orig = w.callback;
+        w.callback = function (...args) {
+            const r = orig ? orig.apply(this, args) : undefined;
+            applySoon(node);
+            return r;
+        };
+        w.__mossRepaintHooked = true;
+    }
+}
+
 function guard() {
     for (const node of smiths()) {
         try {
             if (!node.__mossllmBar) mount(node);
-            else if (node.__mossllmBar.nodeType) apply(node);   // 抗覆盖：别的扩展可能改回 hidden
+            else if (node.__mossllmBar.nodeType) {
+                hookAllRepaint(node);
+                apply(node);                                   // 抗覆盖：别的扩展可能改回 hidden
+            }
         } catch (e) { /* 这一轮跳过，绝不掀画布 */ }
     }
 }

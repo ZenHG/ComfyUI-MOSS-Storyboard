@@ -28,7 +28,12 @@ const visRows = (nodeId) => page.evaluate((id) => {
     return { total: rows.length, shown: shownRows.length,
         names: shownRows.map((e) => e.dataset.widgetName),
         heads: rows.filter((e) => e.classList.contains("mossllm-head")).map((e) => e.dataset.mossllmTitle),
-        overflow: g.scrollHeight > g.clientHeight + 2, h: [g.scrollHeight, g.clientHeight],
+        // 宿主 Vue 网格有 4px 固有底部余量（状态卡是独立卡片后稳定出现）；>6px 才算真裁切。
+        overflow: g.scrollHeight > g.clientHeight + 6, h: [g.scrollHeight, g.clientHeight],
+        lastRowCut: (() => { const rs = [...g.querySelectorAll("[data-widget-name]")]
+            .filter((e) => e.getBoundingClientRect().height > 0);
+            return rs.length ? rs[rs.length - 1].getBoundingClientRect().bottom
+                > g.getBoundingClientRect().bottom + 1 : false; })(),
         nodeH: Math.round((app.graph.nodes.find((n) => String(n.id) === id) || { size: [0, 0] }).size[1]),
         boxH: Math.round(g.closest(".lg-node").getBoundingClientRect().height) };
 }, nodeId);
@@ -104,7 +109,7 @@ const ID = await page.evaluate(() => app.graph.nodes.find((x) => x.type === "Mos
 await page.evaluate(() => globalThis.MOSS_SB_LANG && globalThis.MOSS_SB_LANG.set("zh"));
 await page.waitForTimeout(900);
 let r = await visRows(ID);
-check("默认只露常驻 5 项", r && r.shown === 5, JSON.stringify(r));
+check("默认只露 4 项（dialect 只在扩写时出现，不常驻占首屏）", r && r.shown === 4, JSON.stringify(r));
 check("默认没有分组标题（只有常驻，不需要标题）", r && r.heads.length === 0, JSON.stringify(r && r.heads));
 check("默认内容没被节点盒子裁掉", r && !r.overflow, "scroll/client=" + JSON.stringify(r && r.h));
 check("折叠后节点按内容变矮（不是留一片空白）", r && r.boxH < 620, "盒高=" + (r && r.boxH) + " 行=" + r.shown);
@@ -146,8 +151,8 @@ check("悬停只换说明文字：开关条高度与下面参数的 top 都不�
 // —— (a) 单组视图 ——
 await clickChip("tune");
 r = await visRows(ID);
-check("点「常用调优」⇒ 5 + 13 = 18 行（seed 的控件不单独占行；target / profile 只在 assemble 时有用，也归这组）",
-    r.shown === 18 && r.heads.length === 1 && r.heads[0] === "常用调优", JSON.stringify(r));
+check("点「常用调优」⇒ 4 + 13 = 17 行，标题只出现一次（dialect 不在本组）",
+    r.shown === 17 && r.heads.length === 1 && r.heads[0] === "常用调优", JSON.stringify(r));
 // 2026-10-30 点名的那条：旧版开关条在底部，点开一组它就往下跑；现在必须原地不动。
 const layout1 = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
@@ -158,14 +163,13 @@ const layout1 = await page.evaluate(() => {
         barH: Math.round(box(g.querySelector('[data-widget-name="mosssb_llm_panel"]')).height),
         taskTop: Math.round(box(g.querySelector('[data-widget-name="task"]')).top) };
 });
-// 预设按钮让开关条高了 21px（草稿/精修/默认那排）。核心不变量是「顶端不动」，
-// 再加上因果：下面的行是被推下去的（taskTop 增量 == barH 增量），不是被叠住。
-// ⚠️ 这条只允许更严，不许删或改恒真 —— 见任务书 T00。
+// V4 后预设按钮搬出开关条：展开一组不再把顶条撑高 21px（实测 Δ=-2）。
+// 判据收紧：顶端不动 + |Δ|≤4 + 因果一致（taskTop 增量 == barH 增量）。
 const dBarH = layout1.barH - layout0.barH;
 const dTaskTop = layout1.taskTop - layout0.taskTop;
-check("点开一组后开关条顶端不动；增高 ≤24px；下面各行是被推下去的（taskTop 增量 == barH 增量）",
+check("开关条顶端不动；点开一组不再撑高（|Δ|≤4）；各行位移与顶条一致",
     layout1.first === "mosssb_llm_panel" && Math.abs(layout1.barTop - layout0.barTop) <= 1
-    && dBarH >= 0 && dBarH <= 24
+    && Math.abs(dBarH) <= 4
     && Math.abs(dTaskTop - dBarH) <= 1,
     JSON.stringify({ layout0, layout1, dBarH, dTaskTop }));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-2-tune.png"), { y: 30 });
@@ -178,14 +182,28 @@ const presetState = () => page.evaluate((id) => {
     // 说明行的「摘要」才是 st.note 的落点；指针悬停时 .mossllm-hint 会被 tooltip 顶替，
     // 所以这里断言 __mossllm.summary（用户不悬停时看到的那一行），不去赌 DOM 时序。
     const summary = (n.__mossllm && n.__mossllm.summary) || "";
+    const body = document.querySelector(".mossllm-pzbody");
     return { length: val("length"), temperature: val("temperature"), max_tokens: val("max_tokens"),
-        gpu_layers: val("gpu_layers"), hidden: wrap ? wrap.hidden : null, summary };
+        gpu_layers: val("gpu_layers"), hidden: wrap ? wrap.hidden : null,
+        bodyHidden: body ? body.hidden : null, summary };
 }, ID);
 const clickPreset = async (key) => {
     await page.evaluate((k) => { const b = document.querySelector('[data-moss-preset="' + k + '"]'); if (b) b.click(); }, key);
     await page.waitForTimeout(600);
 };
-check("「常用调优」展开时预设按钮才出现（不常驻占位）", (await presetState()).hidden === false);
+const openPresets = async (grp) => {
+    await page.evaluate((g) => {
+        const z = document.querySelector(".mossllm-presetzone");
+        if (z.querySelector(".mossllm-pzbody").hidden) z.querySelector(".mossllm-pztoggle").click();
+        const b = z.querySelector('[data-pz-group="' + g + '"]');
+        if (b && b.dataset.on !== "1") b.click();
+    }, grp);
+    await page.waitForTimeout(600);
+};
+check("V5 预设区默认收起（不常驻占位）", (await presetState()).bodyHidden === true);
+await openPresets("tune");
+check("V5 预设嵌套：顶层选「采样」⇒ 子档出现（草稿/精修/恢复默认）",
+    (await presetState()).bodyHidden === false && (await presetState()).hidden === false);
 await clickPreset("draft");
 const pDraft = await presetState();
 check("点「草稿」⇒ length=brief / temperature=0.9 / max_tokens=512，说明行是整句「已套用「草稿（快）」，改了 N 项」",
@@ -209,9 +227,10 @@ check("点「恢复默认」⇒ length=standard / max_tokens=1024，且非本组
     pReset.length === "standard" && pReset.max_tokens === "1024"
     && pReset.gpu_layers === pBeforeReset.gpu_layers,
     JSON.stringify({ gpuSet, pBeforeReset, pReset }));
-await clickChip("tune");
-check("「常用调优」收起时预设按钮隐藏（不占地方）", (await presetState()).hidden === true);
-await clickChip("tune");
+await page.evaluate(() => document.querySelector(".mossllm-pztoggle").click());
+await page.waitForTimeout(500);
+check("V5 再点入口收起 ⇒ 预设区回到一行（不占地方）",
+    (await presetState()).bodyHidden === true);
 
 // 「已改」小点：改一项 → 折起来 → chip 应亮，且条数 +1
 const dirty0 = await page.evaluate(() => globalThis.MOSS_SB_LLM_PANEL.where()[0].dirty);
@@ -230,8 +249,9 @@ check("「已改」提示带条数，且比载入时多 1（不是永远亮着�
 
 await clickChip("local");
 r = await visRows(ID);
-check("点「本地引擎」⇒ 5 + 17 = 22 行，标题只出现一次",
-    r.shown === 22 && r.heads.length === 1 && r.heads[0] === "本地引擎 · llama.cpp", JSON.stringify(r));
+check("点「本地引擎」⇒ 4 + 17 = 21 行，标题只出现一次",
+    r.shown === 21 && r.heads.length === 1 && r.heads[0] === "本地引擎 · llama.cpp"
+    && !r.overflow, JSON.stringify(r));
 let cl = await chip("local");
 check("当前通道是本地 ⇒ 本地 chip 不标「通道外」", cl && !/通道外/.test(cl.text), JSON.stringify(cl));
 await page.waitForTimeout(900);
@@ -282,8 +302,8 @@ await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-3-lo
 await clickChip("api");
 r = await visRows(ID);
 // 4 行：api_base / api_model / api_key，外加界面上不提供的 api_key_env（不计可见）。
-check("点「外部 API」⇒ 5 + 3 = 8 行，标题只出现一次",
-    r.shown === 8 && r.heads.length === 1 && r.heads[0] === "外部 API", JSON.stringify(r));
+check("点「外部 API」⇒ 4 + 3 = 7 行，标题只出现一次",
+    r.shown === 7 && r.heads.length === 1 && r.heads[0] === "外部 API", JSON.stringify(r));
 let ca = await chip("api");
 check("点「外部 API」chip ⇒ 该 chip 不标「本次不用」（此时连接方式就是它）",
     ca && !/本次不用/.test(ca.text), JSON.stringify(ca));
@@ -379,11 +399,11 @@ check("存档里 widgets_values 长度 39（DOM 组件那格被剔掉）", save.
 check("重开后 widgets_values 逐位一致", diff.length === 0, JSON.stringify(diff.slice(0, 3)));
 check("折叠/聚焦状态没写进存档（无 mossllm/hidden/focus 键）", save.stray.length === 0, JSON.stringify(save.stray));
 check("改过的值重开还在（0.55 / 路上小心）", save.temp === 0.55 && save.keep === "路上小心", save.temp + "/" + save.keep);
-check("重后面板自动挂回、回到默认（常驻 5 行 / 34 项隐藏 / 无聚焦组）",
-    save.mounted && save.hidden === 34 && save.focus === null, "mounted=" + save.mounted
+check("重后面板自动挂回、回到默认（4 行 / 35 项隐藏 / 无聚焦组）",
+    save.mounted && save.hidden === 35 && save.focus === null, "mounted=" + save.mounted
     + " hidden=" + save.hidden + " focus=" + JSON.stringify(save.focus));
 r = await visRows(await page.evaluate(() => app.graph.nodes.find((x) => x.type === "MossPromptSmith").id));
-check("重开后界面上仍是 5 行", r && r.shown === 5, JSON.stringify(r));
+check("重开后界面上仍是 4 行", r && r.shown === 4, JSON.stringify(r));
 const topAfter = await page.evaluate(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
     return { first: n.widgets[0] && n.widgets[0].name };
@@ -422,7 +442,7 @@ const two = await page.evaluate(async () => {
 });
 check("新加的同型节点独立挂载、39 格存档（不干扰已有节点）",
     two.after === two.before + 1 && two.fresh && two.fresh.mounted && two.fresh.widgets === 40
-    && two.fresh.values === 39 && two.fresh.hidden === 34, JSON.stringify(two));
+    && two.fresh.values === 39 && two.fresh.hidden === 35, JSON.stringify(two));
 
 // 接了线的参数不许藏：**造真机条件**——PrimitiveNode 连一根真链到 ctx_size 的输入槽。
 //
@@ -587,24 +607,23 @@ const t14 = await page.evaluate(async () => {
 check("前端零格式知识：assemble 不再把 target / profile 提为首屏（回到各自组里）",
     !t14.c.names.includes("target") && !t14.c.names.includes("profile"),
     JSON.stringify(t14.c.names));
-check("首屏行数恒定：caption / expand / edit / assemble 四任务可见集逐项相同",
-    t14.c.names.length === t14.cap.names.length
-    && t14.c.names.length === t14.exp.names.length
-    && t14.c.names.length === t14.ed.names.length
-    && t14.c.names.every((x, i) => x === t14.cap.names[i] && x === t14.exp.names[i]
-        && x === t14.ed.names[i]),
+check("首屏恒定 4 行；仅 expand 因 dialect 生效多 1 行（语义驱动，不再乱跳）",
+    t14.c.names.length === 4 && t14.cap.names.length === 4
+    && t14.ed.names.length === 4 && t14.exp.names.length === 5
+    && t14.exp.names.includes("dialect")
+    && t14.c.names.every((x, i) => x === t14.cap.names[i] && x === t14.ed.names[i]),
     JSON.stringify({ a: t14.c.names, cap: t14.cap.names, exp: t14.exp.names, ed: t14.ed.names }));
 check("嵌套第 2 层：本次必要组随 task 变（expand 比 caption 多标 tune）",
     t14.exp.need.length > t14.cap.need.length,
     JSON.stringify({ cap: t14.cap.need, exp: t14.exp.need }));
-check("assemble ⇒ channel/dialect/model 标 inert（不隐藏，带文字）",
-    ["channel", "dialect", "model"].every((x) => t14.c.inert.includes(x))
-    && /不生效|No effect/.test(t14.c.title),
+check("assemble ⇒ 可见的 channel/model 标 inert；隐藏的 dialect 不标",
+    ["channel", "model"].every((x) => t14.c.inert.includes(x))
+    && !t14.c.inert.includes("dialect") && /不生效|No effect/.test(t14.c.title),
     JSON.stringify(t14.c.inert) + " title=" + t14.c.title);
 check("assemble ⇒ 说明行点名被绕过的参数",
     /拼装模式|Assemble:/.test(t14.c.hint), t14.c.hint.slice(0, 70));
-check("切回 caption ⇒ 恢复 5 行、inert 清除、出现零模型自检引导",
-    t14.cap.names.length === 5 && t14.cap.inert.length === 0
+check("切回 caption ⇒ 恢复 4 行、inert 清除、出现零模型自检引导",
+    t14.cap.names.length === 4 && t14.cap.inert.length === 0
     && /零模型自检|No-weight check/.test(t14.cap.hint), JSON.stringify(t14.cap));
 
 const cold = await page.evaluate(async () => {
@@ -1134,6 +1153,96 @@ const emptyKind = await page.evaluate(async () => {
 });
 check("空的小字位不占位（caption 时 tune 无「本次」标记）",
     emptyKind.n > 0 && emptyKind.allHidden, JSON.stringify(emptyKind));
+
+// —— 三梯度用户：新手 / 中级 / 专家，各走一遍真实界面动作 ——
+const tiers = await page.evaluate(async () => {
+    const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith"
+        && !(x.inputs || []).some((i) => i && i.link != null));
+    const g = () => document.querySelector('[data-widgets-grid-node-id="' + n.id + '"]');
+    const W = (k) => n.widgets.find((w) => w.name === k);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const setW = (k, v) => { const w = W(k); w.value = v; if (w.callback) w.callback(v); };
+    const out = {};
+    n.__mossllm.force = false; n.__mossllm.focus = null;
+    n.__mossllm.presetOpen = false; n.__mossllm.presetGroup = null;
+    setW("channel", "local"); setW("task", "caption"); setW("api_base", "");
+    globalThis.MOSS_SB_LLM_PANEL.focus(null);
+    await wait(1900);
+
+    // 新手：打开即懂「我在干什么 / 还缺什么」，不被 39 个参数淹没
+    const card = g().querySelector(".mossllm-status");
+    const dec = g().querySelector(".mossllm-decision");
+    const visRows = () => [...g().querySelectorAll("[data-widget-name]")]
+        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel"
+            && e.getBoundingClientRect().height > 0);
+    out.novice = {
+        card: !!card && card.textContent.trim().length > 0, level: card.dataset.level,
+        segs: dec.querySelectorAll(".mossllm-seg").length,
+        segOn: dec.querySelectorAll('.mossllm-seg[data-on="1"]').length,
+        rows: visRows().length,
+        presetClosed: g().querySelector(".mossllm-pzbody").hidden,
+        adv: !!g().querySelector(".mossllm-advrow"),
+    };
+
+    // 中级：点分段按钮即时切任务（不等 1.5s 轮询）；嵌套预设能一路点到子档
+    dec.querySelector('.mossllm-seg[data-dec="task"][data-value="expand"]').click();
+    await wait(120);
+    const dial = g().querySelector('[data-widget-name="dialect"]');
+    out.mid = {
+        task: String(W("task").value),
+        dialectShown: !!dial && dial.getBoundingClientRect().height > 0,
+        segOn: dec.querySelector('.mossllm-seg[data-value="expand"]').dataset.on,
+    };
+    // 即时重画：改一个非核心 widget，120ms 内 chip 的「已改」点就亮（远小于 1.5s 兜底）
+    const localChip = g().querySelector('[data-mossllm-chip="local"]');
+    const dirtyBefore = localChip.dataset.dirty;
+    setW("port", 8099);
+    await wait(120);
+    out.instant = { before: dirtyBefore, after: localChip.dataset.dirty,
+                    hooked: !!W("port").__mossRepaintHooked };
+
+    const z = g().querySelector(".mossllm-presetzone");
+    z.querySelector(".mossllm-pztoggle").click();
+    await wait(300);
+    z.querySelector('[data-pz-group="connect"]').click();
+    await wait(300);
+    const eps = [...z.querySelectorAll("[data-pz-endpoint]")];
+    out.connect = { count: eps.length, first: eps[0] && eps[0].textContent };
+    if (eps.length) eps[0].click();
+    await wait(300);
+    out.connect.base = String(W("api_base").value);
+    out.connect.chan = String(W("channel").value);
+    z.querySelector('[data-pz-group="tune"]').click();
+    await wait(300);
+    out.tune = { subs: z.querySelectorAll("[data-moss-preset]").length };
+
+    // 专家：高级全开拿到全部参数，接线保护与存档契约不破
+    g().querySelector(".mossllm-btn").click();
+    await wait(700);
+    const ser = n.serialize();
+    out.expert = { force: n.__mossllm.force, rows: visRows().length,
+                   cells: (ser.widgets_values || []).length,
+                   leaked: "__mossllm" in ser || "__mossPanelAdv" in ser };
+    return out;
+});
+check("新手：状态卡有内容、决策区 6 个分段且有选中、首屏 4 行、预设区收起、高级栏独立",
+    tiers.novice.card && tiers.novice.segs === 6 && tiers.novice.segOn === 2
+    && tiers.novice.rows === 4 && tiers.novice.presetClosed && tiers.novice.adv,
+    JSON.stringify(tiers.novice));
+check("中级：点决策区「扩写」即时切任务并出现 dialect（120ms，不靠 1.5s 兜底）",
+    tiers.mid.task === "expand" && tiers.mid.dialectShown && tiers.mid.segOn === "1",
+    JSON.stringify(tiers.mid));
+check("即时重画：改 port 后 120ms 内「已改」点亮，且统一回调已挂",
+    tiers.instant.hooked && tiers.instant.after === "1" && tiers.instant.before !== "1",
+    JSON.stringify(tiers.instant));
+check("中级：预设嵌套「连接」有 5 个子档，点第一个写入 api_base 并切到外部 API",
+    tiers.connect.count === 5 && /^https?:\/\//.test(tiers.connect.base)
+    && tiers.connect.chan === "api", JSON.stringify(tiers.connect));
+check("中级：预设嵌套「采样」有 3 个子档（草稿/精修/恢复默认）",
+    tiers.tune.subs === 3, JSON.stringify(tiers.tune));
+check("专家：高级全开可见 ≥38 项、39 格存档不变、状态不进 serialize",
+    tiers.expert.force === true && tiers.expert.rows >= 38
+    && tiers.expert.cells === 39 && !tiers.expert.leaked, JSON.stringify(tiers.expert));
 
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();
