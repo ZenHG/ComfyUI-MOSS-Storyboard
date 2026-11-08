@@ -113,12 +113,11 @@ check("4.1 白名单内 ⇒ 中文", comboLabel("init", "layout", "zh") === COMB
 check("4.2 白名单内、英文态 ⇒ 原值", comboLabel("init", "layout", "en") === "layout");
 check("4.3 白名单外 ⇒ null（不翻）", comboLabel("init", "unknown-value", "zh") === null
     && comboLabel("sampler_name", "euler", "zh") === null);
-check("4.4 子包枚举：任务 / 通道 / 篇幅 / 思考都有中文显示",
-    comboLabel("task", "caption", "zh") === "反推"
-    && comboLabel("channel", "api", "zh") === "外部 API"
-    && comboLabel("length", "detailed", "zh") === "详细"
-    && comboLabel("thinking", "off", "zh") === COMBOS.thinking.off
-    && comboLabel("task", "caption", "en") === "caption");
+check("4.4 子包枚举：任务 / 写法类 / 具体写法都有中文显示（值本身已是中文）",
+    comboLabel("task", "反推", "zh") === COMBOS.task["反推"]
+    && comboLabel("style_class", "风格", "zh") === COMBOS.style_class["风格"]
+    && comboLabel("style", "电影剧照", "zh") === COMBOS.style["电影剧照"]
+    && comboLabel("task", "反推", "en") === "反推");
 check("4.5 动态下拉（模型 / mmproj 文件名）原样显示",
     comboLabel("model", "GGUF/x.gguf", "zh") === null
     && comboLabel("mmproj", "mmproj-x.gguf", "zh") === null
@@ -237,14 +236,15 @@ check("6.25 子包多行框：英文换成 LABELS_EN（不是裸参数名）",
     phOf(sm, "text") + "/" + phOf(sm, "keep"));
 
 const sn = mkNode(SMITH, [
-    { name: "task", value: "caption", label: "task", values: ["caption", "expand", "edit"] },
-    { name: "channel", value: "local", label: "channel", values: ["local", "api"] },
+    { name: "task", value: "反推", label: "task", values: ["反推", "洗图", "扩写"] },
+    { name: "style_class", value: "连贯描述", label: "style_class",
+      values: ["连贯描述", "风格"] },
 ]);
 applyLang(sn, "zh");
 check("6.26 子包下拉：显示中文、存档值不动",
-    sn.widgets[0].options.getOptionLabel("caption") === COMBOS.task.caption
-    && sn.widgets[1].options.getOptionLabel("api") === COMBOS.channel.api
-    && sn.widgets[0].value === "caption" && sn.widgets[1].value === "local");
+    sn.widgets[0].options.getOptionLabel("反推") === COMBOS.task["反推"]
+    && sn.widgets[1].options.getOptionLabel("风格") === COMBOS.style_class["风格"]
+    && sn.widgets[0].value === "反推" && sn.widgets[1].value === "连贯描述");
 applyLang(sn, "en");
 check("6.27 子包下拉：切英文拆除显示钩子",
     sn.widgets[0].options.getOptionLabel === undefined

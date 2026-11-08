@@ -171,7 +171,7 @@ _SPEED = {
     "均衡": {"ctx_size": 8192, "ubatch": 512, "fit_target_mib": 1024, "image_max_tokens": 1024},
     "尽量快": {"ctx_size": 16384, "ubatch": 1024, "fit_on": "off", "image_max_tokens": 1536},
 }
-_TASK_ALIAS = {"反推": "caption", "洗图": "caption", "扩写": "expand", "编辑": "edit",
+_TASK_ALIAS = {"反推": "caption", "洗图": "caption", "扩写": "expand",
                "拼装": "assemble", "编辑": "edit"}
 #: PE 跳过 _build_system 时这些参数不生效；report 逐一点名，不静默。
 _PE_BYPASSED = ("dialect", "length", "must_keep", "panels", "style_lock")
