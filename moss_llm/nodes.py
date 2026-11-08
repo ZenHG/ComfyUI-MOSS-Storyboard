@@ -306,7 +306,6 @@ class MossPromptSmith:
         model_list = list(models.keys()) or ["(未找到 GGUF 模型)"]
         # 默认取第一个（按相对路径排序）。不硬编码任何模型——开源用户盘上有什么就跑什么。
         default_model = model_list[0]
-        mmproj_list = [_MMPROJ_AUTO, _MMPROJ_NONE] + (list(mmprojs.keys()) or [])
         it = {
             "required": {
                 "task": (["反推", "洗图", "扩写", "拼装"], {"default": "反推",
@@ -349,7 +348,7 @@ class MossPromptSmith:
                 "image7": ("IMAGE",), "image8": ("IMAGE",), "image9": ("IMAGE",),
             },
         }
-        return it
+        return it  # noqa: RET504
 
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("提示词", "report")
@@ -420,6 +419,7 @@ class MossPromptSmith:
         port = 8091
         release_after_run = True
         runtime = str(runtime or "auto")
+        thinking = "off"
         t0 = time.time()
         report = []
         #: 每图视觉 token 预算。`_chat` 的自动压缩与侧车启动都要用，
