@@ -378,10 +378,10 @@ def missing_exe_error():
         "  ① 节点内自动装（推荐）：把「运行时 / runtime」设为「自动下载」，再运行。\n"
         "     自动按本机后端选 CUDA/ROCm/Vulkan/SYCL/Metal/CPU；国内慢设 MOSS_LLM_MIRROR=<前缀>，\n"
         "     选错后端设 MOSS_LLM_BACKEND=cuda|vulkan|rocm|sycl|metal|cpu。\n"
-        "  ② 已有 llama.cpp：节点「服务器程序 / server_exe」填完整路径；\n"
-        "     或设环境变量 %s=<路径>；也可以设 LLAMA_CPP_HOME=<解压目录>，或放进 PATH。\n"
+        "  ② 已有 llama.cpp：设环境变量 %s=<完整路径>；也可以设 LLAMA_CPP_HOME=<解压目录>，\n"
+        "     或把 llama-server 放进 PATH，或放进本包 runtime/ 目录（auto 档会找到）。\n"
         "  ③ 已有 OpenAI 兼容服务（LM Studio / Ollama / llama-swap / 远端）：\n"
-        "     节点「通道 / channel」选「外部 API」，填 api_base（--base-url，要带 /v1）与模型名；不需要本机二进制。\n"
+        "     节点「API地址 / api_base」填服务地址（要带 /v1）与模型名；不需要本机二进制。\n"
         "  命令行等价：python -m moss_llm.smith setup --backend auto\n"
         "  官方构建：https://github.com/ggml-org/llama.cpp/releases" % SERVER_EXE_ENV)
 

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 ComfyUI-MOSS-Storyboard contributors
 // 第三方出处与许可见 THIRD-PARTY-NOTICES.md
 //
-// LLM Prompt · 参数面板 —— 39 个参数的信息架构层
+// LLM Prompt · 参数面板 —— 18 个参数的状态行与行内小工具
 //
 // 设计口径（美学 / 高频用户两条视角，2026-10-30）：
 //   1. **默认只露常驻 5 项**（task/channel/dialect/model/text）。这个节点的日常动作是
@@ -26,17 +26,13 @@
 //    这里只改 `widget.options.hidden`（宿主的 byExtension 抑制位）+ 给宿主的行元素加类名。
 //    实测前端 1.57.6 / Vue 节点模式：隐藏的行不画、`serialize()` 照样按 `serialize !== false`
 //    收值 ⇒ 隐藏不改变存档格数与位置；折叠状态只活在节点实例的 `__mossllm` 上，不序列化。
-//    DOM 开关条那一格由 `moss_sb_widget_order.js::installSaveCleanup` 在存盘时剔掉（实测 39 格）。
+//    DOM 开关条那一格由 `moss_sb_widget_order.js::installSaveCleanup` 在存盘时剔掉（实测 19 格）。
 //    **唯一会写进 JSON 的东西是节点 `size`**（`fitHeight` 按可见内容调高度）—— 那是画布尺寸，
 //    不是参数值；改分组时会重算，用户手拖的高度在下次换组时被取代（可见、可撤销）。
 //
-// 为什么不用宿主自带的「显示高级参数」：它只有一个桶，切不出「本地引擎 / 外部 API」两组，
-//    也承载不了「默认只露 5 项」这件事。（`advanced` 在各渲染层的实际落点随前端版本变，
-//    这里不依赖它。）
-//
-// 为什么只挂**一个** DOM 行：组标题要插在两组参数之间，就得往 `node.widgets` 中间塞东西
-//    —— 那是重排 widget = 改存档顺序。所以组标题改由 CSS 画在每组第一行上方
-//    （`.mossllm-head::before`），行元素用宿主自己打的 `data-widget-name` 定位。
+// 为什么不用宿主自带的「显示高级参数」：18 项一屏放得下，不需要按桶显隐；
+//    面板只提供一行只读状态与两个行内小工具。（`advanced` 在各渲染层的实际落点随前端
+//    版本变，这里不依赖它。）
 //
 // 🔴 不静默兜底：拿不到隐藏能力、或挂不上这一行 ⇒ **什么都不藏**（只出声）——
 //    「藏了却没有开关」等于把参数弄丢。接了线的参数永远不藏。
@@ -49,42 +45,27 @@ const TAG = "[MOSS SB] llm panel";
 const TYPE = "MossPromptSmith";
 const BAR_NAME = "mosssb_llm_panel";
 const STYLE_ID = "mosssb-llm-panel-style";
-const CH_LOCAL = "local";
-const CH_API = "api";
-/** 初版把中文写进了枚举值（2026-10-30 早场）。旧工作流里还是这两个 —— 两边都认。 */
-const CH_LEGACY = { "本地 GGUF": CH_LOCAL, "外部 API": CH_API };
-const chanOf = (v) => CH_LEGACY[v] || v;
-
 /**
  * 信息架构：按**参数名**分组（名字是契约，位置不是）。表里没写的参数落进 `other` 且常显
  * —— 以后往参数表尾部追加新旋钮时，默认是「看得见」，不会因为这张表没同步就被藏掉。
  */
+/**
+ * 信息架构：按**参数名**分组（名字是契约，位置不是）。0.5.2 起 18 项一屏全显示，
+ * 这张表不再决定任何显隐，只剩两个消费方：控制台排障的「与默认不同」计数，
+ * 和给读代码的人一张参数地图。
+ */
 const GROUPS = [
     // 决策：每次都要动的三项 + 模型（本地/API 都可能要，PE 改写器也读它）。
-    { key: "core", always: true, items: ["task", "channel", "model", "text"] },
-    // 输出格式：只与任务有关，不与通道绑定。
-    { key: "format", sec: "secFormat", items: ["dialect", "target", "profile"] },
-    // 采样：控制模型怎么写。
-    { key: "sampling", sec: "secSampling",
-      items: ["length", "temperature", "max_tokens", "seed", "language", "thinking"] },
-    // 内容约束：写什么、保留什么。
-    { key: "content", sec: "secContent",
-      items: ["panels", "style_lock", "must_keep", "wash", "two_pass"] },
-    // 本地连接：权重之外的本地入口。
-    { key: "local", channel: CH_LOCAL, sec: "secLocal",
-      items: ["server_exe", "mmproj", "runtime"] },
-    // 外部连接。
-    { key: "api", channel: CH_API, sec: "secApi",
-      items: ["api_base", "api_model", "api_key"] },
-    // 引擎：llama-server 启动与显存，只在本地通道有用。
-    { key: "engine", channel: CH_LOCAL, sec: "secEngine",
-      items: ["ctx_size", "gpu_layers", "cache_type_k", "cache_type_v", "flash_attn",
-              "image_max_tokens", "ubatch", "parallel", "fit_on", "fit_target_mib",
-              "mtp", "mtp_draft_n", "port", "release_after_run"] },
+    { key: "core", items: ["task", "model", "text"] },
+    // 写法：怎么写、写给哪个后端。
+    { key: "style", items: ["style_class", "style", "target", "style_note"] },
+    // 采样与内容：写多长、多稳、保留什么。
+    { key: "sampling", items: ["length", "temperature", "panels", "language", "keep", "seed"] },
+    // 在线连接：api_base 留空 = 本机（通道由后端 smith() 推断，节点上没有 channel 格）。
+    { key: "api", items: ["api_base", "api_model", "api_key"] },
+    // 本机运行：运行时来源与快慢档。
+    { key: "local", items: ["runtime", "speed"] },
 ];
-const OTHER = { key: "other", always: true };
-const BY_NAME = new Map();
-for (const g of GROUPS) for (const n of g.items) BY_NAME.set(n, g);
 
 /** seed 每次跑都会变、「生成后控制」是它的伴侣 —— 拿它们算「已改」只会永远亮着。 */
 const DIRTY_SKIP = new Set(["seed", "control_after_generate"]);
@@ -93,57 +74,27 @@ const DIRTY_SKIP = new Set(["seed", "control_after_generate"]);
 // `flex:0 0 auto` 必须有：宿主给 DOM 组件的单元格套了 `*:flex-1`（flex-grow:1），
 // 不覆盖它，开关条就会被撑到整个剩余高度，线条被 align-content 摊开成一列散字（实测 434px）。
 const CSS = `
-/* server_exe 在参数表尾部：宿主每行包了一层 wrapper，order 要打在 wrapper 上。
-   把它的 wrapper 排到最前（但仍低于开关条），避免用户漏看；只改视觉顺序，不动存档。 */
+/* 开关条置顶：order 打在宿主包行的 wrapper 上；只改视觉顺序，不动存档。
+   flex:0 0 auto 必须有：宿主给 DOM 组件的单元格套了 *:flex-1（flex-grow:1），
+   不覆盖它，状态卡就会被撑到整个剩余高度（实测 434px）。 */
 [data-widgets-grid-node-id] > div:has([data-widget-name="mosssb_llm_panel"]){order:-2 !important}
-.mossllm-bar{display:flex;flex-wrap:wrap;align-content:flex-start;flex:0 0 auto;
- align-items:center;gap:2px 4px;
- box-sizing:border-box;width:100%;padding:6px 2px 1px;
- border-top:1px solid var(--border-color,#4e4e4e);
- color:var(--descrip-text,#999);font:11px/1.5 system-ui,sans-serif;
- min-width:0;max-width:100%;overflow:hidden}
-.mossllm-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:7px;
- cursor:pointer;border:1px solid transparent;background:transparent;
- color:var(--input-text,#ddd);font:inherit;white-space:nowrap}
-.mossllm-chip[hidden]{display:none}
-.mossllm-chip:hover{background:var(--comfy-input-bg,#222)}
-.mossllm-chip:focus-visible{outline:1px solid var(--border-color,#4e4e4e);outline-offset:1px}
-.mossllm-chip[data-state="open"]{border-color:var(--border-color,#4e4e4e);background:var(--comfy-input-bg,#222)}
-.mossllm-chip[data-state="closed"]{color:var(--descrip-text,#999)}
-.mossllm-chip[data-state="outside"]{color:var(--descrip-text,#999);opacity:.65}
-/* 嵌套第 2 层：本次任务会用到的组，左边一道蓝线标出来。不展开、不改行数。 */
-.mossllm-chip[data-need="1"]{border-left:2px solid #185FA5}
-/* 「端点已填，但通道=本地」：这不是提示语，是当前状态 —— 用琥珀色块钉在开关条上，
-   而不是缩成摘要里的一小段灰字（实测那样等于没看见）。点它即可切到外部 API。 */
-.mossllm-warn{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:2px 8px;
- border-radius:7px;border:1px solid #b8860b;background:rgba(217,164,65,.16);color:#e8b64c;
- font:600 11px/1.5 system-ui,sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;
- text-overflow:ellipsis}
-.mossllm-warn[hidden]{display:none}
-.mossllm-warn:hover{background:rgba(217,164,65,.28)}
-.mossllm-caret{width:9px;opacity:.55;font-size:11px;line-height:1}
-/* 三个 chip 并排，但「常用调优」是参数分组、「本地引擎 / 外部 API」是通道 —— 不是同一维度。
-   给通道两个加前缀小字，别让人以为调优属于本地引擎。 */
-.mossllm-kind{font-size:9.5px;line-height:1;opacity:.45;margin-right:3px;letter-spacing:.04em}
-.mossllm-kind:empty{display:none}
-/* 一次性预设：只在「常用调优」展开时出现。按钮不是 widget ⇒ 不进 widgets_values。 */
-.mossllm-presets{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
-.mossllm-presets[hidden]{display:none}
-  .mossllm-rt{display:inline-flex;align-items:center;gap:3px;margin-left:2px}
-  .mossllm-rt[hidden]{display:none}
-.mossllm-preset{padding:0 7px;border-radius:6px;border:1px dashed var(--border-color,#4e4e4e);
- background:transparent;color:var(--input-text,#ddd);font:11px/1.7 system-ui,sans-serif;cursor:pointer}
-.mossllm-preset:hover{background:var(--comfy-input-bg,#222)}
-.mossllm-preset:focus-visible{outline:1px solid var(--border-color,#4e4e4e);outline-offset:1px}
-.mossllm-count{opacity:.55;font-variant-numeric:tabular-nums}
-.mossllm-dot{display:none;width:6px;height:6px;margin-left:2px;border-radius:50%;
- background:#5b9cf6;flex:0 0 auto}
-.mossllm-chip[data-dirty="1"] .mossllm-dot{display:inline-block}
-.mossllm-btn{flex:0 0 auto;margin-left:auto;padding:2px 6px;border:0;border-radius:6px;background:transparent;
- color:var(--descrip-text,#999);cursor:pointer;font:inherit;
- text-decoration:underline;text-underline-offset:2px}
-.mossllm-btn:hover{color:var(--input-text,#ddd);background:var(--comfy-input-bg,#222)}
-/* 「拉取模型」贴在 api_model 行里 —— 控件必须挨着它填的那一格，放顶部条上等于没放。
+.mossllm-bar{display:flex;flex-direction:column;flex-wrap:nowrap;flex:0 0 auto;
+ align-items:stretch;gap:0;box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+ overflow:hidden;padding:0;border-top:1px solid var(--border-color,#4e4e4e);
+ color:var(--descrip-text,#999);font:12px/1.5 system-ui,sans-serif}
+.mossllm-status{flex:0 0 auto;min-width:0;display:flex;align-items:center;gap:10px;
+ height:38px;padding:0 10px;overflow:hidden;border-bottom:1px solid var(--border-color,#4e4e4e)}
+.mossllm-status .mossllm-hint{flex:1 1 auto;min-width:0;height:auto;line-height:1.4;
+ font-size:15px;font-weight:500;color:var(--input-text,#ddd);opacity:1;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mossllm-status .mossllm-warn{flex:0 1 auto;max-width:45%;min-width:0;font-size:12px;
+ font-weight:400;background:transparent;border:0;padding:0;color:#e8b64c;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mossllm-status .mossllm-warn[hidden]{display:none}
+.mossllm-status .mossllm-warn:hover{background:transparent;text-decoration:underline}
+.mossllm-status .mossllm-langslot{flex:0 0 auto;min-width:0;max-width:64px;overflow:hidden}
+.mossllm-langslot{flex:0 0 auto;display:flex;align-items:center;min-height:1.5em}
+/* 「↻ 拉取」贴在 api_model 行右端 —— 控件必须挨着它填的那一格，放顶部条上等于没放。
    行本身是 static 网格，设 relative 只为定位，不改宿主布局。 */
 [data-widgets-grid-node-id] [data-widget-name="api_model"]{position:relative}
 .mossllm-pick{position:absolute;right:4px;top:50%;transform:translateY(-50%);
@@ -155,8 +106,7 @@ const CSS = `
 .mossllm-pick button[data-bad="1"]{border-color:#c0504d;color:#e07b78}
 .mossllm-pick button[data-busy="1"]{color:#d9a441;border-color:#8a6d2f;
  animation:mossllm-spin 1s linear infinite}
-/* 「常用端点」贴在 api_base 行右端 —— 与 ↻ 同一套路：控件必须挨着它填的那一格。
-   行本身是 static 网格，设 relative 只为定位，不改宿主布局。 */
+/* 「常用端点」贴在 api_base 行右端 —— 与 ↻ 同一套路。 */
 [data-widgets-grid-node-id] [data-widget-name="api_base"]{position:relative}
 .mossllm-ep{position:absolute;right:4px;top:50%;transform:translateY(-50%);z-index:3;max-width:52%}
 .mossllm-ep select{max-width:100%;height:20px;padding:0 3px;border-radius:5px;
@@ -165,245 +115,35 @@ const CSS = `
 .mossllm-ep select:hover{background:var(--comfy-menu-bg,#333)}
 /* 输入框右侧留出下拉的宽度，否则长 URL 的尾巴被盖住（只作用于 api_base 这一格）。 */
 [data-widgets-grid-node-id] [data-widget-name="api_base"] input{padding-right:116px}
-/* 设计系统（impeccable craft-floor）：深色宿主原生变量 · 字号 12/15/19 · 4 单位节奏。
-   无嵌套卡片、无彩色粗左边框、无亮色贴纸、无 9.5px 小字。 */
-.mossllm-status{flex:0 0 100%;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
- padding:6px 10px 8px;border-bottom:1px solid var(--border-color,#4e4e4e);margin-bottom:8px}
-.mossllm-status .mossllm-hint{flex:1 1 auto;min-width:0;font-size:19px;font-weight:500;
- opacity:1;height:1.5em;line-height:1.5;white-space:nowrap;overflow:hidden;
- text-overflow:ellipsis}
-.mossllm-status .mossllm-warn{font-size:12px;font-weight:400;background:transparent;
- border:0;padding:0;color:#e8b64c;white-space:normal;text-overflow:clip}
-.mossllm-status[data-level="danger"] .mossllm-warn{color:#f09595}
-.mossllm-status[data-level="ok"] .mossllm-warn{color:var(--descrip-text,#999)}
-.mossllm-status .mossllm-warn:hover{background:transparent;text-decoration:underline}
-.mossllm-chipsrow{flex:0 0 100%;min-width:0;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;
- padding:0 2px 4px}
-.mossllm-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:6px;
- border:1px solid transparent;background:transparent;color:var(--descrip-text,#999);
- font:12px/1.4 system-ui,sans-serif;cursor:pointer;white-space:nowrap}
-.mossllm-chip[hidden]{display:none}
-.mossllm-chip:hover{background:var(--comfy-input-bg,#222);color:var(--input-text,#ddd)}
-.mossllm-chip:focus-visible{outline:1px solid var(--border-color,#4e4e4e);outline-offset:1px}
-.mossllm-chip[data-state="open"]{color:var(--input-text,#ddd);font-weight:500;
- border-bottom:2px solid var(--descrip-text,#999)}
-.mossllm-chip[data-state="outside"]{opacity:.55}
-.mossllm-chip[data-need="1"] .mossllm-dot{display:inline-block}
-.mossllm-caret{font-size:11px;opacity:.6}
-.mossllm-kind{font-size:11px;opacity:.7}
-.mossllm-kind:empty{display:none}
-.mossllm-count{display:none}
-.mossllm-dot{display:none;width:6px;height:6px;border-radius:50%;background:#5b9cf6}
-.mossllm-btn{flex:0 0 auto;margin-left:auto;padding:4px 9px;border:1px solid var(--border-color,#4e4e4e);
- border-radius:6px;background:transparent;color:var(--input-text,#ddd);
- font:12px/1.4 system-ui,sans-serif;cursor:pointer}
-.mossllm-btn:hover{background:var(--comfy-input-bg,#222)}
-.mossllm-presets{flex:0 0 100%;display:flex;gap:6px;padding:2px 0 8px}
-.mossllm-presets[hidden]{display:none}
-.mossllm-pzbody{flex:0 0 100%;display:flex;flex-direction:column;gap:8px;padding:8px 2px 4px}
-.mossllm-pzbody[hidden]{display:none}
-.mossllm-pzgroups,.mossllm-pzsub{display:flex;flex-wrap:wrap;gap:6px}
-.mossllm-pztoggle{padding:4px 9px;border:1px solid var(--border-color,#4e4e4e);
- border-radius:6px;background:transparent;color:var(--input-text,#ddd);
- font:12px/1.4 system-ui,sans-serif;cursor:pointer}
-.mossllm-pzitem{padding:4px 9px;border-radius:6px;border:1px solid var(--border-color,#4e4e4e);
- background:transparent;color:var(--input-text,#ddd);font:12px/1.4 system-ui,sans-serif;cursor:pointer}
-.mossllm-pzitem[data-on="1"]{background:var(--comfy-input-bg,#222);font-weight:500}
-/* 分区标题：打在每组首个 widget 行上，不插 DOM；宿主重建行后由 apply 补属性。 */
-[data-widgets-grid-node-id] [data-widget-name][data-moss-sec]::before{content:attr(data-moss-sec);
- display:block;font:500 15px/1.4 system-ui,sans-serif;color:var(--input-text,#ddd);
- padding:16px 2px 6px;border-bottom:0.5px solid var(--border-color,#4e4e4e);margin-bottom:8px}
 @keyframes mossllm-spin{to{transform:rotate(360deg)}}
-/* ==== 推倒重来：三层界面 ==== */
-.mossllm-bar{display:flex;flex-direction:column;flex-wrap:nowrap;flex:0 0 auto;
- align-items:stretch;gap:0;box-sizing:border-box;width:100%;min-width:0;max-width:100%;
- overflow:hidden;padding:0;border-top:1px solid var(--border-color,#4e4e4e);
- color:var(--descrip-text,#999);font:12px/1.5 system-ui,sans-serif}
-.mossllm-toprow{flex:0 0 auto;position:relative;display:flex;flex-direction:row;
- width:100%;min-width:0;align-items:stretch}
-.mossllm-status{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;
- height:38px;padding:0 92px 0 10px;overflow:hidden;border-bottom:1px solid var(--border-color,#4e4e4e)}
-.mossllm-status .mossllm-hint{flex:1 1 auto;min-width:0;height:auto;line-height:1.4;
- font-size:15px;font-weight:500;color:var(--input-text,#ddd);opacity:1;
- white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mossllm-status .mossllm-warn{flex:0 1 auto;min-width:0;font-size:12px;font-weight:400;
- background:transparent;border:0;padding:0;color:#e8b64c;white-space:nowrap;
- overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-.mossllm-status .mossllm-warn[hidden]{display:none}
-.mossllm-status .mossllm-warn[data-level="danger"]{color:#f09595}
-.mossllm-status .mossllm-warn[data-level="ok"]{color:var(--descrip-text,#999)}
-.mossllm-settings{position:absolute;right:0;top:0;height:38px;padding:0 14px;border:0;
- border-left:1px solid var(--border-color,#4e4e4e);border-bottom:1px solid var(--border-color,#4e4e4e);
- background:transparent;color:var(--input-text,#ddd);font:12px/1.5 system-ui,sans-serif;cursor:pointer}
-.mossllm-settings:hover{background:var(--comfy-input-bg,#222)}
-.mossllm-settings[data-on="1"]{color:#5b9cf6}
-[data-widget-name].mossllm-flash{outline:2px solid #5b9cf6;outline-offset:2px;border-radius:4px}
-.mossllm-settings-note{width:100%;min-width:0;max-width:100%;box-sizing:border-box;
- overflow:hidden;padding:7px 10px;font-size:12px;
- color:var(--descrip-text,#999);border-bottom:1px solid var(--border-color,#4e4e4e)}
-.mossllm-settings-note[hidden]{display:none}
-.mossllm-presets-box{width:100%;min-width:0;max-width:100%;box-sizing:border-box;
- overflow:hidden;display:flex;flex-direction:column;gap:8px;
- padding:8px 10px;border-bottom:1px solid var(--border-color,#4e4e4e)}
-.mossllm-presets-box[hidden]{display:none}
-.mossllm-pzbody{display:flex;flex-direction:column;gap:8px}
-.mossllm-pzbody[hidden]{display:none}
-.mossllm-pzgroups,.mossllm-pzsub,.mossllm-presets{display:flex;flex-wrap:wrap;gap:6px}
-.mossllm-pztoggle{align-self:flex-start;padding:4px 9px;border-radius:6px;
- border:1px solid var(--border-color,#4e4e4e);background:transparent;
- color:var(--input-text,#ddd);font:12px/1.4 system-ui,sans-serif;cursor:pointer}
-.mossllm-pzitem,.mossllm-preset{padding:4px 9px;border-radius:6px;
- border:1px solid var(--border-color,#4e4e4e);background:transparent;
- color:var(--input-text,#ddd);font:12px/1.4 system-ui,sans-serif;cursor:pointer}
-.mossllm-pzitem[data-on="1"]{background:var(--comfy-input-bg,#222);font-weight:500}
-.mossllm-preset:hover,.mossllm-pzitem:hover{background:var(--comfy-input-bg,#222)}
-
-.mossllm-status .mossllm-langslot{flex:0 0 auto;min-width:0;max-width:64px;overflow:hidden}
-.mossllm-status .mossllm-warn{max-width:45%}
-
-.mossllm-hintrow{flex:0 0 100%;display:flex;align-items:flex-start;gap:6px;min-width:0}
-.mossllm-hint{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;
- /* 🔴 高度必须恒定：悬停换 tooltip 时行数一变，下面每个参数都会跟着位移（实测：鼠标定位失败）。 */
- line-height:1.35;height:2.7em;overflow:hidden;opacity:.8}
-.mossllm-langslot{flex:0 0 auto;display:flex;align-items:center;min-height:1.5em}
-.mossllm-inert{opacity:.5}
-.mossllm-head{margin-top:18px;position:relative}
-.mossllm-head::before{content:attr(data-mossllm-title);position:absolute;left:2px;top:-16px;
- font:600 10.5px/16px system-ui,sans-serif;letter-spacing:.08em;
- color:var(--input-text,#ddd);opacity:.75}
 `;
 
+/** 面板自己的词条。参数标签 / 提示不在这一层 —— 唯一源在 i18n 与后端 tooltip。
+ *  0.5.2 起面板只剩：↻ 拉取、常用端点下拉，词条也就只剩这两组。 */
 const I18N = {
-    zh: { core: "常驻", tune: "常用调优", local: "本地引擎 · llama.cpp", api: "外部 API",
-        other: "其它", offchannel: "本次不用", expand: "全部展开", back: "回到分组",
-        count: "%d 个参数 · %d 个可见", dirty: "%d 项与默认不同",
-        openTip: "只展开这一组（其余收起来）", closeTip: "收起，回到常驻",
-        expandTip: "一次展开全部 %d 项，包括当前通道用不到的旋钮",
-        hideTip: "隐藏只是不画出来：参数还在工作流里，值不变",
-        backTip: "恢复分组：默认只露常驻，一次看一组",
-        inert: "本次不生效（拼装任务不开模型）",
-        inertHint: "拼装模式：%d 项本次不生效",
-        selfCheck: "零模型自检：任务选「拼装」",
+    zh: {
         fetchTip: "用当前 api_base 与 Key 拉模型清单，灌进这个下拉",
         fetched: "已拉到 %d 个模型，可直接下拉换",
         fetching: "拉模型清单中… %ds",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
-        // 常用端点下拉（api_base 行内的 select，不是 widget）
         ep_custom: "自定义（不动）",
         ep_deepseek: "DeepSeek", ep_opencode: "OpenCode", ep_odesign: "OpenDesign CoRouter",
         ep_ollama: "Ollama 本地", ep_lmstudio: "LM Studio 本地",
         epDone: "已填 %s 端点，点 ↻ 拉模型",
-        epTip: "选常用端点会把地址写进 api_base 并切到「外部 API」；「自定义」不动当前值",
-        switched: "通道已切到外部 API",
-        apiIdle: "⚠ 端点已填，但通道=本地 —— 本次走本地模型",
-        apiIdleFix: "点此改用 API",
-        apiIdleTip: "api_base 已填，但「通道 / channel」还是本地 GGUF：本次运行会去找本机 llama-server，"
-            + "端点不生效。点这一个提示，就把通道切到「外部 API」（端点与模型名都已填好）。"
-            + "想保留本地就无视它 —— 通道=本地 是显式选择，节点不会替你改。",
-        chanAuto: "已按已填的端点切到「外部 API」",
-        // 模式摘要：首屏唯一一处解释「这个节点现在要干什么」的地方（不新增控件、不动存档）。
-        chLocalShort: "本地 GGUF", chApiShort: "外部 API",
-        mode_caption: "读图说话", mode_expand: "扩写提示词",
-        mode_edit: "按指令改图", mode_assemble: "只拼装提示词",
-        modeTip_caption: "读图说话：把输入图写成提示词。本地要 GGUF 模型 + 视觉塔（mmproj）；"
-            + "切到外部 API 则用服务商的视觉模型",
-        modeTip_expand: "扩写：纯文字 → 更详细的提示词。不需要图，也不需要视觉塔",
-        modeTip_edit: "按指令改图：接输入图 + 指令，输出改写后的提示词。本地需要视觉塔",
-        modeTip_assemble: "只拼装提示词：不开模型、不占显存，用来检查拼装结果",
-        // 执行前就能看出来的缺项（Key 空不算缺 —— Ollama / LM Studio 本来就不要 Key）
-        lackBase: "⚠ 还没填 api_base", lackName: "⚠ 还没选模型名",
-        lackModel: "⚠ 本机没有 GGUF 模型",
-        lackTipBase: "端点还没填，这次运行必然失败。点一下展开「外部 API」组。",
-        lackTipName: "模型名还没选。点一下展开「外部 API」组，或先用 ↻ 拉一份清单。",
-        lackTipModel: "本地通道要一个 GGUF 模型才能跑。点一下展开「本地引擎」组；"
-            + "或把通道切到「外部 API」。",
-        kindChannel: "连接", kindNeed: "本次", needTip: "这个任务会用到这组",
-        decWhat: "做什么", decChan: "用哪个", presetTitle: "预设",
-        presetConnect: "连接", presetTune: "采样", presetOpenTip: "先选一类，再选具体档",
-        advTitle: "高级 · 全部参数",
-        secFormat: "输出格式", secSampling: "采样", secContent: "内容约束",
-        secLocal: "本地引擎", secApi: "外部 API", secEngine: "引擎 / 显存",
-        format: "格式", sampling: "采样", content: "内容",
-        engine: "引擎",
-        segCaption: "反推", segExpand: "扩写", segEdit: "改图", segAssemble: "拼装",
-        segLocal: "本地", segApi: "API",
-        preset_draft: "草稿（快）", preset_fine: "精修（细）", preset_reset: "恢复默认",
-        presetTip_draft: "一次写入：长度=简短 · 温度 0.9 · 上限 512 tokens。先看方向对不对时用，最省时间",
-        presetTip_fine: "一次写入：长度=详细 · 温度 0.2 · 上限 2048 tokens。要出成品时用",
-        presetTip_reset: "把「常用调优」这一组恢复成默认值（不动其它组、不动通道）",
-        presetDone: "已套用「%s」，改了 %d 项",
-    rtInstall: "安装/更新", rtTest: "测试",
-    rtInstallTip: "从 GitHub 官方 release 下载并安装最新 llama.cpp（下载与解压都会显示进度）",
-    rtTestTip: "只跑 --version：不加载模型、不占显存，用来确认这个 exe 能不能用",
-    rtInstalling: "正在安装/更新 llama.cpp…", rtInstalled: "已就绪：%s",
-    rtProbeOk: "可用：%s", rtProbeFail: "不可用：%s",
-        presetResetDone: "「常用调优」已恢复默认值",
-        },
-    en: { core: "Basic", tune: "Common", local: "Local engine · llama.cpp", api: "External API",
-        other: "Other", offchannel: "not used now", expand: "Show all", back: "Grouped",
-        count: "%d params · %d visible", dirty: "%d differ from default",
-        openTip: "Show only this group", closeTip: "Fold back to Basic",
-        expandTip: "Show all %d params, including the other channel's",
-        hideTip: "Hiding only affects the canvas — values stay in the workflow",
-        backTip: "Back to grouped view (Basic only, one group at a time)",
-        inert: "No effect in this run (assemble does not load a model)",
-        inertHint: "Assemble: %d controls have no effect",
-        selfCheck: "No-weight check: set task=assemble",
+        epTip: "选常用端点会把地址写进 api_base（填了就不再走本机）；「自定义」不动当前值",
+    },
+    en: {
         fetchTip: "Fetch models for this api_base + key into this dropdown",
         fetched: "%d models loaded — pick from the dropdown",
         fetching: "Fetching model list… %ds",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
-        // Preset endpoint select inside the api_base row (not a widget)
         ep_custom: "Custom (leave as is)",
         ep_deepseek: "DeepSeek", ep_opencode: "OpenCode", ep_odesign: "OpenDesign CoRouter",
         ep_ollama: "Ollama (local)", ep_lmstudio: "LM Studio (local)",
         epDone: "Filled %s endpoint; press the arrow to fetch models",
-        epTip: "Picking a known endpoint writes api_base and switches to External API;"
+        epTip: "Picking a known endpoint writes api_base (non-empty = online);"
             + " Custom leaves the current value alone",
-        switched: "channel switched to external API",
-        chLocalShort: "Local GGUF", chApiShort: "External API",
-        mode_caption: "Caption image", mode_expand: "Expand prompt",
-        mode_edit: "Edit by instruction", mode_assemble: "Assemble only",
-        modeTip_caption: "Caption: turn the input image into a prompt. Local needs a GGUF model "
-            + "plus a vision tower (mmproj); the API channel uses the provider's vision model",
-        modeTip_expand: "Expand: plain text to a longer prompt. No image, no vision tower",
-        modeTip_edit: "Edit: input image plus instruction, output the rewritten prompt. "
-            + "Local needs a vision tower",
-        modeTip_assemble: "Assemble only: no model, no VRAM, just check the assembled prompt",
-        lackBase: "Missing api_base", lackName: "No model name yet",
-        lackModel: "No local GGUF found",
-        lackTipBase: "api_base is empty, so this run cannot work. Click to open External API.",
-        lackTipName: "Pick a model name. Click to open External API, or press the arrow to fetch a list.",
-        lackTipModel: "The local channel needs a GGUF model. Click to open Local engine, "
-            + "or switch the channel to External API.",
-        kindChannel: "ch", kindNeed: "now", needTip: "used by this task",
-        decWhat: "What", decChan: "Backend", presetTitle: "Presets",
-        presetConnect: "Connect", presetTune: "Sampling", presetOpenTip: "Pick a group, then a preset",
-        advTitle: "Advanced · all parameters",
-        secFormat: "Output format", secSampling: "Sampling", secContent: "Content",
-        secLocal: "Local engine", secApi: "External API", secEngine: "Engine / VRAM",
-        format: "Format", sampling: "Sampling", content: "Content",
-        engine: "Engine",
-        segCaption: "Caption", segExpand: "Expand", segEdit: "Edit", segAssemble: "Assemble",
-        segLocal: "Local", segApi: "API",
-        preset_draft: "Draft (fast)", preset_fine: "Fine (slow)", preset_reset: "Reset",
-        presetTip_draft: "Writes: length=brief, temp 0.9, max 512 tokens. Cheapest way to check direction",
-        presetTip_fine: "Writes: length=detailed, temp 0.2, max 2048 tokens. For final output",
-        presetTip_reset: "Restore this group to defaults (other groups and the channel are untouched)",
-        presetDone: "Applied %s, %d values changed",
-    rtInstall: "Install/update", rtTest: "Test",
-    rtInstallTip: "Download and install the latest llama.cpp release (progress is shown)",
-    rtTestTip: "Runs --version only: no model load, no VRAM",
-    rtInstalling: "Installing/updating llama.cpp…", rtInstalled: "Ready: %s",
-    rtProbeOk: "Usable: %s", rtProbeFail: "Not usable: %s",
-        presetResetDone: "Common settings restored to defaults",
-        apiIdle: "Endpoint filled but channel=local — this run uses local",
-        apiIdleFix: "Click to use the API",
-        apiIdleTip: "api_base is filled but the channel is still Local GGUF: this run will look for a local"
-            + " llama-server and the endpoint will be ignored. Click this badge to switch the channel to"
-            + " External API. Keep local on purpose? Ignore it — the channel is respected, never overridden.",
-        chanAuto: "Channel switched to External API (endpoint filled)",
-        },
+    },
 };
 let T = null;
 /** 宿主界面语言（没点过「中/EN」时跟随它）。顺序与 `moss_sb_i18n_ui.js` 完全一致。 */
@@ -430,7 +170,6 @@ const fmt = (s, ...a) => String(s).replace(/%[sd]/g, () => String(a.shift()));
 const widgetOf = (node, name) => (node.widgets || []).find((w) => w && w.name === name);
 const hideable = (w) => !!w && typeof w.syncVisibilityFromOptions === "function";
 const realWidgets = (node) => (node.widgets || []).filter((w) => w && w.name !== BAR_NAME);
-const groupOf = (w) => BY_NAME.get(w.name) || OTHER;
 /** 旧稿把中文写进 task 枚举；归一口径与后端 _LEGACY_VALUES 一致（`compile` 是改名前的英文值）。 */
 const TASK_LEGACY = { "反推": "caption", "扩写": "expand", "编辑指令": "edit",
     "编译": "assemble", "compile": "assemble" };
@@ -440,11 +179,12 @@ const taskOf = (node) => {
     return TASK_LEGACY[v] || v;
 };
 /** 可静态判定的模式知识；tasks/channels 由 check_frontend.py 的 F11 与后端常量对账。
- *  PE 命中取决于模型目录里的文件，属运行时探测，不进这张表（docs/21 A2'）。 */
+ *  PE 命中取决于模型目录里的文件，属运行时探测，不进这张表（docs/21 A2'）。
+ *  通道不是参数：api_base 留空 = 本机、填了 = 在线，由后端 smith() 推断。 */
 const MODE_SPEC = {
     tasks: ["caption", "expand", "edit", "assemble"],
     channels: ["local", "api"],
-    inertOnCompile: ["channel", "dialect", "model"],
+    inertOnCompile: ["model"],
 };
 /**
  * 常用端点：值与顺序都取自 `docs/20` 的「已实测的 api_base」表（2026-11-05 实测）。
@@ -476,28 +216,6 @@ const STYLE_CLASS = {
     "自定义": ["自定义"],
     "标签串": ["英文标签"],
     "分段结构": ["宫格稿", "时间线六段式"],
-};
-const STYLE_WRITE = {
-    "英文详述": { dialect: "moss_image" },
-    "英文通用": { dialect: "generic_natural" },
-    "电影感": { dialect: "cinematic" },
-    "中文": { dialect: "cn_natural" },
-    "英文标签": { dialect: "generic_tags" },
-    "宫格稿": { dialect: "moss_storyboard", panels: 4 },
-    "六段式": { target: "minimax-h3", profile: "six-section" },
-};
-const STYLE_OF = {
-    moss_image: "英文详述", generic_natural: "英文通用", cinematic: "电影感",
-    cn_natural: "中文", generic_tags: "英文标签", moss_storyboard: "宫格稿",
-};
-const LEN_WRITE = { "短": { length: "brief", max_tokens: 512 },
-    "中": { length: "standard", max_tokens: 1024 },
-    "长": { length: "detailed", max_tokens: 2048 } };
-const TEMP_WRITE = { "低": 0.2, "中": 0.7, "高": 0.9 };
-const SPEED_WRITE = {
-    "省显存": { ctx_size: 4096, ubatch: 256, fit_target_mib: 768, image_max_tokens: 512 },
-    "均衡": { ctx_size: 8192, ubatch: 512, fit_target_mib: 1024, image_max_tokens: 1024 },
-    "尽量快": { ctx_size: 16384, ubatch: 1024, fit_on: "off", image_max_tokens: 1536 },
 };
 function rowOf(node, name) {
     try {
@@ -572,66 +290,22 @@ function installHintListener() {
 // ---------------------------------------------------------------------------
 // 状态（只在内存，绝不进存档）
 // ---------------------------------------------------------------------------
-/** 分段按钮写回 widget：值与 callback 都走宿主那一套，不另存状态。 */
-function setWidgetValue(node, name, value) {
-    const w = widgetOf(node, name);
-    if (!w || String(w.value) === String(value)) return false;
-    w.value = value;
-    try { w.callback?.(value); } catch (e) { /* 老前端没有 callback */ }
-    return true;
-}
-
 function stateOf(node) {
     let st = node.__mossllm;
     if (!st) {
         st = node.__mossllm = {
-            focus: null,           // null = 只看常驻；否则是某组 key
-            force: false,          // 会话内记住「高级」展开：st 挂在 node.__mossllm 上，
-                                   // 实例在则状态在、重开工作流则新建 st 回到收起。不另存第二份状态。
-            warnedChannel: false,
-            presetOpen: true, presetGroup: "connect",
+            focus: null,           // 排障入口用（MOSS_SB_LLM_PANEL.focus）
+            force: false,          // 同上（expand / fold）
         };
     }
     return st;
 }
 
-/**
- * 嵌套第 2 层：本次任务会用到哪几组。只用于 **chip 标记**，不自动展开、不改行数。
- * 判据全部来自「任务 / 通道」这两个与模型无关的维度；不含 dialect / target / profile 知识。
- */
-function needsOf(task, ch) {
-    const s = new Set();
-    if (ch === CH_API) s.add("api");
-    else if (ch === CH_LOCAL) { s.add("local"); s.add("engine"); }
-    if (task === "expand" || task === "assemble") s.add("format");
-    if (task === "expand") s.add("sampling");
-    return s;
-}
-
-/** 16 项一屏放得下：全部显示，不做任何隐藏。 */
-function plan(node, st) {
-    const ch = String(apiVal(node, "api_base") || "").trim() ? CH_API : CH_LOCAL;
+/** 18 项一屏放得下：全部显示，不做任何隐藏（按组收起是旧 39 项时代的做法）。 */
+function plan(node) {
     const shown = new Set();
     for (const w of realWidgets(node)) shown.add(w.name);
-    const task = String(apiVal(node, "task") || "反推");
-    return { shown, off: new Set(), inert: new Set(),
-        assemble: task === "拼装", task, ch, needs: new Set() };
-}
-
-function syncWidgets(node, shown) {
-    return false;                       // 显隐由宿主 advanced 负责
-    let changed = false;
-    for (const w of realWidgets(node)) {
-        if (w.name === BAR_NAME || REMOTE_NAMES.has(w.name)) continue;
-        if (!hideable(w)) continue;
-        const wantHidden = !shown.has(w.name);
-        if (!!w.options.hidden !== wantHidden) {
-            w.options.hidden = wantHidden;
-            w.syncVisibilityFromOptions();
-            changed = true;
-        }
-    }
-    return changed;
+    return shown;
 }
 
 /**
@@ -683,42 +357,6 @@ function fitHeight(node, shown) {
     return true;
 }
 
-function paintInert(node, inert) {
-    const L = t();
-    for (const w of realWidgets(node)) {
-        const row = rowOf(node, w.name);
-        if (!row) continue;
-        const on = inert.has(w.name);
-        row.classList.toggle("mossllm-inert", on);
-        if (on) {
-            row.title = L.inert;
-            row.dataset.mossllmInert = "1";
-        } else if (row.dataset.mossllmInert) {
-            delete row.dataset.mossllmInert;
-            row.title = "";
-        }
-    }
-}
-
-/**
- * 组标题：每次「可见行的组」换人时标一条。
- * 单组视图下每组只出现一次；`全部展开` 时按段画（顺序是存档契约，不能为了标题去重排）。
- */
-function paintHeaders(node, shown) {
-    // 标题改由 applyOrder 在每组首行打 data-moss-sec（CSS ::before 渲染）。
-    // 这里只保留「参数行在不在」的探测，供旧版画布兜底告警用。
-    let found = 0;
-    for (const w of realWidgets(node)) {
-        if (!shown.has(w.name)) continue;
-        const row = rowOf(node, w.name);
-        if (!row) continue;
-        found += 1;
-        row.classList.remove("mossllm-head");
-        delete row.dataset.mossllmTitle;
-    }
-    return found;
-}
-
 /** 这一组里有几项与默认不同（拿宿主 nodeDef 的 default 比）。 */
 function countDirty(node, g) {
     if (!DEFAULTS) return 0;
@@ -737,41 +375,6 @@ function countDirty(node, g) {
     return n;
 }
 
-// ---------------------------------------------------------------------------
-// 开关条：分组 chip + 全部展开 + 说明行
-// ---------------------------------------------------------------------------
-function makeChip(node, st, g) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "mossllm-chip";
-    b.dataset.mossllmChip = g.key;
-    const caret = document.createElement("span");
-    caret.className = "mossllm-caret";
-    const label = document.createElement("span");
-    const count = document.createElement("span");
-    count.className = "mossllm-count";
-    const dot = document.createElement("span");
-    dot.className = "mossllm-dot";
-    // 通道组带一个前缀小字：三个 chip 并排时，「常用调优」是参数分组、
-    // 「本地引擎 / 外部 API」是通道，不是同一维度，不标出来就会被当成同级三选一。
-    const kind = document.createElement("span");
-    kind.className = "mossllm-kind";
-    b.append(kind);
-    b.append(caret, label, count, dot);
-    b.onclick = (e) => {
-        e.stopPropagation();
-        // 连接方式互斥：点哪个 chip 就把 channel 拨到那个通道（幂等；第二下仍收起视图）。
-        // 先算视图目标：切 channel 会触发宿主 callback 自动聚焦该组，先切再算会把「收起」抵消。
-        const wasForce = st.force;
-        const next = wasForce ? g.key : (st.focus === g.key ? null : g.key);
-        if (g.channel) setChannel(node, g.key === "local" ? CH_LOCAL : CH_API);
-        st.force = false;
-        st.focus = next;
-        applySoon(node);
-    };
-    return { b, caret, label, count, dot, kind };
-}
-
 function apiVal(node, name) {
     const w = widgetOf(node, name);
     return w ? String(w.value == null ? "" : w.value) : "";
@@ -783,19 +386,6 @@ function setModel(node, id) {
     w.value = id;
     try { w.callback?.(id); } catch (e) { /* 老前端没有 callback */ }
     app?.graph?.setDirtyCanvas?.(true, true);
-}
-
-/**
- * 把「通道」拨到 API。点「↻ 拉模型」本身就是「我要用这个 API」的明确动作：
- * 拉完仍停在「本地 GGUF」，下次运行就会去找 llama-server（实测踩过）。
- */
-function setChannel(node, v) {
-    const w = widgetOf(node, "channel");
-    if (!w || chanOf(String(w.value)) === v) return false;
-    w.value = v;
-    try { w.callback?.(v); } catch (e) { /* 老前端没有 callback */ }
-    app?.graph?.setDirtyCanvas?.(true, true);
-    return true;
 }
 
 /**
@@ -873,11 +463,11 @@ async function fetchModels(node, st) {
         setModelChoices(node, d.models);
         pick.err = null;
         delete pick.btn.dataset.bad;
-        // 拉成功 = 用这个 API。通道还停在本地就顺手拨过去，否则下次运行又去找 llama-server。
-        const switched = setChannel(node, CH_API);
+        // 拉取的前提是 api_base 已填 ⇒ 通道本来就在线（0.5.2 起通道由 api_base
+        // 是否为空推断，节点上没有 channel 格，没有「拨通道」一说）。
         // 拉完必须看得见：空着就选中第一个（否则屏幕上除了下拉内部什么都没变）。
         if (!apiVal(node, "api_model") && d.models.length) setModel(node, d.models[0]);
-        pick.note = fmt(t().fetched, d.models.length) + (switched ? "｜" + t().switched : "");
+        pick.note = fmt(t().fetched, d.models.length);
         pick.autoOpen = true;
         pick.btn.title = t().fetchTip + (d.url ? "\n" + d.url : "");
     } catch (e) {
@@ -944,20 +534,6 @@ function ensureModelValue(node) {
         node.widgets.splice(i, 1);
         node.widgets.splice(i, 0, w);
     }
-}
-
-/**
- * 载入存档后的通道对齐：旧存档里「端点填着、通道还写本地」是踩坑态（运行时会去找本地 LLM）。
- * 对齐只做一次 —— 之后用户手动切回本地就是显式选择，不再抢。
- *
- * 为什么放在 apply 而不是 onConfigure：宿主把 `widgets_values` 灌进 widgets 的时机晚于
- * onConfigure（实测：在那里读 api_base 还是空串），只能等值真的出现。
- */
-function adoptApiIntent(node, st) {
-    if (st.chanAligned || !apiVal(node, "api_base").trim()) return;
-    st.chanAligned = true;
-    // L2 契约：UI 只显示、不擅自改值。存档里「端点已填 + 通道=本地」按存档跑，
-    // 由开关条上的状态块说明并给一键修复，不替用户拨通道。
 }
 
 /** 一次性说明：把状态的改变说出来，但不能一直占着摘要行（8s 后自己收）。 */
@@ -1057,56 +633,6 @@ function pinEndpoints(node, st) {
 }
 
 
-/**
- * 把「安装/更新」与「测试」贴在 runtime 行右端（与 ↻、常用端点同一手法）。
- * 两个按钮都**不是 widget**：不进 `widgets_values`，存档格数一格不动。
- */
-
-/**
- * 运行时动作：安装/更新 与 测试。
- *
- * 为什么不贴到 runtime 行右端：那一行由 widget 占满，塞文本按钮会溢出/错位（实测）。
- * 这里与预设按钮同一处——放在开关条里、只在该组展开时显示，行布局一个像素都不动，
- * 也不新增 widget（存档仍 39 格）。
- */
-function buildRuntimeTools(node, st) {
-    const L = t();
-    const box = document.createElement("span");
-    box.className = "mossllm-rt";
-    box.hidden = true;
-    const post = async (url, body) => {
-        const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body || {}) });
-        try { return await r.json(); } catch (e) { return { ok: false, error: "HTTP " + r.status }; }
-    };
-    const mk = (key, run) => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "mossllm-preset";
-        b.dataset.mossllmRuntime = key;
-        b.onclick = async (e) => {
-            e.stopPropagation();
-            if (b.disabled) return;
-            b.disabled = true;
-            try { await run(); } finally { b.disabled = false; applySoon(node); }
-        };
-        return b;
-    };
-    const install = mk("install", async () => {
-        noteOnce(node, st, t().rtInstalling);
-        const j = await post("/moss_llm/runtime/install");
-        noteOnce(node, st, j.ok ? fmt(t().rtInstalled, j.tag || j.exe || "") : fmt(t().rtProbeFail, j.error || ""));
-    });
-    const test = mk("test", async () => {
-        const j = await post("/moss_llm/runtime/probe",
-            { source: apiVal(node, "runtime"), server_exe: apiVal(node, "server_exe") });
-        noteOnce(node, st, j.ok ? fmt(t().rtProbeOk, j.version || j.exe || "") : fmt(t().rtProbeFail, j.error || ""));
-    });
-    box.append(install, test);
-    st.rt = { box, install, test, L };
-    return box;
-}
-
 function buildBar(node, st) {
     const bar = document.createElement("div");
     bar.className = "mossllm-bar";
@@ -1122,13 +648,6 @@ function buildBar(node, st) {
     st.warn = document.createElement("span");
     st.warn.className = "mossllm-warn";
     st.warn.hidden = true;
-    st.warn.onclick = (e) => {
-        e.stopPropagation();
-        const act = st.warn.dataset.act || "";
-        if (act === "chan") { setChannel(node, CH_API); applySoon(node); return; }
-        if (act === "local") { setChannel(node, CH_LOCAL); applySoon(node); return; }
-        if (act === "raw") { st.raw = true; applySoon(node); }
-    };
     st.langSlot = document.createElement("span");
     st.langSlot.className = "mossllm-langslot";
     st.statusCard.append(st.hint, st.warn, st.langSlot);
@@ -1136,51 +655,8 @@ function buildBar(node, st) {
     return bar;
 }
 
-function applyPreset(node, st, key) {
-    return;   // 预设已由 style/style_class 承担
-    const L = t();
-    const spec = key === "reset" ? (DEFAULTS || {}) : PRESETS[key];
-    if (!spec) return;
-    // reset 只恢复「采样 + 内容」两组，不碰引擎/连接/输出格式。
-    const names = key === "reset"
-        ? GROUPS.filter((g) => g.key === "sampling" || g.key === "content")
-            .flatMap((g) => g.items) : Object.keys(spec);
-    let n = 0;
-    for (const name of names) {
-        const w = widgetOf(node, name);
-        if (!w || !(name in spec)) continue;
-        if (String(w.value) === String(spec[name])) continue;
-        w.value = spec[name];
-        try { w.callback?.(spec[name]); } catch (e) { /* 老前端没有 callback */ }
-        n += 1;
-    }
-    // 值改了但参数可能是收起的看不见 ⇒ 必须说一句，否则又成「点了没反应」。
-    noteOnce(node, st, key === "reset" ? L.presetResetDone
-        : fmt(L.presetDone, L["preset_" + key], n));
-    applySoon(node);
-    app?.graph?.setDirtyCanvas?.(true, true);
-}
-
-/**
- * 执行前就能判断的「还缺什么」——只列**前端看得见、且缺了必然跑不起来**的项。
- *
- * Key 空不算缺：Ollama / LM Studio / vLLM 本来就不要 Key，报「缺 Key」会把人往错方向带。
- * llama-server 有没有也不在这里判断（那要碰文件系统），交给执行期那条定向报错。
- */
-function lacksOf(node, meta) {
-    if (!meta || meta.assemble) return null;         // 拼装任务不开模型
-    if (meta.ch === CH_API) {
-        if (!apiVal(node, "api_base").trim()) return "base";
-        if (!apiVal(node, "api_model").trim()) return "name";
-        return null;
-    }
-    // 后端在没有 GGUF 时把占位符塞进选项（"(未找到 GGUF 模型)"）；真实文件名不会以括号开头。
-    const m = apiVal(node, "model");
-    return (!m || m.startsWith("(")) ? "model" : null;
-}
-
-/** V2/V5/V6：三个区每帧从 widget / st 读回，不另存与真实值可能漂移的状态。 */
-function paintBar(node, st, shown, off, meta) {
+/** 状态行每帧从 widget / st 读回，不另存与真实值可能漂移的状态。 */
+function paintBar(node, st) {
     if (!st.hint) return;
     const task = String(apiVal(node, "task") || "反推");
     const style = String(apiVal(node, "style") || "");
@@ -1226,15 +702,15 @@ function applySoon(node) {
         apply(node);
         // 行重建/CSS order 晚于首帧；补算一次，尺寸已对时 fitHeight 自带早退。
         // 必须与 fitHeight 的排序同做，否则会把虚高 want 写得更稳。
-        try { fitHeight(node, plan(node, stateOf(node)).shown); } catch (e) { /* noop */ }
+        try { fitHeight(node, plan(node)); } catch (e) { /* noop */ }
     }, 300);
 }
 
 /**
  * 开关条**置顶**：`addDOMWidget` 只会追加到末尾，而末尾意味着每展开一组它就被顶下一截
  * （2026-10-30 实测反馈：点开一组，开关就跑到最低下）。这里把那个 widget 挪到数组首位 ——
- * 只动「不参与存档的 DOM 组件」的位置，39 个参数之间的相对顺序一个都没变；
- * 存盘时 `installSaveCleanup` 照样把它那一格剔掉（实测仍 39 格、逐位一致）。
+ * 只动「不参与存档的 DOM 组件」的位置，18 个参数之间的相对顺序一个都没变；
+ * 存盘时 `installSaveCleanup` 照样把它那一格剔掉（实测仍 19 格、逐位一致）。
  * 宿主重建 widget 数组后位置会退回末尾，所以 `apply()` 每次都自愈。
  */
 function ensureBarFirst(node, st) {
@@ -1247,23 +723,12 @@ function ensureBarFirst(node, st) {
     return true;
 }
 
-function protectFocus(node, st, shown) {
-    const act = document.activeElement;
-    const row = act && act.closest ? act.closest("[data-widget-name]") : null;
-    if (!row) return;
-    const grid = row.closest('[data-widgets-grid-node-id="' + node.id + '"]');
-    if (!grid || shown.has(row.dataset.widgetName)) return;
-    const c = st.chips && (st.chips[st.focus] || st.chips.tune);
-    if (c) { try { c.b.focus(); } catch (e) { /* noop */ } }
-}
-
 function apply(node) {
     const st = stateOf(node);
     ensureBarFirst(node, st);
     syncStyle(node);
-    const meta = plan(node, st);
-    const { shown } = meta;
-    paintBar(node, st, shown, meta.off, meta);
+    const shown = plan(node);
+    paintBar(node, st);
     try { pinPicker(node, st); } catch (e) { /* 行内挂件失败不影响状态行 */ }
     try { pinEndpoints(node, st); } catch (e) { /* 同上 */ }
     return shown.size;
@@ -1272,21 +737,6 @@ function apply(node) {
 // ---------------------------------------------------------------------------
 // 挂载
 // ---------------------------------------------------------------------------
-function focusForChannel(node, st, load) {
-    if (st.force) return;
-    const cw = widgetOf(node, "channel");
-    if (!cw) return;
-    const ch = chanOf(String(cw.value));
-    const cur = GROUPS.find((g) => g.key === st.focus);
-    if (load) {
-        // 冷载入只对 api 兜底：local 保持默认 5 行，别把首屏撑开。
-        if (ch === CH_API && (!cur || cur.channel !== CH_API)) st.focus = "api";
-        return;
-    }
-    const want = GROUPS.find((g) => g.channel && g.channel === ch);
-    if (want && (!cur || cur.channel !== want.channel)) st.focus = want.key;
-}
-
 function mount(node) {
     if (!node || node.type !== TYPE || node.__mossllmBar) return false;
     const ws = realWidgets(node);
@@ -1315,22 +765,9 @@ function mount(node) {
     // 存盘时清空 Key（依赖倒置：通用模块只认字段名集合，不认识业务字段）。
     node.__mosssbOmitOnSave = new Set(["api_key"]);
     installHintListener();
-    focusForChannel(node, st, true);
     applySoon(node);
     loadDefs();
 
-    const cw = widgetOf(node, "channel");
-    if (cw) {
-        const orig = cw.callback;
-        cw.callback = function (...args) {
-            const r = orig ? orig.apply(this, args) : undefined;
-            // 换通道 ⇒ 把参数面板切到那个通道的组：不切的话用户看不到 api_* / mmproj，
-            // 填不了必填项还以为节点坏了。
-            focusForChannel(node, st, false);
-            applySoon(node);
-            return r;
-        };
-    }
     // 换端点 ⇒ 上一批模型名立刻作废。等 1.5s 兜底轮询太慢，更像"没反应"。
     // 同一处顺手把通道拨过去：填了端点 = 要用这个 API（踩过的坑：填完直接跑，去本地找 llama-server）。
     const bw = widgetOf(node, "api_base");
@@ -1338,7 +775,7 @@ function mount(node) {
         const orig = bw.callback;
         bw.callback = function (...args) {
             const r = orig ? orig.apply(this, args) : undefined;
-            // L2：填端点不再自动拨通道；只有用户显式点 chip 或状态块才改连接方式。
+            // 只重画状态行 —— 通道由 api_base 是否为空决定，这里不替用户改值。
             applySoon(node);
             return r;
         };
@@ -1362,7 +799,7 @@ function mount(node) {
         const orig = mw.callback;
         mw.callback = function (...args) {
             const r = orig ? orig.apply(this, args) : undefined;
-            // L2：手填模型名同样不自动拨通道（只重画，让状态块去说明）。
+            // 只重画状态行。
             applySoon(node);
             return r;
         };
@@ -1372,8 +809,7 @@ function mount(node) {
     const oc = node.onConfigure;
     node.onConfigure = function (...args) {
         const r = oc ? oc.apply(this, args) : undefined;
-        focusForChannel(node, st, true);       // 存过的 api 工作流重开后要能看见 api_model
-        applySoon(node);                       // 载入时 widget 是重建的，隐藏位要重打
+        applySoon(node);                       // 载入时 widget 是重建的，行内挂件位置要重打
         return r;
     };
     return true;
@@ -1385,7 +821,7 @@ let booted = false;
 let tries = 0;
 
 /** 已有专用回调的 widget（它们自己会调 applySoon）不重复包装。 */
-const REPAINT_SKIP = new Set(["channel", "api_base", "api_model", "task", "model"]);
+const REPAINT_SKIP = new Set(["api_base", "api_model", "task", "model"]);
 /** 其余 widget 一改值立刻重画；宿主重建 widget 后由 guard 补挂。 */
 function hookAllRepaint(node) {
     for (const w of realWidgets(node)) {
@@ -1427,7 +863,7 @@ function boot(why) {
         }
         booted = true;
         // 语言按钮是核心 i18n 画的（挂在面板的 langSlot 里）—— 它发广播，这里跟着换
-        // 自己的分组标题 / 摘要 / 说明行；39 个参数的标签与提示由 `applyLang` 负责。
+        // 状态行；18 个参数的标签与提示由 `applyLang` 负责。
         try {
             window.addEventListener(LANG_EVENT, (e) => {
                 const lang = String((e && e.detail && e.detail.lang) || "");
