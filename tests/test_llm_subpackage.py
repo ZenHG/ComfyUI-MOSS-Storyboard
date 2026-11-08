@@ -212,6 +212,20 @@ def main():
         except ValueError as e:
             check("边界报错含「%s」" % needle, needle in str(e), str(e).splitlines()[0][:50])
 
+    print("\n== 6z. 温度 → 采样联动（一个旋钮管一组参数）==")
+    check("低温收紧（T=0.2 ⇒ top_p 0.90 / min_p 0.06）",
+          nodes._sampling_for(0.2) == (0.90, 0.06), str(nodes._sampling_for(0.2)))
+    check("中温平衡（T=0.5 ⇒ 0.95 / 0.03）",
+          nodes._sampling_for(0.5) == (0.95, 0.03), str(nodes._sampling_for(0.5)))
+    check("高温放开长尾（T=1.0 ⇒ min_p 归零，否则温度与 min_p 打架）",
+          nodes._sampling_for(1.0) == (0.98, 0.0), str(nodes._sampling_for(1.0)))
+    check("分界点按 0.35 / 0.75 切（与 tooltip 三档口径一致）",
+          nodes._sampling_for(0.35) == (0.90, 0.06)
+          and nodes._sampling_for(0.75) == (0.95, 0.03)
+          and nodes._sampling_for(0.76) == (0.98, 0.0))
+    check("非法温度不炸，回落低温档", nodes._sampling_for(None) == (0.90, 0.06)
+          and nodes._sampling_for("x") == (0.90, 0.06))
+
     print("\n== 6aa. 分号归一（确定性后处理，不靠模型自律）==")
     check("英文分号断成句号，并大写次句首字母",
           nodes._tame_semicolons("a b; c d; e f") == "a b. C d. E f",

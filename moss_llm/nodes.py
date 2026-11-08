@@ -1049,8 +1049,9 @@ class MossPromptSmith:
         if proto == _proto.OPENAI:
             base["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
             if _is_local(endpoint):
-                base.setdefault("top_p", _LOCAL_TOP_P)
-                base.setdefault("min_p", _LOCAL_MIN_P)
+                _tp, _mp = _sampling_for(temperature)
+                base.setdefault("top_p", _tp)
+                base.setdefault("min_p", _mp)
             if want_json:
                 # 与 server.py 的 JSON 重复保护同一口径：DRY/presence/frequency 会惩罚
                 # 合法重复的键名，但 repeat_penalty 压的是整段循环（G7 4/40 次整单归零）。
@@ -1242,12 +1243,26 @@ _CAPTION_PERSON_CUES = ("gaze", "expression", "hands", "feet", "pose", "wardrobe
 
 #: JSON 请求的重复保护（与 `server.py` 的 JSON 模式同一口径；见 docs/42 §2）。
 _CAPTION_REPEAT_PENALTY = 1.05
-#: 本机 llama.cpp 的采样：请求体里 `_proto.body` 不带 top_p/min_p，所以侧车用的是
-#: llama.cpp 自己的默认（top_p 0.95 / min_p 0.05 / top_k 40）。这里显式写死，
-#: 是为了让「同一份提示词在不同 llama.cpp 版本上采样一致」——不依赖上游默认值漂移。
+#: 本机 llama.cpp 的采样，跟温度联动 —— 这是「一个旋钮管一组参数」的落地。
+#: 只给温度、不调 top_p/min_p 会互相打架：实测 35B 在 T=1.0 + min_p 0.05 时，
+#: 面部观察项从 5 掉到 3（温度想放开长尾，min_p 在削长尾）。
+#: 三档：稳（收紧）/ 平衡 / 发散（真正放开，min_p 归零）。
 #: 严格 OpenAI 服务端不认 min_p（会 400），所以只对本机端点发。
-_LOCAL_TOP_P = 0.95
-_LOCAL_MIN_P = 0.05
+_LOCAL_TOP_P = 0.95      # 平衡档的基线值，供参考/兜底
+_LOCAL_MIN_P = 0.03
+
+
+def _sampling_for(temperature):
+    """温度 → (top_p, min_p)。分界点取 0.35 / 0.75，与 tooltip 的三档口径一致。"""
+    try:
+        t = float(temperature)
+    except (TypeError, ValueError):
+        t = 0.2
+    if t <= 0.35:
+        return 0.90, 0.06
+    if t <= 0.75:
+        return 0.95, 0.03
+    return 0.98, 0.0
 
 #: pass1 inventory 的 JSON schema：只锁形状与数组上限，**不 required 字段**——与 M1a
 #: 取证 schema 同一纪律（全字段 required 会逼模型编值）。服务端不认时逐级降级。
