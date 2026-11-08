@@ -63,11 +63,16 @@ export function isVirtualWidget(w) {
  */
 export function dropVirtual(values, widgets) {
     const list = widgets || [];
-    if (!Array.isArray(values) || values.length !== list.length || !list.length) return values;
+    if (!Array.isArray(values) || !list.length) return values;
+    // orig 的 widgets_values 只含 serialize !== false 的 widget，顺序与它们在 list 里一致。
+    // 加了 serialize:false 的遥控器之后，values.length 不再等于 list.length；
+    // 旧守卫会整段放弃，开关条那一格就漏进存档（实测多出 1 格空串）。
+    const active = list.filter((w) => w && w.serialize !== false);
+    if (values.length !== active.length) return values;
     const keep = [];
     let changed = false;
-    for (let i = 0; i < list.length; i += 1) {
-        if (isVirtualWidget(list[i])) { changed = true; continue; }
+    for (let i = 0; i < active.length; i += 1) {
+        if (isVirtualWidget(active[i])) { changed = true; continue; }
         keep.push(values[i]);
     }
     return changed ? keep : values;

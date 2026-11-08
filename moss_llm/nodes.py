@@ -264,7 +264,7 @@ class MossPromptSmith:
         # 默认取第一个（按相对路径排序）。不硬编码任何模型——开源用户盘上有什么就跑什么。
         default_model = model_list[0]
         mmproj_list = [_MMPROJ_AUTO, _MMPROJ_NONE] + (list(mmprojs.keys()) or [])
-        return {
+        it = {
             "required": {
                 "task": (_TASKS, {"default": "caption",
                     "tooltip": "反推=看图写提示词（必须接图片）；扩写=把想法扩成完整画面描述（必须填文字）；"
@@ -433,6 +433,16 @@ class MossPromptSmith:
                     "advanced": True}),
             },
         }
+
+        # 宿主 advanced：39 项收进「高级」，默认只露 8 个遥控器。
+        # 放在这里统一打标，不改上面每条参数的定义。
+        for _sec in ("required", "optional"):
+            for _k, _v in it.get(_sec, {}).items():
+                if str(_k).startswith("image"):
+                    continue
+                if isinstance(_v, tuple) and len(_v) > 1 and isinstance(_v[1], dict):
+                    _v[1].setdefault("advanced", True)
+        return it
 
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("提示词", "report")
