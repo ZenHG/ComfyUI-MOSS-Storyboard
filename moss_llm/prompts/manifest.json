@@ -6,7 +6,7 @@
     {
       "id": "caption.faithful.en",
       "path": "caption.faithful.en.txt",
-      "sha256": "81266ca34ecbf822257533761cedfae6c276974f3633ec0c9b465fa9ef26b2c9",
+      "sha256": "5351c93d2a89f6f700b5105051074e8ffd6f90bcd2731b6946777f5631124d27",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -38,7 +38,7 @@
     {
       "id": "expand.method.en",
       "path": "expand.method.en.txt",
-      "sha256": "442f2b2696776ad30b9d2946198fef3fc2ba9b8dfb933acc533460cd60cdfb80",
+      "sha256": "b9e7df7c876f4919509b99fd2512649bd03e3a782f87f8e1a0aa369fcd453466",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -46,7 +46,7 @@
     {
       "id": "expand.moss_image.en",
       "path": "expand.moss_image.en.txt",
-      "sha256": "7e216697698732949d009aa5dd5469ea49fad66f1f0e7fbae6cd211dfdda8e76",
+      "sha256": "2d4c85545604fb54d35fbd580efc18a5f55d31384b784c38f7a3daf0e082658c",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"

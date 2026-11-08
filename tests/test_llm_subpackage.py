@@ -201,9 +201,11 @@ def main():
 
     print("\n== 6. 任务边界（不静默改）==")
     #: 存档值一律 ASCII id（2026-10-30 晚场：初版把中文写进枚举，英文工作流里会出现中文）
-    base = {"channel": "local", "dialect": "moss_image", "model": "x", "text": "",
-            "length": "standard", "temperature": 0.2, "max_tokens": 512, "seed": 0}
-    for task, needle in (("caption", "必须接"), ("expand", "必须填")):
+    base = {"model": "x", "text": "", "style_class": "连贯描述", "style": "英文详述",
+            "length": "中", "temperature": 0.2, "panels": 4, "language": "auto",
+            "keep": "", "seed": 0, "api_base": "", "api_model": "", "api_key": "",
+            "speed": "均衡", "runtime": "auto"}
+    for task, needle in (("反推", "必须接"), ("扩写", "必须填")):
         try:
             smith.smith(task=task, **base)
             check("边界报错（%s）" % needle, False, "没报错")
@@ -216,9 +218,18 @@ def main():
         check("旧值「反推」先归一再判边界", False, "没报错")
     except ValueError as e:
         check("旧值「反推」先归一成 caption，再报边界", "任务=caption" in str(e), str(e)[:60])
-    all_ids = set(nodes._TASKS + nodes._CHANNELS + nodes._LENGTHS + nodes._LANGS
-                  + nodes._RUNTIMES + nodes._ONOFF + nodes._MTP + nodes._KV
-                  + [nodes._MMPROJ_AUTO, nodes._MMPROJ_NONE])
+    # 2026-11-08 参数面合并（39→16）后，界面枚举换成中文档位；
+    # 权威来源是 INPUT_TYPES 真实下发的 combo 选项，不是旧常量表。
+    _it = smith.INPUT_TYPES()
+    _combo = set()
+    for _sec in ("required", "optional"):
+        for _k, _v in _it.get(_sec, {}).items():
+            if isinstance(_v, tuple) and isinstance(_v[0], list):
+                _combo.update(_v[0])
+    all_ids = _combo | set(
+        nodes._TASKS + nodes._CHANNELS + nodes._LENGTHS + nodes._LANGS
+        + nodes._RUNTIMES + nodes._ONOFF + nodes._MTP + nodes._KV
+        + [nodes._MMPROJ_AUTO, nodes._MMPROJ_NONE])
     bad = {k: v for k, v in nodes._LEGACY_VALUES.items() if v not in all_ids}
     check("旧中文值都映射到合法 id（%d 条）" % len(nodes._LEGACY_VALUES), not bad, str(bad))
     check("中文枚举都有归一映射（任务/通道/篇幅/语言/开关/运行态/MTP/mmproj）",
@@ -463,9 +474,10 @@ def main():
     with open(os.path.join(ex_dir, "01-portrait-photoreal.json"), encoding="utf-8") as f:
         ir_text = f.read()
     # channel=api 且 api_base 为空：真去调模型会立刻报错。能出结果就证明没走模型。
-    base_c = {"task": "assemble", "channel": "api", "api_base": "",
-              "dialect": "moss_image", "model": "(未找到 GGUF 模型)", "text": ir_text,
-              "length": "standard", "temperature": 0.2, "max_tokens": 512, "seed": 0}
+    base_c = {"task": "拼装", "api_base": "", "model": "(未找到 GGUF 模型)", "text": ir_text,
+              "style_class": "连贯描述", "style": "英文详述", "length": "中",
+              "temperature": 0.2, "panels": 4, "language": "auto", "keep": "", "seed": 0,
+              "api_model": "", "api_key": "", "speed": "均衡", "runtime": "auto"}
     out, rep = smith.smith(target="moss-image", **base_c)
     check("没有权重、没有 api_base 也能出提示词（零模型）", bool(out.strip()))
     check("报告写明「未调用模型」", "未调用模型" in rep, rep.splitlines()[0])
@@ -481,16 +493,22 @@ def main():
     check("视频后端也走同一条路（timeline 是 IR 的一等字段）",
           "[Shot 1]" in out3, out3[:40])
 
-    # profile 是追加在 optional 末尾的旋钮：位置契约 + 默认零行为变化 + 档位真生效。
-    opt_keys = list(nodes.MossPromptSmith.INPUT_TYPES()["optional"])
-    check("profile 追加在 optional 最末尾（widgets_values 按位置存）",
-          opt_keys[-1] == "profile" and opt_keys[-2] == "target", str(opt_keys[-3:]))
-    check("profile 默认是空串（老工作流不传也照常跑）",
-          nodes.MossPromptSmith.INPUT_TYPES()["optional"]["profile"][1]["default"] == "")
-    check("留空 profile 的输出与未加该参数时逐字节相同",
-          out3 == smith.smith(target="minimax-h3", profile="", **{**base_c, "text": h3_ir})[0])
-    out6, rep6 = smith.smith(target="minimax-h3", profile="six-section",
-                             **{**base_c, "text": h3_ir})
+    # 2026-11-08 参数面合并：profile 不再暴露（由写法预设写入），target 保留为必填 combo。
+    it_now = nodes.MossPromptSmith.INPUT_TYPES()
+    check("target 在 required 且为 combo（拼装必须能换后端，sdxl/flux3 否则永远选不到）",
+          "target" in it_now["required"]
+          and isinstance(it_now["required"]["target"][0], list),
+          str(list(it_now["required"])[-4:]))
+    check("target 默认 moss-image",
+          it_now["required"]["target"][1]["default"] == "moss-image")
+    check("profile 不再暴露给用户（由写法预设写入，界面上没有这个词）",
+          "profile" not in it_now["required"] and "profile" not in it_now["optional"])
+    check("六段式的 profile 由写法预设提供，且在白名单里",
+          nodes._STYLE["时间线六段式"].get("profile") in
+          importlib.import_module("moss_sb_t.moss_llm.smith.adapters.h3").SIX_SECTION_PROFILES,
+          str(nodes._STYLE["时间线六段式"]))
+    out6, rep6 = smith.smith(**{**base_c, "text": h3_ir,
+                                "style_class": "分段结构", "style": "时间线六段式"})
     six_fields = ("subject_definitions", "summary", "retention_analysis",
                   "detailed_description", "overall_soundscape", "non_diegetic_music")
     check("six-section 出官方全参考六段式（六个字段 + 参考标签）",
@@ -572,15 +590,13 @@ def main():
           set(nodes._SIX_PROFILES) == set(h3_ad_mod.SIX_SECTION_PROFILES),
           repr(nodes._SIX_PROFILES))
 
-    try:
-        smith.smith(target="minimax-h3", profile="no-such-profile",
-                    **{**base_c, "text": h3_ir})
-        check("未知档位要给人话报错（不是裸 KeyError）", False, "没报错")
-    except ValueError as e:
-        check("未知档位要给人话报错（不是裸 KeyError）",
-              "no-such-profile" in str(e) and "拼装失败" in str(e), str(e).splitlines()[0][:80])
-    except KeyError as e:
-        check("未知档位要给人话报错（不是裸 KeyError）", False, "裸 KeyError: %r" % e)
+    # 写法预设里的 profile 必须都在 H3 白名单里；写错就会在运行时抛裸 KeyError，
+    # 所以这里在定义层面就拦住（原「未知档位」测试测的是已删掉的 kwarg）。
+    _h3ad = importlib.import_module("moss_sb_t.moss_llm.smith.adapters.h3")
+    _bad_prof = {k: v["profile"] for k, v in nodes._STYLE.items()
+                 if v.get("profile") and v["profile"] not in _h3ad.SIX_SECTION_PROFILES}
+    check("所有写法预设的 profile 都在白名单（写错会抛裸 KeyError）",
+          not _bad_prof, str(_bad_prof))
 
     for bad, needle, tag in [
         ("{}", "entities", "缺 entities"),
@@ -772,23 +788,19 @@ def main():
                 for p in patches:
                     stack.enter_context(p)
                 return nodes.MossPromptSmith().smith(
-                    task=task, channel="local", dialect="moss_image", model=key,
-                    text="把背景换成雪夜", length="standard", temperature=0.2,
-                    # 1024 是节点默认；256 会被输出预算预检拦下（单图反推也要 ≥640）
-                    max_tokens=1024, seed=0, image=image, mmproj=mmproj,
-                    release_after_run=False)[1]
+                    task=task, model=key, text="把背景换成雪夜",
+                    style_class="连贯描述", style="英文详述", length="中",
+                    temperature=0.2, seed=0, image=image)[1]
 
-    # 输出预算：单图 256 也必须被拦 —— 一段 160–260 词的 JSON 契约装不下，
-    # 截断后机检只会报「缺字段」，用户看到的是「跑成功但内容不全」。
-    try:
-        nodes.MossPromptSmith().smith(
-            task="caption", channel="local", dialect="moss_image", model="m",
-            text="", length="standard", temperature=0.2, max_tokens=256, seed=0,
-            image=object(), mmproj="none", release_after_run=False)
-        check("单图 256 被输出预算预检拦下", False, "没报错")
-    except ValueError as e:
-        check("单图 256 被输出预算预检拦下", "至少 640" in str(e),
-              str(e).splitlines()[1][:70])
+    # 合并后 max_tokens 不再能直接填（由篇幅档决定），所以这里守的不变量换成：
+    # 三档都必须高于预检下限，否则选「短」会被自己的预算检查挡死。
+    _lv_bad = {k: v for k, v in nodes._LENGTH_TOKENS.items()
+               if k in ("短", "中", "长") and v < 640}
+    check("篇幅三档都高于输出预算下限 640（否则选「短」直接报错）",
+          not _lv_bad, str(_lv_bad))
+    check("篇幅档仍是递增（短<中<长）",
+          nodes._LENGTH_TOKENS["短"] < nodes._LENGTH_TOKENS["中"] < nodes._LENGTH_TOKENS["长"],
+          str({k: nodes._LENGTH_TOKENS[k] for k in ("短", "中", "长")}))
 
     rep_pe = smith_report("edit", object(), "auto", "PE", "/fake/stub.mmproj.gguf",
                           _PE_BYPASSED=("SENTINEL_PE",))
@@ -796,8 +808,8 @@ def main():
           "PE 绕过参数：SENTINEL_PE" in rep_pe, rep_pe[-70:])
     rep_vis = smith_report("expand", object(), "auto", "", "", _VISION_HINT="SENTINEL_V")
     check("接图无视觉塔时真的出声（哨兵反证）", "SENTINEL_V" in rep_vis, rep_vis[-70:])
-    rep_none = smith_report("expand", object(), nodes._MMPROJ_NONE, "", "")
-    check("显式选「不使用」时不误报", nodes._VISION_HINT not in rep_none, rep_none[-70:])
+    rep_none = smith_report("expand", None, nodes._MMPROJ_NONE, "", "")
+    check("没有接图时不误报视觉塔缺失", nodes._VISION_HINT not in rep_none, rep_none[-70:])
     check("常量写全了被绕过的参数",
           nodes._PE_BYPASSED == ("dialect", "length", "must_keep", "panels", "style_lock"),
           str(nodes._PE_BYPASSED))

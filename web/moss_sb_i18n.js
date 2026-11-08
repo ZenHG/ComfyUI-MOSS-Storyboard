@@ -113,40 +113,32 @@ export const LABELS_EN = {
     marked: "marked grid",
     // ---- LLM 子包（MossPromptSmith）----
     task: "task",
-    channel: "channel",
-    dialect: "Prompt style",
     target: "compile target",
     text: "idea / change",
     length: "length",
     temperature: "Randomness",
-    max_tokens: "max tokens",
-    mmproj: "vision mmproj",
     language: "prose language",
-    thinking: "thinking",
-    style_lock: "style lock",
-    must_keep: "must keep",
-    wash: "ignore artifacts",
-    two_pass: "two passes",
     runtime: "runtime",
     api_base: "API address",
     api_model: "API model",
     api_key: "API key",
-    ctx_size: "Context length",
-    gpu_layers: "GPU layers",
-    cache_type_k: "K cache type",
-    cache_type_v: "V cache type",
-    flash_attn: "flash attention",
-    image_max_tokens: "image max tokens",
-    ubatch: "micro-batch",
-    parallel: "parallel",
-    fit_on: "fit to VRAM",
-    fit_target_mib: "VRAM reserve (MiB)",
-    mtp: "MTP draft",
-    mtp_draft_n: "draft tokens",
-    server_exe: "llama-server path",
-    port: "port",
-    release_after_run: "free VRAM after run",
-    profile: "Template (leave blank)",
+    style_class: "Style class",
+    style: "Style",
+    target: "Output backend",
+    style_note: "Custom style",
+    keep: "Must keep",
+    speed: "Speed",
+    model: "Local model",
+    panels: "Panels",
+    seed: "Seed",
+    image2: "Reference 2",
+    image3: "Reference 3",
+    image4: "Reference 4",
+    image5: "Reference 5",
+    image6: "Reference 6",
+    image7: "Reference 7",
+    image8: "Reference 8",
+    image9: "Reference 9",
 };
 
 export const LABELS = {
@@ -210,40 +202,21 @@ export const LABELS = {
     height: "高",
     // ---- LLM 子包（MossPromptSmith）----
     task: "任务",
-    channel: "通道",
-    dialect: "方言",
     target: "拼装目标",
     text: "想法 / 要改什么",
     length: "篇幅",
     temperature: "温度",
-    max_tokens: "最大 token",
-    mmproj: "视觉投影",
     language: "说明语言",
-    thinking: "思考模式",
-    style_lock: "角色 / 风格锁定",
-    must_keep: "必留项",
-    wash: "忽略杂项",
-    two_pass: "两遍法",
     runtime: "运行时",
     api_base: "API地址",
     api_model: "API 模型名",
     api_key: "API Key",
-    ctx_size: "上下文长度",
-    gpu_layers: "GPU 层数",
-    cache_type_k: "K 缓存精度",
-    cache_type_v: "V 缓存精度",
-    flash_attn: "闪存注意力",
-    image_max_tokens: "每图视觉 token",
-    ubatch: "微批大小",
-    parallel: "并发请求",
-    fit_on: "显存适配",
-    fit_target_mib: "预留显存（MiB）",
-    mtp: "推测解码 MTP",
-    mtp_draft_n: "草稿 token 数",
-    server_exe: "服务器程序",
-    port: "端口",
-    release_after_run: "跑完释放显存",
-    profile: "方言档",
+    style_class: "写法类",
+    style: "具体写法",
+    target: "给哪个模型用",
+    style_note: "自定义风格（选「自定义」时填）",
+    keep: "必须原样保留",
+    speed: "速度档",
 };
 
 //: **同名参数在不同节点上含义不同** —— 全局标签只能取一个，所以这里按节点覆盖。
@@ -276,17 +249,9 @@ const LABELS_NODE = {
         model: "用哪个模型",
         length: "写多长", temperature: "随机程度", max_tokens: "最多写多少",
         seed: "复现编号", mmproj: "看图用的文件", language: "用哪种语言写",
-        thinking: "思考模式", panels: "分几格",
-        wash: "跳过细节（保持关）", two_pass: "写两遍（保持关）",
         runtime: "本机程序", api_base: "API地址", api_model: "在线模型名", api_key: "密钥",
-        ctx_size: "上下文长度", gpu_layers: "放显卡多少层",
-        cache_type_k: "缓存精度 K", cache_type_v: "缓存精度 V",
-        flash_attn: "快速注意力", image_max_tokens: "一张图算多少",
-        ubatch: "每批处理多少", parallel: "同时几路", fit_on: "自动显存适配",
-        fit_target_mib: "显存目标 MB", mtp: "加速草稿", mtp_draft_n: "草稿步数",
-        server_exe: "本机程序路径", port: "本机服务端口",
-        release_after_run: "跑完释放显存",
         target: "给哪个模型用", profile: "结构稿模板（一般留空）",
+        style_note: "自定义风格（选「自定义」时填）",
     },
 };
 
@@ -354,6 +319,15 @@ export const COMBOS = {
     wash: { true: "开", false: "关" },
     two_pass: { true: "开", false: "关" },
     release_after_run: { true: "开", false: "关" },
+    task: { "反推": "反推", "洗图": "洗图", "扩写": "扩写", "编辑": "编辑", "拼装": "拼装" },
+    style_class: { "连贯描述": "连贯描述", "风格": "风格", "自定义": "自定义（自己写）",
+                   "标签串": "标签串", "分段结构": "分段结构" },
+    style: { "英文详述": "英文详述", "英文通用": "英文通用", "中文": "中文",
+             "写实摄影": "写实摄影", "电影剧照": "电影剧照", "胶片复古": "胶片复古",
+             "暗调氛围": "暗调氛围", "商业广告": "商业广告", "二次元插画": "二次元插画",
+             "水彩": "水彩", "赛博朋克": "赛博朋克", "黑白纪实": "黑白纪实",
+             "自定义": "自定义", "英文标签": "英文标签", "宫格稿": "宫格稿",
+             "时间线六段式": "时间线六段式" },
 };
 
 // ---------------------------------------------------------------------------
@@ -691,17 +665,6 @@ export const TIPS = {
             + "assemble = assemble a structured draft (IR) into a backend dialect (NO model,\n"
             + "milliseconds, reproducible -- paste the IR into the text box, pick the direction with target).",
     },
-    "MossPromptSmith.channel": {
-        en: "[Where the model runs] local = start a llama-server sidecar (no network, VRAM freed after the run);\n"
-            + "api = any OpenAI-compatible endpoint (OpenAI / Volcengine Ark / Zhipu / Kimi / MiniMax /\n"
-            + "DeepSeek / Ollama / LM Studio ...): no sidecar, no VRAM, but images and text leave the machine.",
-    },
-    "MossPromptSmith.dialect": {
-        en: "[Output dialect] moss_image = MOSS single-image English prose (official default);\n"
-            + "moss_storyboard = MOSS board Chinese [STYLE] + [PANEL n] (the format verified in this repo;\n"
-            + "panels must equal the number of sections); generic_* for Flux/Krea/SDXL; cn_natural for\n"
-            + "Seedream / Jimeng / Kling / Vidu.",
-    },
     "MossPromptSmith.model": {
         en: "[Pick a file] Every GGUF under ComfyUI/models/LLM and models/text_encoders, shown by relative path;\n"
             + "any architecture llama.cpp supports. Captioning needs vision: either a main model + mmproj,\n"
@@ -719,15 +682,6 @@ export const TIPS = {
             + "are their own dialects; minimax-h3 needs a timeline in the IR when assembling.\n"
             + "Assembling is deterministic Python (no model, milliseconds); expand still needs one.",
     },
-    "MossPromptSmith.profile": {
-        en: "[assemble + caption + expand] Dialect profile under the chosen backend; leave empty for that backend's\n"
-            + "default skeleton. Currently only minimax-h3 offers six-section (full-reference\n"
-            + "six-field manuscript: subject_definitions / summary / retention_analysis /\n"
-            + "detailed_description / overall_soundscape / non_diegetic_music, with <Subject N>\n"
-            + "style reference tags). Profile names come from the registry's dialects, not from a\n"
-            + "hard-coded list here; an unknown profile raises a clear error instead of silently\n"
-            + "falling back. Still deterministic Python: no model, milliseconds, reproducible.",
-    },
     "MossPromptSmith.length": {
         en: "[What to enter] brief 80-120 words / standard 160-260 / detailed 280-360, with a per-dialect cap.\n"
             + "Caption favours stable wording, expand favours variation.",
@@ -735,10 +689,6 @@ export const TIPS = {
     "MossPromptSmith.temperature": {
         en: "[What to enter] 0.2 for caption (stable, reproducible); 0.7 for expand (more varied).\n"
             + "Same seed + prompt + model reproduces.",
-    },
-    "MossPromptSmith.max_tokens": {
-        en: "[What to enter] Output cap. 512-1024 for caption; 768-1024 for expand.\n"
-            + "A long system prompt plus strict JSON can hit the cap occasionally; leave headroom.",
     },
     "MossPromptSmith.seed": {
         en: "[What to enter] Same seed + prompt + model reproduces. Changing the seed only changes sampling,\n"
@@ -773,40 +723,12 @@ export const TIPS = {
     "MossPromptSmith.image9": {
         en: "[Wire] Reference image 9 (optional). Slots grow automatically as you connect them, max 9.",
     },
-    "MossPromptSmith.mmproj": {
-        en: "[Vision tower] Required whenever an image goes in (without it the model cannot see the image).\n"
-            + "auto = match by width (model embedding_length == tower projection_dim) in the model's folder\n"
-            + "and both scan roots; several matches raise instead of guessing. none = never load an mmproj\n"
-            + "even if one exists. MOSS TE pairs with Qwen3.5-9B.mmproj-Q8_0.gguf.",
-    },
     "MossPromptSmith.language": {
         en: "[What to enter] Language of the prose description. Text inside the image keeps its own language.",
-    },
-    "MossPromptSmith.thinking": {
-        en: "[Keep off] Thinking mode. Measured: with it on the answer goes to reasoning_content, content is\n"
-            + "empty and finish=length, so the prompt comes back blank. Only enable for models that must\n"
-            + "reason first, and raise max_tokens at the same time.",
     },
     "MossPromptSmith.panels": {
         en: "[moss_storyboard only] Panel count declared in the global section. The number of [PANEL] sections\n"
             + "must equal it; report warns on a mismatch and never edits silently.",
-    },
-    "MossPromptSmith.style_lock": {
-        en: "[What to enter] Character / clothing / environment / medium lock. In a board script a character is\n"
-            + "defined once here; each panel only states the difference (repeating the full description\n"
-            + "squeezes out the shot-size clause).",
-    },
-    "MossPromptSmith.must_keep": {
-        en: "[What to enter] Exact words / numbers / colours / positions the user pins, semicolon separated.\n"
-            + "They must appear verbatim; expand may not change them. report checks each one.",
-    },
-    "MossPromptSmith.wash": {
-        en: "[Caption only] Ignore compression noise / watermarks / UI clutter that are not design defects,\n"
-            + "and list them under omitted_artifacts (never silently dropped).",
-    },
-    "MossPromptSmith.two_pass": {
-        en: "[Caption only] Inventory first, then write the prose. Use it when cleaning up an image or when\n"
-            + "fidelity matters; one pass is faster, two passes are steadier (both calls reuse one sidecar).",
     },
     "MossPromptSmith.runtime": {
         en: "[What to enter] current = find llama-server via server path / env var / this package's runtime / PATH;\n"
@@ -827,62 +749,27 @@ export const TIPS = {
         en: "[api channel] API key. NOTE: typed here it is saved into the workflow JSON and shared with it;\n"
             + "to share a workflow, clear this and set the MOSS_LLM_API_KEY env var instead.",
     },
-    "MossPromptSmith.ctx_size": {
-        en: "[Local engine] Caption prompts carry many image tokens; 8192 or more is recommended.\n"
-            + "Bigger values cost more VRAM (KV cache).",
+    // ===== LLM 提示词（2026-11-08 参数面合并后的新参数）=====
+    "MossPromptSmith.style_class": {
+        en: "[Pick one] What kind of wording you want: connected prose / a style / a tag string / "
+            + "a segmented structure. This only narrows the next dropdown; it changes nothing else.",
     },
-    "MossPromptSmith.gpu_layers": {
-        en: "[Local engine] Empty = auto (llama.cpp computes layers from free VRAM, together with fit);\n"
-            + "a number = how many layers to put on the GPU.",
+    "MossPromptSmith.style": {
+        en: "[Pick one] The concrete wording. The style presets inject a look (photoreal, film still, "
+            + "low-key, anime, watercolor…) without changing the structure. Pick 自定义 to write your own.",
     },
-    "MossPromptSmith.cache_type_k": {
-        en: "[Local engine] K cache quantisation: q8_0 roughly halves it, q4_0 halves it again\n"
-            + "(slight quality loss).",
+    "MossPromptSmith.style_note": {
+        en: "[Optional, only for the custom style] One sentence about light, palette, texture or a "
+            + "reference direction. It is injected as a hard style lock. Leave it empty and the custom "
+            + "style behaves like plain prose.",
     },
-    "MossPromptSmith.cache_type_v": {
-        en: "[Local engine] V cache quantisation, same choices as K. Usually keep it equal to K.",
+    "MossPromptSmith.keep": {
+        en: "[Optional] Words that must survive verbatim: exact text, a colour, a count, a named thing. "
+            + "Separate with semicolons. Everything listed here is repeated into the prompt unchanged.",
     },
-    "MossPromptSmith.flash_attn": {
-        en: "[Local engine] Cuts KV VRAM and speeds things up; on by default.",
-    },
-    "MossPromptSmith.image_max_tokens": {
-        en: "[Local engine] Maximum vision tokens per reference image - the biggest VRAM variable when\n"
-            + "several images go in.",
-    },
-    "MossPromptSmith.ubatch": {
-        en: "[Local engine] Tokens per forward batch; sets peak VRAM and speed. Drop to 256 if VRAM runs out.",
-    },
-    "MossPromptSmith.parallel": {
-        en: "[Local engine] Concurrent requests; the KV cache grows by the same factor. Keep 1 for single-user prompting.",
-    },
-    "MossPromptSmith.fit_on": {
-        en: "[Local engine] llama.cpp native VRAM fitting: squeeze usage under (total VRAM - reserve) and\n"
-            + "offload layers that do not fit to the CPU. Keep it on for a 12 GB card shared with ComfyUI.",
-    },
-    "MossPromptSmith.fit_target_mib": {
-        en: "[Local engine] VRAM reserve for the fit target (room left for ComfyUI sampling). Default 1024 MiB.",
-    },
-    "MossPromptSmith.mtp": {
-        en: "[Local engine] auto = read GGUF metadata for nextn/mtp (never the file name - the dhq build has\n"
-            + "nextn without -mtp in its name); on = force it (falls back with a warning if unsupported);\n"
-            + "off = disable. Measured 1.48-1.64x on the same target; DFlash accepts only 10-31% for MOSS\n"
-            + "targets, so it is not used.",
-    },
-    "MossPromptSmith.mtp_draft_n": {
-        en: "[Local engine] --spec-draft-n-max for draft-mtp. Default 2.",
-    },
-    "MossPromptSmith.server_exe": {
-        en: "[Local engine] Full path to llama-server. Empty = search env MOSS_LLM_SERVER >\n"
-            + "this package's moss_llm/runtime/ > system PATH.",
-    },
-    "MossPromptSmith.port": {
-        en: "[Local engine] Defaults to 8091, away from the 8080 that llama.cpp servers usually take.\n"
-            + "An externally occupied port is reused, never killed.",
-    },
-    "MossPromptSmith.release_after_run": {
-        en: "[Local engine] On (default): terminate llama-server and free VRAM after the run.\n"
-            + "Off: keep the service for faster repeat calls, but it holds VRAM - release it by running this\n"
-            + "node again or restarting before sampling.",
+    "MossPromptSmith.speed": {
+        en: "[Local only] VRAM preset: save VRAM (small context, slower) / balanced (default) / "
+            + "prefer speed. Only touch this if you run out of VRAM or want more context.",
     },
 };
 

@@ -24,8 +24,13 @@ conflict; do not silently drop one.
 # 2 FRAME IDENTITY
 Choose medium (photograph / film still / illustration / 3D render / poster / UI),
 orientation, and ratio. The first sentence carries the frame alone: medium and its treatment,
-then subject and setting, in one declarative line. Do not put pose, hand tasks, or light
-analysis in it; those belong to the body. Never open with a quality claim. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
+then subject and setting, in one declarative line. Never open with a quality claim.
+BANNED inside sentence one: any verb of what the subject is doing (reading, holding,
+walking, looking, absorbed in), any hand or grip task, any light direction or quality,
+any mood word, any camera number beyond the medium.
+  Correct: "A photograph of a woman in her thirties at a floor-to-ceiling window."
+  Violation: "A photograph of a woman seated at the window, reading a book, bathed in
+  soft afternoon side light." — pose, action and light all leaked into sentence one. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
 vertical, 1:1 emblem, 16:9 cinematic, 9:16 phone. Ratio lives only in wh_ratio; never write
 a ratio, resolution, or pixel count into the prose.
 
@@ -53,8 +58,26 @@ E. Text and style: every legible string verbatim with placement and typography; 
 Use 8-14 positional anchors that reach corners, edges and center. About a third of sentences
 begin with a positional phrase.
 
+# 3B THE FACE, WHEN ANY OF IT IS VISIBLE
+"Natural skin texture" and "fine details of her skin" are labels, not observations. If a
+face is in frame, the paragraph must state at least three of the following, in concrete terms:
+- the brow ridge and the shade it throws into the eye socket
+- the nose: bridge line, nostril wing, which side of it takes the key
+- the cheek plane: whether it turns toward or away from the key
+- the jaw: its line, and where its shadow lands (under the ear, along the chin)
+- the lips: closed or parted, the seam between them, where the lower lip catches light
+- the eyes: the exact point they focus on, and the position of the upper lid
+- one observable mark: stubble shadow, a mole, a crease, a sun line, a scar
+Do not soften this into mood. A face described only by "warm skin tone" has not been described.
+The word flawless, smooth, glowing, radiant is banned.
+
 # 4 CLOSING
-One sentence: balance/symmetry, palette, style, mood. Exactly one; no second summary.
+One sentence on the frame's balance and palette only. Exactly one; no second summary.
+BANNED closing formulas, in any wording: "the overall mood is", "creating a calm / intimate
+/ peaceful / serene atmosphere", "conveys a sense of", "evokes", "the scene feels",
+"adds to the atmosphere". If the viewer should feel something, the hour, the light falloff,
+the distance and the paused gesture already did it — never restate it as a conclusion.
+An ending that names an emotion instead of an object is a failed ending.
 
 # 5 AESTHETIC DECISIONS (commit once, never stack contradictions)
 - one composition strategy; one key light with a visible motivation; one palette hierarchy;
@@ -64,7 +87,12 @@ One sentence: balance/symmetry, palette, style, mood. Exactly one; no second sum
   objects, impossible reflections, empty adjective stacks, meaningless pseudo-text.
 
 # 6 THROUGHOUT
-- 400-500 words / about 20 sentences unless the output contract sets another length.
+- Follow the output contract's word budget (the shared method is deeper than the budget;
+  that is deliberate). When words run short, cut in this order: background props ->
+  environment description -> palette summary. Never cut the face, the hands, or the light
+  falling on the subject.
+- Priority of detail: face and hands > light on the subject > garment construction >
+  composition > environment > palette.
 - Observe, don't instruct: present tense, third person, declarative. No "you", "create",
   "make sure", "the AI should".
 - No quality boosters, artist names, negations, or process notes.

@@ -16,8 +16,9 @@ Walk these categories in order. Never print the checklist.
    field, focal plane, leading lines, framing, negative space, cropped edges.
 3. Setting: interior/exterior, place type, ground/wall/sky/water/vegetation, props with
    position, count and material, weather and time of day.
-4. Subjects: exact count, relative size, role, pose, head orientation, gaze, expression,
-   arms, hands and grip, legs, feet, weight-bearing foot, contact points.
+4. Subjects: exact count, relative size, role, age cues (hairline, creases, stubble, neck),
+   pose, head orientation, gaze, expression, arms, hands and grip, legs, feet,
+   weight-bearing foot, contact points.
 5. Wardrobe and surface: layers, cut, pattern, color, material, accessories, wear.
 6. Light: source, direction, quality (hard/soft), color temperature, contrast, shadow
    length and softness, highlights, reflections, practicals, rim light.
@@ -46,14 +47,27 @@ pad to reach a length. A dense frame may run longer, a quiet subject shorter.
 - Exact counts: "three chairs", not "several". If ambiguous, "appears to be three" and list it.
 - Left/right are the viewer's. Use anchors: "in the lower-left foreground", "behind the left
   shoulder", "across the upper third".
-- People: observable surface only. Age as life stage or decade, never a number. If the face is
-  turned away, cropped, or covered, say that instead of describing it.
+- People: observable surface only. Age must be stated, as a life stage or decade, never a
+  number: "a man in his late thirties", not "a man". Base it on visible cues only — hairline
+  and hairline recession, creases at the eye corner or forehead, stubble shadow, neck and
+  jaw looseness, hand skin. If the face is turned away, cropped, or covered, say that
+  instead of describing it, and then age stays unstated on purpose.
+- Face, when any of it is visible: give at least three concrete observations, not labels.
+  Choose from — brow ridge and the shade it throws into the eye socket; the nose bridge
+  line, the nostril wing, which side takes the key; which way the cheek plane turns;
+  the jaw line and where its shadow lands; the lips, closed or parted, and the seam;
+  the eye or point they focus on, and the upper lid; one observable mark (stubble, a mole,
+  a crease, a sun line). "Natural skin texture" and "fine details of his skin" are labels,
+  not observations, and do not count toward the three.
 - Names: if the user supplies a name for a person/character, use it; otherwise use a general
   noun ("a man", "a woman", "a child"). Never guess a celebrity, IP, or real person.
 - Color: modifier + hue ("deep teal", "warm off-white", "muted terracotta"). No hex unless the
   image visibly contains it.
 - Material: behavior, not brand ("brushed aluminium with fine radial scratches",
-  "condensation beading on cold glass").
+  "condensation beading on cold glass"). Never guess fibre composition or alloy — "possibly
+  cotton or a blend" is an invention. Describe what the surface does under this light
+  (matte with a soft sheen along the fold, stiff where the seam runs). If composition truly
+  matters and cannot be read, it belongs in uncertainties, not in the caption.
 - Light and shadow must agree; reflections must match what faces the surface; scale and
   contact must be consistent.
 - No quality boosters: masterpiece, best quality, 8k, ultra detailed, award-winning, trending.

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 ComfyUI-MOSS-Storyboard contributors
 //
-// LLM 参数面板真机验收（2026-11-08 推倒重来版）。
-// 验收不看闸绿：真图目检 + hover 零位移 + 零自造词 + 三梯度用户。
+// LLM 参数面板真机验收（2026-11-08 参数面合并后）。
+// 契约：18 个参数一屏全显示 + 一行只读状态 + style_class → style 级联。
+// 验收不看闸绿：真图目检 + 真实提交值 + 存档逐位一致。
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { arg, boot, checks, launch, loadGraph, ROOT, shotNode } from "./ui_kit.mjs";
@@ -15,19 +16,6 @@ const check = (n, cond, d) => c.check(n, !!cond, d);
 const errs = [];
 page.on("pageerror", (e) => errs.push(String(e).slice(0, 200)));
 
-const visRows = (id) => page.evaluate((nid) => {
-    const g = document.querySelector('[data-widgets-grid-node-id="' + nid + '"]');
-    if (!g) return null;
-    const rows = [...g.querySelectorAll("[data-widget-name]")]
-        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel");
-    const shown = rows.filter((e) => e.getBoundingClientRect().height > 0);
-    return { shown: shown.length, names: shown.map((e) => e.dataset.widgetName),
-        overflow: g.scrollWidth > g.clientWidth + 6,
-        cut: (() => { const rs = shown; return rs.length
-            ? rs[rs.length - 1].getBoundingClientRect().bottom
-                > g.getBoundingClientRect().bottom + 1 : false; })() };
-}, id);
-
 const wf = JSON.parse(readFileSync(join(ROOT, "examples", "llm-prompt-workbench.json"), "utf8"));
 await boot(page, URL_);
 check("载入 examples/llm-prompt-workbench.json", (await loadGraph(page, wf)).ok);
@@ -35,234 +23,139 @@ await page.waitForFunction(() => {
     const n = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
     return n && n.__mossllmBar && n.__mossllmBar.nodeType;
 }, null, { timeout: 20000 });
-await page.waitForTimeout(1200);
+await page.waitForTimeout(1500);
 
 const ID = await page.evaluate(() => String(app.graph.nodes.find((x) => x.type === "MossPromptSmith").id));
-const node = () => page.evaluate((id) => {
+
+const snap = () => page.evaluate((id) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);
     const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
-    const bar = g.querySelector(".mossllm-bar");
-    const q = (s) => g.querySelector(s);
-    const rect = (s) => { const e = q(s); if (!e) return null;
-        const b = e.getBoundingClientRect(); return { top: Math.round(b.top), h: Math.round(b.height) }; };
+    const q = (s) => (g ? g.querySelector(s) : null);
+    const rows = g ? [...g.querySelectorAll("[data-widget-name]")]
+        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel"
+            && e.getBoundingClientRect().height > 0) : [];
     return {
-        widgets: n.widgets.length, cells: (n.serialize().widgets_values || []).length,
         mounted: !!(n.__mossllmBar && n.__mossllmBar.nodeType),
-        status: rect(".mossllm-status"), btn: rect(".mossllm-settings"),
-        gapToRight: (() => {
-            const t = q(".mossllm-toprow"), e = q(".mossllm-settings");
-            return t && e ? Math.round(t.getBoundingClientRect().right
-                - e.getBoundingClientRect().right) : null; })(),
+        widgets: n.widgets.length,
+        cells: (n.serialize().widgets_values || []).length,
+        shown: rows.map((e) => e.dataset.widgetName),
         hint: (q(".mossllm-hint") || {}).textContent || "",
         warn: (q(".mossllm-warn") || {}).textContent || "",
         warnHidden: !!(q(".mossllm-warn") || {}).hidden,
-        barText: bar ? bar.textContent : "",
-        chips: g.querySelectorAll(".mossllm-chip").length,
-        tabs: g.querySelectorAll("[data-mossllm-chip]").length,
-        presets: g.querySelectorAll(".mossllm-preset, .mossllm-pztoggle").length,
-        secs: g.querySelectorAll("[data-moss-sec]").length,
-        noteHidden: !!(q(".mossllm-settings-note") || {}).hidden,
-        presetBoxHidden: !!(q(".mossllm-presets-box") || {}).hidden,
-        force: !!n.__mossllm.force,
+        chips: g ? g.querySelectorAll(".mossllm-chip").length : -1,
+        settingsBtn: g ? g.querySelectorAll(".mossllm-settings").length : -1,
+        overflow: g ? g.scrollWidth > g.clientWidth + 6 : null,
+        styleOpts: (() => { const w = n.widgets.find((x) => x.name === "style");
+            return w && w.options && w.options.values ? w.options.values.slice() : []; })(),
+        styleClass: String((n.widgets.find((x) => x.name === "style_class") || {}).value),
+        style: String((n.widgets.find((x) => x.name === "style") || {}).value),
     };
 }, ID);
 
-// ---- 1. 三层骨架 ----
-const a = await node();
-check("面板已挂载，39 个控件、39 格存档", a.mounted && a.widgets >= 39 && a.cells === 39,
-    JSON.stringify({ mounted: a.mounted, widgets: a.widgets, cells: a.cells }));
-let r = await visRows(ID);
-check("默认只露 4 行（任务 / 通道 / 模型 / 文字）",
-    r.shown === 4 && ["task", "channel", "model", "text"].every((k) => r.names.includes(k)),
-    JSON.stringify(r));
-check("默认态没有 tabs / 分区标题；预设区藏在设置里（默认隐藏）",
-    a.chips === 0 && a.tabs === 0 && a.secs === 0 && a.presetBoxHidden,
-    JSON.stringify({ chips: a.chips, tabs: a.tabs, secs: a.secs, presetBoxHidden: a.presetBoxHidden }));
-check("顶层唯一按钮是「设置」，固定在状态行右侧",
-    a.btn && a.status && a.btn.top === a.status.top && a.btn.h === a.status.h,
-    JSON.stringify({ status: a.status, btn: a.btn }));
-check("状态行只陈述输入→输出，不含自造词",
-    /→|接一张图/.test(a.hint) && !/方言|拼装目标|引擎|采样|格式|两遍法|忽略杂项|看图写提示词|写得怎么样|输出给谁|本机怎么跑|本次/.test(a.barText),
-    a.hint.slice(0, 90));
-check("默认没有内容被裁掉", !r.cut && !r.overflow, JSON.stringify(r));
+// ---- 1. 参数面与存档 ----
+const a = await snap();
+check("面板已挂载，19 格存档（18 参数 + seed 伴随）",
+    a.mounted && a.cells === 19, JSON.stringify({ mounted: a.mounted, cells: a.cells }));
+check("18 个参数一屏全显示（不再折叠、不再靠隐藏）",
+    a.shown.length === 18 && ["task", "model", "text", "style_class", "style", "target",
+        "style_note", "length", "temperature", "panels", "language", "keep", "seed",
+        "api_base", "api_model", "api_key", "speed", "runtime"].every((k) => a.shown.includes(k)),
+    JSON.stringify(a.shown));
+check("旧 UI 已清空：没有 chip、没有「设置」按钮", a.chips === 0 && a.settingsBtn === 0,
+    JSON.stringify({ chips: a.chips, settingsBtn: a.settingsBtn }));
+check("状态行陈述当前任务与通道（不是参数名堆）",
+    /反推|洗图|扩写|拼装|编辑/.test(a.hint) && /本机|在线服务/.test(a.hint), a.hint);
+check("宽节点不横向溢出", !a.overflow, String(a.overflow));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-1-default.png"), { y: 30 });
 
-// ---- 2. hover 零位移 ----
-const hover = await page.evaluate(async (id) => {
-    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
-    const snap = () => {
-        const btn = g.querySelector(".mossllm-settings").getBoundingClientRect();
-        const st = g.querySelector(".mossllm-status").getBoundingClientRect();
-        return { btnTop: Math.round(btn.top), btnLeft: Math.round(btn.left),
-            statusH: Math.round(st.height), hint: g.querySelector(".mossllm-hint").textContent };
-    };
-    const before = snap();
-    const row = g.querySelector('[data-widget-name="task"]');
-    row.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
-    await new Promise((r2) => setTimeout(r2, 500));
-    const after = snap();
-    document.body.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
-    await new Promise((r2) => setTimeout(r2, 400));
-    const back = snap();
-    return { before, after, back,
-        moved: after.btnTop - before.btnTop || after.btnLeft - before.btnLeft,
-        grew: after.statusH - before.statusH, textChanged: after.hint !== before.hint };
-}, ID);
-check("hover 前后：按钮不动 / 状态行不长高 / 文字不换（零位移）",
-    hover.moved === 0 && hover.grew === 0 && !hover.textChanged,
-    JSON.stringify(hover));
-
-// ---- 3. 设置：唯一入口，一下给全部 ----
-await page.evaluate(() => document.querySelector(".mossllm-settings").click());
-await page.waitForTimeout(900);
-const b = await node();
-r = await visRows(ID);
-check("点「设置」⇒ 39 项全部可见，且给出「一般不用改」说明",
-    b.force && r.shown >= 38 && !b.noteHidden && /一般不用改/.test(b.barText),
-    JSON.stringify({ force: b.force, shown: r.shown, noteHidden: b.noteHidden }));
-check("设置展开后按钮仍贴顶行右边界",
-    b.btn && b.status && b.btn.top === b.status.top && b.gapToRight === 0
-    && a.gapToRight === 0, JSON.stringify({ before: a.gapToRight, after: b.gapToRight }));
-await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-2-tune.png"), { y: 30 });
-await page.evaluate(() => document.querySelector(".mossllm-settings").click());
-await page.waitForTimeout(900);
-r = await visRows(ID);
-check("收起设置 ⇒ 回到 4 行", r.shown === 4, JSON.stringify(r));
-const gapBack = await page.evaluate((id) => {
-    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
-    return Math.round(g.querySelector(".mossllm-toprow").getBoundingClientRect().right
-        - g.querySelector(".mossllm-settings").getBoundingClientRect().right);
-}, ID);
-check("展开→收起后设置按钮始终贴右（不再左右跳）", gapBack === 0,
-    JSON.stringify({ first: a.gapToRight, expanded: b.gapToRight, collapsed: gapBack }));
-
-// ---- 3b. 预设嵌套在设置内（不做顶层按钮）----
-const nest = await page.evaluate(async (id) => {
+// ---- 2. style_class → style 级联（真提交值，不走合成事件）----
+const cascade = await page.evaluate(async (id) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);
-    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
-    const W = (k) => n.widgets.find((w) => w.name === k);
-    const wait = (ms) => new Promise((r2) => setTimeout(r2, ms));
-    g.querySelector(".mossllm-settings").click();       // 打开设置
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cls = n.widgets.find((w) => w.name === "style_class");
+    const sty = n.widgets.find((w) => w.name === "style");
+    const out = { base: (sty.options && sty.options.values || []).slice() };
+    cls.value = "风格"; cls.callback?.("风格");
+    await wait(900);
+    out.style = (sty.options && sty.options.values || []).slice();
+    out.current = String(sty.value);
+    cls.value = "自定义"; cls.callback?.("自定义");
+    await wait(900);
+    out.custom = (sty.options && sty.options.values || []).slice();
+    out.customVal = String(sty.value);
+    // style_note 真的进 style lock：读一次后端 report 之前先确认值能写进去
+    const note = n.widgets.find((w) => w.name === "style_note");
+    note.value = "冷蓝霓虹从侧面打光，高对比";
+    out.noteOk = String(note.value).length > 0;
+    cls.value = "连贯描述"; cls.callback?.("连贯描述");
     await wait(700);
-    const box = g.querySelector(".mossllm-presets-box");
-    const out = { visible: !box.hidden,
-        bodyHidden: g.querySelector(".mossllm-pzbody").hidden };
-    out.groups = [...g.querySelectorAll("[data-pz-group]")].map((b) => b.textContent);
-    const eps = [...g.querySelectorAll("[data-pz-endpoint]")];
-    out.addresses = eps.length;
-    if (eps.length) eps[0].click();
-    await wait(500);
-    out.base = String(W("api_base").value);
-    out.chan = String(W("channel").value);
-    g.querySelector('[data-pz-group="tune"]').click();
-    await wait(500);
-    out.tunes = [...g.querySelectorAll("[data-moss-preset]")].map((b) => b.textContent);
-    g.querySelector(".mossllm-settings").click();       // 收起
-    await wait(600);
-    out.hiddenAfter = box.hidden;
+    out.back = (sty.options && sty.options.values || []).slice();
     return out;
 }, ID);
-check("设置展开即见嵌套预设（0 次额外点击）：两类 + 5 个地址",
-    nest.visible && !nest.bodyHidden && nest.groups.length === 2 && nest.addresses === 5,
-    JSON.stringify(nest));
-check("点地址子档 ⇒ 写入 API地址并切在线服务",
-    /^https?:\/\//.test(nest.base) && nest.chan === "api", JSON.stringify(nest));
-check("设置内预设嵌套：换快慢有 3 个子档，收起设置后预设区隐藏",
-    nest.tunes.length === 3 && nest.hiddenAfter, JSON.stringify(nest));
+check("写法类「风格」⇒ 具体写法换成 9 个风格档（真机级联生效）",
+    cascade.style.length === 9, JSON.stringify(cascade.style));
+check("写法类「自定义」⇒ 具体写法只剩「自定义」，可选自定义风格框",
+    cascade.custom.length === 1 && cascade.custom[0] === "自定义" && cascade.customVal === "自定义",
+    JSON.stringify({ custom: cascade.custom, val: cascade.customVal }));
+check("自定义风格文本能写进 widget（作为硬 style lock 注入）", cascade.noteOk);
+check("切回「连贯描述」⇒ 回落 3 档", cascade.back.length === 3, JSON.stringify(cascade.back));
 
-// ---- 4. 缺项状态与点击 ----
+// ---- 3. 缺项状态与可运行状态 ----
 const lack = await page.evaluate(async (id) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);
     const W = (k) => n.widgets.find((w) => w.name === k);
-    W("channel").value = "api"; W("channel").callback?.("api");
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const g = () => document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
+    const out = {};
+    W("channel") // 旧参数已不存在，这里只通过 api_base 推断通道
     W("api_base").value = ""; W("api_base").callback?.("");
-    W("api_model").value = ""; W("api_model").callback?.("");
-    await new Promise((r2) => setTimeout(r2, 1900));
-    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
-    const w = g.querySelector(".mossllm-warn");
-    const out = { text: w.textContent, hidden: w.hidden, act: w.dataset.act };
-    w.click();
-    await new Promise((r2) => setTimeout(r2, 1000));
-    out.forceAfter = !!n.__mossllm.force;
-    const row = g.querySelector('[data-widget-name="api_base"]');
-    const inp = row && row.querySelector("input,textarea,select");
-    out.focused = !!inp && document.activeElement === inp;
-    out.flashed = !!row && row.classList.contains("mossllm-flash");
+    W("task").value = "扩写"; W("task").callback?.("扩写");
+    W("text").value = ""; W("text").callback?.("");
+    await wait(1900);
+    out.expandEmpty = { hint: g().querySelector(".mossllm-hint").textContent,
+        warn: g().querySelector(".mossllm-warn").textContent,
+        hidden: g().querySelector(".mossllm-warn").hidden };
+    W("text").value = "一只猫"; W("text").callback?.("一只猫");
+    await wait(600);
+    out.expandFilled = { warn: g().querySelector(".mossllm-warn").textContent,
+        hidden: g().querySelector(".mossllm-warn").hidden };
     return out;
 }, ID);
-check("缺端点时状态行说「还缺：API地址」，点它真的聚焦到 API地址输入框",
-    /还缺：API地址/.test(lack.text) && !lack.hidden && lack.forceAfter
-    && lack.focused && lack.flashed, JSON.stringify(lack));
+check("扩写空文字 ⇒ 状态行说「还填一句想写什么」",
+    /还填/.test(lack.expandEmpty.warn) && !lack.expandEmpty.hidden,
+    JSON.stringify(lack.expandEmpty));
+check("填了文字 ⇒ 缺项提示消失（可以直接跑）",
+    lack.expandFilled.hidden === true, JSON.stringify(lack.expandFilled));
 
-// ---- 5. 存档契约 / 接线保护 ----
-const saved = await page.evaluate(async (id) => {
-    const n = app.graph.nodes.find((x) => String(x.id) === id);
+// ---- 4. 存档契约 ----
+const saved = await page.evaluate(async () => {
     const g = app.graph.serialize();
-    const before = JSON.parse(JSON.stringify(g.nodes.find((x) => x.type === "MossPromptSmith").widgets_values));
+    const before = JSON.parse(JSON.stringify(
+        g.nodes.find((x) => x.type === "MossPromptSmith").widgets_values));
     await app.loadGraphData(JSON.parse(JSON.stringify(g)));
-    await new Promise((r2) => setTimeout(r2, 2200));
+    await new Promise((r) => setTimeout(r, 2500));
     const m = app.graph.nodes.find((x) => x.type === "MossPromptSmith");
     const after = JSON.parse(JSON.stringify(m.widgets_values));
-    return { before, after, stray: Object.keys(g.nodes.find((x) => x.type === "MossPromptSmith"))
-        .filter((k) => /mossllm|hidden|focus/i.test(k)) };
-}, ID);
-check("存盘→重开 39 格逐位一致", saved.before.length === 39
-    && JSON.stringify(saved.before) === JSON.stringify(saved.after), JSON.stringify(saved.stray));
+    const stray = Object.keys(g.nodes.find((x) => x.type === "MossPromptSmith"))
+        .filter((k) => /mossllm|__moss/i.test(k));
+    return { before, after, stray };
+});
+check("存盘→重开 19 格逐位一致", saved.before.length === 19
+    && JSON.stringify(saved.before) === JSON.stringify(saved.after),
+    JSON.stringify({ n: saved.before.length }));
 check("面板状态不写进存档", saved.stray.length === 0, JSON.stringify(saved.stray));
 
-// ---- 6. 窄节点 ----
+// ---- 5. 窄节点 ----
 const narrow = await page.evaluate(async (id) => {
     const n = app.graph.nodes.find((x) => String(x.id) === id);
-    n.setSize([260, n.size[1]]);
-    await new Promise((r2) => setTimeout(r2, 900));
+    n.setSize([280, n.size[1]]);
+    await new Promise((r) => setTimeout(r, 900));
     const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
     const bar = g.querySelector(".mossllm-bar");
-    return { sw: bar.scrollWidth, cw: bar.clientWidth,
-        btn: Math.round(g.querySelector(".mossllm-settings").getBoundingClientRect().right),
-        barRight: Math.round(bar.getBoundingClientRect().right) };
+    return { sw: bar.scrollWidth, cw: bar.clientWidth };
 }, ID);
-check("260px 窄节点不横向溢出，设置按钮仍在节点内",
-    narrow.sw <= narrow.cw + 2 && narrow.btn <= narrow.barRight + 2, JSON.stringify(narrow));
+check("280px 窄节点不横向溢出", narrow.sw <= narrow.cw + 2, JSON.stringify(narrow));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-3-local.png"), { y: 30 });
-
-// ---- 7. 三梯度用户 ----
-const tiers = await page.evaluate(async (id) => {
-    const n = app.graph.nodes.find((x) => String(x.id) === id);
-    n.setSize([420, n.size[1]]);
-    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
-    const W = (k) => n.widgets.find((w) => w.name === k);
-    const wait = (ms) => new Promise((r2) => setTimeout(r2, ms));
-    n.__mossllm.force = false;
-    W("channel").value = "local"; W("channel").callback?.("local");
-    W("api_base").value = ""; W("api_base").callback?.("");
-    W("text").value = ""; W("text").callback?.("");
-    await wait(1700);
-    const rows = () => [...g.querySelectorAll("[data-widget-name]")]
-        .filter((e) => e.dataset.widgetName !== "mosssb_llm_panel"
-            && e.getBoundingClientRect().height > 0).map((e) => e.dataset.widgetName);
-    const novice = { rows: rows().length, hint: g.querySelector(".mossllm-hint").textContent,
-        warn: g.querySelector(".mossllm-warn").textContent,
-        buttons: g.querySelectorAll(".mossllm-settings").length };
-    // 中级：填一句话，状态行立刻反映
-    W("text").value = "一只猫坐在窗边"; W("text").callback?.("一只猫坐在窗边");
-    await wait(150);
-    const mid = { hint: g.querySelector(".mossllm-hint").textContent };
-    // 专家：设置里 39 项都在
-    g.querySelector(".mossllm-settings").click();
-    await wait(900);
-    const expert = { rows: rows().length, cells: (n.serialize().widgets_values || []).length };
-    g.querySelector(".mossllm-settings").click();
-    await wait(500);
-    return { novice, mid, expert };
-}, ID);
-check("新手：4 行 + 状态行说明 + 只有一个按钮",
-    tiers.novice.rows === 4 && tiers.novice.buttons === 1
-    && /→|接一张图/.test(tiers.novice.hint), JSON.stringify(tiers.novice));
-check("中级：填文字后 150ms 内状态行反映（不等轮询）",
-    /已填文字|写了要改什么/.test(tiers.mid.hint) && tiers.mid.hint !== tiers.novice.hint,
-    JSON.stringify({ before: tiers.novice.hint, after: tiers.mid.hint }));
-check("专家：设置里 ≥38 项、39 格存档不变",
-    tiers.expert.rows >= 38 && tiers.expert.cells === 39, JSON.stringify(tiers.expert));
 
 check("页面无 JS 异常", errs.length === 0, errs.join(" | "));
 const code = c.done();

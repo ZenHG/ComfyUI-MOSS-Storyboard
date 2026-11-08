@@ -33,7 +33,7 @@
     "Node name for S&R": "MarkdownNote"
    },
    "widgets_values": [
-    "## 一句话 → 出图：单图 / 4 格故事板（两组独立）\n\n默认只开「单图」，故事板组已旁路；要出宫格时选中故事板组节点按 Ctrl+B，再选中单图组按 Ctrl+B 关掉它——一次只跑一组。\n\n**① 写想法**：两个 Smith 各有 text / must_keep；固定项写进 must_keep（；分隔）。\n**② 单图**：dialect=moss_image，Sampler 的 panels=1（不接 spec，不出宫格）。\n**③ 故事板**：dialect=moss_storyboard，panels 与 Layout/Sampler 必须同为 4。\n\n### 采样配方\n模型卡口径：50 步 / cfg 3 / euler / sgm_uniform。装了 4-step 蒸馏 LoRA 就旁路它并改 4 步 / cfg 1。\n\n### 为什么两组分开\n单图要「整张画面」的散文，故事板要 [STYLE]+[PANEL n] 的分格稿，用同一个 Smith 输出会在两种文风之间来回漂——各用各的 Smith 更稳。"
+    "## 一句话 → 出图：单图 / 4 格故事板（两组独立）\n\n默认只开「单图」，故事板组已旁路；要出宫格时选中故事板组节点按 Ctrl+B，再选中单图组按 Ctrl+B 关掉它——一次只跑一组。\n\n**① 写想法**：两个 Smith 各有「文字」与「必须原样保留」；固定项写进后者（；分隔）。\n**② 单图**：写法选「英文详述」，Sampler 的 panels=1（不接 spec，不出宫格）。\n**③ 故事板**：写法选「宫格稿」，panels 与 Layout/Sampler 必须同为 4。\n\n### 采样配方\n模型卡口径：50 步 / cfg 3 / euler / sgm_uniform。装了 4-step 蒸馏 LoRA 就旁路它并改 4 步 / cfg 1。\n\n### 为什么两组分开\n单图要「整张画面」的散文，故事板要 [STYLE]+[PANEL n] 的分格稿，用同一个 Smith 输出会在两种文风之间来回漂——各用各的 Smith 更稳。"
    ],
    "title": "这是什么 · 怎么用"
   },
@@ -207,31 +207,15 @@
    "inputs": [
     {
      "name": "task",
-     "type": "['CAPTION', 'EXPAND', 'EDIT', 'ASSEMBLE']",
+     "type": "['反推', '洗图', '扩写', '编辑', '拼装']",
      "link": null,
      "widget": {
       "name": "task"
      }
     },
     {
-     "name": "channel",
-     "type": "['LOCAL', 'API']",
-     "link": null,
-     "widget": {
-      "name": "channel"
-     }
-    },
-    {
-     "name": "dialect",
-     "type": "['MOSS_IMAGE', 'MOSS_STORYBOARD', 'GENERIC_NATURAL', 'GENERIC_TAGS', 'CINEMATIC', 'CN_NATURAL']",
-     "link": null,
-     "widget": {
-      "name": "dialect"
-     }
-    },
-    {
      "name": "model",
-     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
+     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'HERMES3.6-35B-A3B-UNCENSORED-GENESIS-MXFP4.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/HUIHUI-QWEN3.8-27B-ABLITERATED-UNDERDOG-SALUKI-SWIFT-1.5-IQ2-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
      "link": null,
      "widget": {
       "name": "model"
@@ -246,8 +230,40 @@
      }
     },
     {
+     "name": "style_class",
+     "type": "['连贯描述', '风格', '自定义', '标签串', '分段结构']",
+     "link": null,
+     "widget": {
+      "name": "style_class"
+     }
+    },
+    {
+     "name": "style",
+     "type": "['英文详述', '英文通用', '中文', '写实摄影', '电影剧照', '胶片复古', '暗调氛围', '商业广告', '二次元插画', '水彩', '赛博朋克', '黑白纪实', '自定义', '英文标签', '宫格稿', '时间线六段式']",
+     "link": null,
+     "widget": {
+      "name": "style"
+     }
+    },
+    {
+     "name": "target",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
+     "link": null,
+     "widget": {
+      "name": "target"
+     }
+    },
+    {
+     "name": "style_note",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "style_note"
+     }
+    },
+    {
      "name": "length",
-     "type": "['BRIEF', 'STANDARD', 'DETAILED']",
+     "type": "['短', '中', '长']",
      "link": null,
      "widget": {
       "name": "length"
@@ -262,11 +278,27 @@
      }
     },
     {
-     "name": "max_tokens",
+     "name": "panels",
      "type": "INT",
      "link": null,
      "widget": {
-      "name": "max_tokens"
+      "name": "panels"
+     }
+    },
+    {
+     "name": "language",
+     "type": "['AUTO', 'ZH', 'EN']",
+     "link": null,
+     "widget": {
+      "name": "language"
+     }
+    },
+    {
+     "name": "keep",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "keep"
      }
     },
     {
@@ -283,83 +315,6 @@
      "link": null,
      "widget": {
       "name": "control_after_generate"
-     }
-    },
-    {
-     "name": "image",
-     "type": "IMAGE",
-     "link": null
-    },
-    {
-     "name": "mmproj",
-     "type": "['AUTO', 'NONE', 'GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/MMPROJ-QWEN3VL-4B-INSTRUCT-F16.GGUF', 'MOSS_LLM_6G/MMPROJ-F16.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC.MMPROJ-BF16.GGUF', 'QWEN3.5-9B.MMPROJ-Q8_0.GGUF', 'QWEN3.8/MMPROJ-QWEN3.8-27B-BF16.GGUF']",
-     "link": null,
-     "widget": {
-      "name": "mmproj"
-     }
-    },
-    {
-     "name": "language",
-     "type": "['AUTO', 'ZH', 'EN']",
-     "link": null,
-     "widget": {
-      "name": "language"
-     }
-    },
-    {
-     "name": "thinking",
-     "type": "['OFF', 'ON']",
-     "link": null,
-     "widget": {
-      "name": "thinking"
-     }
-    },
-    {
-     "name": "panels",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "panels"
-     }
-    },
-    {
-     "name": "style_lock",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "style_lock"
-     }
-    },
-    {
-     "name": "must_keep",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "must_keep"
-     }
-    },
-    {
-     "name": "wash",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "wash"
-     }
-    },
-    {
-     "name": "two_pass",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "two_pass"
-     }
-    },
-    {
-     "name": "runtime",
-     "type": "['AUTO', 'RUNTIME', 'PATH', 'CUSTOM']",
-     "link": null,
-     "widget": {
-      "name": "runtime"
      }
     },
     {
@@ -387,132 +342,65 @@
      }
     },
     {
-     "name": "ctx_size",
-     "type": "INT",
+     "name": "speed",
+     "type": "['省显存', '均衡', '尽量快']",
      "link": null,
      "widget": {
-      "name": "ctx_size"
+      "name": "speed"
      }
     },
     {
-     "name": "gpu_layers",
-     "type": "STRING",
+     "name": "runtime",
+     "type": "['AUTO', 'RUNTIME', 'PATH', 'CUSTOM']",
      "link": null,
      "widget": {
-      "name": "gpu_layers"
+      "name": "runtime"
      }
     },
     {
-     "name": "cache_type_k",
-     "type": "['Q8_0', 'Q4_0', 'F16']",
-     "link": null,
-     "widget": {
-      "name": "cache_type_k"
-     }
+     "name": "image",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "cache_type_v",
-     "type": "['Q8_0', 'Q4_0', 'F16']",
-     "link": null,
-     "widget": {
-      "name": "cache_type_v"
-     }
+     "name": "image2",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "flash_attn",
-     "type": "['ON', 'OFF']",
-     "link": null,
-     "widget": {
-      "name": "flash_attn"
-     }
+     "name": "image3",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "image_max_tokens",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "image_max_tokens"
-     }
+     "name": "image4",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "ubatch",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "ubatch"
-     }
+     "name": "image5",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "parallel",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "parallel"
-     }
+     "name": "image6",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "fit_on",
-     "type": "['ON', 'OFF']",
-     "link": null,
-     "widget": {
-      "name": "fit_on"
-     }
+     "name": "image7",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "fit_target_mib",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "fit_target_mib"
-     }
+     "name": "image8",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "mtp",
-     "type": "['AUTO', 'ON', 'OFF']",
-     "link": null,
-     "widget": {
-      "name": "mtp"
-     }
-    },
-    {
-     "name": "mtp_draft_n",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "mtp_draft_n"
-     }
-    },
-    {
-     "name": "server_exe",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "server_exe"
-     }
-    },
-    {
-     "name": "port",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "port"
-     }
-    },
-    {
-     "name": "release_after_run",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "release_after_run"
-     }
-    },
-    {
-     "name": "target",
-     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
-     "link": null,
-     "widget": {
-      "name": "target"
-     }
+     "name": "image9",
+     "type": "IMAGE",
+     "link": null
     }
    ],
    "outputs": [
@@ -535,45 +423,26 @@
     "ver": "0.3.3"
    },
    "widgets_values": [
-    "expand",
-    "local",
-    "moss_image",
+    "扩写",
     "GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
     "雨夜便利店门口，一个刚下班的年轻女人端着关东煮，暖黄灯光与街上的冷蓝霓虹形成对比",
-    "standard",
+    "连贯描述",
+    "英文详述",
+    "moss-image",
+    "",
+    "中",
     0.7,
-    1024,
+    4,
+    "auto",
+    "关东煮；雨夜",
     0,
     "fixed",
-    "auto",
-    "auto",
-    "off",
-    4,
-    "",
-    "关东煮；雨夜",
-    false,
-    false,
-    "auto",
     "",
     "",
     "",
-    8192,
-    "",
-    "q8_0",
-    "q8_0",
-    "on",
-    1024,
-    512,
-    1,
-    "on",
-    1024,
-    "auto",
-    2,
-    "",
-    8091,
-    true,
-    "moss-image"
-   , ""],
+    "均衡",
+    "auto"
+   ],
    "title": "🧠 LLM Prompt · single image"
   },
   {
@@ -913,31 +782,15 @@
    "inputs": [
     {
      "name": "task",
-     "type": "['CAPTION', 'EXPAND', 'EDIT', 'ASSEMBLE']",
+     "type": "['反推', '洗图', '扩写', '编辑', '拼装']",
      "link": null,
      "widget": {
       "name": "task"
      }
     },
     {
-     "name": "channel",
-     "type": "['LOCAL', 'API']",
-     "link": null,
-     "widget": {
-      "name": "channel"
-     }
-    },
-    {
-     "name": "dialect",
-     "type": "['MOSS_IMAGE', 'MOSS_STORYBOARD', 'GENERIC_NATURAL', 'GENERIC_TAGS', 'CINEMATIC', 'CN_NATURAL']",
-     "link": null,
-     "widget": {
-      "name": "dialect"
-     }
-    },
-    {
      "name": "model",
-     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
+     "type": "['GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/QWEN3VL-4B-INSTRUCT-Q4_K_M.GGUF', 'H3_8B/QWEN3VL-8B-INSTRUCT-Q4_K_M.GGUF', 'HERMES3.6-35B-A3B-UNCENSORED-GENESIS-MXFP4.GGUF', 'MOSS-TE-HERETIC-DHQ-K-6.6G.GGUF', 'MOSS_LLM_6G/QWEN3.5-4B-QUASAR-Q4_0.GGUF', 'ORNITH-1.5-9B-MTP-NVFP4.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC-Q4_K_M.GGUF', 'QWEN3.8/HUIHUI-QWEN3.8-27B-ABLITERATED-UNDERDOG-SALUKI-SWIFT-1.5-IQ2-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S-MTP.GGUF', 'QWEN3.8/QWEN3.8-27B-GSQ-RCO-IQ2_S.GGUF', 'GEMMA-3-12B-IT-Q2_K.GGUF', 'GEMMA4-V2-Q4_K_M.GGUF', 'QWEN3-VL-8B-INSTRUCT-HERETIC-Q6_K.GGUF', 'QWEN3VL-32B-MINIMAX-H3-Q2_K.GGUF']",
      "link": null,
      "widget": {
       "name": "model"
@@ -952,8 +805,40 @@
      }
     },
     {
+     "name": "style_class",
+     "type": "['连贯描述', '风格', '自定义', '标签串', '分段结构']",
+     "link": null,
+     "widget": {
+      "name": "style_class"
+     }
+    },
+    {
+     "name": "style",
+     "type": "['英文详述', '英文通用', '中文', '写实摄影', '电影剧照', '胶片复古', '暗调氛围', '商业广告', '二次元插画', '水彩', '赛博朋克', '黑白纪实', '自定义', '英文标签', '宫格稿', '时间线六段式']",
+     "link": null,
+     "widget": {
+      "name": "style"
+     }
+    },
+    {
+     "name": "target",
+     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
+     "link": null,
+     "widget": {
+      "name": "target"
+     }
+    },
+    {
+     "name": "style_note",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "style_note"
+     }
+    },
+    {
      "name": "length",
-     "type": "['BRIEF', 'STANDARD', 'DETAILED']",
+     "type": "['短', '中', '长']",
      "link": null,
      "widget": {
       "name": "length"
@@ -968,11 +853,27 @@
      }
     },
     {
-     "name": "max_tokens",
+     "name": "panels",
      "type": "INT",
      "link": null,
      "widget": {
-      "name": "max_tokens"
+      "name": "panels"
+     }
+    },
+    {
+     "name": "language",
+     "type": "['AUTO', 'ZH', 'EN']",
+     "link": null,
+     "widget": {
+      "name": "language"
+     }
+    },
+    {
+     "name": "keep",
+     "type": "STRING",
+     "link": null,
+     "widget": {
+      "name": "keep"
      }
     },
     {
@@ -989,83 +890,6 @@
      "link": null,
      "widget": {
       "name": "control_after_generate"
-     }
-    },
-    {
-     "name": "image",
-     "type": "IMAGE",
-     "link": null
-    },
-    {
-     "name": "mmproj",
-     "type": "['AUTO', 'NONE', 'GGUF/QWEN/QWEN3-VL-4B-INSTRUCT-GGUF/MMPROJ-QWEN3VL-4B-INSTRUCT-F16.GGUF', 'MOSS_LLM_6G/MMPROJ-F16.GGUF', 'QWEN-IMAGE-2.1-PE/PE_I2I_HERETIC.MMPROJ-BF16.GGUF', 'QWEN3.5-9B.MMPROJ-Q8_0.GGUF', 'QWEN3.8/MMPROJ-QWEN3.8-27B-BF16.GGUF']",
-     "link": null,
-     "widget": {
-      "name": "mmproj"
-     }
-    },
-    {
-     "name": "language",
-     "type": "['AUTO', 'ZH', 'EN']",
-     "link": null,
-     "widget": {
-      "name": "language"
-     }
-    },
-    {
-     "name": "thinking",
-     "type": "['OFF', 'ON']",
-     "link": null,
-     "widget": {
-      "name": "thinking"
-     }
-    },
-    {
-     "name": "panels",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "panels"
-     }
-    },
-    {
-     "name": "style_lock",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "style_lock"
-     }
-    },
-    {
-     "name": "must_keep",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "must_keep"
-     }
-    },
-    {
-     "name": "wash",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "wash"
-     }
-    },
-    {
-     "name": "two_pass",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "two_pass"
-     }
-    },
-    {
-     "name": "runtime",
-     "type": "['AUTO', 'RUNTIME', 'PATH', 'CUSTOM']",
-     "link": null,
-     "widget": {
-      "name": "runtime"
      }
     },
     {
@@ -1093,132 +917,65 @@
      }
     },
     {
-     "name": "ctx_size",
-     "type": "INT",
+     "name": "speed",
+     "type": "['省显存', '均衡', '尽量快']",
      "link": null,
      "widget": {
-      "name": "ctx_size"
+      "name": "speed"
      }
     },
     {
-     "name": "gpu_layers",
-     "type": "STRING",
+     "name": "runtime",
+     "type": "['AUTO', 'RUNTIME', 'PATH', 'CUSTOM']",
      "link": null,
      "widget": {
-      "name": "gpu_layers"
+      "name": "runtime"
      }
     },
     {
-     "name": "cache_type_k",
-     "type": "['Q8_0', 'Q4_0', 'F16']",
-     "link": null,
-     "widget": {
-      "name": "cache_type_k"
-     }
+     "name": "image",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "cache_type_v",
-     "type": "['Q8_0', 'Q4_0', 'F16']",
-     "link": null,
-     "widget": {
-      "name": "cache_type_v"
-     }
+     "name": "image2",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "flash_attn",
-     "type": "['ON', 'OFF']",
-     "link": null,
-     "widget": {
-      "name": "flash_attn"
-     }
+     "name": "image3",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "image_max_tokens",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "image_max_tokens"
-     }
+     "name": "image4",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "ubatch",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "ubatch"
-     }
+     "name": "image5",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "parallel",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "parallel"
-     }
+     "name": "image6",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "fit_on",
-     "type": "['ON', 'OFF']",
-     "link": null,
-     "widget": {
-      "name": "fit_on"
-     }
+     "name": "image7",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "fit_target_mib",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "fit_target_mib"
-     }
+     "name": "image8",
+     "type": "IMAGE",
+     "link": null
     },
     {
-     "name": "mtp",
-     "type": "['AUTO', 'ON', 'OFF']",
-     "link": null,
-     "widget": {
-      "name": "mtp"
-     }
-    },
-    {
-     "name": "mtp_draft_n",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "mtp_draft_n"
-     }
-    },
-    {
-     "name": "server_exe",
-     "type": "STRING",
-     "link": null,
-     "widget": {
-      "name": "server_exe"
-     }
-    },
-    {
-     "name": "port",
-     "type": "INT",
-     "link": null,
-     "widget": {
-      "name": "port"
-     }
-    },
-    {
-     "name": "release_after_run",
-     "type": "BOOLEAN",
-     "link": null,
-     "widget": {
-      "name": "release_after_run"
-     }
-    },
-    {
-     "name": "target",
-     "type": "['MOSS-IMAGE', 'QWEN-IMAGE-2_1', 'KREA2', 'FLUX3', 'FLUX1_DEV', 'SDXL', 'MINIMAX-H3', 'NANO-BANANA']",
-     "link": null,
-     "widget": {
-      "name": "target"
-     }
+     "name": "image9",
+     "type": "IMAGE",
+     "link": null
     }
    ],
    "outputs": [
@@ -1241,45 +998,26 @@
     "ver": "0.3.3"
    },
    "widgets_values": [
-    "expand",
-    "local",
-    "moss_storyboard",
+    "扩写",
     "GGUF/Qwen/Qwen3-VL-4B-Instruct-GGUF/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
     "雨夜便利店，一个加班的女人买关东煮，店员递袋子时说了句「路上小心」，店里的灯把水汽照得很亮",
-    "standard",
+    "分段结构",
+    "宫格稿",
+    "moss-image",
+    "",
+    "中",
     0.7,
-    1024,
+    4,
+    "auto",
+    "路上小心；关东煮",
     0,
     "fixed",
-    "auto",
-    "auto",
-    "off",
-    4,
-    "",
-    "路上小心；关东煮",
-    false,
-    false,
-    "auto",
     "",
     "",
     "",
-    8192,
-    "",
-    "q8_0",
-    "q8_0",
-    "on",
-    1024,
-    512,
-    1,
-    "on",
-    1024,
-    "auto",
-    2,
-    "",
-    8091,
-    true,
-    "moss-image"
-   , ""],
+    "均衡",
+    "auto"
+   ],
    "title": "🧠 LLM Prompt · storyboard (bypassed)"
   },
   {

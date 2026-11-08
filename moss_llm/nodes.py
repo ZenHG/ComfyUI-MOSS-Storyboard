@@ -117,6 +117,7 @@ _STYLE_CLASS = {
     "连贯描述": ["英文详述", "英文通用", "中文"],
     "风格": ["写实摄影", "电影剧照", "胶片复古", "暗调氛围", "商业广告",
              "二次元插画", "水彩", "赛博朋克", "黑白纪实"],
+    "自定义": ["自定义"],          # 写自己想加的风格；内容由 style_note 提供
     "标签串": ["英文标签"],
     "分段结构": ["宫格稿", "时间线六段式"],
 }
@@ -125,6 +126,7 @@ _STYLE = {
     "英文通用": {"dialect": "generic_natural"},
     "中文": {"dialect": "cn_natural"},
     "英文标签": {"dialect": "generic_tags"},
+    "自定义": {"dialect": "moss_image"},   # lock 由 style_note 填，见 smith()
     "宫格稿": {"dialect": "moss_storyboard"},
     "时间线六段式": {"target": "minimax-h3", "profile": "six-section"},
     "写实摄影": {"dialect": "moss_image",
@@ -146,13 +148,30 @@ _STYLE = {
     "黑白纪实": {"dialect": "moss_image",
                  "lock": "black and white documentary photography; high contrast, honest grain"},
 }
-_LENGTH_TOKENS = {"短": 512, "中": 1024, "长": 2048}
+# 「短」必须 ≥ 预检下限（caption 640 / expand 640），否则选短档会直接报错。
+#: style 的 combo 必须是**全部子档的并集**：前端按 style_class 级联收窄只是显示层，
+#  /prompt 与工作流 JSON 校验走的是 INPUT_TYPES ⇒ 只列「连贯描述」那 3 档会把
+#  风格/标签/分段/自定义全部挡在 API 外面（2026-11-08 实测 400 value_not_in_list）。
+_ALL_STYLES = [s for _subs in _STYLE_CLASS.values() for s in _subs]
+
+#: 中文篇幅档 → 模板里的 preset 名。不映射就会全部退化成 standard。
+_LENGTH_PRESET = {"短": "brief", "中": "standard", "长": "detailed"}
+#: 各档的**具体字数**。只给 preset 名不够 —— 契约里写着 160-280 words，
+#  模型会服从那个具体数字而无视档位（实测短档 285 词、长档 197 词）。
+_LENGTH_SPEC = {
+    "brief": "80-120 words, 6-9 sentences",
+    "standard": "160-280 words, 12-18 sentences",
+    "detailed": "320-420 words, 22-30 sentences",
+}
+
+_LENGTH_TOKENS = {"短": 768, "中": 1024, "长": 2048,
+                  "brief": 512, "standard": 1024, "detailed": 2048}
 _SPEED = {
     "省显存": {"ctx_size": 4096, "ubatch": 256, "fit_target_mib": 768, "image_max_tokens": 512},
     "均衡": {"ctx_size": 8192, "ubatch": 512, "fit_target_mib": 1024, "image_max_tokens": 1024},
     "尽量快": {"ctx_size": 16384, "ubatch": 1024, "fit_on": "off", "image_max_tokens": 1536},
 }
-_TASK_ALIAS = {"反推": "caption", "洗图": "caption", "扩写": "expand",
+_TASK_ALIAS = {"反推": "caption", "洗图": "caption", "扩写": "expand", "编辑": "edit",
                "拼装": "assemble", "编辑": "edit"}
 #: PE 跳过 _build_system 时这些参数不生效；report 逐一点名，不静默。
 _PE_BYPASSED = ("dialect", "length", "must_keep", "panels", "style_lock")
@@ -308,7 +327,7 @@ class MossPromptSmith:
         default_model = model_list[0]
         it = {
             "required": {
-                "task": (["反推", "洗图", "扩写", "拼装"], {"default": "反推",
+                "task": (["反推", "洗图", "扩写", "编辑", "拼装"], {"default": "反推",
                     "tooltip": "反推=看图写提示词（接图）；洗图=反推+先结构化盘点再写（洗图/高保真）；"
                                "扩写=想法→完整画面描述（填文字）；拼装=结构化草稿→成品提示词（不开模型）"}),
                 "model": (model_list, {"default": default_model,
@@ -317,8 +336,14 @@ class MossPromptSmith:
                     "tooltip": "扩写=你的想法；洗图/反推=要保留什么；拼装=粘贴 JSON 草稿"}),
                 "style_class": (list(_STYLE_CLASS), {"default": "连贯描述",
                     "tooltip": "先选一类：连贯描述 / 风格 / 标签串 / 分段结构"}),
-                "style": (_STYLE_CLASS["连贯描述"], {"default": "英文详述",
+                "style": (_ALL_STYLES, {"default": "英文详述",
                     "tooltip": "具体写法。「风格」类会注入风格锁定，不改变结构"}),
+                "target": (_TARGETS, {"default": "moss-image",
+                    "tooltip": "输出给哪个模型。拼装时决定编译目标；扩写时一般不用动"
+                               "（填了就以它为准，选「时间线六段式」会自动切成 minimax-h3）"}),
+                "style_note": ("STRING", {"default": "", "multiline": True,
+                    "tooltip": "选「自定义」风格时在这里写：光线/色调/质感/参考方向，写成一句话即可；"
+                               "留空则等同「英文详述」"}),
                 "length": (["短", "中", "长"], {"default": "中",
                     "tooltip": "短≈512 / 中≈1024 / 长≈2048 tokens"}),
                 "temperature": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 2.0, "step": 0.05,
@@ -333,19 +358,26 @@ class MossPromptSmith:
                     "tooltip": "复现用。0=每次不同"}),
                 "api_base": ("STRING", {"default": "",
                     "tooltip": "填了就走在线服务，留空走本机模型"}),
-                "api_model": ("STRING", {"default": "",
-                    "tooltip": "在线模型名。留空会报缺"}),
+                "api_model": (_model_choices(), {"default": "",
+                    "tooltip": "在线模型名。点 ↻ 用当前地址+Key 拉一次清单就能下拉选；"
+                               "拉不到也能手填服务商给的 id"}),
                 "api_key": ("STRING", {"default": "",
                     "tooltip": "在线服务的密钥。保存工作流时自动清空"}),
                 "speed": (list(_SPEED), {"default": "均衡",
                     "tooltip": "本机跑的显存档：省显存 / 均衡 / 尽量快"}),
-                "runtime": (["auto", "current", "custom"], {"default": "auto",
-                    "tooltip": "本机程序来源。custom 时用环境变量 MOSS_LLM_SERVER 指定"}),
+                "runtime": (_RUNTIMES, {"default": "auto",
+                    "tooltip": "本机程序从哪来。自动=先用本包自带的，找不到再找系统环境"}),
             },
             "optional": {
-                "image": ("IMAGE",), "image2": ("IMAGE",), "image3": ("IMAGE",),
-                "image4": ("IMAGE",), "image5": ("IMAGE",), "image6": ("IMAGE",),
-                "image7": ("IMAGE",), "image8": ("IMAGE",), "image9": ("IMAGE",),
+                "image": ("IMAGE", {"tooltip": "接一张参考图。反推/洗图必须接；扩写接了会当参考。最多 9 张，顺序对应「参考图 2…9」"}),
+                "image2": ("IMAGE", {"tooltip": "第 2 张参考图。不用就空着"}),
+                "image3": ("IMAGE", {"tooltip": "第 3 张参考图。不用就空着"}),
+                "image4": ("IMAGE", {"tooltip": "第 4 张参考图。不用就空着"}),
+                "image5": ("IMAGE", {"tooltip": "第 5 张参考图。不用就空着"}),
+                "image6": ("IMAGE", {"tooltip": "第 6 张参考图。不用就空着"}),
+                "image7": ("IMAGE", {"tooltip": "第 7 张参考图。不用就空着"}),
+                "image8": ("IMAGE", {"tooltip": "第 8 张参考图。不用就空着"}),
+                "image9": ("IMAGE", {"tooltip": "第 9 张参考图。不用就空着"}),
             },
         }
         return it  # noqa: RET504
@@ -380,7 +412,8 @@ class MossPromptSmith:
     # ------------------------------------------------------------------ 主流程
 
     def smith(self, task="反推", model="", text="", style_class="连贯描述",
-              style="英文详述", length="中", temperature=0.2, panels=4, language="auto",
+              style="英文详述", target="moss-image", style_note="", length="中",
+              temperature=0.2, panels=4, language="auto",
               keep="", seed=0, api_base="", api_model="", api_key="", speed="均衡",
               runtime="auto", image=None,
               image2=None, image3=None, image4=None, image5=None,
@@ -392,9 +425,14 @@ class MossPromptSmith:
         task = _TASK_ALIAS.get(raw_task, raw_task)
         _sty = _STYLE.get(str(style), {"dialect": "moss_image"})
         dialect = _sty.get("dialect", "moss_image")
-        target = _sty.get("target", "moss-image")
+        # 写法预设显式指定 target 时以它为准（六段式），否则用用户选的后端。
+        target = _sty.get("target") or str(target or "moss-image")
         profile = _sty.get("profile", "")
         _lock = _sty.get("lock", "")
+        _note = str(style_note or "").strip()
+        if _note:
+            # 自定义风格：与预设 lock 叠加，用户写的排在后面（更具体）
+            _lock = ("%s; %s" % (_lock, _note) if _lock else _note)
         style_lock = ("%s\n%s" % (_lock, keep) if (_lock and keep) else (_lock or keep)).strip()
         must_keep = str(keep or "")
         max_tokens = _LENGTH_TOKENS.get(str(length), 1024)
@@ -497,10 +535,12 @@ class MossPromptSmith:
             elif str(target or "").strip() == "minimax-h3":
                 min_out = 384 + 48 * n_img          # 三字段 + 时间线
             elif task == "caption":
-                min_out = {"brief": 448, "standard": 640, "detailed": 896}.get(
+                min_out = {"brief": 448, "standard": 640, "detailed": 896,
+                           "短": 640, "中": 896, "长": 1400}.get(
                     length, 640)                    # 一段描述 + JSON 包装
             elif task == "expand":
-                min_out = {"brief": 384, "standard": 640, "detailed": 896}.get(
+                min_out = {"brief": 384, "standard": 640, "detailed": 896,
+                           "短": 640, "中": 896, "长": 1400}.get(
                     length, 640)
             else:
                 min_out = 384                       # 编辑指令：一条改法
@@ -902,13 +942,25 @@ class MossPromptSmith:
                          "language the user wrote. The cut-density rule in the contract "
                          "overrides any generic length preset.")
         else:
-            parts.append("# LENGTH\nUse the %s length preset. Do not pad to reach it."
-                         % (length if length in _LENGTHS else "standard"))
+            _lp = _LENGTH_PRESET.get(str(length),
+                                     length if length in _LENGTHS else "standard")
+            parts.append(
+                "# LENGTH — this overrides any word range written in the output contract\n"
+                "Target %s. Do not pad to reach it; when you run short, cut background and "
+                "props before you cut the face." % _LENGTH_SPEC.get(_lp, _LENGTH_SPEC["standard"]))
             if language and language != "auto":
                 parts.append("# LANGUAGE\nWrite the description in %s."
                              % ("Chinese" if language == "zh" else "English"))
         if (style_lock or "").strip():
-            parts.append("# STYLE LOCK\n%s" % style_lock.strip())
+            parts.append(
+                "# STYLE LOCK (hard constraint — outranks every default in the method)\n"
+                "%s\n"
+                "Every sentence that names light, color, texture or material must obey this "
+                "lock. Where the method's default aesthetic conflicts with it, the lock wins. "
+                "Do not restate the lock as a sentence; make the frame follow it. "
+                "If the lock says low-key, the key light is small and the shadows are deep — "
+                "not a warm beam across the whole face."
+                % style_lock.strip())
         if (must_keep or "").strip():
             parts.append("# MUST_KEEP (verbatim, do not alter)\n%s" % must_keep.strip())
         if dialect == "moss_storyboard" and panels:

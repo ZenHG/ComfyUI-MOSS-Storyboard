@@ -71,19 +71,19 @@ check("2.7 LABELS 都是非空中文串",
 check("2.8 COMBOS 的值都是字符串（不会误翻数字枚举）",
     Object.values(COMBOS).every((m) => Object.values(m).every((v) => typeof v === "string")));
 
-// ---- 2.5 子包节点：37 个参数一个都不许漏（漏了 = 中文界面显示英文名 / 英文界面显示中文说明）----
+// ---- 2.5 子包节点：27 个参数一个都不许漏（漏了 = 中文界面显示英文名 / 英文界面显示中文说明）----
 const SMITH = "MossPromptSmith";
-//: 与 `moss_llm/nodes.py::INPUT_TYPES` 同步；参数表对账（增删参数）在 Python 侧 `check_frontend` F5/F6。
+//: 与 `moss_llm/nodes.py::INPUT_TYPES` 同步（2026-11-08 参数面合并：39→18，另加 9 个图片槽）。
+//: 参数表对账（增删参数）在 Python 侧 `check_frontend` F5/F6。
 const SMITH_PARAMS = [
-    "task", "channel", "dialect", "model", "text", "length", "temperature", "max_tokens", "seed",
-    "image", "mmproj", "language", "thinking", "panels", "style_lock", "must_keep", "wash", "two_pass",
-    "runtime", "api_base", "api_model", "api_key", "ctx_size", "gpu_layers",
-    "cache_type_k", "cache_type_v", "flash_attn", "image_max_tokens", "ubatch", "parallel",
-    "fit_on", "fit_target_mib", "mtp", "mtp_draft_n", "server_exe", "port", "release_after_run",
+    "task", "model", "text", "style_class", "style", "target", "style_note",
+    "length", "temperature", "panels", "language", "keep", "seed",
+    "api_base", "api_model", "api_key", "speed", "runtime",
+    "image", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9",
 ];
 const missLabel = SMITH_PARAMS.filter((n) => !LABELS[n]);
 const missTip = SMITH_PARAMS.filter((n) => !(TIPS[SMITH + "." + n] && TIPS[SMITH + "." + n].en));
-check("2.9 提示词工匠 37 个参数都有中文标签", SMITH_PARAMS.length === 37 && !missLabel.length,
+check("2.9 提示词工匠 27 个参数都有中文标签", SMITH_PARAMS.length === 27 && !missLabel.length,
     missLabel.join(","));
 check("2.10 提示词工匠 37 个参数都有英文提示", !missTip.length, missTip.join(","));
 check("2.11 子包节点的后端显示名进了 legacy（老工作流才可切）",
@@ -226,15 +226,15 @@ applyLang(fta, "zh");
 check("6.23 外来节点的 placeholder 一个字节都不动", phOf(fta, "positive") === "positive");
 
 // ---- 6.6 子包节点：多行框与下拉（同一个 applyLang，不许两套规则）----
-const sm = mkText(SMITH, ["text", "style_lock", "must_keep"]);
+const sm = mkText(SMITH, ["text", "keep", "style_note"]);
 applyLang(sm, "zh");
 check("6.24 子包多行框：中文 placeholder",
-    phOf(sm, "text") === LABELS.text && phOf(sm, "style_lock") === LABELS.style_lock,
-    phOf(sm, "text") + "/" + phOf(sm, "style_lock"));
+    phOf(sm, "text") === LABELS.text && phOf(sm, "keep") === LABELS.keep,
+    phOf(sm, "text") + "/" + phOf(sm, "keep"));
 applyLang(sm, "en");
 check("6.25 子包多行框：英文换成 LABELS_EN（不是裸参数名）",
-    phOf(sm, "text") === LABELS_EN.text && phOf(sm, "style_lock") === LABELS_EN.style_lock,
-    phOf(sm, "text") + "/" + phOf(sm, "style_lock"));
+    phOf(sm, "text") === LABELS_EN.text && phOf(sm, "keep") === LABELS_EN.keep,
+    phOf(sm, "text") + "/" + phOf(sm, "keep"));
 
 const sn = mkNode(SMITH, [
     { name: "task", value: "caption", label: "task", values: ["caption", "expand", "edit"] },

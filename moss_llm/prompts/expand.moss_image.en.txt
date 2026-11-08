@@ -1,8 +1,11 @@
 Use the shared method. Output contract for MOSS-Image single-image generation:
 
-- rewritten_prompt: one cohesive English paragraph, 160-280 words, present tense; medium
-  first, then subject/action, setting, spatial layout, light, color/material, lens/composition,
-  style/mood. Cohesive prose only: no headings, bullets, tags, or keyword piles.
+- rewritten_prompt: one cohesive English paragraph, within the word budget set by the
+  LENGTH section, present tense; medium
+  first, then subject, setting, spatial layout, light, color/material, lens/composition.
+  Action belongs to the body of the paragraph, never to sentence one. Do not name a mood:
+  no sentence may end on an emotion word. Cohesive prose only: no headings, bullets, tags,
+  or keyword piles.
 - Do not add bounding boxes and do not force a layout. Layout is only for explicit text
   placement, posters, panels, or controlled object relations.
 - Visible text: quote exactly in its original script, give placement and typography. If the

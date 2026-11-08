@@ -183,15 +183,15 @@ def ex_prompt_workbench():
              "**这不是一条流水线**：四组各干各的，默认只开「反推」，其余三组已旁路。\n"
              "用哪组就选中该组节点按 Ctrl+B 取消旁路，其余组保持旁路——一次只跑一组，省时间也省显存。\n\n"
              "**① 反推**：LoadImage 选图 → caption → prompt + report。\n"
-             "**② 洗图**：同一张图 → caption（wash=开）→ prompt 拿去改词后重绘。\n"
-             "**③ 通用扩写**：填 text 想法 → expand（generic_natural）→ 任意模型可用提示词。\n"
+             "**② 洗图**：同一张图 → 任务选「洗图」→ prompt 拿去改词后重绘。\n"
+             "**③ 通用扩写**：填文字 → 任务「扩写」+ 写法「英文通用」→ 任意模型可用提示词。\n"
              "**④ PE-I2I 原生改写**：参考图 + 中文编辑指令 → edit → PE 改写的中文描述。\n\n"
              "### ④ 要自备什么（默认旁路，别直接跑）\n"
              "PE 权重按 qwen-research 发布，非商用、仅内部使用；本包不含权重、也不含 system_prompt.txt。\n"
              "把 PE-I2I GGUF、配套 mmproj 视觉塔、原生 system_prompt.txt 放进 models/LLM 下同一目录；\n"
              "然后在本组节点的 model 下拉里选它，mmproj 保持自动。没命中 PE 就是普通编辑路径。\n"
              "PE 没有前端开关：选对模型就自动进 PE。命中与否看第二个输出 report 里有没有\n"
-             "「PE 改写器模式（编辑）」；命中后 dialect / length / must_keep / panels / style_lock\n"
+             "「PE 改写器模式（编辑）」；命中后写法 / 篇幅 / 必须保留 / 格数才生效\n"
              "本次不生效，report 会逐一点名。四步触发与非商用声明见两版 README 的 1.6。\n\n"
              "### 选模型\n"
              "model 下拉来自 models/LLM + models/text_encoders；反推/洗图/PE 要视觉模型 + mmproj，"
@@ -204,19 +204,19 @@ def ex_prompt_workbench():
              "   （目录同名即可，mmproj=auto 会按投影宽度自己配对）；国内可换 hf-mirror.com；\n"
              "② 通道切「外部 API」，填端点与 Key（↻ 能拉清单）。\n\n"
              "### 边界\n"
-             "①②③ 共用同一张输入图；换图后一起变。报告里的 must_keep 行是硬约束对账。")
+             "①②③ 共用同一张输入图；换图后一起变。报告里的「必须保留」行是硬约束对账。")
     img = load_image(2, (-160, -440), (340, 320), "comic-4panel-lineart-sample.png", "① 共用输入图")
-    cap = smith_node(3, (260, -440), (430, 371), "🧠 LLM Prompt · caption",
-                     {"task": "caption", "dialect": "moss_image", "length": "standard"})
-    wash = smith_node(4, (260, 80), (430, 371), "🧠 LLM Prompt · wash (bypassed)",
-                      {"task": "caption", "dialect": "moss_image", "wash": True,
-                       "two_pass": True, "length": "standard"})
-    gen = smith_node(5, (260, 600), (430, 371), "🧠 LLM Prompt · expand (bypassed)",
-                     {"task": "expand", "dialect": "generic_natural", "length": "standard",
+    cap = smith_node(3, (260, -440), (430, 371), "🧠 LLM Prompt · 反推",
+                     {"task": "反推", "style_class": "连贯描述", "style": "英文详述", "length": "中"})
+    wash = smith_node(4, (260, 80), (430, 371), "🧠 LLM Prompt · 洗图 (bypassed)",
+                      {"task": "洗图", "style_class": "连贯描述", "style": "英文详述",
+                       "length": "中"})
+    gen = smith_node(5, (260, 600), (430, 371), "🧠 LLM Prompt · 扩写 (bypassed)",
+                     {"task": "扩写", "style_class": "连贯描述", "style": "英文通用", "length": "中",
                       "temperature": 0.7,
                       "text": "雨夜便利店门口，一个刚下班的年轻女人端着关东煮，"
                               "暖黄灯光与街上的冷蓝霓虹形成对比",
-                      "must_keep": "关东煮；雨夜"})
+                      "keep": "关东煮；雨夜"})
     p1 = preview(6, (740, -440), (460, 380), "反推 prompt（成品提示词）")
     p2 = preview(7, (740, -40), (460, 260), "反推 report（事实/省略项/tokens）")
     p3 = preview(8, (740, 300), (460, 380), "洗图 prompt（拿去改词）")
@@ -224,7 +224,7 @@ def ex_prompt_workbench():
     p5 = preview(10, (740, 1040), (460, 380), "通用 prompt（接任意文生图节点）")
     p6 = preview(11, (740, 1440), (460, 260), "通用 report（must_keep/tokens）")
     pe = smith_node(12, (260, 1120), (430, 371), "🧠 LLM Prompt · PE-I2I edit (bypassed)",
-                    {"task": "edit", "text": "把背景换成雪夜，人物不变"})
+                    {"task": "编辑", "text": "把背景换成雪夜，人物不变"})
     p7 = preview(13, (740, 1840), (460, 380), "PE 编辑提示词（成品）")
     p8 = preview(14, (740, 2240), (460, 300), "PE report（看有没有 PE 改写器模式（编辑））")
     lid = wire(1, img, 0, cap, cap.slot("image"), "IMAGE", links)
@@ -259,9 +259,9 @@ def ex_idea_to_image():
              "## 一句话 → 出图：单图 / 4 格故事板（两组独立）\n\n"
              "默认只开「单图」，故事板组已旁路；要出宫格时选中故事板组节点按 Ctrl+B，"
              "再选中单图组按 Ctrl+B 关掉它——一次只跑一组。\n\n"
-             "**① 写想法**：两个 Smith 各有 text / must_keep；固定项写进 must_keep（；分隔）。\n"
-             "**② 单图**：dialect=moss_image，Sampler 的 panels=1（不接 spec，不出宫格）。\n"
-             "**③ 故事板**：dialect=moss_storyboard，panels 与 Layout/Sampler 必须同为 4。\n\n"
+             "**① 写想法**：两个 Smith 各有「文字」与「必须原样保留」；固定项写进后者（；分隔）。\n"
+             "**② 单图**：写法选「英文详述」，Sampler 的 panels=1（不接 spec，不出宫格）。\n"
+             "**③ 故事板**：写法选「宫格稿」，panels 与 Layout/Sampler 必须同为 4。\n\n"
              "### 采样配方\n"
              "模型卡口径：50 步 / cfg 3 / euler / sgm_uniform。装了 4-step 蒸馏 LoRA 就旁路它并改 4 步 / cfg 1。\n\n"
              "### 为什么两组分开\n"
@@ -279,11 +279,11 @@ def ex_idea_to_image():
     vae.decl_outputs([("VAE", "VAE")])
 
     sm_single = smith_node(5, (0, -440), (430, 371), "🧠 LLM Prompt · single image",
-                           {"task": "expand", "dialect": "moss_image", "length": "standard",
-                            "temperature": 0.7,
+                           {"task": "扩写", "style_class": "连贯描述", "style": "英文详述",
+                            "length": "中", "temperature": 0.7,
                             "text": "雨夜便利店门口，一个刚下班的年轻女人端着关东煮，"
                                     "暖黄灯光与街上的冷蓝霓虹形成对比",
-                            "must_keep": "关东煮；雨夜"})
+                            "keep": "关东煮；雨夜"})
     smp_single = NodeBuilder(6, "MossStoryboardSampler", (520, -440), (420, 900), "🎬 Storyboard · Generate · single image")
     smp_single.decl_inputs([("model", "MODEL", False, None), ("clip", "CLIP", False, None),
                             ("vae", "VAE", False, None)] + _sampler_decl(panels=1))
@@ -295,11 +295,11 @@ def ex_idea_to_image():
                              ("filename_prefix", "COMBO", True, "MOSS_single")])
 
     sm_board = smith_node(8, (0, 900), (430, 371), "🧠 LLM Prompt · storyboard (bypassed)",
-                          {"task": "expand", "dialect": "moss_storyboard", "panels": 4,
-                           "length": "standard", "temperature": 0.7,
+                          {"task": "扩写", "style_class": "分段结构", "style": "宫格稿",
+                           "panels": 4, "length": "中", "temperature": 0.7,
                            "text": "雨夜便利店，一个加班的女人买关东煮，店员递袋子时说了句「路上小心」，"
                                    "店里的灯把水汽照得很亮",
-                           "must_keep": "路上小心；关东煮"})
+                           "keep": "路上小心；关东煮"})
     lay = NodeBuilder(9, "MossStoryboardLayout", (520, 900), (380, 420), "🎬 Storyboard · Grid Layout · 4 panels (bypassed)")
     lay.decl_inputs(LAYOUT_DECL)
     lay.decl_outputs([("width", "INT"), ("height", "INT"), ("columns", "INT"), ("rows", "INT"),
