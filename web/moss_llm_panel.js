@@ -214,6 +214,33 @@ const CSS = `
  display:block;font:500 15px/1.4 system-ui,sans-serif;color:var(--input-text,#ddd);
  padding:16px 2px 6px;border-bottom:0.5px solid var(--border-color,#4e4e4e);margin-bottom:8px}
 @keyframes mossllm-spin{to{transform:rotate(360deg)}}
+/* ==== 推倒重来：三层界面 ==== */
+.mossllm-bar{display:flex;flex-wrap:nowrap;align-content:flex-start;flex:0 0 auto;
+ align-items:stretch;gap:0;box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+ overflow:hidden;padding:0;border-top:1px solid var(--border-color,#4e4e4e);
+ color:var(--descrip-text,#999);font:12px/1.5 system-ui,sans-serif}
+.mossllm-status{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;
+ height:38px;padding:0 10px;overflow:hidden;border-bottom:1px solid var(--border-color,#4e4e4e)}
+.mossllm-status .mossllm-hint{flex:1 1 auto;min-width:0;height:auto;line-height:1.4;
+ font-size:15px;font-weight:500;color:var(--input-text,#ddd);opacity:1;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mossllm-status .mossllm-warn{flex:0 1 auto;min-width:0;font-size:12px;font-weight:400;
+ background:transparent;border:0;padding:0;color:#e8b64c;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mossllm-status .mossllm-warn[hidden]{display:none}
+.mossllm-status .mossllm-warn[data-level="danger"]{color:#f09595}
+.mossllm-status .mossllm-warn[data-level="ok"]{color:var(--descrip-text,#999)}
+.mossllm-settings{flex:0 0 auto;height:38px;padding:0 14px;border:0;
+ border-left:1px solid var(--border-color,#4e4e4e);border-bottom:1px solid var(--border-color,#4e4e4e);
+ background:transparent;color:var(--input-text,#ddd);font:12px/1.5 system-ui,sans-serif;cursor:pointer}
+.mossllm-settings:hover{background:var(--comfy-input-bg,#222)}
+.mossllm-settings[data-on="1"]{color:#5b9cf6}
+.mossllm-settings-note{flex:0 0 100%;padding:7px 10px;font-size:12px;
+ color:var(--descrip-text,#999);border-bottom:1px solid var(--border-color,#4e4e4e)}
+.mossllm-settings-note[hidden]{display:none}
+.mossllm-status .mossllm-langslot{flex:0 0 auto;min-width:0;max-width:64px;overflow:hidden}
+.mossllm-status .mossllm-warn{max-width:45%}
+
 .mossllm-hintrow{flex:0 0 100%;display:flex;align-items:flex-start;gap:6px;min-width:0}
 .mossllm-hint{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;
  /* 🔴 高度必须恒定：悬停换 tooltip 时行数一变，下面每个参数都会跟着位移（实测：鼠标定位失败）。 */
@@ -474,27 +501,14 @@ function installHintListener() {
         const hovered = grid ? (app?.graph?.nodes || [])
             .find((n) => String(n.id) === grid.getAttribute("data-widgets-grid-node-id")) : null;
         const owner = hovered && hovered.type === TYPE ? hovered : null;
-        // 指针离开本节点的参数区 ⇒ 说明行回到摘要（否则最后一条 tooltip 会一直挂着）
-        for (const n of (app?.graph?.nodes || [])) {
-            if (n === owner || n.type !== TYPE) continue;
-            const s = n.__mossllm;
-            if (!s || !s.hint || !s.hint.dataset.hover) continue;
-            delete s.hint.dataset.hover;
-            s.hint.textContent = s.summary || "";
-            s.hint.title = s.modeTip || "";
-        }
         const st = owner && owner.__mossllm;
-        if (!st || !st.hint) return;
+        if (!st || !st.hint || !row) return;
         await loadDefs();
         const name = row.getAttribute("data-widget-name");
         const w = owner && widgetOf(owner, name);
-        // 英文态下 `applyLang` 把 en 提示写在 `w.tooltip` 上（与核心 7 节点同一份词表）；
-        // 中文态它把覆盖撤掉 ⇒ 回落到后端 nodeDef 里的中文原文。
         const text = (w && w.tooltip) || tipOf(name) || st.summary || "";
-        st.hint.dataset.hover = "1";
-        // 说明行高度固定（不抖）⇒ 长 tooltip 会被裁掉两行；原生 title 给全文，不改变布局。
+        // 只给浏览器原生 tooltip。状态行文字与所有元素位置永不因 hover 改变。
         st.hint.title = text;
-        if (st.hint.textContent !== text) st.hint.textContent = text;
     }, true);
 }
 
@@ -518,8 +532,6 @@ function stateOf(node) {
             force: false,          // 会话内记住「高级」展开：st 挂在 node.__mossllm 上，
                                    // 实例在则状态在、重开工作流则新建 st 回到收起。不另存第二份状态。
             warnedChannel: false,
-            presetOpen: false,        // V5 预设区是否展开（会话内，不进存档）
-            presetGroup: null,        // 顶层选中的预设类别
         };
     }
     return st;
@@ -538,31 +550,20 @@ function needsOf(task, ch) {
     return s;
 }
 
-/** 该显示哪些。通道标签认不出来时**不做通道门控**（宁可多显示，不可藏错）。 */
+/** 该显示哪些：默认只露 4 行；设置展开给全部 39 项。 */
 function plan(node, st) {
     const cw = widgetOf(node, "channel");
     const ch = cw ? chanOf(String(cw.value)) : "";
-    const gated = MODE_SPEC.channels.includes(ch);
-    if (cw && !gated && !st.warnedChannel) {
-        st.warnedChannel = true;
-        console.warn("%s: 不认识 channel 取值 %j ⇒ 停用通道标记（分组仍可用）", TAG, ch);
-    }
     const task = taskOf(node);
-    const assemble = MODE_SPEC.tasks.includes(task) && task === "assemble";
     const shown = new Set();
-    const off = new Set();                       // 通道对不上的组（只影响 chip 的标记）
-    const inert = new Set();                     // 本次执行读不到、但仍显示并标注的控件
+    const CORE = ["task", "channel", "model", "text"];
+    const ONLINE = ["api_base", "api_model", "api_key"];
     for (const w of realWidgets(node)) {
-        const g = groupOf(w);
-        const outside = gated && !!g.channel && g.channel !== ch;
-        if (outside) off.add(g.key);
-        if (assemble && MODE_SPEC.inertOnCompile.includes(w.name)) inert.add(w.name);
-        // 优先级：接了线 > 高级全开 > 常驻 > 当前聚焦组。
-        // 不再有 pinned：首屏行数恒定，target/profile 回到它们所在的组里。
-        const ok = isLinked(node, w.name) || st.force || !!g.always || g.key === st.focus;
-        if (ok) shown.add(w.name);
+        if (st.force || isLinked(node, w.name) || CORE.includes(w.name)
+            || (ch === CH_API && ONLINE.includes(w.name))) shown.add(w.name);
     }
-    return { shown, off, inert, assemble, task, ch, needs: needsOf(task, ch) };
+    return { shown, off: new Set(), inert: new Set(),
+        assemble: task === "assemble", task, ch, needs: new Set() };
 }
 
 function syncWidgets(node, shown) {
@@ -1055,129 +1056,51 @@ function buildRuntimeTools(node, st) {
 function buildBar(node, st) {
     const bar = document.createElement("div");
     bar.className = "mossllm-bar";
-    // 宿主给 DOM 组件单元格套了 `*:flex-1`（flex-grow:1）。那条规则在样式级联里压过
-    // `.mossllm-bar` 的普通声明（实测），于是开关条会被拉满剩余高度、文字被摊成一列。
-    // 用**内联**声明钉住（内联优先于任何无 !important 的类规则）。
     bar.style.flex = "0 0 auto";
     bar.style.alignContent = "flex-start";
-    // 点芯片不该变成拖节点（与语言条同一套事件）
     for (const ev of ["pointerdown", "mousedown", "dblclick", "keydown", "click"]) {
         bar.addEventListener(ev, (e) => e.stopPropagation());
     }
-    st.chips = {};
-    st.chipsRow = document.createElement("div");
-    st.chipsRow.className = "mossllm-chipsrow";
-    for (const g of GROUPS) {
-        if (g.always) continue;
-        const c = makeChip(node, st, g);
-        st.chips[g.key] = c;
-        st.chipsRow.appendChild(c.b);
-    }
-    st.btn = document.createElement("button");
-    st.btn.type = "button";
-    st.btn.className = "mossllm-btn";
-    st.btn.onclick = (e) => {
-        e.stopPropagation();
-        st.force = !st.force;
-        applySoon(node);
-    };
-    st.hint = document.createElement("span");
-    st.hint.className = "mossllm-hint";
-    // 「中 / EN」按钮由 `moss_sb_i18n_ui.js` 挂进这个槽（与布局编辑器的 langSlot 同一机制）：
-    // 一个节点只留一条 DOM 行，语言按钮和摘要/说明同一行。
-    st.langSlot = document.createElement("span");
-    st.langSlot.className = "mossllm-langslot";
     st.statusCard = document.createElement("div");
     st.statusCard.className = "mossllm-status";
-    st.statusCard.dataset.level = "ok";
+    st.hint = document.createElement("span");
+    st.hint.className = "mossllm-hint";
     st.warn = document.createElement("span");
     st.warn.className = "mossllm-warn";
     st.warn.hidden = true;
     st.warn.onclick = (e) => {
         e.stopPropagation();
-        const act = st.warn.dataset.act || "chan";
-        // 缺项：只把对应分组展开（不替用户改值）—— 修复动作是「填一个值」，不该由按钮代填。
-        if (act === "open-api" || act === "open-local") {
-            // 高级全开时 st.force 让所有组都可见，只改 focus 等于没点 ⇒ 先收起再聚焦。
-            st.force = false;
-            st.focus = act === "open-api" ? "api" : "local";
-            applySoon(node);
-            return;
-        }
-        // 通道矛盾：拨到外部 API（端点/模型名原样保留）。用户显式选本地时不会被这个按钮碰到。
-        if (setChannel(node, CH_API)) {
-            noteOnce(node, st, t().chanAuto);
+        const act = st.warn.dataset.act || "";
+        if (act === "chan") { setChannel(node, CH_API); applySoon(node); return; }
+        if (act === "base" || act === "name" || act === "model") {
+            st.force = true;                       // 打开设置，让缺的那一项出现
+            const target = act === "model" ? "model" : (act === "base" ? "api_base" : "api_model");
+            const row = rowOf(node, target);
+            if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
             applySoon(node);
         }
     };
-    // 一次性预设：跟着「常用调优」组的展开/收起显隐 —— 不常驻占位，但一展开就在手边。
-    st.presets = document.createElement("span");
-    st.presets.className = "mossllm-presets";
-    st.presets.hidden = true;
-    for (const key of ["draft", "fine", "reset"]) {
-        const pb = document.createElement("button");
-        pb.type = "button";
-        pb.className = "mossllm-preset";
-        pb.dataset.mossPreset = key;
-        pb.onclick = (e) => {
-            e.stopPropagation();
-            applyPreset(node, st, key);
-        };
-        st.presets.appendChild(pb);
-    }
-    st.rtBox = buildRuntimeTools(node, st);
+    st.langSlot = document.createElement("span");
+    st.langSlot.className = "mossllm-langslot";
     st.statusCard.append(st.hint, st.warn, st.langSlot);
 
-    // V5 预设嵌套：顶层两类 → 子档。默认收起，只占一行。
-    st.presetToggle = document.createElement("button");
-    st.presetToggle.type = "button";
-    st.presetToggle.className = "mossllm-pztoggle";
-    st.presetToggle.onclick = (e) => {
+    // 顶层唯一按钮，固定最右，不参与换行
+    st.btn = document.createElement("button");
+    st.btn.type = "button";
+    st.btn.className = "mossllm-settings";
+    st.btn.onclick = (e) => {
         e.stopPropagation();
-        st.presetOpen = !st.presetOpen;
+        st.force = !st.force;
         applySoon(node);
     };
-    st.presetBody = document.createElement("div");
-    st.presetBody.className = "mossllm-pzbody";
-    st.presetBody.hidden = true;
-    st.presetGroups = document.createElement("div");
-    st.presetGroups.className = "mossllm-pzgroups";
-    st.presetSub = document.createElement("div");
-    st.presetSub.className = "mossllm-pzsub";
-    for (const grp of ["connect", "tune"]) {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "mossllm-pzitem";
-        b.dataset.pzGroup = grp;
-        b.onclick = (e) => {
-            e.stopPropagation();
-            st.presetGroup = st.presetGroup === grp ? null : grp;
-            applySoon(node);
-        };
-        st.presetGroups.appendChild(b);
-    }
-    st.presetBody.append(st.presetGroups, st.presetSub);
-    // 一行 tabs：分组开关 + 运行时工具 + 预设入口 + 高级；展开的子档另起一行。
-    st.chipsRow.append(st.rtBox, st.presetToggle, st.btn);
-    bar.append(st.statusCard, st.chipsRow, st.presetBody);
+    bar.append(st.statusCard, st.btn);
+
+    st.settingsNote = document.createElement("div");
+    st.settingsNote.className = "mossllm-settings-note";
+    bar.append(st.settingsNote);
     return bar;
 }
 
-/**
- * 一次性预设：点一下写入几个值，之后照旧各改各的。
- *
- * 为什么不是常驻下拉：下拉要存「当前是哪档」，用户手改一个旋钮后它就得显示「自定义」，
- * 于是多一个必须与真实值同步的状态。按钮没有这个问题 —— 它是一次动作，不是状态，
- * 也不用进 `widgets_values`（按钮本身不是 widget）。
- *
- * 只动采样三项：two_pass / wash 是反推（caption）专用，无脑打开会让别的模式变慢变贵。
- */
-const PRESETS = {
-    draft: { length: "brief", temperature: 0.9, max_tokens: 512 },
-    fine: { length: "detailed", temperature: 0.2, max_tokens: 2048 },
-};
-
-/** `reset` 用后端下发的 nodeDef 默认值，只作用于「常用调优」这一组。 */
 function applyPreset(node, st, key) {
     const L = t();
     const spec = key === "reset" ? (DEFAULTS || {}) : PRESETS[key];
@@ -1221,136 +1144,49 @@ function lacksOf(node, meta) {
 }
 
 /** V2/V5/V6：三个区每帧从 widget / st 读回，不另存与真实值可能漂移的状态。 */
-function paintZones(node, st, L, meta) {
-    st.presetToggle.textContent = (st.presetOpen ? "▾ " : "▸ ") + L.presetTitle;
-    st.presetToggle.title = L.presetOpenTip;
-    st.presetBody.hidden = !st.presetOpen;
-    for (const b of st.presetGroups.children) {
-        b.textContent = L[b.dataset.pzGroup === "connect" ? "presetConnect" : "presetTune"];
-        b.dataset.on = st.presetGroup === b.dataset.pzGroup ? "1" : "0";
-    }
-    st.presetSub.textContent = "";
-    if (st.presetGroup === "tune") {
-        st.presetSub.appendChild(st.presets);   // 草稿 / 精修 / 恢复默认
-        st.presets.hidden = false;
-    } else if (st.presetGroup === "connect") {
-        for (const ep of ENDPOINTS) {
-            const b = document.createElement("button");
-            b.type = "button";
-            b.className = "mossllm-pzitem";
-            b.dataset.pzEndpoint = ep.id;
-            b.textContent = L["ep_" + ep.id] || ep.id;
-            b.title = ep.url;
-            b.onclick = (e) => {
-                e.stopPropagation();
-                setWidgetValue(node, "api_base", ep.url);
-                setChannel(node, CH_API);
-                applySoon(node);
-            };
-            st.presetSub.appendChild(b);
-        }
-        st.presets.hidden = true;
-    } else {
-        st.presets.hidden = true;
-    }
-    for (const pb of st.presets.children) {
-        const k = pb.dataset.mossPreset;
-        pb.textContent = L["preset_" + k];
-        pb.title = L["presetTip_" + k];
-    }
-}
-
 function paintBar(node, st, shown, off, meta) {
     const L = t();
-    // 统计所有隐藏项（含 always 组里按任务隐藏的 dialect），否则摘要的「N 个可见」会多算。
-    let hidden = 0;
-    for (const w of realWidgets(node)) if (!shown.has(w.name)) hidden += 1;
-    for (const g of GROUPS) {
-        if (g.always) continue;
-        const { b, caret, label, count, dot, kind } = st.chips[g.key];
-        const total = g.items.filter((n) => widgetOf(node, n)).length;
-        b.hidden = total === 0;                          // 参数表里没这些名字 ⇒ 不摆空开关
-        if (!total) continue;
-        const expanded = st.force || st.focus === g.key;
-        const outside = off.has(g.key);
-        caret.textContent = "";
-        const need = meta.needs.has(g.key);
-        kind.textContent = "";
-        b.dataset.need = need ? "1" : "0";
-        label.textContent = L[g.key];
-        count.textContent = "";
-        b.dataset.state = expanded ? (outside ? "outside" : "open") : "closed";
-        const dirty = countDirty(node, g);
-        b.title = (expanded ? L.closeTip : L.openTip)
-            + (dirty ? "｜" + fmt(L.dirty, dirty) : "")
-            + (need ? "｜" + L.needTip : "")
-            + "｜" + L.hideTip;
-        b.dataset.dirty = dirty ? "1" : "0";
-        dot.title = dirty ? fmt(L.dirty, dirty) : "";
-    }
-    if (st.statusCard) {
-        const idleNow = chanOf(apiVal(node, "channel")) !== CH_API
-            && !!apiVal(node, "api_base").trim();
-        st.statusCard.dataset.level = idleNow ? "warn"
-            : (lacksOf(node, meta) ? "danger" : "ok");
-    }
-    const all = realWidgets(node).length;
-    st.btn.textContent = st.force ? L.back : L.expand;
-    st.btn.title = st.force ? L.backTip : fmt(L.expandTip, hidden);
-
-    // 状态块两用，且两者天然互斥（通道矛盾要求 api_base 非空，缺端点要求它为空）：
-    //   ① 端点已填、通道却停在本地 —— 通道矛盾，优先（它往往是缺项之前要先解决的那件事）；
-    //   ② 还缺必填项 —— 跑之前就说出来，而不是等执行完再报错。
-    const idle = chanOf(apiVal(node, "channel")) !== CH_API && !!apiVal(node, "api_base").trim();
-    const lack = idle ? null : lacksOf(node, meta);
-    if (st.warn) {
-        st.warn.hidden = !idle && !lack;
-        st.warn.dataset.act = idle ? "chan" : (lack === "model" ? "open-local" : "open-api");
-        if (idle) {
-            st.warn.textContent = L.apiIdle + " · " + L.apiIdleFix;
-            st.warn.title = L.apiIdleTip;
-        } else if (lack) {
-            const K = lack[0].toUpperCase() + lack.slice(1);
-            st.warn.textContent = L["lack" + K];
-            st.warn.title = L["lackTip" + K];
-        }
+    st.btn.textContent = st.force ? "收起设置" : "设置 ▾";
+    st.btn.dataset.on = st.force ? "1" : "0";
+    st.settingsNote.hidden = !st.force;
+    if (st.force) {
+        st.settingsNote.textContent = "以下一般不用改；只有状态行说「还缺」时才需要动。";
     }
 
-    if (st.rtBox) st.rtBox.hidden = st.force || st.focus !== "local";
-    if (st.rt && st.rtBox && !st.rtBox.hidden) {
-        st.rt.install.textContent = L.rtInstall;
-        st.rt.test.textContent = L.rtTest;
-        st.rt.install.title = L.rtInstallTip;
-        st.rt.test.title = L.rtTestTip;
-    }
-    if (st.presetToggle) paintZones(node, st, L, meta);
-
-    // 模式摘要：首屏唯一解释「这个节点现在要干什么」的一行（不加控件、不动存档）。
-    // 完整说明（要不要视觉塔、要不要图）放 title，不占视觉宽度。
-    const modeName = (meta && L["mode_" + meta.task]) || (meta && meta.task) || "";
-    const chanName = !meta ? "" : (meta.ch === CH_API ? L.chApiShort
-        : meta.ch === CH_LOCAL ? L.chLocalShort : "");
-    st.modeTip = (meta && L["modeTip_" + meta.task]) || "";
-    if (!st.hint.dataset.hover) st.hint.title = st.modeTip;
-
-    // 「通道外」已经写在对应 chip 上，摘要里不再重复一遍（少一行字就少一分噪音）。
-    let summary = (modeName && chanName ? modeName + " · " + chanName : "");
-    if (st.pick && st.pick.err) summary += "｜" + st.pick.err.slice(0, 70);
-    else if (st.pick && st.pick.busy) summary += "｜" + st.pick.busy;
-    else if (st.pick && st.pick.note) summary += "｜" + st.pick.note;
-    else if (st.note) summary += "｜" + st.note;
-    if (meta && meta.inert.size) summary += "｜" + fmt(L.inertHint, meta.inert.size);
-    else if (meta && !meta.assemble && meta.task === "caption" && meta.ch === CH_LOCAL) {
-        summary += "｜" + L.selfCheck;
-    }
-    if (!st.hint.dataset.hover) st.hint.textContent = summary;
+    // 状态行：陈述当前输入与输出，不给任何功能起名
+    const hasImg = (node.inputs || []).some((i) => i && i.name
+        && i.name.startsWith("image") && i.link != null);
+    const txt = apiVal(node, "text").trim();
+    const isDraft = txt.startsWith("{") || txt.startsWith("[");
+    let what = "接一张图，或写一句想法";
+    if (isDraft) what = "贴的是草稿 → 直接编译，不开模型";
+    else if (hasImg && txt) what = "已接图并写了要改什么 → 输出改写后的提示词";
+    else if (hasImg) what = "已接 1 张图 → 输出一段提示词";
+    else if (txt) what = "已填文字 → 输出一段更长的提示词";
+    const chan = meta.ch === CH_API ? "在线服务" : "本机模型";
+    const summary = what + " · " + chan;
     st.summary = summary;
+    st.hint.textContent = summary;
+    st.hint.title = meta && L["modeTip_" + meta.task] || summary;
+
+    const idle = meta.ch !== CH_API && !!apiVal(node, "api_base").trim();
+    const lack = idle ? null : lacksOf(node, meta);
+    st.warn.hidden = !idle && !lack;
+    st.warn.dataset.level = idle || lack ? "danger" : "ok";
+    st.warn.dataset.act = idle ? "chan" : (lack || "");
+    if (idle) {
+        st.warn.textContent = "端点已填，但用的是本机（点这里改用在线服务）";
+    } else if (lack === "model") {
+        st.warn.textContent = "还缺：本机模型文件（点这里去选）";
+    } else if (lack === "base") {
+        st.warn.textContent = "还缺：服务地址（点这里去填）";
+    } else if (lack === "name") {
+        st.warn.textContent = "还缺：在线模型名（点这里去选）";
+    } else {
+        st.warn.textContent = "可以直接运行";
+    }
 }
 
-/**
- * 宿主重建行元素是异步的：刚露出的行在这一帧还 `querySelector` 不到 ⇒ 标题会漏画，
- * 直到下一次兜底轮询（1.5s）才补上。所以每次改完显隐都补两帧。
- */
 function applySoon(node) {
     apply(node);
     try { requestAnimationFrame(() => apply(node)); } catch (e) { /* 无 rAF */ }
@@ -1389,34 +1225,6 @@ function protectFocus(node, st, shown) {
     if (c) { try { c.b.focus(); } catch (e) { /* noop */ } }
 }
 
-/** 按语义组给 widget 行排视觉顺序。只设 CSS order 与标题属性；DOM 顺序与存档不动。
- *  宿主重建行后属性会丢，apply 每轮补挂。 */
-function applyOrder(node, shown) {
-    const grid = document.querySelector('[data-widgets-grid-node-id="' + node.id + '"]');
-    if (!grid) return;
-    const wrapOf = (name) => {
-        const row = grid.querySelector('[data-widget-name="' + name + '"]');
-        return row ? row.parentElement : null;
-    };
-    const barWrap = wrapOf(BAR_NAME);
-    if (barWrap) barWrap.style.order = "-1";
-    let i = 0;
-    const L = t();
-    for (const g of GROUPS) {
-        for (let k = 0; k < g.items.length; k += 1) {
-            const wrap = wrapOf(g.items[k]);
-            const row = wrap ? wrap.querySelector('[data-widget-name="' + g.items[k] + '"]') : null;
-            if (!wrap) continue;
-            wrap.style.order = String(i);
-            if (row) {
-                if (g.sec && k === 0 && shown.has(g.items[k])) row.dataset.mossSec = L[g.sec];
-                else delete row.dataset.mossSec;
-            }
-            i += 1;
-        }
-    }
-}
-
 function apply(node) {
     const st = stateOf(node);
     ensureBarFirst(node, st);
@@ -1432,7 +1240,6 @@ function apply(node) {
     const meta = plan(node, st);
     const { shown, off, inert } = meta;
     const changed = syncWidgets(node, shown);
-    applyOrder(node, shown);
     paintInert(node, inert);
     const found = paintHeaders(node, shown);
     syncModelBase(node, st);
@@ -1443,7 +1250,7 @@ function apply(node) {
         st.domWarned = true;
         console.warn("%s: 这个前端定位不到参数行（旧版画布）⇒ 组标题不画，显隐照常生效", TAG);
     }
-    if (st.chips) paintBar(node, st, shown, off, meta);
+    if (st.btn) paintBar(node, st, shown, off, meta);
     if (changed) protectFocus(node, st, shown);
     if (changed || !st.fitted) st.fitted = fitHeight(node, shown) || !!st.fitted;
     return shown.size;

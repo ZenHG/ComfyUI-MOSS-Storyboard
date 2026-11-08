@@ -269,8 +269,24 @@ const LABELS_NODE = {
     //: `image` 在子包里是给模型看的参考图（反推必接），不是被改的源图。
     //: `panels` 不是截图的格数，而是宫格稿里声明的面板数。
     MossPromptSmith: {
-        image: "参考图（反推必接）",
-        panels: "面板数（宫格稿）",
+        image: "参考图", image2: "参考图 2", image3: "参考图 3", image4: "参考图 4",
+        image5: "参考图 5", image6: "参考图 6", image7: "参考图 7", image8: "参考图 8",
+        image9: "参考图 9",
+        task: "做什么", channel: "用本机 / 在线服务", dialect: "提示词写法",
+        model: "用哪个模型",
+        length: "写多长", temperature: "随机程度", max_tokens: "最多写多少",
+        seed: "复现编号", mmproj: "看图用的文件", language: "用哪种语言写",
+        thinking: "先想一想（保持关）", panels: "分几格",
+        wash: "跳过细节（保持关）", two_pass: "写两遍（保持关）",
+        runtime: "本机程序", api_base: "服务地址", api_model: "在线模型名", api_key: "密钥",
+        ctx_size: "上下文长度", gpu_layers: "放显卡多少层",
+        cache_type_k: "缓存精度 K", cache_type_v: "缓存精度 V",
+        flash_attn: "快速注意力", image_max_tokens: "一张图算多少",
+        ubatch: "每批处理多少", parallel: "同时几路", fit_on: "自动显存适配",
+        fit_target_mib: "显存目标 MB", mtp: "加速草稿", mtp_draft_n: "草稿步数",
+        server_exe: "本机程序路径", port: "本机服务端口",
+        release_after_run: "跑完释放显存",
+        target: "给哪个模型用", profile: "结构稿模板（一般留空）",
     },
 };
 
