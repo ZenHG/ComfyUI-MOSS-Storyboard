@@ -375,7 +375,7 @@ def missing_exe_error():
     return (
         "找不到 llama-server 可执行文件。三条路，任选一条：\n"
         "    No llama-server executable found. Pick one of three options:\n"
-        "  ① 节点内一键装（推荐）：把「运行时 / runtime」设为「更新到最新版」，再运行。\n"
+        "  ① 节点内自动装（推荐）：把「运行时 / runtime」设为「自动下载」，再运行。\n"
         "     自动按本机后端选 CUDA/ROCm/Vulkan/SYCL/Metal/CPU；国内慢设 MOSS_LLM_MIRROR=<前缀>，\n"
         "     选错后端设 MOSS_LLM_BACKEND=cuda|vulkan|rocm|sycl|metal|cpu。\n"
         "  ② 已有 llama.cpp：节点「服务器程序 / server_exe」填完整路径；\n"

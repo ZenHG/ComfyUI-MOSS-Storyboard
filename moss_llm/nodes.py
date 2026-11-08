@@ -107,7 +107,8 @@ def _dialect_for_target(dialect, target, task, report):
                   % (t, dialect, fallback))
     return fallback
 _LANGS = ["auto", "zh", "en"]
-_RUNTIMES = ["auto", "runtime", "path", "custom"]
+#: download = 找不到现成的就下（调用 runtime_install.install()）；其余只查找、不联网
+_RUNTIMES = ["auto", "runtime", "path", "custom", "download"]
 _ONOFF = ["on", "off"]
 _MTP = ["auto", "on", "off"]
 _KV = ["q8_0", "q4_0", "f16"]
@@ -201,7 +202,9 @@ _LEGACY_VALUES = {
     "简短": "brief", "标准": "standard", "详细": "detailed",
     "自动": "auto", "中文": "zh", "英文": "en",
     "关": "off", "开": "on",
-    "用现有": "auto", "更新到最新版": "auto",   # 旧存档：直接归一到「自动」，且不会触发下载
+    # 旧存档的「更新到最新版」原本会联网装；现在归一到 auto（只查找、不联网），
+    # 真要装请选「自动下载」—— 老工作流不该一跑就下几百 MB。
+    "用现有": "auto", "更新到最新版": "auto",
     "current": "auto", "update": "auto",
     "自动匹配": _MMPROJ_AUTO, "(不使用/纯文本)": _MMPROJ_NONE,
 }
@@ -366,7 +369,9 @@ class MossPromptSmith:
                 "speed": (list(_SPEED), {"default": "均衡",
                     "tooltip": "本机跑的显存档：省显存 / 均衡 / 尽量快"}),
                 "runtime": (_RUNTIMES, {"default": "auto",
-                    "tooltip": "本机程序从哪来。自动=先用本包自带的，找不到再找系统环境"}),
+                    "tooltip": "本机程序从哪来。自动=先找环境变量/本包/系统环境，找不到就报错；"
+                               "自动下载=找不到时联网装一个（CPU 约 35MB，CUDA 数百 MB，"
+                               "按显卡自动选后端；国内可设 MOSS_LLM_MIRROR）"}),
             },
             "optional": {
                 "image": ("IMAGE", {"tooltip": "接一张参考图。反推/洗图必须接；扩写接了会当参考。最多 9 张，顺序对应「参考图 2…9」"}),
@@ -621,7 +626,10 @@ class MossPromptSmith:
                 # 只出声、不改道：通道是用户的显式选择。把「为什么还去找本地」说在运行结果里。
                 report.append("⚠ 通道=本地 GGUF，但 api_base 已填（%s）⇒ 本次用本地模型，端点不生效；"
                               "要用外部 API 请把「通道」切到「外部 API」" % _host_of(api_base))
-            if runtime == "update":   # 兼容：安装已改为面板按钮，旧值已被归一成 auto
+            _have = find_server_exe("", "auto")
+            if runtime in ("update", "download") and not _have:
+                # 「自动下载」的真实入口。这里只在确实找不到现成 llama-server 时才联网，
+                # 免得每次跑都去拉一遍几百 MB。
                 from . import runtime_install      # 只在真要装时才 import（CLI 也用它）
                 dest = runtime_install.RUNTIME_DIR
                 report.append("运行时下载目录：%s（CPU 包约 35MB；CUDA/ROCm 可能数百 MB）" % dest)
@@ -660,11 +668,13 @@ class MossPromptSmith:
             if image is not None and not mmproj_path and mmproj != _MMPROJ_NONE:
                 report.append(_VISION_HINT)
 
-            if (api_base or "").strip() and runtime != "update" and not find_server_exe(server_exe if runtime == "custom" else "", runtime):
+            _src = "auto" if runtime in ("auto", "download", "update") else runtime
+            if (api_base or "").strip() and not find_server_exe(server_exe if runtime == "custom" else "", _src):
                 raise RuntimeError(
                     "「通道」= 本地 GGUF，但本机没有 llama-server；而你已填 api_base=%s\n"
                     "    ⇒ 想用这个 API：把「通道」选成「外部 API」即可（端点与模型名都填好了，不用重填）。\n"
-                    "    ⇒ 想跑本地：把「运行时」设为「更新到最新版」一键装，或在「服务器程序」填完整路径。"
+                    "    ⇒ 想跑本地：把「运行时」设为「自动下载」（约 35MB CPU 包，CUDA 包更大），"
+                    "或在环境变量 MOSS_LLM_SERVER 里填完整路径。"
                     % (api_base or "").strip())
             base_url, notes = GgufLocalServer.acquire(
                 model_path, mmproj_path, ctx_size=int(ctx_size), gpu_layers=gpu_layers,
@@ -674,7 +684,7 @@ class MossPromptSmith:
                 fit_target_mib=int(fit_target_mib),
                 mtp={"auto": "auto", "on": True, "off": False}.get(mtp, "auto"),
                 port=int(port), server_exe=server_exe, draft_n_max=int(mtp_draft_n),
-                source=runtime)
+                source=_src)
             report.extend(notes)
             # 侧车自己带了 `--api-key comfyui-local`：这是本机口令、不是秘密，随请求发出去无害
             key = "comfyui-local"
@@ -1542,6 +1552,10 @@ def _http_hint(code, body, url=""):
         return ("\n    这不是 Key 错：该服务商按出口地区 / 风控拒绝了此请求。"
                 "换一条能直连该地区的网络（或代理出口），或换服务商。\n"
                 "    Not a key problem: blocked by region or risk control. Use a network that reaches that region, or switch providers.")
+    if code == 401:
+        return ("\n    ⇒ 服务端说「没认证通过」：在节点「密钥 / api_key」里填，"
+                "或设环境变量 MOSS_LLM_API_KEY。Key 只存本次会话，保存工作流时会自动清空。\n"
+                "    Not authenticated: fill the key in the node, or set MOSS_LLM_API_KEY.")
     # 404 且路径里没有版本段：多半是把主机根当成了端点（Ollama / LM Studio 的经典填法）。
     path = urllib.parse.urlsplit(url or "").path
     if code == 404 and path and not re.search(r"/v\d", path):

@@ -461,7 +461,7 @@ const ENDPOINTS = [
 const ENDPOINTS_BY_NAME = Object.assign(
     { "本机（自动）": null },
     ...ENDPOINTS.map((e) => ({ [({ deepseek: "DeepSeek", opencode: "OpenCode",
-        odesign: "OpenRouter", ollama: "Ollama 本机", lmstudio: "LM Studio 本机" })[e.id] || e.id]: e }))
+        odesign: "OpenDesign CoRouter", ollama: "Ollama 本机", lmstudio: "LM Studio 本机" })[e.id] || e.id]: e }))
 );
 
 // ---------------------------------------------------------------------------

@@ -976,9 +976,12 @@ def main():
     check("路径含 /v1 的 404（模型不存在）不冒充路径问题",
           nodes._http_hint(404, "Model not found", "https://api.fireworks.ai/inference/v1/chat/completions") == "",
           "乱加了")
-    check("401 / 400 不加地区提示（避免误导）",
-          nodes._http_hint(401, "country not supported") == ""
-          and nodes._http_hint(400, "region") == "", "串了")
+    # 401 现在给「填 key」的提示（实测 deepseek 回 401 Authentication Fails，
+    # 只甩原文用户不知道改哪儿）；但仍不许冒充「地区拦截」。
+    _h401 = nodes._http_hint(401, "country not supported")
+    check("401 只说「没认证通过、去填 key」，不冒充地区拦截",
+          "密钥" in _h401 and "地区" not in _h401
+          and nodes._http_hint(400, "region") == "", _h401[:60])
 
     # ---- 400 的归属：缺东西的 400 不能甩锅给「参数不支持」
     oc400 = '{"type":"error","error":{"type":"MissingSessionID","message":"missing x-opencode-session"}}'
@@ -1067,7 +1070,8 @@ def main():
     for _old in ("current", "update", "用现有", "更新到最新版"):
         check("旧值 %s 归一为 auto" % _old, nodes._LEGACY_VALUES.get(_old) == "auto",
               repr(nodes._LEGACY_VALUES.get(_old)))
-    check("运行时枚举只剩四个来源", list(nodes._RUNTIMES) == ["auto", "runtime", "path", "custom"],
+    check("运行时枚举五个来源（download = 找不到现成的才联网装）",
+          list(nodes._RUNTIMES) == ["auto", "runtime", "path", "custom", "download"],
           repr(nodes._RUNTIMES))
     # 单一权威：explicit 只有 source=custom 时才生效
     server_mod = __import__("moss_llm.server", fromlist=["server"])
