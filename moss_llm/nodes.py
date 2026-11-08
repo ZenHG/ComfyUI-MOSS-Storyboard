@@ -111,6 +111,49 @@ _RUNTIMES = ["auto", "runtime", "path", "custom"]
 _ONOFF = ["on", "off"]
 _MTP = ["auto", "on", "off"]
 _KV = ["q8_0", "q4_0", "f16"]
+
+#: 提示词写法：顶层四类 → 子档。风格类通过 style_lock 注入，不新增 dialect。
+_STYLE_CLASS = {
+    "连贯描述": ["英文详述", "英文通用", "中文"],
+    "风格": ["写实摄影", "电影剧照", "胶片复古", "暗调氛围", "商业广告",
+             "二次元插画", "水彩", "赛博朋克", "黑白纪实"],
+    "标签串": ["英文标签"],
+    "分段结构": ["宫格稿", "时间线六段式"],
+}
+_STYLE = {
+    "英文详述": {"dialect": "moss_image"},
+    "英文通用": {"dialect": "generic_natural"},
+    "中文": {"dialect": "cn_natural"},
+    "英文标签": {"dialect": "generic_tags"},
+    "宫格稿": {"dialect": "moss_storyboard"},
+    "时间线六段式": {"target": "minimax-h3", "profile": "six-section"},
+    "写实摄影": {"dialect": "moss_image",
+                 "lock": "photorealistic photography; true-to-life skin, fabric and material response"},
+    "电影剧照": {"dialect": "moss_image",
+                 "lock": "cinematic film still; anamorphic framing, shallow depth of field, motivated practicals"},
+    "胶片复古": {"dialect": "moss_image",
+                 "lock": "35mm film; visible grain, gentle halation, slightly faded warm tones"},
+    "暗调氛围": {"dialect": "moss_image",
+                 "lock": "low-key lighting; deep shadows, restrained highlights, isolated key light"},
+    "商业广告": {"dialect": "moss_image",
+                 "lock": "commercial advertising photography; clean studio light, crisp product detail"},
+    "二次元插画": {"dialect": "moss_image",
+                   "lock": "anime illustration; clean lineart, cel shading, controlled highlights"},
+    "水彩": {"dialect": "moss_image",
+             "lock": "watercolor painting; soft washes, visible paper grain, bleeding edges"},
+    "赛博朋克": {"dialect": "moss_image",
+                 "lock": "cyberpunk; neon rim light, wet reflective surfaces, deep night contrast"},
+    "黑白纪实": {"dialect": "moss_image",
+                 "lock": "black and white documentary photography; high contrast, honest grain"},
+}
+_LENGTH_TOKENS = {"短": 512, "中": 1024, "长": 2048}
+_SPEED = {
+    "省显存": {"ctx_size": 4096, "ubatch": 256, "fit_target_mib": 768, "image_max_tokens": 512},
+    "均衡": {"ctx_size": 8192, "ubatch": 512, "fit_target_mib": 1024, "image_max_tokens": 1024},
+    "尽量快": {"ctx_size": 16384, "ubatch": 1024, "fit_on": "off", "image_max_tokens": 1536},
+}
+_TASK_ALIAS = {"反推": "caption", "洗图": "caption", "扩写": "expand",
+               "拼装": "assemble", "编辑": "edit"}
 #: PE 跳过 _build_system 时这些参数不生效；report 逐一点名，不静默。
 _PE_BYPASSED = ("dialect", "length", "must_keep", "panels", "style_lock")
 #: 仅 local、task 非 caption/edit、且未显式选「不使用」时触发；只写 report 不 raise。
@@ -266,182 +309,46 @@ class MossPromptSmith:
         mmproj_list = [_MMPROJ_AUTO, _MMPROJ_NONE] + (list(mmprojs.keys()) or [])
         it = {
             "required": {
-                "task": (_TASKS, {"default": "caption",
-                    "tooltip": "反推=看图写提示词（必须接图片）；扩写=把想法扩成完整画面描述（必须填文字）；"
-                               "编辑指令=图生图的一条改法（接图片+填要改什么）；"
-                               "拼装=把一份结构化草稿（IR，JSON）拼成成品提示词；不加载模型、毫秒级。"
-                               "IR 来自官方 prompt-enhancer / 本包 smith 子包"
-                               "（贴在「文字输入」里，方向由 target 选）"}),
-                "channel": (_CHANNELS, {"default": "local",
-                    "tooltip": "出词通道。本地 GGUF=起 llama-server 侧车（不联网、跑完还显存）；"
-                               "外部 API=任何 OpenAI 兼容端点（OpenAI/火山方舟/智谱/Kimi/MiniMax/"
-                               "DeepSeek/Ollama/LM Studio…），不起侧车、不占显存，但会联网外发图片与文字"}),
-                "dialect": (_DIALECTS, {"default": "moss_image",
-                    "tooltip": "输出方言。moss_image=MOSS 单图英文散文（官方默认）；"
-                               "moss_storyboard=MOSS 宫格中文 [STYLE]+[PANEL n]（本仓已验证格式，"
-                               "此时 panels 必须与生成段数一致）；generic_* 给 Flux/Krea/SDXL 等通用目标；"
-                               "cn_natural 给 Seedream/即梦/可灵/万相等国内模型"}),
+                "task": (["反推", "洗图", "扩写", "拼装"], {"default": "反推",
+                    "tooltip": "反推=看图写提示词（接图）；洗图=反推+先结构化盘点再写（洗图/高保真）；"
+                               "扩写=想法→完整画面描述（填文字）；拼装=结构化草稿→成品提示词（不开模型）"}),
                 "model": (model_list, {"default": default_model,
-                    "tooltip": "递归扫描 ComfyUI/models/LLM 与 models/text_encoders 下全部 GGUF，"
-                               "按相对路径显示；任何 llama.cpp 支持的架构都能跑。"
-                               "反推任务需要视觉能力：主模型+mmproj，或直接用 VL 一体模型"}),
+                    "tooltip": "本机 GGUF 权重。用在线服务时这里可以不管，填下面的「API地址」即可"}),
                 "text": ("STRING", {"default": "", "multiline": True,
-                    "tooltip": "扩写=你的想法（固定项写进 must_keep，不要混在这里）；"
-                               "编辑指令=要改什么；拼装=一段 IR（JSON 或 YAML，"
-                               "也可以填 .json/.yaml 文件路径）。反推任务下留空"}),
-                "length": (_LENGTHS, {"default": "standard",
-                    "tooltip": "简短 80–120 词 / 标准 160–260 词 / 详细 280–360 词。"
-                               "按目标方言有上限；反推要稳，扩写要活"}),
+                    "tooltip": "扩写=你的想法；洗图/反推=要保留什么；拼装=粘贴 JSON 草稿"}),
+                "style_class": (list(_STYLE_CLASS), {"default": "连贯描述",
+                    "tooltip": "先选一类：连贯描述 / 风格 / 标签串 / 分段结构"}),
+                "style": (_STYLE_CLASS["连贯描述"], {"default": "英文详述",
+                    "tooltip": "具体写法。「风格」类会注入风格锁定，不改变结构"}),
+                "length": (["短", "中", "长"], {"default": "中",
+                    "tooltip": "短≈512 / 中≈1024 / 长≈2048 tokens"}),
                 "temperature": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 2.0, "step": 0.05,
-                    "tooltip": "反推建议 0.2（要稳、要可复现）；扩写建议 0.7（要活）。"
-                               "同 seed+同 prompt+同模型可复现"}),
-                "max_tokens": ("INT", {"default": 1024, "min": 64, "max": 32768, "step": 64,
-                    "tooltip": "输出上限。反推 512–1024；扩写 768–1024。"
-                               "长 system+严格 JSON 可能偶发截断，留量即可。\n"
-                               "32768 是能力上限不是建议值：API 按输出计费，提示词通常 200–500 token，1024 一般够"}),
+                    "tooltip": "越低越稳定，越高越发散"}),
+                "panels": ("INT", {"default": 4, "min": 1, "max": 9,
+                    "tooltip": "仅「宫格稿」写法：分几格"}),
+                "language": (["auto", "zh", "en"], {"default": "auto",
+                    "tooltip": "输出语言。auto=跟随写法"}),
+                "keep": ("STRING", {"default": "", "multiline": True,
+                    "tooltip": "必须保留的字/数/色/风格，分号分隔。会逐字出现在提示词里"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff,
-                    "control_after_generate": True,
-                    "tooltip": "同 seed + 同 prompt + 同模型可复现。改 seed 只换采样，不换提示词内容"}),
+                    "tooltip": "复现用。0=每次不同"}),
+                "api_base": ("STRING", {"default": "",
+                    "tooltip": "填了就走在线服务，留空走本机模型"}),
+                "api_model": ("STRING", {"default": "",
+                    "tooltip": "在线模型名。留空会报缺"}),
+                "api_key": ("STRING", {"default": "",
+                    "tooltip": "在线服务的密钥。保存工作流时自动清空"}),
+                "speed": (list(_SPEED), {"default": "均衡",
+                    "tooltip": "本机跑的显存档：省显存 / 均衡 / 尽量快"}),
+                "runtime": (["auto", "current", "custom"], {"default": "auto",
+                    "tooltip": "本机程序来源。custom 时用环境变量 MOSS_LLM_SERVER 指定"}),
             },
             "optional": {
-                "image": ("IMAGE", {"tooltip": "反推必接；扩写可选作参考；编辑指令必接。"
-                                               "多图（H3 参考图，最多 9 张）接满会自动长出下一槽"}),
-                # 多图参考：H3 最多认 9 张。这里声明到 image9，前端默认只露 2 槽、
-                # 接满一槽自动补下一槽（web/moss_llm_image_slots.js）。
-                # IMAGE 是连线型输入，不占 widgets_values 的格位，所以加它们不动存档契约。
-                "image2": ("IMAGE", {"tooltip": "第 2 张参考图（可选）。接满槽位会自动多出下一个，最多 9 张"}),
-                "image3": ("IMAGE", {"tooltip": "第 3 张参考图（可选）。三张人物图就是 image / image2 / image3"}),
-                "image4": ("IMAGE", {"tooltip": "第 4 张参考图（可选）"}),
-                "image5": ("IMAGE", {"tooltip": "第 5 张参考图（可选）"}),
-                "image6": ("IMAGE", {"tooltip": "第 6 张参考图（可选）"}),
-                "image7": ("IMAGE", {"tooltip": "第 7 张参考图（可选）"}),
-                "image8": ("IMAGE", {"tooltip": "第 8 张参考图（可选）"}),
-                "image9": ("IMAGE", {"tooltip": "第 9 张参考图（可选，H3 上限）"}),
-                "mmproj": (mmproj_list, {"default": _MMPROJ_AUTO,
-                    "tooltip": "视觉投影文件，带图出词必需（没有它模型看不到图片）。"
-                               "自动匹配=按宽度配对（模型 embedding_length == 塔 projection_dim），"
-                               "在模型同目录与两个扫描目录里找；多个都能配上时直接报错让你选，不猜。"
-                               "选「(不使用/纯文本)」即使本地有 mmproj 也不加载。"
-                               "MOSS TE 配 Qwen3.5-9B.mmproj-Q8_0.gguf"}),
-                "language": (_LANGS, {"default": "auto",
-                    "tooltip": "说明文字的语言。图内文字永远保持原语言，不受此影响"}),
-                "thinking": (_THINKING, {"default": "off",
-                    "tooltip": "思考模式。默认关——实测开着时模型把内容全写进 reasoning_content、"
-                               "content 为空且 finish=length，提示词直接空掉。"
-                               "只给「想让模型先推理再作答」的模型开，且要同步加大最大 token 数"}),
-                "panels": ("INT", {"default": 4, "min": 2, "max": 9, "step": 1,
-                    "tooltip": "仅 dialect=moss_storyboard：全局段声明的面板数。"
-                               "生成的 [PANEL] 段数必须与它相等，否则 report 报警（不静默改）"}),
-                "style_lock": ("STRING", {"default": "", "multiline": True,
-                    "tooltip": "角色/服装/环境/媒介锁定。宫格稿里角色只在这里定义一次，"
-                               "每格只写差异（重复全套会挤掉景别指令）"}),
-                "must_keep": ("STRING", {"default": "", "multiline": True,
-                    "tooltip": "用户固定的字/数/色/位置，分号分隔。提示词里逐字出现才算数；"
-                               "扩写不许改这些。report 会逐项核对"}),
-                "wash": ("BOOLEAN", {"default": False,
-                    "tooltip": "反推专用：忽略压缩噪点/水印/UI 杂项等非设计缺陷，"
-                               "并把它列进 omitted_artifacts（不静默省略）"}),
-                "two_pass": ("BOOLEAN", {"default": False,
-                    "tooltip": "反推专用：先结构化盘点再写散文。洗图/高保真时开；"
-                               "单遍快、双遍稳（两次调用同一 sidecar）"}),
-                "runtime": (_RUNTIMES, {"default": "auto",
-                    "tooltip": "从哪里找 llama-server（只有一个权威来源，不再和「服务器程序」抢）：\n"
-                               "自动=环境变量 MOSS_LLM_SERVER → LLAMA_CPP_HOME → 本包 runtime/ → PATH；\n"
-                               "本包 runtime=只认 moss_llm/runtime/（可用 MOSS_LLM_RUNTIME_DIR 改到持久目录）；\n"
-                               "PATH=只认 PATH 里的 llama-server；\n"
-                               "自定义路径=只用「服务器程序」那一格填的完整路径。\n"
-                               "想装/更新：点面板上的「安装/更新 llama.cpp」按钮（CPU 约 35MB；CUDA/ROCm 可能数百 MB）"}),
-                "api_base": ("STRING", {"default": "",
-                    "tooltip": "外部 API 端点，OpenAI 兼容。填 `https://xxx/v1` 或直接填 "
-                               "`.../v1/chat/completions` 都行。例：`https://api.openai.com/v1`、"
-                               "`https://ark.cn-beijing.volces.com/api/v3`、"
-                               "`http://127.0.0.1:11434/v1`（Ollama）、`http://127.0.0.1:1234/v1`"
-                               "（LM Studio）。channel=外部 API 时必填", "advanced": True}),
-                "api_model": (_model_choices(), {"default": "",
-                    "tooltip": "外部 API 的模型名。点右边的 ↻ 用当前端点+Key 拉一次清单就能下拉选；"
-                               "拉不到也能手填服务商给的 id。channel=外部 API 时必填", "advanced": True}),
-                "api_key": ("STRING", {"default": "",
-                    "tooltip": "API Key。Key 只存在这次会话里 —— **保存工作流时会自动清空**，避免分享时泄露。"
-                               "想免填就设宿主进程的环境变量 MOSS_LLM_API_KEY（节点会自动回落到它）。\n"
-                               "注意：保存后重开要重填，这是有意的", "advanced": True}),
-                "ctx_size": ("INT", {"default": 8192, "min": 1024, "max": 262144, "step": 512,
-                    "tooltip": "反推图片 token 多，建议 ≥8192。越大占显存越多（KV cache）",
-                    "advanced": True}),
-                "gpu_layers": ("STRING", {"default": "",
-                    "tooltip": "留空=auto（llama.cpp 按显存自算层数，配合显存适配）；"
-                               "填数字=手动指定放 GPU 的层数", "advanced": True}),
-                "cache_type_k": (_KV, {"default": "q8_0",
-                    "tooltip": "K cache 量化：q8_0 约省一半显存、q4_0 再省一半（质量略降）",
-                    "advanced": True}),
-                "cache_type_v": (_KV, {"default": "q8_0",
-                    "tooltip": "V cache 量化，同 K。通常与 K 保持一致", "advanced": True}),
-                "flash_attn": (_ONOFF, {"default": "on",
-                    "tooltip": "显著降低 KV 显存占用并提速，默认开", "advanced": True}),
-                "image_max_tokens": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 256,
-                    "tooltip": "每张参考图最多消耗的视觉 token 数——多图出词时的最大显存变量",
-                    "advanced": True}),
-                "ubatch": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64,
-                    "tooltip": "单次前向的 token 批大小，决定峰值显存与速度。爆显存降到 256",
-                    "advanced": True}),
-                "parallel": ("INT", {"default": 1, "min": 1, "max": 8, "step": 1,
-                    "tooltip": "同时处理请求数，KV cache 会按倍数增长。单人出词保持 1",
-                    "advanced": True}),
-                "fit_on": (_ONOFF, {"default": "on",
-                    "tooltip": "llama.cpp 原生显存适配：自动把显存占用压进「总显存−预留」，"
-                               "放不下的层自动卸到 CPU。12GB 卡与 ComfyUI 共存时开", "advanced": True}),
-                "fit_target_mib": ("INT", {"default": 1024, "min": 0, "max": 8192, "step": 128,
-                    "tooltip": "显存适配的目标预留量（给 ComfyUI 采样留空间）。默认 1024",
-                    "advanced": True}),
-                "mtp": (_MTP, {"default": "auto",
-                    "tooltip": "自动=读 GGUF 元数据判 nextn/mtp（不看文件名——dhq 版有 nextn "
-                               "但名字没有 -mtp）；开=强制启用（不支持会自动回退并报警）；关=禁用。"
-                               "实测同 target 1.48–1.64×；DFlash 对 MOSS target 接受率仅 10–31%，不用",
-                    "advanced": True}),
-                "mtp_draft_n": ("INT", {"default": 2, "min": 1, "max": 8, "step": 1,
-                    "tooltip": "draft-mtp 的 --spec-draft-n-max。默认 2（d2）", "advanced": True}),
-                "server_exe": ("STRING", {"default": "",
-                    "tooltip": "llama-server 可执行文件完整路径。留空=按下面顺序找：环境变量 "
-                               "MOSS_LLM_SERVER > 本包 moss_llm/runtime/（MOSS_LLM_RUNTIME_DIR 可改）> 系统 PATH",
-                    "advanced": True}),
-                "port": ("INT", {"default": 8091, "min": 1024, "max": 65535, "step": 1,
-                    "tooltip": "默认 8091（避开 llama.cpp 服务惯用的 8080）。被占用会自动往后找空闲端口；"
-                               "只有同一个模型实例才复用，不借用别人的模型", "advanced": True}),
-                "release_after_run": ("BOOLEAN", {"default": True,
-                    "tooltip": "开启：跑完终止 llama-server 并释放显存（默认）；关闭：保留服务复用，"
-                               "连续出词更快但常驻显存——采样前必须再跑一次本节点或重启来释放",
-                    "advanced": True}),
-                # 放在**最后**：ComfyUI 的 widgets_values 是按位置存的，插在中间会让
-                # 老工作流的每个值往后错一位。新增控件只能往后加。
-                "target": (_TARGETS, {"default": "moss-image",
-                    "tooltip": "输出到哪个后端：拼装用它选渲染器，反推 / 扩写用它选提示词格式"
-                               "（minimax-h3 = 音视频三字段时间线）。moss-image=MOSS 单图；"
-                               "qwen-image-2_1 / krea2 / flux3 / flux1_dev / sdxl 是各自的方言；"
-                               "minimax-h3 拼装时要求 IR 里有 timeline。"
-                               "拼装是确定性 Python、不开模型、毫秒级；扩写仍要模型"}),
-                # 追加在 target 之后：widgets_values 按位置存，插中间会让老稿整体错位。
-                # 档位名不写成下拉清单：registry 的 dialects 才是唯一事实源，
-                # 在节点里再抄一份必然漂移（target 已有「不许漂移」的对账闸）。
-                "profile": ("STRING", {"default": "",
-                    "tooltip": "目标后端下的方言档（拼装、反推与扩写共用），留空=该后端的默认骨架。"
-                               "目前只有 minimax-h3 有 six-section（全参考六段式："
-                               "subject_definitions / summary / retention_analysis / "
-                               "detailed_description / overall_soundscape / non_diegetic_music，"
-                               "并用 <Subject N> 一类参考标签锚定主体）。"
-                               "档位名以 registry 的 dialects 为准，节点不写死清单；"
-                               "填了后端没有的档会报错并列可选项，不静默降级。"
-                               "拼装仍是确定性 Python，不开模型、毫秒级、可复现",
-                    "advanced": True}),
+                "image": ("IMAGE",), "image2": ("IMAGE",), "image3": ("IMAGE",),
+                "image4": ("IMAGE",), "image5": ("IMAGE",), "image6": ("IMAGE",),
+                "image7": ("IMAGE",), "image8": ("IMAGE",), "image9": ("IMAGE",),
             },
         }
-
-        # 宿主 advanced：39 项收进「高级」，默认只露 8 个遥控器。
-        # 放在这里统一打标，不改上面每条参数的定义。
-        for _sec in ("required", "optional"):
-            for _k, _v in it.get(_sec, {}).items():
-                if str(_k).startswith("image"):
-                    continue
-                if isinstance(_v, tuple) and len(_v) > 1 and isinstance(_v[1], dict):
-                    _v[1].setdefault("advanced", True)
         return it
 
     RETURN_TYPES = ("STRING", "STRING")
@@ -473,16 +380,46 @@ class MossPromptSmith:
 
     # ------------------------------------------------------------------ 主流程
 
-    def smith(self, task, channel, dialect, model, text, length, temperature, max_tokens, seed,
-              image=None, mmproj=_MMPROJ_AUTO, language="auto", thinking="off", panels=4,
-              style_lock="", must_keep="", wash=False, two_pass=False, runtime="current",
-              api_base="", api_model="", api_key="",
-              ctx_size=8192, gpu_layers="", cache_type_k="q8_0", cache_type_v="q8_0",
-              flash_attn="on", image_max_tokens=1024, ubatch=512, parallel=1, fit_on="on",
-              fit_target_mib=1024, mtp="auto", mtp_draft_n=2, server_exe="", port=8091,
-              release_after_run=True, target="moss-image", profile="",
+    def smith(self, task="反推", model="", text="", style_class="连贯描述",
+              style="英文详述", length="中", temperature=0.2, panels=4, language="auto",
+              keep="", seed=0, api_base="", api_model="", api_key="", speed="均衡",
+              runtime="auto", image=None,
               image2=None, image3=None, image4=None, image5=None,
               image6=None, image7=None, image8=None, image9=None):
+        # ---- 16 项 → 旧 39 项展开（内部逻辑一行不动）----
+        raw_task = str(task or "反推")
+        wash = raw_task == "洗图"
+        two_pass = wash
+        task = _TASK_ALIAS.get(raw_task, raw_task)
+        _sty = _STYLE.get(str(style), {"dialect": "moss_image"})
+        dialect = _sty.get("dialect", "moss_image")
+        target = _sty.get("target", "moss-image")
+        profile = _sty.get("profile", "")
+        _lock = _sty.get("lock", "")
+        style_lock = ("%s\n%s" % (_lock, keep) if (_lock and keep) else (_lock or keep)).strip()
+        must_keep = str(keep or "")
+        max_tokens = _LENGTH_TOKENS.get(str(length), 1024)
+        channel = "api" if str(api_base or "").strip() else "local"
+        if channel == "local":
+            api_model = ""
+        _spd = _SPEED.get(str(speed), _SPEED["均衡"])
+        ctx_size = _spd.get("ctx_size", 8192)
+        ubatch = _spd.get("ubatch", 512)
+        fit_target_mib = _spd.get("fit_target_mib", 1024)
+        image_max_tokens = _spd.get("image_max_tokens", 1024)
+        fit_on = _spd.get("fit_on", "on")
+        mmproj = _MMPROJ_AUTO
+        server_exe = ""
+        gpu_layers = ""
+        cache_type_k = "q8_0"
+        cache_type_v = "q8_0"
+        flash_attn = "on"
+        parallel = 1
+        mtp = "auto"
+        mtp_draft_n = 2
+        port = 8091
+        release_after_run = True
+        runtime = str(runtime or "auto")
         t0 = time.time()
         report = []
         #: 每图视觉 token 预算。`_chat` 的自动压缩与侧车启动都要用，

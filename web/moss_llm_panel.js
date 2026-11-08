@@ -470,9 +470,11 @@ const ENDPOINTS_BY_NAME = Object.assign(
 // /prompt API 全部自动成立）。唯一自定义 DOM 只剩一行只读状态。
 // ---------------------------------------------------------------------------
 const STYLE_CLASS = {
-    "连贯描述": ["英文详述", "英文通用", "电影感", "中文"],
+    "连贯描述": ["英文详述", "英文通用", "中文"],
+    "风格": ["写实摄影", "电影剧照", "胶片复古", "暗调氛围", "商业广告",
+             "二次元插画", "水彩", "赛博朋克", "黑白纪实"],
     "标签串": ["英文标签"],
-    "分段结构": ["宫格稿", "六段式"],
+    "分段结构": ["宫格稿", "时间线六段式"],
 };
 const STYLE_WRITE = {
     "英文详述": { dialect: "moss_image" },
@@ -496,130 +498,6 @@ const SPEED_WRITE = {
     "均衡": { ctx_size: 8192, ubatch: 512, fit_target_mib: 1024, image_max_tokens: 1024 },
     "尽量快": { ctx_size: 16384, ubatch: 1024, fit_on: "off", image_max_tokens: 1536 },
 };
-const REMOTES = [
-    { n: "做什么", l: "做什么", v: ["反推", "洗图", "扩写"], d: "洗图" },
-    { n: "写法类", l: "写法类", v: Object.keys(STYLE_CLASS), d: "连贯描述" },
-    { n: "具体写法", l: "具体写法", v: STYLE_CLASS["连贯描述"], d: "英文详述" },
-    { n: "连接", l: "连接", v: Object.keys(ENDPOINTS_BY_NAME), d: "DeepSeek" },
-    { n: "篇幅", l: "篇幅", v: Object.keys(LEN_WRITE), d: "中" },
-    { n: "随机程度", l: "随机程度", v: Object.keys(TEMP_WRITE), d: "低" },
-    { n: "速度档", l: "速度档", v: Object.keys(SPEED_WRITE), d: "均衡" },
-    { n: "更多参数", l: "更多参数", v: ["常用", "全部参数"], d: "常用" },
-];
-const REMOTE_NAMES = new Set(REMOTES.map((r) => r.n));
-
-/** 写原始 widget：不调 callback，避免 onchange → apply → 再写的递归。 */
-function writeRaw(node, name, v) {
-    const w = widgetOf(node, name);
-    if (!w) return;
-    if (String(w.value) === String(v)) return;
-    w.value = v;
-}
-
-function applyRemote(node, st, name, val) {
-    if (st.syncing) return;
-    st.syncing = true;
-    try {
-        if (name === "做什么") {
-            const isWash = val === "洗图";
-            writeRaw(node, "task", val === "扩写" ? "expand" : "caption");
-            writeRaw(node, "wash", isWash);
-            writeRaw(node, "two_pass", isWash);
-        } else if (name === "写法类") {
-            const subs = STYLE_CLASS[val] || [];
-            setRemoteValues(node, "具体写法", subs, subs[0]);
-            const w = Object.assign({}, STYLE_WRITE[subs[0]] || {});
-            for (const k of Object.keys(w)) writeRaw(node, k, w[k]);
-        } else if (name === "具体写法") {
-            const w = STYLE_WRITE[val] || {};
-            for (const k of Object.keys(w)) writeRaw(node, k, w[k]);
-            if (!w.profile) writeRaw(node, "profile", "");
-        } else if (name === "连接") {
-            const ep = ENDPOINTS_BY_NAME[val];
-            if (ep) { writeRaw(node, "api_base", ep.url); writeRaw(node, "channel", CH_API); }
-            else { writeRaw(node, "channel", CH_LOCAL); }
-        } else if (name === "篇幅") {
-            const w = LEN_WRITE[val] || {};
-            for (const k of Object.keys(w)) writeRaw(node, k, w[k]);
-        } else if (name === "随机程度") {
-            writeRaw(node, "temperature", TEMP_WRITE[val]);
-        } else if (name === "速度档") {
-            const w = SPEED_WRITE[val] || {};
-            for (const k of Object.keys(w)) writeRaw(node, k, w[k]);
-        } else if (name === "更多参数") {
-            st.raw = val === "全部参数";
-        }
-    } finally {
-        st.syncing = false;
-    }
-    applySoon(node);
-}
-
-function setRemoteValues(node, name, values, def) {
-    const w = widgetOf(node, name);
-    if (!w) return;
-    if (w.options) w.options.values = values;
-    w.value = def;
-}
-
-/** 原始值 → 遥控器显示。打开旧工作流时也要对得上。 */
-function syncRemotes(node, st) {
-    if (st.syncing) return;
-    const set = (name, val) => {
-        const w = widgetOf(node, name);
-        if (!w) return;
-        if (w.options && Array.isArray(w.options.values) && !w.options.values.includes(val)) {
-            w.options.values = w.options.values.concat([val]);
-        }
-        if (w.value !== val) w.value = val;
-    };
-    const task = String(apiVal(node, "task"));
-    const wash = !!apiVal(node, "wash");
-    set("做什么", task === "expand" ? "扩写" : (wash ? "洗图" : "反推"));
-    const dia = String(apiVal(node, "dialect"));
-    const style = apiVal(node, "target") === "minimax-h3" && apiVal(node, "profile")
-        ? "六段式" : (STYLE_OF[dia] || "英文详述");
-    const cls = Object.keys(STYLE_CLASS).find((k) => STYLE_CLASS[k].includes(style)) || "连贯描述";
-    set("写法类", cls);
-    setRemoteValues(node, "具体写法", STYLE_CLASS[cls], style);
-    const base = String(apiVal(node, "api_base") || "");
-    let conn = "本机（自动）";
-    for (const k of Object.keys(ENDPOINTS_BY_NAME)) {
-        const ep = ENDPOINTS_BY_NAME[k];
-        if (ep && ep.url === base) { conn = k; break; }   // 「本机（自动）」是 null
-    }
-    set("连接", conn);
-    const mt = Number(apiVal(node, "max_tokens"));
-    set("篇幅", mt <= 512 ? "短" : (mt >= 2048 ? "长" : "中"));
-    const tp = Number(apiVal(node, "temperature"));
-    set("随机程度", tp >= 0.8 ? "高" : (tp >= 0.5 ? "中" : "低"));
-    set("更多参数", st.raw ? "全部参数" : "常用");
-}
-
-/** 装 8 个遥控器（幂等）。serialize=false ⇒ 不改变 39 格存档。 */
-function installRemotes(node, st) {
-    if (node.__mossRemotes) return;
-    node.__mossRemotes = true;
-    for (const r of REMOTES) {
-        if (widgetOf(node, r.n)) continue;
-        let w = null;
-        try {
-            w = node.addWidget("combo", r.n, r.d, (v) => applyRemote(node, st, r.n, v),
-                { values: r.v.slice() });
-        } catch (e) { /* 老前端没有 addWidget 选项 */ }
-        if (!w) continue;
-        w.label = r.l;
-        w.serialize = false;
-        if (w.options) w.options.serialize = false;
-        w.tooltip = "";
-    }
-}
-
-
-/** 接了线的参数不许藏（藏了用户找不到那根线接到哪）。 */
-const isLinked = (node, name) => (node.inputs || [])
-    .some((i) => i && i.name === name && i.link != null);
-/** 宿主给每行打了 `data-widget-name`、给网格打了 `data-widgets-grid-node-id` = 节点 id。 */
 function rowOf(node, name) {
     try {
         return document.querySelector(
@@ -729,19 +607,14 @@ function needsOf(task, ch) {
     return s;
 }
 
-/** 显隐全部交给宿主 advanced：这里不返回任何原始项。 */
+/** 16 项一屏放得下：全部显示，不做任何隐藏。 */
 function plan(node, st) {
-    const cw = widgetOf(node, "channel");
-    const ch = cw ? chanOf(String(cw.value)) : "";
-    const task = taskOf(node);
-    const shown = new Set(REMOTE_NAMES);
-    if (st.raw) {
-        for (const w of realWidgets(node)) {
-            if (!REMOTE_NAMES.has(w.name)) shown.add(w.name);
-        }
-    }
+    const ch = String(apiVal(node, "api_base") || "").trim() ? CH_API : CH_LOCAL;
+    const shown = new Set();
+    for (const w of realWidgets(node)) shown.add(w.name);
+    const task = String(apiVal(node, "task") || "反推");
     return { shown, off: new Set(), inert: new Set(),
-        assemble: task === "assemble", task, ch, needs: new Set() };
+        assemble: task === "拼装", task, ch, needs: new Set() };
 }
 
 function syncWidgets(node, shown) {
@@ -1263,6 +1136,7 @@ function buildBar(node, st) {
 }
 
 function applyPreset(node, st, key) {
+    return;   // 预设已由 style/style_class 承担
     const L = t();
     const spec = key === "reset" ? (DEFAULTS || {}) : PRESETS[key];
     if (!spec) return;
@@ -1307,26 +1181,41 @@ function lacksOf(node, meta) {
 /** V2/V5/V6：三个区每帧从 widget / st 读回，不另存与真实值可能漂移的状态。 */
 function paintBar(node, st, shown, off, meta) {
     if (!st.hint) return;
+    const task = String(apiVal(node, "task") || "反推");
+    const style = String(apiVal(node, "style") || "");
     const hasImg = (node.inputs || []).some((i) => i && i.name
         && i.name.startsWith("image") && i.link != null);
-    const txt = apiVal(node, "text").trim();
-    const isWash = !!apiVal(node, "wash");
-    const actName = String(apiVal(node, "task")) === "expand" ? "扩写"
-        : (isWash ? "洗图" : "反推");
-    const styW = widgetOf(node, "具体写法");
-    const style = styW ? String(styW.value) : "";
-    let need;
-    if (actName === "扩写") need = txt ? "" : "还填一句想写什么";
-    else need = hasImg ? "" : "还接一张图";
-    const chan = meta.ch === CH_API ? "外部 API" : "本机";
-    const parts = [actName + " · " + chan];
-    if (style) parts.push("写法：" + style);
-    st.hint.textContent = parts.join(" ｜ ");
-    st.hint.title = need || "可以直接运行";
+    const txt = String(apiVal(node, "text") || "").trim();
+    const online = !!String(apiVal(node, "api_base") || "").trim();
+    st.hint.textContent = task + " · " + (online ? "在线服务" : "本机")
+        + (style ? " ｜ 写法：" + style : "");
+    let need = "";
+    if ((task === "反推" || task === "洗图") && !hasImg) need = "还接一张图";
+    else if (task === "扩写" && !txt) need = "还填一句想写什么";
+    else if (online && !String(apiVal(node, "api_model") || "").trim()) need = "还填在线模型名";
     st.warn.hidden = !need;
-    st.warn.dataset.act = need.includes("图") ? "raw" : (need.includes("想写") ? "raw" : "");
-    st.warn.textContent = need || "";
+    st.warn.textContent = need;
+    st.hint.title = need || "可以直接运行";
     st.summary = st.hint.textContent;
+}
+
+/** style_class → style 子档级联。 */
+function syncStyle(node) {
+    const cls = widgetOf(node, "style_class");
+    const sty = widgetOf(node, "style");
+    if (!cls || !sty) return;
+    const subs = STYLE_CLASS[String(cls.value)] || [];
+    if (!subs.length) return;
+    // 宿主不同版本读不同字段：options.values 与 w.values 都写。
+    const cur = (sty.options && Array.isArray(sty.options.values)) ? sty.options.values
+        : (Array.isArray(sty.values) ? sty.values : null);
+    const same = cur && cur.length === subs.length && cur.every((v, i) => v === subs[i]);
+    if (!same) {
+        if (!sty.options) sty.options = {};
+        sty.options.values = subs.slice();
+        sty.values = subs.slice();
+    }
+    if (!subs.includes(String(sty.value))) sty.value = subs[0];
 }
 
 function applySoon(node) {
@@ -1367,53 +1256,15 @@ function protectFocus(node, st, shown) {
     if (c) { try { c.b.focus(); } catch (e) { /* noop */ } }
 }
 
-/** 原始 39 项只由「更多参数 = 全部参数」控制，不参与任何分组逻辑。 */
-function enforceRaw(node, st) {
-    for (const w of node.widgets || []) {
-        if (!w || w.name === BAR_NAME || REMOTE_NAMES.has(w.name)) continue;
-        const hide = st.raw !== true;
-        if (!w.options) w.options = {};
-        if (!!w.options.hidden !== hide) {
-            w.options.hidden = hide;
-            if (typeof w.syncVisibilityFromOptions === "function") w.syncVisibilityFromOptions();
-        }
-    }
-}
-
 function apply(node) {
     const st = stateOf(node);
     ensureBarFirst(node, st);
-    // 开关条自己也会长高（换语言/换主题/换行数）⇒ 高度变了就要重算节点高度，
-    // 否则 canvas 的 size 比 DOM 盒小，底部那截点不到、也拖不动。
-    const el = st.barWidget && st.barWidget.element;
-    const barH = el ? el.getBoundingClientRect().height : 0;
-    if (barH && Math.abs(barH - (st.barH || 0)) > 2) {
-        st.barH = barH;
-        st.fitted = false;
-    }
-    adoptApiIntent(node, st);
-    installRemotes(node, st);
-    syncRemotes(node, st);
+    syncStyle(node);
     const meta = plan(node, st);
-    const { shown, off, inert } = meta;
-    const changed = syncWidgets(node, shown);
-    paintInert(node, inert);
-    const found = paintHeaders(node, shown);
-    // 行内挂件只服务原始参数行；原始项默认隐藏时不要碰，否则会在隐藏行上抛错，
-    // 把后面的 paintBar 一起吞掉（实测状态行因此一直是空的）。
-    try { syncModelBase(node, st); } catch (e) { /* 行内挂件失败不影响状态行 */ }
-    try { ensureModelValue(node); } catch (e) { /* 同上 */ }
-    try { pinPicker(node, st); } catch (e) { /* 同上 */ }
+    const { shown } = meta;
+    paintBar(node, st, shown, meta.off, meta);
+    try { pinPicker(node, st); } catch (e) { /* 行内挂件失败不影响状态行 */ }
     try { pinEndpoints(node, st); } catch (e) { /* 同上 */ }
-    if (found === 0 && !st.domWarned) {
-        st.domWarned = true;
-        console.warn("%s: 这个前端定位不到参数行（旧版画布）⇒ 组标题不画，显隐照常生效", TAG);
-    }
-    paintBar(node, st, shown, off, meta);
-    // 🔴 必须最后设：宿主 options.hidden 有效（对照实验：19px → 消失），
-    //    但前面任何一处重算都可能把它写回，所以放在 return 前。
-    enforceRaw(node, st);
-    if (changed || !st.fitted) st.fitted = fitHeight(node, shown) || !!st.fitted;
     return shown.size;
 }
 

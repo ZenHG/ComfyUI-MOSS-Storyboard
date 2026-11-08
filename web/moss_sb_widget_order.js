@@ -68,11 +68,14 @@ export function dropVirtual(values, widgets) {
     // 加了 serialize:false 的遥控器之后，values.length 不再等于 list.length；
     // 旧守卫会整段放弃，开关条那一格就漏进存档（实测多出 1 格空串）。
     const active = list.filter((w) => w && w.serialize !== false);
-    if (values.length !== active.length) return values;
+    // 两种对齐都可能：DOM 开关条可能进 values（按 list 对齐），也可能不进（按 active 对齐）。
+    const order = values.length === active.length ? active
+        : (values.length === list.length ? list : null);
+    if (!order) return values;
     const keep = [];
     let changed = false;
-    for (let i = 0; i < active.length; i += 1) {
-        if (isVirtualWidget(active[i])) { changed = true; continue; }
+    for (let i = 0; i < order.length; i += 1) {
+        if (isVirtualWidget(order[i])) { changed = true; continue; }
         keep.push(values[i]);
     }
     return changed ? keep : values;
