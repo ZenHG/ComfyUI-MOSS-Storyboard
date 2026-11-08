@@ -237,6 +237,7 @@ const CSS = `
  background:transparent;color:var(--input-text,#ddd);font:12px/1.5 system-ui,sans-serif;cursor:pointer}
 .mossllm-settings:hover{background:var(--comfy-input-bg,#222)}
 .mossllm-settings[data-on="1"]{color:#5b9cf6}
+[data-widget-name].mossllm-flash{outline:2px solid #5b9cf6;outline-offset:2px;border-radius:4px}
 .mossllm-settings-note{width:100%;min-width:0;max-width:100%;box-sizing:border-box;
  overflow:hidden;padding:7px 10px;font-size:12px;
  color:var(--descrip-text,#999);border-bottom:1px solid var(--border-color,#4e4e4e)}
@@ -551,7 +552,7 @@ function stateOf(node) {
             force: false,          // 会话内记住「高级」展开：st 挂在 node.__mossllm 上，
                                    // 实例在则状态在、重开工作流则新建 st 回到收起。不另存第二份状态。
             warnedChannel: false,
-            presetOpen: false, presetGroup: null,
+            presetOpen: true, presetGroup: "connect",
         };
     }
     return st;
@@ -1095,9 +1096,21 @@ function buildBar(node, st) {
         if (act === "base" || act === "name" || act === "model") {
             st.force = true;                       // 打开设置，让缺的那一项出现
             const target = act === "model" ? "model" : (act === "base" ? "api_base" : "api_model");
-            const row = rowOf(node, target);
-            if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
             applySoon(node);
+            // 宿主重绘是异步的：等一拍再找输入框，focus + select + 高亮。
+            // 只 scrollIntoView 会让「点这里去填」变成空话（实测 activeElement 仍是 BODY）。
+            setTimeout(() => {
+                const row = rowOf(node, target);
+                if (!row) return;
+                if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
+                const inp = row.querySelector("input,textarea,select");
+                if (inp) {
+                    try { inp.focus(); } catch (e) { /* 只读控件 */ }
+                    try { if (inp.select) inp.select(); } catch (e) { /* combo 无 select */ }
+                }
+                row.classList.add("mossllm-flash");
+                setTimeout(() => row.classList.remove("mossllm-flash"), 1800);
+            }, 350);
         }
     };
     st.langSlot = document.createElement("span");
@@ -1222,7 +1235,8 @@ function paintBar(node, st, shown, off, meta) {
     st.presetBox.hidden = !st.force;
     if (st.force) {
         st.presetToggle.textContent = (st.presetOpen ? "▾" : "▸") + " 一键套用";
-        st.presetBody.hidden = !st.presetOpen;
+        // 设置展开就直接给子档，不再让用户再点两次才看见（实测藏了 3 层等于没有）。
+        st.presetBody.hidden = !st.force || !st.presetOpen;
         for (const b2 of st.presetGroups.children) {
             const g2 = b2.dataset.pzGroup;
             b2.textContent = g2 === "connect" ? "换地址" : "换快慢";
@@ -1231,9 +1245,10 @@ function paintBar(node, st, shown, off, meta) {
         st.presetSub.textContent = "";
         if (st.presetGroup === "tune") {
             st.presetSub.appendChild(st.presets);
+            const names = { draft: "草稿（快）", fine: "精修（细）", reset: "恢复默认" };
             for (const pb of st.presets.children) {
                 const k = pb.dataset.mossPreset;
-                pb.textContent = L["preset_" + k];
+                pb.textContent = names[k] || L["preset_" + k];
                 pb.title = L["presetTip_" + k];
             }
         } else if (st.presetGroup === "connect") {
@@ -1281,7 +1296,7 @@ function paintBar(node, st, shown, off, meta) {
     } else if (lack === "model") {
         st.warn.textContent = "还缺：本机模型文件（点这里去选）";
     } else if (lack === "base") {
-        st.warn.textContent = "还缺：服务地址（点这里去填）";
+        st.warn.textContent = "还缺：API地址（点这里去填）";
     } else if (lack === "name") {
         st.warn.textContent = "还缺：在线模型名（点这里去选）";
     } else {

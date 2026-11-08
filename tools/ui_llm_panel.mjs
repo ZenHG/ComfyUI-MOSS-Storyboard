@@ -145,12 +145,9 @@ const nest = await page.evaluate(async (id) => {
     g.querySelector(".mossllm-settings").click();       // 打开设置
     await wait(700);
     const box = g.querySelector(".mossllm-presets-box");
-    const out = { visible: !box.hidden };
-    g.querySelector(".mossllm-pztoggle").click();       // 展开预设
-    await wait(500);
+    const out = { visible: !box.hidden,
+        bodyHidden: g.querySelector(".mossllm-pzbody").hidden };
     out.groups = [...g.querySelectorAll("[data-pz-group]")].map((b) => b.textContent);
-    g.querySelector('[data-pz-group="connect"]').click();
-    await wait(500);
     const eps = [...g.querySelectorAll("[data-pz-endpoint]")];
     out.addresses = eps.length;
     if (eps.length) eps[0].click();
@@ -165,9 +162,11 @@ const nest = await page.evaluate(async (id) => {
     out.hiddenAfter = box.hidden;
     return out;
 }, ID);
-check("设置内预设嵌套：两类 → 5 个地址 → 点一下写入地址并切在线服务",
-    nest.visible && nest.groups.length === 2 && nest.addresses === 5
-    && /^https?:\/\//.test(nest.base) && nest.chan === "api", JSON.stringify(nest));
+check("设置展开即见嵌套预设（0 次额外点击）：两类 + 5 个地址",
+    nest.visible && !nest.bodyHidden && nest.groups.length === 2 && nest.addresses === 5,
+    JSON.stringify(nest));
+check("点地址子档 ⇒ 写入 API地址并切在线服务",
+    /^https?:\/\//.test(nest.base) && nest.chan === "api", JSON.stringify(nest));
 check("设置内预设嵌套：换快慢有 3 个子档，收起设置后预设区隐藏",
     nest.tunes.length === 3 && nest.hiddenAfter, JSON.stringify(nest));
 
@@ -183,13 +182,17 @@ const lack = await page.evaluate(async (id) => {
     const w = g.querySelector(".mossllm-warn");
     const out = { text: w.textContent, hidden: w.hidden, act: w.dataset.act };
     w.click();
-    await new Promise((r2) => setTimeout(r2, 900));
+    await new Promise((r2) => setTimeout(r2, 1000));
     out.forceAfter = !!n.__mossllm.force;
+    const row = g.querySelector('[data-widget-name="api_base"]');
+    const inp = row && row.querySelector("input,textarea,select");
+    out.focused = !!inp && document.activeElement === inp;
+    out.flashed = !!row && row.classList.contains("mossllm-flash");
     return out;
 }, ID);
-check("缺端点时状态行说人话「还缺 X」，点它打开设置",
-    /还缺/.test(lack.text) && !lack.hidden && lack.forceAfter,
-    JSON.stringify(lack));
+check("缺端点时状态行说「还缺：API地址」，点它真的聚焦到 API地址输入框",
+    /还缺：API地址/.test(lack.text) && !lack.hidden && lack.forceAfter
+    && lack.focused && lack.flashed, JSON.stringify(lack));
 
 // ---- 5. 存档契约 / 接线保护 ----
 const saved = await page.evaluate(async (id) => {
