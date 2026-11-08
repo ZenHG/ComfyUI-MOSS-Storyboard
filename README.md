@@ -17,7 +17,7 @@
 
 | Item | Value |
 |---|---|
-| Version | **0.5.1** |
+| Version | **0.5.2** |
 | License | **MIT** (credits: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)) |
 | Host | **ComfyUI ≥ 0.42.0** (native MOSS-Image support) |
 | Dependencies | **Zero** extra pip packages for the core nodes. Face Swap's auto mask is **on by default** and needs `insightface` + `onnxruntime` **plus** `det_10g.onnx` (`~/.insightface/models/buffalo_l/`, or `MOSS_INSIGHTFACE_ROOT`). Without them, wire a `mask` manually or turn `auto_mask` off; the node raises a clear error and never downloads weights |
@@ -81,13 +81,14 @@ Download the three files from the official tutorial
   Output goes to `output/moss/storyboard/` (`grid_*.png` + `panel_*.png`).
 - **First prompt:** drag [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json). Only the caption group is on;
   other groups are bypassed (`Ctrl+B` to enable).
-- **The LLM panel (0.5.1):** a status card on top says what the node is doing and what is still
-  missing; "What" and "Backend" are segmented buttons; the default view shows only four fields.
-  Presets are **nested** — open Presets, choose *Connect* (common endpoints: DeepSeek / OpenCode /
-  CoRouter / Ollama / LM Studio) or *Sampling* (Draft / Fine / Reset), then pick an entry.
-  A separate *Advanced* row opens all parameters and remembers that choice for the session.
-  The `api_base` row still has its inline endpoint picker. Changing any value updates the panel
-  immediately; no periodic refresh wait.
+- **The LLM panel (0.5.2):** a status card on top says what the node is doing and what is still
+  missing; "What" and "Backend" are segmented buttons. **18 parameters** up front, the rest under
+  *Advanced* — saved workflows keep their layout. **16 style presets** in four classes: plain
+  description, 9 styles (photoreal / film still / vintage film / low-key / commercial / anime /
+  watercolour / cyberpunk / B&W documentary), a *Custom* entry with a one-line note, a tag list,
+  and two structured formats (storyboard grid, H3 six-section). Presets are **nested** — open
+  Presets, choose *Connect* (DeepSeek / OpenCode / CoRouter / Ollama / LM Studio) or *Sampling*
+  (Draft / Fine / Reset). Temperature is the only sampling knob: it sets `top_p` / `min_p` for you.
 
 ### 1.4 Where to go next
 

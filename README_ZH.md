@@ -16,7 +16,7 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | **0.5.1** |
+| 版本 | **0.5.2** |
 | 许可 | **MIT**（第三方出处见 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)） |
 | 宿主 | **ComfyUI ≥ 0.42.0**（原生支持 MOSS-Image） |
 | 依赖 | 核心**零**额外 pip 依赖。换脸自动蒙版**默认开**，需 `insightface` + `onnxruntime` **以及** `det_10g.onnx` 权重（默认 `~/.insightface/models/buffalo_l/`，可用 `MOSS_INSIGHTFACE_ROOT` 改目录）；缺任一项请手接 `mask` 或关掉 `auto_mask`，节点会明确报错且不会联网下载 |
@@ -78,11 +78,13 @@
   产物在 `output/moss/storyboard/`（`grid_*.png` 与 `panel_*.png`）。
 - **第一段提示词**：拖 [`examples/llm-prompt-workbench.json`](examples/llm-prompt-workbench.json)。默认只开反推组，
   其余组已旁路（`Ctrl+B` 可启用）。
-- **LLM 面板（0.5.1）**：顶部一张状态卡写明当前在做什么、还缺什么；「做什么」「用哪个」
-  是分段按钮；默认首屏只留 4 项。预设改成**嵌套**：展开「预设」后先选「连接」（常用端点：
-  DeepSeek / OpenCode / CoRouter / Ollama / LM Studio）或「采样」（草稿 / 精修 / 恢复默认），
-  再选具体档位。底部单独一条「高级」可展开全部参数，并记住本次展开状态。
-  `api_base` 行内的端点下拉仍保留。改任意参数都会立刻出反馈，不用等下一轮刷新。
+- **LLM 面板（0.5.2）**：顶部一张状态卡写明当前在做什么、还缺什么；「做什么」「用哪个」
+  是分段按钮。**参数 18 项**摆在明面，其余收进「高级」，老工作流存档格数与顺序不变。
+  **风格 16 档**分四类：连贯描述、9 种风格（写实摄影 / 电影剧照 / 胶片复古 / 暗调氛围 /
+  商业广告 / 二次元插画 / 水彩 / 赛博朋克 / 黑白纪实）、自定义（配一行风格备注）、标签串、
+  分段结构（宫格稿 / 时间线六段式）。预设仍是**嵌套**：展开「预设」后先选「连接」
+  （DeepSeek / OpenCode / CoRouter / Ollama / LM Studio）或「采样」（草稿 / 精修 / 恢复默认）。
+  温度一个旋钮管一组采样，`top_p` / `min_p` 不用再单独调。
 
 ### 1.4 下一步
 

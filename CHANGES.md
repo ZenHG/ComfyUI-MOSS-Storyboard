@@ -2,6 +2,34 @@
 
 > 本文是历史记录：文中提到的 `docs/NN` 若已不在仓库，内容见 git 历史。
 
+## 0.5.2 — 2026-11-09
+- 🧩 参数面 39 → 18：`task` / `model` / `text` / `style_class` / `style` / `target` / `style_note` /
+  `length` / `temperature` / `panels` / `language` / `keep` / `seed` / `api_base` / `api_model` /
+  `api_key` / `speed` / `runtime`。`smith()` 把 18 项展开回旧的 39 个变量，内部逻辑未改。
+  合并口径：engine 14 项 → `speed`；`dialect`+`target`+`profile` → `style_class`+`style`；
+  `wash`+`two_pass` → `task=洗图`；`length`+`max_tokens` → `length`；
+  `mmproj`+`runtime`+`server_exe` → `runtime`；`style_lock`+`must_keep` → `keep`；
+  通道由 `api_base` 是否为空推断。
+- 🎨 风格 16 档（4 类）：9 种风格只注入一行 `style_lock`，**不新增方言**；
+  `自定义` 取 `style_note`，留空等同「英文详述」。`style` 的 combo 取全部子档并集
+  （`_ALL_STYLES`）—— 只列首类会让 `/prompt` 与工作流 JSON 报 400 `value_not_in_list`（2026-11-08 实测）。
+- 🌡️ 温度联动采样（`_sampling_for`）：≤0.35 → (0.90, 0.06)；≤0.75 → (0.95, 0.03)；
+  >0.75 → (0.98, 0.0)。`min_p` 只发给本机端点，严格 OpenAI 兼容服务会拒收。
+- 📏 篇幅落到字面：`_LENGTH_TOKENS` 短 768（须 ≥ caption 预检下限 640）/ 中 1024 / 长 2048；
+  `_LENGTH_SPEC` 写进 system 的 `# LENGTH` 段，并覆盖契约里的词数。
+- 📝 模板重写：扩写补「首句独立成句」正反例、`# 3B 面部` 硬清单、`# 3C 散文非清单`；
+  反推强制写年龄（凭可见线索）、面部三项观察、不猜纤维成分、正文不搬字段内容。
+  `_tame_semicolons()` 把英文分号改句号（中文分号不动，`moss_storyboard` 与 H3 跳过）。
+- ⚠️ 风格与昼夜冲突只报不猜：`_LOCK_NIGHT` 命中且正文出现日间词时，报告写「本次按风格走」。
+- 🔌 `runtime` 增 `download`：仅在找不到 server 可执行文件时联网装，装前报落点与体积；
+  旧值「更新到最新版」归一到 `auto`（只查找、不联网）。401 直接点名该改哪个字段。
+- 🐛 修面板：守卫调用导致状态行空白（改无条件 `paintBar()`）、
+  `ENDPOINTS_BY_NAME["本机（自动)"]` 为 `null` 触发 TypeError 连带五个症状、中文档位掉回 `standard`。
+- 📊 温度矩阵（3 模型 × 3 档 × 5 seed，取面部项中位数）：4B 与 9B 在 0.5 最好（4 / 5），
+  35B 在 0.2 最好（5）。跨模型唯一稳定结论：高温只增加发散、不提升质量
+  （同档相似度在 T=1.0 最低，0.069–0.090）。字数区间**约束不住**（实测 118–291 词 vs 目标 160–280）。
+- 📖 `docs/20` 第九节按 18 项重写；真机面板 16/0；LLM 229/0、i18n 64/0。
+
 ## 0.5.1 — 2026-11-07
 - 🧭 LLM 面板视觉重构：状态卡 / 决策分段 / chip 行 / 嵌套预设 / 高级底栏五段；首屏 4 项，
   `dialect` 按 task 显隐（仍归 core，存档位置不动）。

@@ -19,6 +19,44 @@
 
 ---
 
+## 0.5.2 — 2026-11-09
+
+**LLM 节点参数从 39 项收到 18 项，风格预设 16 档，并带自定义。**
+
+- 面板只留 18 个常用参数；其余在「高级」里。存档格数与顺序不变，老工作流照常打开。
+- 新增 9 种风格：写实摄影 / 电影剧照 / 胶片复古 / 暗调氛围 / 商业广告 / 二次元插画 /
+  水彩 / 赛博朋克 / 黑白纪实。选中后自动带一句风格锁定，不改结构。
+- 新增「自定义」档与风格备注：写一句光线 / 色调 / 质感即可，留空等同默认写法。
+- 温度一个旋钮管一组采样：调温度会同步设 `top_p` / `min_p`，这两项不用再单独理解。
+- 反推与扩写模板重写：面部固定三项观察、不猜面料成分、首句独立成句、不写成清单。
+- 篇幅三档明确成词数区间：短 80–120 / 中 160–280 / 长 320–420 词。
+- 密钥无效时直接点名该改哪个字段；本机运行时缺失时「自动下载」先报落点与体积。
+
+**升级动作**：不用改工作流。旧参数值载入时自动归一，运行报告会写明改了哪项。
+
+<!-- EN -->
+
+**The LLM node now exposes 18 parameters instead of 39, with 16 style presets including a custom one.**
+
+- The panel shows 18 everyday parameters; the rest stay under Advanced. Saved workflows keep
+  their slot count and order and open unchanged.
+- Nine new styles: photoreal, film still, vintage film, low-key, commercial, anime, watercolour,
+  cyberpunk, and black-and-white documentary. Each adds one style-lock sentence and leaves the
+  structure alone.
+- A Custom entry plus a note field: one line on light, palette or texture is enough. Empty means
+  the default wording.
+- Temperature now drives sampling: choosing it also sets `top_p` and `min_p`, so those two no
+  longer need separate tuning.
+- Caption and Expand prompts were rewritten: three fixed face observations, no fabric-composition
+  guessing, an independent first sentence, and no list-shaped prose.
+- Length is now a word band, not just a token count: 80–120, 160–280, 320–420 words.
+- An invalid key now names the field to fix. When the local runtime is missing, Auto-download
+  reports the target directory and size before it starts.
+
+**Action required**: none. Old values are normalised on load and the run report says which changed.
+
+---
+
 ## 0.5.1 — 2026-11-07
 
 **LLM 提示词节点界面重做，预设可以嵌套选。**
