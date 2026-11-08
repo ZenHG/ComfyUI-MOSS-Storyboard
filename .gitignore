@@ -51,5 +51,5 @@ docs/_local/
 /_*.jpg
 
 # 真机跑批与实验产物（`out/live/`、`out/reverse/`、`out/g7/`、`out/wash_benchmark/`…）：
-# 可删可重建，且含大图。docs/22 早就写了「已 gitignore」，实际漏了 —— 2026-11-01 补上。
+# 可删可重建，且含大图。约定早写过，规则当时漏了 —— 2026-11-01 补上。
 out/

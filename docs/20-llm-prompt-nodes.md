@@ -20,26 +20,33 @@ MossPromptSmith
         report : STRING → 人读：通道、模型、pack 版本与 sha、tokens、耗时、机检计数、降级出声
 ```
 
-配置（模型 / mmproj / ctx / 显存 / MTP / 端口 / 释放）进了同一个 `INPUT_TYPES()`，
-不再拆一个配置节点——多一个节点就多一层「配置在哪、词从哪来」的追踪成本。
-`MossPromptCheck` 没做成节点，它的判据以纯函数形式内建在每次跑完后（`_checks`），
-结果写进 report；闸本身是 `tests/test_llm_subpackage.py` 的对象。
+配置进了同一个 `INPUT_TYPES()`，不再拆一个配置节点——多一个节点就多一层
+「配置在哪、词从哪来」的追踪成本。`MossPromptCheck` 没做成节点，它的判据以纯函数形式
+内建在每次跑完后（`_checks`），结果写进 report；闸本身是 `tests/test_llm_subpackage.py` 的对象。
 
-任务旋钮 `task`：**反推 / 扩写 / 编辑指令**。方言旋钮 `dialect`：
-`moss_image`（单图英文散文，官方默认）· `moss_storyboard`（宫格中文 `[STYLE]+[PANEL n]`，
-本仓 `docs/15` 验证过的格式）· `generic_natural` · `generic_tags` · `cinematic` · `cn_natural`。
+**参数面 18 项**（0.5.2 起）：`task` `model` `text` `style_class` `style` `target` `style_note`
+`length` `temperature` `panels` `language` `keep` `seed` `api_base` `api_model` `api_key`
+`speed` `runtime`。39 项时代的引擎细项（ctx / ubatch / 显存目标 / MTP / 端口 / 释放）
+不再出现在面板上，由 `speed`（省显存 / 均衡 / 尽量快）一档承担；内部仍按旧 39 个变量运行
+（`smith()` 展开），能力没丢，只是不再要求用户先懂引擎。
+
+任务旋钮 `task`：**反推 / 洗图 / 扩写 / 编辑 / 拼装**（`_TASK_ALIAS`；洗图 = 反推 + 忽略缺陷）。
+写法由两级承担：`style_class` 选类（连贯描述 / 风格 / 自定义 / 标签串 / 分段结构），
+`style` 选具体档。风格类只注入一行 `style_lock`、不新增方言，详见 §九。
+`dialect` 是内部名（`moss_image` / `moss_storyboard` / `generic_natural` / `generic_tags` /
+`cn_natural`），由 `style` 映射得到，不再是用户旋钮。
 
 ## 二、通用性（开源前提，提案的修订）
 
 | 点 | 落地做法 |
 |---|---|
 | 模型 | 扫 `models/LLM` + `models/text_encoders` 的全部 GGUF，按相对路径显示。**不认架构**——llama.cpp 能载的就能跑，Qwen 全系列 / MOSS TE / 别的 arch 一视同仁 |
-| mmproj | `自动匹配` 按**宽度硬配对**：模型 `<arch>.embedding_length` 必须等于塔 `clip.vision.projection_dim`。优先级 = 同名权重 > 同目录唯一 > 全局唯一；**多个候选都能配上就报错让你选，不猜**。显式选塔也走同一道宽度校验，不符直接 raise。也接受直接填绝对路径 |
+| mmproj | 0.5.2 起**只保留自动**：按**宽度硬配对**（模型 `<arch>.embedding_length` = 塔 `clip.vision.projection_dim`）。优先级 = 同名权重 > 同目录唯一 > 全局唯一；**多个候选都能配上就报错让你选，不猜**（手选塔那一格随 18 项合并下线）。配不上直接 raise，不静默退化成纯文本 |
 | MTP | 读 GGUF 元数据 `*.nextn_predict_layers` 的**取值**（不看文件名）。默认 `draft-mtp d=2`；**DFlash 不用**（对 MOSS target 接受率实测 10–31%） |
-| 运行时 | 找的顺序：`server_exe` 参数 > 环境变量 `MOSS_LLM_SERVER` > `moss_llm/runtime/` > PATH。**不扫别的节点包的 runtime**（那是把别人的目录结构写成本包的隐性依赖） |
-| 一键更新 | `runtime` 选「更新到最新版」→ 从官方 release 的 `b<build>` 里挑本机可用的包：先探后端（N 卡→CUDA 且不超驱动版本；AMD Windows→Vulkan、Linux→ROCm；Intel→Vulkan；Apple→Metal；认不出→CPU），再下主包 + 同版本 cudart；`.zip` / `.tar.gz` 都支持，带断点续传与慢速熔断。**直连失败会自动走内置镜像链**（`gh-proxy.com` → `ghproxy.net`），每个包都先用 GitHub API 的 `sha256` 校验、对不上就丢弃换源——镜像只影响下载速度，不影响可信度；可用 `MOSS_LLM_MIRRORS=前缀1,前缀2` 替换镜像链，`MOSS_LLM_MIRROR` 指定单个镜像。覆盖用 `MOSS_LLM_BACKEND` / `MOSS_LLM_RUNTIME_URL`。CLI 同义：`python -m moss_llm.runtime_install` |
+| 运行时 | `runtime` 一个档位定来源：`auto` = 环境变量 `MOSS_LLM_SERVER` → `LLAMA_CPP_HOME` → 本包 `runtime/` → `PATH`；`runtime` = 只认本包 `runtime/`（`MOSS_LLM_RUNTIME_DIR` 可指到持久目录）；`path` = 只认 `PATH`。**不扫别的节点包的 runtime**（那是把别人的目录结构写成本包的隐性依赖） |
+| 自动下载 | `runtime=自动下载`：只有**找不到**可执行文件时才联网装，装前先报落点与体积。按后端挑包（N 卡→CUDA 且不超驱动版本；AMD Windows→Vulkan、Linux→ROCm；Intel→Vulkan；Apple→Metal；认不出→CPU），再下主包 + 同版本 cudart；`.zip` / `.tar.gz` 都支持，带断点续传与慢速熔断。**直连失败自动走内置镜像链**（`gh-proxy.com` → `ghproxy.net`），每个包先用 GitHub API 的 `sha256` 校验、对不上就丢弃换源——镜像只影响速度，不影响可信度；可用 `MOSS_LLM_MIRRORS=前缀1,前缀2` 替换镜像链，`MOSS_LLM_MIRROR` 指定单个镜像。覆盖后端用 `MOSS_LLM_BACKEND`，覆盖地址用 `MOSS_LLM_RUNTIME_URL`。CLI 同义：`python -m moss_llm.runtime_install` |
 | 外部 API | `channel=外部 API`：任何 OpenAI 兼容端点（OpenAI / 火山方舟 / 智谱 / Kimi / MiniMax / DeepSeek / Ollama / LM Studio…）。不起侧车、不占显存。Key 两处来源：直接填 `api_key`（会随 JSON 分享出去，report 会警告），或放在宿主进程环境变量 `MOSS_LLM_API_KEY` 里（界面不提供变量名那一栏，免得让用户背目录/环境知识；旧工作流里存过的自定义变量名仍然生效）。`api_base` 决定线格式（四种，都不用选旋钮）：`/anthropic` → `/v1/messages` + `x-api-key`；`generativelanguage.googleapis.com` 或 `/v1beta` → `models/<model>:generateContent` + `x-goog-api-key`；`/responses` → OpenAI Responses 线格式（`instructions` + `input` + `max_output_tokens`）；其余 → `/chat/completions`。Azure 主机（`*.openai.azure.com`）自动改用 `api-key` 头，带 `?api-version=` 的端点也不会被拼坏。出站带 `User-Agent` 并声明 `Accept-Encoding: identity` —— urllib 默认 UA 会被 Cloudflare 一类网关拦成 403/1010；opencode 的 Go 网关另外要求 `x-opencode-session`（缺了直接 400 `MissingSessionID`），已按主机自动带上稳定会话 id；其它网关要的自定义头用环境变量 `MOSS_LLM_EXTRA_HEADERS='{"x-foo":"bar"}'` 补（不进工作流、不进存档）；本地端点（含 `127.0.0.0/8`、`*.localhost`、`host.docker.internal`）显式绕开系统代理。面板的「↻」用当前端点 + Key 拉清单：从端点那层逐级上溯试 `/models` 与 `/v1/models`（并发、命中即停），所以清单挂在上一层也能找到；拉取中按钮转圈并在说明行计时，拉完自动展开下拉；换 `api_base` 会立刻清掉上一批模型名。`api_model` 是 combo，清单只来自实际拉取（进程重启即空），旧工作流里的自定义值由 `VALIDATE_INPUTS`（V1 出口）/ `validate_inputs`（V3 出口）放行、并自动补进选项 |
-| 提示词包 | 12 个自写文件（MIT），方法与出处逐条记在 manifest。MOSS 两个方言只是其中两项 |
+| 提示词包 | 16 个自写文件（MIT），方法与出处逐条记在 manifest。9 档风格只是注入的 `style_lock`，不新增文件 |
 
 ### 已实测的 `api_base`（2026-11-05，无 Key 探测状态码）
 
@@ -74,7 +81,7 @@ Ollama 的原生 `/api/chat` 与云端的 `/api/tags` 不在这条线格式内�
 
 - **report 回显** pack 版本 + 每个提示词文件的 sha256 前 8 位 + tokens + 耗时 + 是否降级。
 - 改提示词一个字 → `load_pack` 直接判红并给出重新生成 manifest 的命令（不静默用改过的词）。
-- 机检**只报数不裁决**：`must_keep` 哪几项没逐字出现、`[PANEL]` 段数 vs `panels`、
+- 机检**只报数不裁决**：`keep` 哪几项没逐字出现、`[PANEL]` 段数 vs `panels`、
   `confidence.risks` / `omitted_low_confidence` / `uncertainties` / `open_choices` 的条数与内容。
   「好不好看 / 像不像」不交给自动判官。
 - 主判据链的失败面全部 raise 带操作指引的中文错误：反推没接图、扩写没填字、mmproj 找不到、
@@ -132,11 +139,11 @@ Ollama 的原生 `/api/chat` 与云端的 `/api/tags` 不在这条线格式内�
 | 反推·主臂 | `moss-te-heretic-dhq-K-6.6G.gguf` + `mradermacher/Qwen3.5-9B-GGUF` 的 `mmproj-Q8_0`（624 MB，apache-2.0） | ✅ **mmproj 可行**：prompt_tokens 16 → 1047（图真进了）；13.4s；165 词；三处中文「写不下去 / 他还在楼下 / 她还没睡」**逐字保真**；`confidence.overall=0.95` |
 | MTP | 同上 | ✅ 元数据判据生效：`qwen35.nextn_predict_layers=1` 而**文件名不含 `-mtp`**，只看文件名的判据会漏；日志 `MTP=on(d2)`，早场对照 125.8 vs 76.3 tok/s（≈1.65×） |
 | 反推·回退臂 | `Qwen3-VL-4B-Instruct-Q4_K_M` + 同目录 `mmproj-F16`（自动匹配） | ✅ 17.0s；133 词；中文逐字；`MTP=off`（无 nextn 元数据，判据双向正确） |
-| 扩写·宫格臂 | MOSS TE，纯文本（无 mmproj） | ✅ 13.1s；`[STYLE]` 全局段声明「一张画布分为 2×2 网格，恰好 4 个面板」+ 4 段各以景别开头；`must_keep`（路上小心 / 关东煮）逐字命中；段数=格数 → 闸不出声 |
+| 扩写·宫格臂 | MOSS TE，纯文本（无 mmproj） | ✅ 13.1s；`[STYLE]` 全局段声明「一张画布分为 2×2 网格，恰好 4 个面板」+ 4 段各以景别开头；`keep`（路上小心 / 关东煮）逐字命中；段数=格数 → 闸不出声 |
 | 外部 API 臂 | 同机侧车当 OpenAI 兼容端点打（不外联网） | ✅ 3.7s；149 词；中文逐字；Key 来源在 report 里写明 |
 
 **没测的**（不当已验证用）：金标集盲测、`confidence` 与真实错误率的校准、洗图三臂对照
-（text-only vs `init=source` vs FaceSwap）、中文单图方言、`two_pass` 的实测质量差。
+（text-only vs `init=source` vs FaceSwap）、中文单图方言。
 这些是 P1，见提案 §7。
 
 ### 五之补 · 真机（活宿主排队）一臂
@@ -145,7 +152,7 @@ Ollama 的原生 `/api/chat` 与云端的 `/api/tags` 不在这条线格式内�
 |---|---|---|
 | 宿主端到端 | 维护者本地实验 `p0_host_e2e.py`：`/prompt` 提交 `LoadImage → MossPromptSmith → SaveText×2` | ✅ `status=success`，16.0s，产物落 `output/moss_llm_e2e/`；report 里 pack 版本 / `MTP(draft-mtp d=2) 已启用` / 模型与 mmproj 名 / tokens 2786 / `confidence.overall=0.95` / 12 个文件的 sha8 全在 |
 
-> 这一臂证明的是**宿主侧**：V3 注册、`image` 入参接线、38 个 widget 的 API 形态、
+> 这一臂证明的是**宿主侧**：V3 注册、`image` 入参接线、19 格存档的 API 形态、
 > 以及节点自己拉起并释放 llama-server。链尾必须挂输出节点，否则宿主直接
 > `prompt_no_outputs`（第一次就栽在这）。
 
@@ -163,8 +170,8 @@ Ollama 的原生 `/api/chat` 与云端的 `/api/tags` 不在这条线格式内�
 
 ## 七、闸与计数
 
-`python tests/test_llm_subpackage.py` = **148/0**（纯函数，零 GPU 零网络）：
-包 sha 篡改检测、JSON 围栏与容错、`_pick_prompt` 优先级、must_keep 对账、段数=格数、
+`python tests/test_llm_subpackage.py` = **229/0**（纯函数，零 GPU 零网络）：
+包 sha 篡改检测、JSON 围栏与容错、`_pick_prompt` 优先级、keep 对账、段数=格数、
 MTP 元数据判定（含取值为 0 / 非 GGUF / 混 tokenizer 大表）、外部 API 端点拼接与 Key 来源、
 任务边界报错、旧稿中文枚举归一、mmproj 宽度配对（同名 > 同目录唯一 > 全局唯一，多候选报错），
 以及 2026-10-31 合流后新增的四组：侧车启动命令（fit / KV 量化 / ubatch / parallel /
@@ -173,16 +180,16 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 坏 IR 与未知后端的报错话术、`target` 与 registry 不许漂移）、以及
 `smith.llm.LlamaServer is server.LlamaServer` 这条**防再抄一份**的断言。
 
-真机闸：`tools/check_ui_workflow.py examples/llm-*.json` = 46/0；
-`node tools/ui_llm_panel.mjs` = 60/0（参数面板，见 §九）；
+真机闸：`tools/check_ui_workflow.py examples/llm-*.json` = 62/0；
+`node tools/ui_llm_panel.mjs` = 16/0（参数面板契约，见 §九）；
 `tools/check_frontend.py` 21/0；`tests/test_i18n.mjs` 64/0；`ruff` 全绿。
 `tools/check_release_ready.py` 在提交后应全绿（未提交时唯一红项是「未跟踪文件」）。
 
 ✅ **子包节点已与核心 7 节点共用同一套 i18n 表**（`web/moss_sb_i18n.js`）：
 `NODES`（后端当前显示名 `LLM Prompt`；更早的 `MOSS Prompt Smith` 收进 legacy，老工作流标题也能换）、
-`LABELS`（27 个参数槽全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
+`LABELS`（18 个参数槽全有中文）、`LABELS_NODE`（`image`=参考图、`panels`=面板数）、
 `COMBOS`（任务/写法类/具体写法/篇幅/语言/运行时/开关/生成后控制等，F7 逐组对账）、
-`TIPS`（27 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
+`TIPS`（18 条 en，F5b 对账；中文唯一源仍在 `moss_llm/nodes.py`，F10 对账）。
 **存档值一律 ASCII id**（`caption` / `local` / `standard` …），中文只在显示层 ——
 英文用户的工作流里不会出现中文枚举；初版已写进存档的中文由 `_LEGACY_VALUES` 在运行时就地
 归一，并把「哪几格被改」写进 report（不静默迁移）。
@@ -258,7 +265,7 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 1.0→(0.98, 0.0)，避免温度与 min_p 对冲。
 
 
-## 八、同一层的另一件事：`moss_llm.smith`（IR 编译层）
+## 十、同一层的另一件事：`moss_llm.smith`（IR 编译层）
 
 本子包解决「要一次词」，`moss_llm.smith` 解决「同一份内容换后端时事实还在不在」。
 
@@ -273,21 +280,21 @@ MTP 判定 / **不设服务端口令** / `--help` 探测不到的开关一律不
 |---|---|---|
 | 形态 | 一次 LLM 调用 → 成品提示词 + report | 结构化 IR ⇄ N 个方言，确定性编译 |
 | 用模型吗 | 必须（`assemble` 任务除外） | 可选（只有反推/扩写用，拼装不用）|
-| 换方言 | 换 `dialect` 旋钮，重出一次词 | 同一份 IR 直接编译，事实集合不变 |
+| 换写法 | 换 `style` 一档，重出一次词 | 同一份 IR 直接编译，事实集合不变 |
 | 自检 | `_checks` 报数不裁决 | 6 条不变式 + 往返校验 + 覆盖率 |
 | H3 | 不管 | 时间线进 IR 一等维度 |
 
 **节点里的 `task=assemble` 就是这一层的入口**：把 IR 贴进「文字输入」，
-`target` 选后端、`profile` 选该后端下的方言档，零模型、毫秒级、可复现，
+`target` 选后端，零模型、毫秒级、可复现，
 report 里带方言机检与 M1–M6 结论。没有权重也能用——这是合流带来的最大可用性变化。
 
-**反推与扩写也读同一对旋钮，不新增 dialect**：`task=caption`（看图）或 `task=expand`（纯文字）+ `target=minimax-h3` 时，
-system 换成 H3 音视频契约（三字段时间线），再加 `profile=six-section` 换成六段式。
-理由是可理解性——`dialect` 那一列本来就是「按哪种方言写字」，再塞两个 H3 值等于让
-开源用户多学一套词；而 `target` 已经表示「输出到哪个后端」，扩写只是把「谁来写」
-从编译器换成模型。report 会写明本次用了哪套骨架，不静默改变输出。
+**反推与扩写走同一个写法档，不新增方言**：`task=caption`（看图）或 `task=expand`（纯文字）+ `target=minimax-h3` 时，
+system 换成 H3 音视频契约（三字段时间线）；在 `style_class=分段结构` 里选
+「时间线六段式」＝ 内部再置 `profile=six-section`。理由是可理解性：用户面对的是
+「写哪一种」，不是两张后端表；`target` 仍表示「输出到哪个后端」。
+report 会写明本次用了哪套骨架，不静默改变输出。
 
-`profile` 是 STRING 而不是下拉，因为档位名的唯一事实源是
+`profile` 是 `smith` 的编译参数（节点上不直接露，由 `style` 决定），它是 STRING 而不是下拉，因为档位名的唯一事实源是
 `smith/data/model-registry.yaml` 的 `dialects`（`target` 已有「与 registry 不许漂移」的对账闸，
 这里再抄一份必然漂移）。目前只有 `minimax-h3` 有 `six-section`：官方全参考六段式，
 字段固定为 `subject_definitions` / `summary` / `retention_analysis` /
@@ -307,7 +314,7 @@ report 会写明本次用了哪个档。
 - 合流决策（谁强、留谁、代价）：历史记录（git 历史）
 - 闸：`python -m unittest tests.test_smith_ir`（365）、`python tools/check_coverage.py --check`（4 份夹具 × 7 后端：固定项不丢、数字与引号不编、覆盖率不低于基线）、`python tools/freeze_smith_set.py --check`（确定性 sha256）
 
-## 十、一次大概多少钱（量级，2026-11-05）
+## 十一、一次大概多少钱（量级，2026-11-05）
 
 > 准确数字永远看 `report` 里的 `total_tokens`——每次执行都写，比任何估算都准。
 
@@ -315,18 +322,19 @@ report 会写明本次用了哪个档。
 |---|---|---|---|
 | 反推 1 张图 | 1024 | 本地 25–60s / API 8–20s | 便宜档 ≈ 0.01 元；贵档（GPT-4o 级）≈ 0.1 元 |
 | 扩写 | 1024 | 本地 15–40s / API 5–15s | 同上 |
-| `two_pass`（洗图） | 2× | ×2 | ×2 |
+| 洗图 | 1024 | 同反推（0.5.2 起单遍） | 同反推 |
 | `thinking=on` | 1024 | +30–120s | 输出 token 可能翻倍 |
 
 四条要点：
 
 1. **准确值看 `report` 的 `total_tokens`**，不要拿本表当账单。
 2. **单次不贵，批量才要算**：100 张图 × 贵档 ≈ 10 元级。
-3. `max_tokens` 的上限 32768 是**能力**不是建议值；API 按输出计费，1024 通常够。
-4. **截断只在两种情况下发生**：用户自己把 `max_tokens` 调小（下限 64），或输出畸形 JSON。
-   默认 1024 对提示词（200–500 token）绰绰有余；本地 ctx 8192 也装得下（输入约 2000 + 输出 1024）。
+3. 篇幅是 `length` 三档：短 768 / 中 1024 / 长 2048 tokens（`_LENGTH_TOKENS`）；
+   API 按输出计费，多数场景「中」就够。
+4. **截断只在两种情况下发生**：自己选了更短的档，或输出畸形 JSON。
+   「中」对提示词（200–500 token）绰绰有余；本地 ctx 8192 也装得下（输入约 2000 + 输出 1024）。
    ⇒ **不做按 ctx 的自动收口**：默认不撞，且「1 字符 ≈ 1 token」对英文高估约 5 倍，会误收窄用户设定。
-## 十一、多模型工作流为什么每轮都慢（不是并发）
+## 十二、多模型工作流为什么每轮都慢（不是并发）
 
 **先说不是并发**：ComfyUI 只有 **1 个 `prompt_worker` 线程**，队列里塞两个 prompt 也是串行执行；
 `acquire()` 的 `_lock` 只保护「起停服务」这一小段，不涉及生成并发。
@@ -346,39 +354,26 @@ report 会写明本次用了哪个档。
 > ⚠️ **真机未跑**：本节结论由代码路径确定，未做两次不同 GGUF 的实跑计数。
 > 复跑步骤：放两个 `MossPromptSmith`，都 `channel=local`、`task=expand`，模型分别选两个不同 GGUF，
 > 各跑一次看日志里 `启动 llama-server pid=` 出现几次；再跑一轮看是否又是两次。
-## 十二、连接方式：互斥、显式、可预期（2026-11-05）
+## 十三、连接方式与运行时（0.5.2）
 
-**一条契约**：UI 只显示、不擅自改值；任何值变更都由用户的显式动作发起。
+**通道不是一个旋钮**：`channel` 由 `api_base` 是否为空推断 —— 填了走在线端点，留空走本机侧车；
+本机模式下 `api_model` 会被清空，report 写明。39 项时代的「本地引擎 / 外部 API」chip
+随面板重做一并下线（见 §九），存档里残留的两个中文旧值仍在 `_LEGACY_VALUES` 里归一。
 
-| 行为 | 现在 |
-|---|---|
-| 顶部「本地引擎 / 外部 API」chip | **就是连接方式开关**：点哪个就把 `channel` 拨到哪个，并展开该组；再点同一下收起视图 |
-| 填 `api_base` 或 `api_model` | **不再自动拨通道**（以前会，用户不知道自己的连接方式被改了）；只重画，由状态块提示 |
-| 打开「端点已填、通道还写本地」的存档 | **按存档跑**（以前会自动对齐到 API）；状态块说明并给一键修复 |
-| 非当前连接方式的那一组 | chip 标 **「本次不用」**（原「通道外」），弱化样式 |
+**运行时一个档位定来源**（`runtime`）：
 
-判据：除显式点击外，任何交互都不改 `widgets_values`；`ui_llm_panel.mjs` 84 条断言覆盖。
-## 十三、运行时与服务器程序：单一权威（2026-11-05）
+| 档位 | 找哪里 | 找不到时 |
+|---|---|---|
+| `auto`（默认） | `MOSS_LLM_SERVER` → `LLAMA_CPP_HOME` → 本包 `runtime/`（含 `MOSS_LLM_RUNTIME_DIR`）→ `PATH` | 报错，给三条可执行的下一步 |
+| `runtime` | 只认本包 `runtime/` | 同上 |
+| `path` | 只认 `PATH` 里的 `llama-server` | 同上 |
+| `自动下载` | 先按 `auto` 找，**找不到才**联网装；装前报落点与体积 | 装完仍找不到 ⇒ 报错 |
 
-**一个决定只由一个控件说**：`runtime` 选**来源**，`server_exe` 只在来源=自定义时生效。
+- 旧存档的 `current` / `update` / `用现有` / `更新到最新版` 一律归一为 `auto`，
+  所以**打开旧工作流不会触发下载**。
+- `custom` 还留在枚举里（旧存档兼容），但它指向的「服务器程序」输入格已随 18 项合并下线；
+  选到它只会得到「找不到可执行文件」，按报错里的 ①② 改档即可。
 
-| 来源 | 找哪里 |
-|---|---|
-| `auto`（默认） | 环境变量 `MOSS_LLM_SERVER` → `LLAMA_CPP_HOME` → 本包 `runtime/` → `PATH` |
-| `runtime` | 只认本包 `moss_llm/runtime/`（可用 `MOSS_LLM_RUNTIME_DIR` 指到持久目录） |
-| `path` | 只认 `PATH` 里的 `llama-server` |
-| `custom` | 只用「服务器程序」那一格 |
-
-**安装不再是“值”**：`runtime` 里原本的 `更新到最新版` 已废除——把动作存成状态会让“打开旧工作流”
-变成“自动下载几百 MB”。现在改为本地引擎行上的「安装/更新」按钮（不是 widget，不进 `widgets_values`），
-下载与解压都走 ComfyUI 自己的进度条。旁边「测试」按钮只跑 `--version`，不加载模型、不占显存。
-
-**旧存档**：`current` / `update` / `用现有` / `更新到最新版` 全部归一为 `auto`，打开不会触发下载。
-
-> 判据：`find_server_exe(path, "auto") != path`（auto 不再认显式路径）；
+> 判据：`find_server_exe(path, "auto") != path`（auto 不认显式路径）；
 > 同目录同时有 `llama-server.exe` 与 `-impl.dll` 时只选 exe；
-> `ui_llm_panel` 86 条、`test_llm_subpackage` 180 条覆盖。
-
-
-
-
+> `test_llm_subpackage` 229 条覆盖。

@@ -5,7 +5,7 @@
 
 | 文件 | 回答什么问题 | 引用它的地方 |
 |---|---|---|
-| `g1-results.json` | 12 GB 卡在各档「格数 × 单格长边」下的显存峰值 | `README.md` / `README_ZH.md` 显存段 |
+| `g1-results.json` | 12 GB 卡在各档「格数 × 单格长边」下的显存峰值 | `docs/06-vae-memory.md` 的「旧宿主 ×4」列（11.34 GB 等） |
 | `g1-report.md` | 上表每一跑的原始记录与口径（含哪些数字不可用） | 同上 |
 | `g2-50-3.json` | 50 步 / cfg 3.0 档下「整张 vs 逐格」的一致性读数 | `README.md` / `README_ZH.md` 的 `mode` 段、`docs/07` |
 | `recipe-fix.json` | 单字段实验：全局段多一句「同一对人物」是否影响结果 | `docs/15-recipe-contract.md` §六 |

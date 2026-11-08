@@ -1,19 +1,21 @@
 # 文档索引（13 篇）
 
 > 只列仍在 `docs/` 的文档；历史过程文档已归档，见 git 历史。
+> 另外两个目录：`data/` 是公开数值的出处（见 [data/README](data/README.md)），
+> `reference/` 是上游 skill 原文（只读，别改）。
 
 | 文档 | 一句话 |
 |---|---|
-| [06 · VAE 解码显存账（进阶）](06-vae-memory.md) | --- |
-| [跨格一致性：机理、实测口径与旋钮边界](07-consistency.md) | --- |
-| [10 · state v3 冻结契约](10-contract.md) | --- |
-| [12 · 互操作：elements-v1 ⇄ state v3](12-interop.md) | 编辑器的 `editor_state` 是 v3 契约（`docs/10`），它解决「同一份状态怎么确定性编译」。 |
-| [官方 prompt-enhancer 草稿：接入与置信度](13-prompt-enhancer.md) | OpenMOSS 在 `MOSS-Image` 仓库里发布了一个给 LLM agent 用的 skill： |
-| [顶层设计与节点职责：这七个节点各自对什么负责](14-top-level-design.md) | 本包的承诺是： |
-| [故事板配方契约：验证过的配方里，哪些项是必需的](15-recipe-contract.md) | 三份的全局段**都**含同一串网格声明，每一格的主句都以「**画面为**…」起句。 |
-| [换脸节点：重构前 → 重构后](16-faceswap-refactor.md) | **前**：换脸 = 另一个包的一个编码节点 + 手接 `VAEEncode` + `KSampler` + 手工裁格贴回， |
-| [换脸配方：哪条路真的成过](17-faceswap-recipe.md) | **原理**：MOSS 自己没有蒙版通道（`TextEncodeMOSSImageEdit` 的输入里没有 mask， |
-| [蒙版潜空间编辑：MOSS 没做的那半条路](18-masked-latent-edit.md) | 三条硬证据（2026-10-29 读代码 + 工作流得到）： |
-| [节点手册 · 参数全表](19-node-manual.md) | 同一个东西在不同地方叫不同名字，是这类文档最常见的误解来源。本包统一如下： |
-| [20 · 可选 LLM 子包 `moss_llm`：一个节点，只出成品提示词](20-llm-prompt-nodes.md) | 提案里是 `MossLLMConfig` + `MossPromptSmith`（+ 可选 `MossPromptCheck`）三个。 |
-| [21 · LLM Prompt 节点 · 未做项台账](21-llm-prompt-ux-spec.md) | 改造已落地大半，这里只留没做的事与仍生效的判据。 |
+| [06 · VAE 解码显存账（进阶）](06-vae-memory.md) | 峰值在 VAE 解码而不是采样：按画布面积复算的方法，以及「12 GB 够不够」该怎么读。 |
+| [跨格一致性：机理、实测口径与旋钮边界](07-consistency.md) | 跨格身份与风格能保到什么程度、读数怎么来的、哪些旋钮真有用。 |
+| [10 · state v3 冻结契约](10-contract.md) | `editor_state` 的字段与编译规则；改它等于破坏存档。 |
+| [12 · 互操作：elements-v1 ⇄ state v3](12-interop.md) | 外部工具只填「谁在哪个框里」就能驱动本仓，不必复刻 v3 全字段。 |
+| [官方 prompt-enhancer 草稿：接入与置信度](13-prompt-enhancer.md) | 官方 skill 的草稿怎么接进 `MossPromptCompiler`，以及置信度到哪为止。 |
+| [顶层设计与节点职责：这七个节点各自对什么负责](14-top-level-design.md) | 7 个核心节点各管什么、不管什么；承诺是「几何确定、提示词透明、返工便宜」。 |
+| [故事板配方契约：验证过的配方里，哪些项是必需的](15-recipe-contract.md) | 以仓库里的示例原文为准：哪些项必需、哪些只是习惯。 |
+| [换脸节点：重构前 → 重构后](16-faceswap-refactor.md) | 换脸为什么收成一个节点，以及那些调参为什么都留在默认值。 |
+| [换脸配方：哪条路真的成过](17-faceswap-recipe.md) | 只有「蒙版局部重绘」成过，整格重画不成；要复现就照这页抄。 |
+| [蒙版潜空间编辑：MOSS 没做的那半条路](18-masked-latent-edit.md) | 官方把源图当参考，本包让源图当起点：构图从机制上保住，代价是只适用于中小区域。 |
+| [节点手册 · 参数全表](19-node-manual.md) | 每个入参填什么、边界在哪、报错怎么读；术语先统一。 |
+| [20 · 可选 LLM 子包 `moss_llm`：一个节点，只出成品提示词](20-llm-prompt-nodes.md) | 18 项参数、16 档风格、通道与运行时、实测坑与成本量级。 |
+| [21 · LLM Prompt 节点 · 决定与判据](21-llm-prompt-ux-spec.md) | 只留仍生效的判据与「明确不做」；旧台账已随 18 项面板作废。 |

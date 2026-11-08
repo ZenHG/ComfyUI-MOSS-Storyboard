@@ -93,7 +93,7 @@ Download the three files from the official tutorial
 ### 1.4 Where to go next
 
 - All node inputs / outputs: [`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md).
-- LLM node details and dialects: [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 below.
+- LLM node details, styles and presets: [`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md). PE rewriter: [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md); how to run it: §1.6 below.
 - More examples: §3.1 below.
 
 ### 1.5 What to wire

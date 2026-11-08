@@ -579,7 +579,7 @@ skill 本身是外部 Apache-2.0 内容，**不随包分发**；本节点是按�
 不新增 widget，不改默认行为；没有这些文件的模型完全走原路径。
 
 - 命中后 report 写 `PE 改写器模式…` / `PE 改写器模式（编辑）…`；该模式下**跳过**本包的长度带与
-  `must_keep` 对账（PE 的 JSON 没有这些字段）。
+  `keep`（内部 `must_keep`）对账（PE 的 JSON 没有这些字段）。
 - 输出按 PE 自己的 JSON 取正文（`rewritten_prompt`）；`wh_ratio` / `ratio_follow` **不解析、不写进提示词**，
   画幅仍由采样器/上游决定。
 - PE-I2I 需要 **mmproj**（视觉塔）；中文编辑指令按 PE 契约输出**中文描述**（不是英文）。
@@ -600,7 +600,7 @@ PE-T2I 是纯文本改写器；做「反推」需要另配视觉模型与 mmproj
 1. 自备三件套放进 `<ComfyUI>/models/LLM/` 下同一目录：PE-I2I GGUF、配套 `mmproj` 视觉塔、
    原生 `system_prompt.txt`（须含 `ratio_follow` 或 `rewritten editing instruction`）。
 2. 把 `examples/llm-prompt-workbench.json` 拖进画布，按 Ctrl+B 取消第 ④ 组旁路（其余三组保持旁路）；
-   在该组节点的 `model` 下拉里选该 GGUF，`mmproj` 保持自动或手选配对塔。
+   在该组节点的 `model` 下拉里选该 GGUF；`mmproj` 自动按宽度配对（0.5.2 起没有手选那一格）。
 3. `LoadImage` 选参考图，`text` 写中文编辑指令，`task=edit`，Run。
 4. 看第二个输出 `report`：出现「PE 改写器模式（编辑）」即命中，并列出本次被绕过的参数；
    没有这一行就是普通编辑路径，按上面的候选顺序与识别特征排查。

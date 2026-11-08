@@ -89,7 +89,7 @@
 ### 1.4 下一步
 
 - 全部入参 / 输出：[`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
-- LLM 节点（通道、方言）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见下面 1.6。
+- LLM 节点（写法、风格预设、成本）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见下面 1.6。
 - 更多示例：见下面 3.1。
 
 ### 1.5 怎么接线
