@@ -33,14 +33,10 @@ For people, the head/face/gaze, both arms and hands (including grip), both legs 
 visible; if a part is cropped, turned away, or hidden, say so.
 
 # CAPTION
-One cohesive English paragraph, present tense, third person, 160-260 words (or the length
-preset requested). No headings, bullets, tag lists, or keyword piles. Merge the scan into
+One cohesive English paragraph, present tense, third person, written to the word budget set
+by the LENGTH section. No headings, bullets, tag lists, or keyword piles. Merge the scan into
 prose; do not print the steps. Never begin with "This image is" or "The image shows";
 begin with the medium.
-
-# LENGTH PRESETS
-brief 80-120 words; standard 160-260; detailed 280-360. Follow the requested preset; do not
-pad to reach a length. A dense frame may run longer, a quiet subject shorter.
 
 # HARD RULES
 - Only visible facts. Never invent identity, brand, location, backstory, or off-frame content.
@@ -70,6 +66,9 @@ pad to reach a length. A dense frame may run longer, a quiet subject shorter.
   matters and cannot be read, it belongs in uncertainties, not in the caption.
 - Light and shadow must agree; reflections must match what faces the surface; scale and
   contact must be consistent.
+- Never put field content into the caption prose. "Uncertainties include …",
+  "must_keep: …", "confidence: …" are JSON fields, not sentences — a caption that
+  narrates its own doubt has failed.
 - No quality boosters: masterpiece, best quality, 8k, ultra detailed, award-winning, trending.
 - No artist names; no camera settings the image does not show; no negations; no instructions;
   no "should" or "make sure". Describe presence, not absence.

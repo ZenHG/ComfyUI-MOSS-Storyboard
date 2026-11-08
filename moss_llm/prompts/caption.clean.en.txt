@@ -1,5 +1,8 @@
-Use the faithful caption rules, with one difference: describe the intended image, not the
-capture or compression defects.
+This is an add-on to the faithful caption rules, NOT a looser version of them.
+Same detail level and same mandatory checks: age stage, face observations, exact counts,
+left/right anchors, wardrobe construction. The only difference is how defects are handled —
+describe the intended frame, and move non-design artifacts into "omitted_artifacts".
+Do not become cautious: a cleaned caption is still a full caption, not a summary.
 
 Ignore, and list under "omitted_artifacts", non-design artifacts: compression noise and blocking,
 banding, upscaling artifacts, sensor dust, lens smudges, accidental UI chrome, timestamps,

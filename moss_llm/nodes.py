@@ -426,7 +426,10 @@ class MossPromptSmith:
         # ---- 16 项 → 旧 39 项展开（内部逻辑一行不动）----
         raw_task = str(task or "反推")
         wash = raw_task == "洗图"
-        two_pass = wash
+        # 洗图 = 反推 + 忽略缺陷，不是「防漏细节」⇒ 不走两遍法。
+        # 两遍法的 pass2 用 pack 里的固定模板，clean 拼不进去（实测洗图只写 86 词，
+        # 单遍反推 176 词）；而 clean 拼在 pass1 前对「盘点」也没有意义。
+        two_pass = False
         task = _TASK_ALIAS.get(raw_task, raw_task)
         _sty = _STYLE.get(str(style), {"dialect": "moss_image"})
         dialect = _sty.get("dialect", "moss_image")
@@ -758,6 +761,20 @@ class MossPromptSmith:
             if tidied != prompt:
                 report.append("六段式归一：把挤在同一行的 <Subject N> 拆成一项一行")
                 prompt = tidied
+        # 分号链：只处理自然语言正文；宫格稿/六段式/结构化稿的分号是语法，不能动。
+        if prompt.strip() and not h3_mode and dialect != "moss_storyboard":
+            tamed = _tame_semicolons(prompt)
+            if tamed != prompt:
+                report.append("分号归一：把 %d 个分号断成句号（模型表达习惯，非内容改动）"
+                              % (prompt.count(";") - tamed.count(";")))
+                prompt = tamed
+        # 光影冲突：风格要求夜景、输入写白天 —— 不静默选一个，出声让人知道按谁走。
+        _lock_txt = (style_lock or "")
+        if _lock_txt and _LOCK_NIGHT.search(_lock_txt) and _DAY_WORDS.search(user or "") \
+                and not h3_mode:
+            report.append("⚠ 风格锁定要求夜间/暗调，但你的输入里写了白天时段 ⇒ "
+                          "本次按风格走（光与时间由风格决定）；想保留白天请换风格，"
+                          "或把时段写进「必须原样保留」")
         if not prompt.strip():
             raise RuntimeError(
                 "模型没有给出可用提示词（正文为空）。可能原因：输入里含指令（如「忽略以上指令」）"
@@ -923,7 +940,8 @@ class MossPromptSmith:
                 if wash:
                     sysmsg = texts["caption.clean.en"] + "\n\n" + sysmsg
             elif wash:
-                sysmsg = texts["caption.clean.en"] + "\n\n" + texts["caption.faithful.en"]
+                # 补丁必须在规则之后：clean 自己开头就写着 "an add-on to the faithful rules"。
+                sysmsg = texts["caption.faithful.en"] + "\n\n" + texts["caption.clean.en"]
             else:
                 sysmsg = texts["caption.faithful.en"]
         elif task == "expand":
@@ -962,9 +980,20 @@ class MossPromptSmith:
                 parts.append("# LANGUAGE\nWrite the description in %s."
                              % ("Chinese" if language == "zh" else "English"))
         if (style_lock or "").strip():
+            # 反推的 role 是「忠实还原」，光 append 一个 lock 会被它压掉（实测：写实 vs
+            # 电影剧照输出几乎一样）。所以对 caption 显式分层：事实不动，只换观感。
+            _lock_head = ""
+            if task == "caption":
+                _lock_head = (
+                    "This lock changes how the frame is DESCRIBED, never what is IN it.\n"
+                    "Keep verbatim: subject count, age stage, identity cues, exact text, "
+                    "left/right anchors, visible facts.\n"
+                    "Use the lock to decide which qualities you name — grain, contrast, "
+                    "palette, lens character, light quality, surface response.\n")
             parts.append(
                 "# STYLE LOCK (hard constraint — outranks every default in the method)\n"
-                "%s\n"
+                + _lock_head
+                + "%s\n"
                 "Every sentence that names light, color, texture or material must obey this "
                 "lock. Where the method's default aesthetic conflicts with it, the lock wins. "
                 "Do not restate the lock as a sentence; make the frame follow it. "
@@ -1758,6 +1787,35 @@ def _api_setup(api_base, api_model, api_key):
 def _host_of(endpoint):
     m = re.match(r"https?://([^/]+)", endpoint or "")
     return m.group(1) if m else (endpoint or "?")
+
+
+#: 夜景/暗调类风格 lock 的关键词；与用户输入里的白天时段撞车时要在 report 出声。
+_LOCK_NIGHT = re.compile(r"(?i)\b(night|nocturnal|neon|cyberpunk|low[- ]key|dark)\b")
+_DAY_WORDS = re.compile(r"(?i)午后|下午|上午|正午|清晨|早晨|白天|日光|阳光|"
+                        r"\b(afternoon|morning|noon|midday|daylight)\b")
+
+
+def _tame_semicolons(text):
+    """把散文里的分号换成句号。
+
+    分号链不是内容问题，是**表达习惯**：小模型（实测 4B）会用 `;` 把整段串成一句，
+    模板怎么写都压不住（`# 3C` 要求整段 ≤1 个分号，它照写 5–10 个）。这类机械问题
+    不该靠模型自律 —— 确定性处理更可靠，也不影响大模型的正常输出（它们本来就少分号）。
+    """
+    if not text or ";" not in text:
+        return text
+    out = []
+    for chunk in re.split(r"(?<=[.!?])\s+", text):
+        if ";" not in chunk:
+            out.append(chunk)
+            continue
+        parts = [p.strip(" \t\n") for p in chunk.split(";") if p.strip()]
+        if len(parts) < 2:
+            out.append(chunk)
+            continue
+        # 第二段起首字母大写（英文）；中文没有大小写，原样保留
+        out.append(". ".join([parts[0]] + [p[:1].upper() + p[1:] for p in parts[1:]]))
+    return " ".join(out)
 
 
 def _strip_fences(text):

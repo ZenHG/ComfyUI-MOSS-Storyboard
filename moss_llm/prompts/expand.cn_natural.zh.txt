@@ -6,6 +6,6 @@
 - 图内文字用双引号逐字给出；没有要求就不造字。中文模型对中文字形更稳。
 - 不写否定式；不写质量词（masterpiece/8k/超详细）；不以「这张图是」开头。
 - 可灵：主体+运动+场景+（镜头+光线+氛围）；用简单词；数字与复杂物理动作不承诺。
-- 万相：negative_prompt 单独给，不写进正向；prompt_extend 可关，便于复现。
+- 万相：不要给负面提示词 —— 本节点只产正向内容；prompt_extend 可关，便于复现。
 - 图生图：一次只改一个对象/动作/特征；不用代词；SeedEdit 建议 ≤120 字（最长 800）。
-- 输出 JSON：{"rewritten_prompt":"...","wh_ratio":"...","negative_prompt":"...","must_keep":["..."],"notes":["..."]}
+- 输出 JSON：{"rewritten_prompt":"...","wh_ratio":"...","must_keep":["..."],"notes":["..."]}

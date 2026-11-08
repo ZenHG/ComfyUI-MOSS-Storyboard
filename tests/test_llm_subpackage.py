@@ -212,6 +212,19 @@ def main():
         except ValueError as e:
             check("边界报错含「%s」" % needle, needle in str(e), str(e).splitlines()[0][:50])
 
+    print("\n== 6aa. 分号归一（确定性后处理，不靠模型自律）==")
+    check("英文分号断成句号，并大写次句首字母",
+          nodes._tame_semicolons("a b; c d; e f") == "a b. C d. E f",
+          nodes._tame_semicolons("a b; c d; e f"))
+    check("无分号原样返回（不动正常文本）",
+          nodes._tame_semicolons("plain text.") == "plain text.")
+    check("中文分号不动（中文排版里是正常标点，不是串句手段）",
+          nodes._tame_semicolons("甲；乙；丙") == "甲；乙；丙",
+          nodes._tame_semicolons("甲；乙；丙"))
+    check("空串/None 不炸", nodes._tame_semicolons("") == "" and nodes._tame_semicolons(None) is None)
+    check("句号之后的分号仍会断（按句切块再处理）",
+          nodes._tame_semicolons("One. Two; three.") == "One. Two. Three.")
+
     print("\n== 6b. 旧稿枚举值归一（初版把中文写进了存档）==")
     try:
         smith.smith(task="反推", **base)
@@ -559,9 +572,11 @@ def main():
                                 False, False, "auto")
     s_fix = inst0._build_system(pack0, "expand", bad, "standard", 4, "", "",
                                 False, False, "auto", target="krea2")
+    # 判据用 generic_natural 的稳定特征（它原本硬编码的 "100-200 words" 已删：
+    # 字数统一由 # LENGTH 段给，各契约不再自带数字）。
     check("纠正后 system 真的换了模板（不是只改了个返回值）",
-          "[PANEL" in s_bad and "[PANEL" not in s_fix and "100-200 words" in s_fix,
-          s_fix[:70])
+          "[PANEL" in s_bad and "[PANEL" not in s_fix
+          and "English natural-language paragraph" in s_fix, s_fix[:70])
     q, rep_q = conv("generic_tags", "qwen-image-2_1")
     check("Qwen-Image 2.1 + 标签串 ⇒ 纠正（它只吃 caption）",
           q == "generic_natural" and bool(rep_q), str((q, rep_q)))

@@ -6,7 +6,7 @@
     {
       "id": "caption.faithful.en",
       "path": "caption.faithful.en.txt",
-      "sha256": "5351c93d2a89f6f700b5105051074e8ffd6f90bcd2731b6946777f5631124d27",
+      "sha256": "77fd9786c0176535e53599e7cd67d1b64c005d93a34bef66a038a9510ecfdea4",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -14,7 +14,7 @@
     {
       "id": "caption.clean.en",
       "path": "caption.clean.en.txt",
-      "sha256": "a551c1953ef9079342ffca69608426e11db0cdc72ca32b06d9818d8f2197df6b",
+      "sha256": "e95dd5941458e017242232c78ec1f97dc78b9dc39af3b12a8d259eda7529c660",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -30,7 +30,7 @@
     {
       "id": "caption.pass2.en",
       "path": "caption.pass2.en.txt",
-      "sha256": "8bb7114482bf5c9eff19522a1f45387c7c3ea91a9404b3017b72f906d7b74604",
+      "sha256": "f1a12b84f73b2859464964106cb66fb16877e5648d9b415c87d052c4b19d36bd",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -62,7 +62,7 @@
     {
       "id": "expand.cn_natural.zh",
       "path": "expand.cn_natural.zh.txt",
-      "sha256": "e08f10e7bf33eaff47becd4de5bafc1fb6fa9590199aa8b7dd2168517000d8db",
+      "sha256": "f78192fb98b7f6ea247c69f45c01a5729c3831b3e98fe7317dc5ea8f53df315f",
       "lang": "zh",
       "license": "MIT",
       "source": "Original; method informed by public sources"
@@ -70,7 +70,7 @@
     {
       "id": "expand.generic_natural.en",
       "path": "expand.generic_natural.en.txt",
-      "sha256": "9d952ef138b7aed19d51d3316f0b5cc133e2713c5b8b9c2a49bb298658bfff48",
+      "sha256": "a7633b665e255d308aeecef66209be7ec0733c8f77ff7328bf3882ed94fad0ba",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
