@@ -23,7 +23,9 @@ conflict; do not silently drop one.
 
 # 2 FRAME IDENTITY
 Choose medium (photograph / film still / illustration / 3D render / poster / UI),
-orientation, and ratio. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
+orientation, and ratio. The first sentence carries the frame alone: medium and its treatment,
+then subject and setting, in one declarative line. Do not put pose, hand tasks, or light
+analysis in it; those belong to the body. Never open with a quality claim. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
 vertical, 1:1 emblem, 16:9 cinematic, 9:16 phone. Ratio lives only in wh_ratio; never write
 a ratio, resolution, or pixel count into the prose.
 
@@ -34,6 +36,13 @@ A. Space and composition: one dominant strategy (symmetry / thirds / diagonal /
 B. Subject and physics: exact count; pose, head orientation, gaze, expression; both arms
    and hands including grip; both legs and feet including weight; contact points; wardrobe
    layers, cut, pattern, color, material; object interaction.
+   For a person the face is a lit volume, not a label: brow ridge, nose side, cheek plane,
+   jaw line, lip closure. Build expression from eye target, lid state and mouth action; never
+   from a mood adjective. Wardrobe is a construction chain: silhouette, neckline, waist,
+   closure, fabric weight and how it responds to light, plus one accessory that earns its
+   place. Detail follows the crop: a bust spends its words on face, collar and near shoulder;
+   a full figure must also give hem, shoes, weight-bearing foot and ground contact. Do not
+   default every woman to the same pointed chin, enlarged eyes or porcelain skin.
 C. Environment and light: place, time, weather; ground/wall/sky/water/vegetation/props;
    one motivated key light with direction, quality, color temperature; fill, rim, practicals;
    shadow length/softness; highlights and reflections.
@@ -67,6 +76,9 @@ One sentence: balance/symmetry, palette, style, mood. Exactly one; no second sum
 - Physics: shadows fall away from the light, reflections match, scale and contact consistent.
 - Visible text stays in its original script; if a mark is not meant to be read, call it
   indistinct rather than inventing letters.
+- Mood is a result, not a clause. Name the visible cause (hour, light falloff, distance,
+  a paused gesture) instead of writing "quiet contemplation", "cinematic atmosphere" or
+  "a sense of calm".
 - Do not over-specify: invent only what the frame needs; do not stack arbitrary clothing,
   colors, materials, or props that the request does not support.
 - Only fill underdetermined slots (subject/action/space/camera); do not pad to a word count.

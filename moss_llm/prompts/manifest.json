@@ -1,7 +1,7 @@
 {
   "pack": "moss-llm-prompts",
   "version": "1.8.0",
-  "updated": "2026-11-07",
+  "updated": "2026-11-08",
   "files": [
     {
       "id": "caption.faithful.en",
@@ -38,7 +38,7 @@
     {
       "id": "expand.method.en",
       "path": "expand.method.en.txt",
-      "sha256": "1e96fee1c16647a240412bd3180b886ffd230955bb2a13b0f6188e3a8dfd1aeb",
+      "sha256": "442f2b2696776ad30b9d2946198fef3fc2ba9b8dfb933acc533460cd60cdfb80",
       "lang": "en",
       "license": "MIT",
       "source": "Original; method informed by public sources"
