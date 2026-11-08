@@ -341,9 +341,9 @@ class MossPromptSmith:
                 "target": (_TARGETS, {"default": "moss-image",
                     "tooltip": "输出给哪个模型。拼装时决定编译目标；扩写时一般不用动"
                                "（填了就以它为准，选「时间线六段式」会自动切成 minimax-h3）"}),
-                "style_note": ("STRING", {"default": "", "multiline": True,
-                    "tooltip": "选「自定义」风格时在这里写：光线/色调/质感/参考方向，写成一句话即可；"
-                               "留空则等同「英文详述」"}),
+                "style_note": ("STRING", {"default": "",
+                    "tooltip": "选「自定义」风格时在这里写：光线/色调/质感/参考方向，一句话即可；"
+                               "留空则等同「英文详述」。平时不用管它"}),
                 "length": (["短", "中", "长"], {"default": "中",
                     "tooltip": "短≈512 / 中≈1024 / 长≈2048 tokens"}),
                 "temperature": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 2.0, "step": 0.05,

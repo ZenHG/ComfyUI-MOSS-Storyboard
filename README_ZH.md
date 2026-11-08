@@ -217,7 +217,7 @@ PE-T2I（`task=expand`）另需 T2I 提示词与权重：代码分支在，但�
 ### 3.2 文档
 
 - 全部参数、术语与实测边界：[`docs/19-node-manual.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)。
-- LLM 节点（方言 / 39 个参数）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见上面 1.6。
+- LLM 节点（18 个参数 / 4 类 16 档写法）：[`docs/20-llm-prompt-nodes.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/20-llm-prompt-nodes.md)。PE 改写器见 [`docs/19-node-manual.md` §9](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/19-node-manual.md)；怎么跑起来见上面 1.6。
 - 文档索引：[`docs/README.md`](https://github.com/ZenHG/ComfyUI-MOSS-Storyboard/blob/main/docs/README.md)。
 
 > 手册只在 GitHub 仓库里，发布包不含 `docs/`；上面的链接指向仓库。

@@ -214,7 +214,7 @@ export const LABELS = {
     style_class: "写法类",
     style: "具体写法",
     target: "给哪个模型用",
-    style_note: "自定义风格（选「自定义」时填）",
+    style_note: "自定义风格",
     keep: "必须原样保留",
     speed: "速度档",
 };
@@ -251,7 +251,7 @@ const LABELS_NODE = {
         seed: "复现编号", mmproj: "看图用的文件", language: "用哪种语言写",
         runtime: "本机程序", api_base: "API地址", api_model: "在线模型名", api_key: "密钥",
         target: "给哪个模型用", profile: "结构稿模板（一般留空）",
-        style_note: "自定义风格（选「自定义」时填）",
+        style_note: "自定义风格",
     },
 };
 
