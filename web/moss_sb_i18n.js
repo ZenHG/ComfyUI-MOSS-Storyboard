@@ -744,7 +744,8 @@ export const TIPS = {
             + "Required when channel=api.",
     },
     "MossPromptSmith.api_model": {
-        en: "[api channel] Model id as the provider names it. Required when channel=api; ignored on the local channel.",
+        en: "[api channel] Model id as the provider names it — type it directly; the ↻ button fills the\n"
+            + "inline dropdown with the fetched list. Required when channel=api; ignored on the local channel.",
     },
     "MossPromptSmith.api_key": {
         en: "[api channel] API key. NOTE: typed here it is saved into the workflow JSON and shared with it;\n"

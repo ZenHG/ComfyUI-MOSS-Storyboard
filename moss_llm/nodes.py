@@ -363,9 +363,9 @@ class MossPromptSmith:
                     "tooltip": "复现用。0=每次不同"}),
                 "api_base": ("STRING", {"default": "",
                     "tooltip": "填了就走在线服务，留空走本机模型"}),
-                "api_model": (_model_choices(), {"default": "",
-                    "tooltip": "在线模型名。点 ↻ 用当前地址+Key 拉一次清单就能下拉选；"
-                               "拉不到也能手填服务商给的 id"}),
+                "api_model": ("STRING", {"default": "",
+                    "tooltip": "在线模型名。直接手填服务商给的 id 就能用；"
+                               "点 ↻ 拉一次清单后，也可在这格右边的下拉里选"}),
                 "api_key": ("STRING", {"default": "",
                     "tooltip": "在线服务的密钥。保存工作流时自动清空"}),
                 "speed": (list(_SPEED), {"default": "均衡",
@@ -395,7 +395,7 @@ class MossPromptSmith:
 
     @classmethod
     def VALIDATE_INPUTS(cls, api_model=None):
-        """模型名不按列表校验：清单来自实际拉取，进程重启就空，旧工作流里的值不许被判非法。"""
+        """`api_model` 是 STRING，任意 id 都合法（不按任何清单校验）。"""
         return True
     CATEGORY = CATEGORY
     DISPLAY_NAME = "LLM Prompt"
@@ -1506,18 +1506,6 @@ _FATAL_400 = re.compile(r"missing[ _-]?(?:session|header|api[ _-]?key|token|para
 _KNOB_400 = re.compile(r"response_format|json_schema|chat_template|thinking|repeat_penalty", re.I)
 
 
-#: 拉过的模型清单（按端点缓存）。combo 的选项由它生成 —— 进程内有效，重启后为空。
-_MODELS_BY_BASE = {}
-
-
-def _model_choices():
-    """`api_model` 的下拉选项：空串（未选）+ 拉过的全部模型名。
-
-    服务商给的 id 无法预知，所以清单只能来自实际拉取；空串保留「必填」语义。
-    """
-    return [""] + sorted({m for ids in _MODELS_BY_BASE.values() for m in ids})
-
-
 #: 本地端点绝不走代理：VPN/代理软件设了全局 HTTP(S)_PROXY 时，连 Ollama 都被塞进
 #: 代理隧道（实测 Tunnel connection failed: 502），本地端点必须直连。
 _LOCAL_HOSTS = ("localhost", "::1", "0.0.0.0", "host.docker.internal",
@@ -1780,7 +1768,6 @@ def list_models(api_base, api_key="", timeout=15):
                     ids.append(mid.split("/")[-1] if pr == _proto.GEMINI else mid)
             models = sorted(set(ids))
             if models:
-                _MODELS_BY_BASE[url.rsplit("/models", 1)[0]] = models
                 return models, url
     finally:
         # 还没开跑的候选直接取消；在飞的由各自超时收尾，不拖住返回值。

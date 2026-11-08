@@ -868,16 +868,13 @@ def main():
     except RuntimeError as e:
         check("Gemini 无候选要出声", "SAFETY" in str(e), str(e)[:40])
 
-    # ---- api_model 是 combo：选项来自实际拉取，旧工作流的自定义值不许被判非法
+    # ---- api_model 是 STRING：拉取失败也必须能手填（0.5.2 修「下拉只有空串」）
     spec = nodes.MossPromptSmith.INPUT_TYPES()["optional"].get("api_model") \
         or nodes.MossPromptSmith.INPUT_TYPES()["required"].get("api_model")
-    check("api_model 是 combo（选项是列表，首项空串=未选）",
-          isinstance(spec[0], list) and spec[0][:1] == [""], str(spec[0][:3]))
-    import inspect as _inspect
-    check("VALIDATE_INPUTS 声明了 api_model（宿主据此豁免列表校验）",
-          "api_model" in _inspect.getfullargspec(
-              nodes.MossPromptSmith.VALIDATE_INPUTS).args
-          and nodes.MossPromptSmith.VALIDATE_INPUTS("任何服务商的模型名") is True)
+    check("api_model 是 STRING（拉取失败也能手填服务商 id）",
+          spec[0] == "STRING", str(spec[0])[:20])
+    check("STRING api_model 任意值合法（VALIDATE_INPUTS 放行）",
+          nodes.MossPromptSmith.VALIDATE_INPUTS("任何服务商的模型名") is True)
 
     # ---- 第四种线格式：OpenAI /responses（body 与回包结构都和 chat 不同）
     rbase = "https://gw.example.com/openai/v1/responses"

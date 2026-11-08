@@ -106,6 +106,13 @@ const CSS = `
 .mossllm-pick button[data-bad="1"]{border-color:#c0504d;color:#e07b78}
 .mossllm-pick button[data-busy="1"]{color:#d9a441;border-color:#8a6d2f;
  animation:mossllm-spin 1s linear infinite}
+/* 拉到的模型清单：与 ↻ 同盒，拉过才出现（hidden），选完即回位 —— 只是快捷方式，不是值的事实源 */
+.mossllm-pick select{flex:0 1 auto;min-width:0;max-width:200px;height:20px;padding:0 3px;margin-right:4px;
+ border-radius:5px;border:1px solid var(--border-color,#4e4e4e);
+ background:var(--comfy-input-bg,#222);color:var(--input-text,#ddd);cursor:pointer;
+ font:11.5px/1 system-ui,sans-serif}
+.mossllm-pick select[hidden]{display:none}
+.mossllm-pick select:hover{background:var(--comfy-menu-bg,#333)}
 /* 「常用端点」贴在 api_base 行右端 —— 与 ↻ 同一套路。 */
 [data-widgets-grid-node-id] [data-widget-name="api_base"]{position:relative}
 .mossllm-ep{position:absolute;right:4px;top:50%;transform:translateY(-50%);z-index:3;max-width:52%}
@@ -122,10 +129,11 @@ const CSS = `
  *  0.5.2 起面板只剩：↻ 拉取、常用端点下拉，词条也就只剩这两组。 */
 const I18N = {
     zh: {
-        fetchTip: "用当前 api_base 与 Key 拉模型清单，灌进这个下拉",
-        fetched: "已拉到 %d 个模型，可直接下拉换",
+        fetchTip: "用当前 api_base 与 Key 拉模型清单，灌进左边这个下拉；拉不到也可以直接手填模型名",
+        fetched: "已拉到 %d 个模型：下拉选或直接手填",
         fetching: "拉模型清单中… %ds",
         fetchFail: "拉模型失败", needBase: "先填 api_base 再拉模型",
+        mdlPh: "选模型", mdlTip: "这次拉到的模型；手填任何 id 也一样能用",
         ep_custom: "自定义（不动）",
         ep_deepseek: "DeepSeek", ep_opencode: "OpenCode", ep_odesign: "OpenDesign CoRouter",
         ep_ollama: "Ollama 本地", ep_lmstudio: "LM Studio 本地",
@@ -133,10 +141,11 @@ const I18N = {
         epTip: "选常用端点会把地址写进 api_base（填了就不再走本机）；「自定义」不动当前值",
     },
     en: {
-        fetchTip: "Fetch models for this api_base + key into this dropdown",
-        fetched: "%d models loaded — pick from the dropdown",
+        fetchTip: "Fetch models for this api_base + key into the dropdown; you can always type the id instead",
+        fetched: "%d models fetched — pick from the dropdown or type the id",
         fetching: "Fetching model list… %ds",
         fetchFail: "Model list failed", needBase: "Fill api_base first",
+        mdlPh: "Pick model", mdlTip: "Models from the last fetch; typing any id works too",
         ep_custom: "Custom (leave as is)",
         ep_deepseek: "DeepSeek", ep_opencode: "OpenCode", ep_odesign: "OpenDesign CoRouter",
         ep_ollama: "Ollama (local)", ep_lmstudio: "LM Studio (local)",
@@ -385,7 +394,19 @@ function setModel(node, id) {
     if (!w || !id) return;
     w.value = id;
     try { w.callback?.(id); } catch (e) { /* 老前端没有 callback */ }
+    syncWidgetDom(node, "api_model");
     app?.graph?.setDirtyCanvas?.(true, true);
+}
+
+/** 程序化改值后把可见输入框对齐（宿主只绑 input 事件 → w.value，反向不刷）。 */
+function syncWidgetDom(node, name) {
+    const row = rowOf(node, name);
+    const el = row && row.querySelector("input,textarea");
+    const w = widgetOf(node, name);
+    if (el && w) {
+        const v = String(w.value == null ? "" : w.value);
+        if (el.value !== v) el.value = v;   // 不派发事件：避免触发宿主回写循环
+    }
 }
 
 /**
@@ -397,29 +418,37 @@ function setApiBase(node, url) {
     if (!w || apiVal(node, "api_base") === url) return false;
     w.value = url;
     try { w.callback?.(url); } catch (e) { /* 老前端没有 callback */ }
+    syncWidgetDom(node, "api_base");
     app?.graph?.setDirtyCanvas?.(true, true);
     return true;
 }
 
 /**
- * 把拉到的模型灌进 `api_model` 这个 combo 的选项。
- * 直接改 `options.values` 宿主不重画（实测下拉仍是旧列表），必须把同一个 widget
- * 在同索引 splice 一次触发响应式；位置不变 ⇒ 存档格数与顺序不受影响。
+ * 把拉到的模型灌进 api_model 行内的下拉（`st.pick.sel`，与 ↻ 同一个盒子）。
+ * `api_model` 本身是 STRING：手填任何 id 都成立，这个下拉只是「拉过之后的快捷选择」。
  */
 function setModelChoices(node, models) {
-    const w = widgetOf(node, "api_model");
-    if (!w) return;
-    const vals = [""].concat(models);
-    // 存过的自定义值不在清单里时要留在选项中，否则 combo 会显示空白、存盘把值弄丢。
-    const cur = String(w.value == null ? "" : w.value);
+    const st = node.__mossllm;
+    if (!st || !st.pick || !st.pick.sel) return;
+    const sel = st.pick.sel;
+    const cur = apiVal(node, "api_model");
+    const vals = (models || []).slice();
+    // 手填过的自定义值也进清单，免得下次想换回来时找不到。
     if (cur && !vals.includes(cur)) vals.unshift(cur);
-    w.options.values = vals;
-    const i = node.widgets.indexOf(w);
-    if (i >= 0) {
-        node.widgets.splice(i, 1);
-        node.widgets.splice(i, 0, w);
+    sel.textContent = "";
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = t().mdlPh;
+    sel.append(ph);
+    for (const m of vals) {
+        const o = document.createElement("option");
+        o.value = m;
+        o.textContent = m;
+        sel.append(o);
     }
-    app?.graph?.setDirtyCanvas?.(true, true);
+    sel.hidden = vals.length === 0;
+    sel.value = "";
+    sel.title = t().mdlTip;
 }
 
 /** 拉模型清单：Key 只在这一次 POST 里过一趟，服务端不回显、不落盘。 */
@@ -460,15 +489,14 @@ async function fetchModels(node, st) {
         });
         const d = await r.json();
         if (!d.ok) throw new Error(d.error || ("HTTP " + r.status));
-        setModelChoices(node, d.models);
-        pick.err = null;
-        delete pick.btn.dataset.bad;
         // 拉取的前提是 api_base 已填 ⇒ 通道本来就在线（0.5.2 起通道由 api_base
         // 是否为空推断，节点上没有 channel 格，没有「拨通道」一说）。
         // 拉完必须看得见：空着就选中第一个（否则屏幕上除了下拉内部什么都没变）。
         if (!apiVal(node, "api_model") && d.models.length) setModel(node, d.models[0]);
+        setModelChoices(node, d.models);
+        pick.err = null;
+        delete pick.btn.dataset.bad;
         pick.note = fmt(t().fetched, d.models.length);
-        pick.autoOpen = true;
         pick.btn.title = t().fetchTip + (d.url ? "\n" + d.url : "");
     } catch (e) {
         // 失败必须留下痕迹：按钮变红、说明行常驻原因（不靠会过期的一闪而过）。
@@ -484,19 +512,7 @@ async function fetchModels(node, st) {
         delete pick.btn.dataset.busy;
         pick.btn.textContent = "↻";
         apply(node);
-        if (pick.autoOpen) {
-            pick.autoOpen = false;
-            setTimeout(() => openCombo(node), 60);
-        }
     }
-}
-
-/** 拉开原生 combo（宿主用 button[role=combobox] 渲染）：拉完直接让用户看见全部可选项。 */
-function openCombo(node) {
-    const row = document.querySelector('[data-widgets-grid-node-id="' + node.id
-        + '"] [data-widget-name="api_model"]');
-    const ctl = row && row.querySelector('[role="combobox"]');
-    if (ctl) ctl.click();
 }
 
 /**
@@ -515,25 +531,7 @@ function syncModelBase(node, st) {
     st.pick.autoDone = false;
     st.pick.err = null;
     st.pick.note = "";
-    setModelChoices(node, []);   // 只留当前值与空串
-}
-
-/**
- * 旧工作流存过的模型名可能不在这次拉到的清单里：不补进选项，combo 就显示空白，
- * 用户以为没选、存盘还可能丢值。补进去即可（只会补一次）。
- */
-function ensureModelValue(node) {
-    const w = widgetOf(node, "api_model");
-    const vals = w && w.options && w.options.values;
-    if (!Array.isArray(vals)) return;
-    const cur = String(w.value == null ? "" : w.value);
-    if (!cur || vals.includes(cur)) return;
-    w.options.values = [cur].concat(vals);
-    const i = node.widgets.indexOf(w);
-    if (i >= 0) {
-        node.widgets.splice(i, 1);
-        node.widgets.splice(i, 0, w);
-    }
+    setModelChoices(node, []);   // 清掉上一批：下拉随即隐藏，手填值不受影响
 }
 
 /** 一次性说明：把状态的改变说出来，但不能一直占着摘要行（8s 后自己收）。 */
@@ -545,13 +543,25 @@ function noteOnce(node, st, text) {
     }, 8000);
 }
 
-/** 把「↻ 拉取」贴在 api_model 行右端；宿主重建行元素后自愈。 */
+/** 把「下拉选模型 + ↻ 拉取」贴在 api_model 行右端；宿主重建行元素后自愈。 */
 function pinPicker(node, st) {
     const row = rowOf(node, "api_model");
     if (!row) return false;
     if (!st.pick) {
         const box = document.createElement("span");
         box.className = "mossllm-pick";
+        // 下拉只是快捷选择（拉过才出现），不是值的事实源 —— api_model 是 STRING，手填为准。
+        const sel = document.createElement("select");
+        sel.hidden = true;
+        for (const ev of ["pointerdown", "mousedown", "dblclick", "click"]) {
+            sel.addEventListener(ev, (e) => e.stopPropagation());
+        }
+        sel.onchange = (e) => {
+            e.stopPropagation();
+            const id = String(sel.value || "");
+            sel.value = "";                    // 用完回位：它是发射器，不是镜像
+            if (id) setModel(node, id);
+        };
         const btn = document.createElement("button");
         btn.type = "button";
         btn.textContent = "↻";
@@ -559,8 +569,8 @@ function pinPicker(node, st) {
             e.stopPropagation();
             fetchModels(node, st);
         };
-        box.append(btn);
-        st.pick = { box, btn, err: null, note: "", busy: "", timer: 0, autoDone: false };
+        box.append(sel, btn);
+        st.pick = { box, btn, sel, err: null, note: "", busy: "", timer: 0, autoDone: false };
     }
     if (st.pick.box.parentElement !== row) row.appendChild(st.pick.box);
     st.pick.btn.title = t().fetchTip;
