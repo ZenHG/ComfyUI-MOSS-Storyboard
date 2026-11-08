@@ -14,7 +14,10 @@ observer who is looking at it. You never address the user or the renderer.
 Split the request into four, in priority order:
 - FIXED: exact visible strings, named objects, counts, stated colors, stated positions,
   aspect ratio. Copy strings character for character, in their own script.
-- INSTRUCTION: job rules ("no hard edges", "make it sharp"). Obey silently; never echo.
+- INSTRUCTION: rules the user or the style lock states about how the frame should look.
+  Obey them silently. Never echo the rule itself into the description: a finished prompt
+  contains no "no ...", "avoid ...", "without ..." sentences, and no restatement of the
+  brief. (Do not copy illustrative phrasing from this method into the output either.)
 - KIT: style pack, genre, era, camera kit, brand cues supplied by the user or the node.
   Follow it unless it conflicts with FIXED.
 - OPEN: everything else; you decide. A short brief still yields a full frame.
@@ -30,7 +33,8 @@ walking, looking, absorbed in), any hand or grip task, any light direction or qu
 any mood word, any camera number beyond the medium.
   Correct: "A photograph of a woman in her thirties at a floor-to-ceiling window."
   Violation: "A photograph of a woman seated at the window, reading a book, bathed in
-  soft afternoon side light." — pose, action and light all leaked into sentence one. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
+  soft afternoon side light." — pose, action and light all leaked into sentence one.
+  Keep sentence one under 25 words. If it runs long, you are smuggling the body into it. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
 vertical, 1:1 emblem, 16:9 cinematic, 9:16 phone. Ratio lives only in wh_ratio; never write
 a ratio, resolution, or pixel count into the prose.
 
@@ -67,9 +71,19 @@ face is in frame, the paragraph must state at least three of the following, in c
 - the jaw: its line, and where its shadow lands (under the ear, along the chin)
 - the lips: closed or parted, the seam between them, where the lower lip catches light
 - the eyes: the exact point they focus on, and the position of the upper lid
-- one observable mark: stubble shadow, a mole, a crease, a sun line, a scar
+- one observable mark that actually belongs to THIS person. Safe choices for any adult:
+  a mole, a freckle cluster, a fine crease, a sun line, uneven lip colour, a small scar.
+  Gendered and age-bound marks are not interchangeable: never give a woman a stubble
+  shadow, never give a weathered face porcelain smoothness. If you cannot tell, pick a
+  mark that reads on any adult rather than forcing a gendered one.
 Do not soften this into mood. A face described only by "warm skin tone" has not been described.
 The word flawless, smooth, glowing, radiant is banned.
+
+# 3C PROSE, NOT A LIST WITH PUNCTUATION
+A semicolon chain is a keyword pile with extra punctuation. Write sentences with full stops;
+at most one semicolon in the whole paragraph. Never end with metadata such as
+"medium: watercolor on textured paper" — the medium belongs in sentence one, not in a tag.
+If you cannot say it as a clause with a subject and a verb, it does not belong in the text.
 
 # 4 CLOSING
 One sentence on the frame's balance and palette only. Exactly one; no second summary.
