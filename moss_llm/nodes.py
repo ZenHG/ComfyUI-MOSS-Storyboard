@@ -1046,6 +1046,9 @@ class MossPromptSmith:
         # 拒了就**逐级摘掉再试**，并在 report 里说清摘了什么 —— 不静默降级，也不假装成功。
         if proto == _proto.OPENAI:
             base["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
+            if _is_local(endpoint):
+                base.setdefault("top_p", _LOCAL_TOP_P)
+                base.setdefault("min_p", _LOCAL_MIN_P)
             if want_json:
                 # 与 server.py 的 JSON 重复保护同一口径：DRY/presence/frequency 会惩罚
                 # 合法重复的键名，但 repeat_penalty 压的是整段循环（G7 4/40 次整单归零）。
@@ -1237,6 +1240,12 @@ _CAPTION_PERSON_CUES = ("gaze", "expression", "hands", "feet", "pose", "wardrobe
 
 #: JSON 请求的重复保护（与 `server.py` 的 JSON 模式同一口径；见 docs/42 §2）。
 _CAPTION_REPEAT_PENALTY = 1.05
+#: 本机 llama.cpp 的采样：请求体里 `_proto.body` 不带 top_p/min_p，所以侧车用的是
+#: llama.cpp 自己的默认（top_p 0.95 / min_p 0.05 / top_k 40）。这里显式写死，
+#: 是为了让「同一份提示词在不同 llama.cpp 版本上采样一致」——不依赖上游默认值漂移。
+#: 严格 OpenAI 服务端不认 min_p（会 400），所以只对本机端点发。
+_LOCAL_TOP_P = 0.95
+_LOCAL_MIN_P = 0.05
 
 #: pass1 inventory 的 JSON schema：只锁形状与数组上限，**不 required 字段**——与 M1a
 #: 取证 schema 同一纪律（全字段 required 会逼模型编值）。服务端不认时逐级降级。

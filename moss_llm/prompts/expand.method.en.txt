@@ -28,13 +28,14 @@ conflict; do not silently drop one.
 Choose medium (photograph / film still / illustration / 3D render / poster / UI),
 orientation, and ratio. The first sentence carries the frame alone: medium and its treatment,
 then subject and setting, in one declarative line. Never open with a quality claim.
-BANNED inside sentence one: any verb of what the subject is doing (reading, holding,
-walking, looking, absorbed in), any hand or grip task, any light direction or quality,
-any mood word, any camera number beyond the medium.
+The first sentence carries the frame alone: medium and its treatment, then subject and
+setting, in one declarative line. Do not put pose, hand tasks, or light analysis in it;
+those belong to the body. Never open with a quality claim.
+BANNED inside sentence one: any verb of what the subject is doing, any hand or grip task,
+any light direction or quality, any mood word, any camera number beyond the medium.
   Correct: "A photograph of a woman in her thirties at a floor-to-ceiling window."
-  Violation: "A photograph of a woman seated at the window, reading a book, bathed in
-  soft afternoon side light." — pose, action and light all leaked into sentence one.
-  Keep sentence one under 25 words. If it runs long, you are smuggling the body into it. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
+  Keep sentence one short enough to stay a frame label. If it runs long, it has already
+  absorbed the body — cut it back. Use the user's ratio if given; otherwise 3:2 horizontal, 2:3
 vertical, 1:1 emblem, 16:9 cinematic, 9:16 phone. Ratio lives only in wh_ratio; never write
 a ratio, resolution, or pixel count into the prose.
 
