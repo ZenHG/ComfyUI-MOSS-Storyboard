@@ -35,6 +35,12 @@ let tries = 0;
 
 /** 读宿主界面语言：先 `<html lang>`，再退 `Comfy.Locale`。 */
 function readHostLang() {
+    // 中文汉化宿主常直接替换 DOM 文本，不留 lang / Comfy.Locale / localStorage 标记。
+    // 此时上面三个来源全是 en，会把中文界面误判成英文，参数标签一直显示英文 id。
+    try {
+        const t = String((document.body && document.body.innerText) || "").slice(0, 500);
+        if (/运行|任务队列|工作流程|图形|显存/.test(t)) return "zh";
+    } catch (e) { /* 无 DOM */ }
     try {
         const h = document.documentElement && document.documentElement.getAttribute("lang");
         if (h) return h;
@@ -51,8 +57,14 @@ function readStored() {
 
 /** 当前语言：有覆盖层用它，否则跟随宿主。 */
 export function currentLang() {
-    if (_lang == null) _lang = normLang(readStored() || defaultLang(readHostLang));
-    return _lang;
+    // 用户显式覆盖才缓存。宿主语言（Comfy.Locale）在 extension setup 时可能还没就绪，
+    // 缓存一次会把「中文界面」误判成英文，于是 LLM 参数标签一直是英文 id。
+    // 没有覆盖层时每次重读，guard 每 1.5s 的 applyAll 就会自动跟随宿主。
+    if (readStored()) {
+        if (_lang == null) _lang = normLang(readStored());
+        return _lang;
+    }
+    return normLang(defaultLang(readHostLang));
 }
 
 /** 写覆盖层 + 应用 + 广播。**不动宿主 `Comfy.Locale`**。 */

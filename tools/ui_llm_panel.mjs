@@ -49,6 +49,10 @@ const node = () => page.evaluate((id) => {
         widgets: n.widgets.length, cells: (n.serialize().widgets_values || []).length,
         mounted: !!(n.__mossllmBar && n.__mossllmBar.nodeType),
         status: rect(".mossllm-status"), btn: rect(".mossllm-settings"),
+        gapToRight: (() => {
+            const t = q(".mossllm-toprow"), e = q(".mossllm-settings");
+            return t && e ? Math.round(t.getBoundingClientRect().right
+                - e.getBoundingClientRect().right) : null; })(),
         hint: (q(".mossllm-hint") || {}).textContent || "",
         warn: (q(".mossllm-warn") || {}).textContent || "",
         warnHidden: !!(q(".mossllm-warn") || {}).hidden,
@@ -58,6 +62,7 @@ const node = () => page.evaluate((id) => {
         presets: g.querySelectorAll(".mossllm-preset, .mossllm-pztoggle").length,
         secs: g.querySelectorAll("[data-moss-sec]").length,
         noteHidden: !!(q(".mossllm-settings-note") || {}).hidden,
+        presetBoxHidden: !!(q(".mossllm-presets-box") || {}).hidden,
         force: !!n.__mossllm.force,
     };
 }, ID);
@@ -70,9 +75,9 @@ let r = await visRows(ID);
 check("默认只露 4 行（任务 / 通道 / 模型 / 文字）",
     r.shown === 4 && ["task", "channel", "model", "text"].every((k) => r.names.includes(k)),
     JSON.stringify(r));
-check("顶层没有 tabs / 预设 / 分区标题（全部已删）",
-    a.chips === 0 && a.tabs === 0 && a.presets === 0 && a.secs === 0,
-    JSON.stringify({ chips: a.chips, tabs: a.tabs, presets: a.presets, secs: a.secs }));
+check("默认态没有 tabs / 分区标题；预设区藏在设置里（默认隐藏）",
+    a.chips === 0 && a.tabs === 0 && a.secs === 0 && a.presetBoxHidden,
+    JSON.stringify({ chips: a.chips, tabs: a.tabs, secs: a.secs, presetBoxHidden: a.presetBoxHidden }));
 check("顶层唯一按钮是「设置」，固定在状态行右侧",
     a.btn && a.status && a.btn.top === a.status.top && a.btn.h === a.status.h,
     JSON.stringify({ status: a.status, btn: a.btn }));
@@ -115,14 +120,56 @@ r = await visRows(ID);
 check("点「设置」⇒ 39 项全部可见，且给出「一般不用改」说明",
     b.force && r.shown >= 38 && !b.noteHidden && /一般不用改/.test(b.barText),
     JSON.stringify({ force: b.force, shown: r.shown, noteHidden: b.noteHidden }));
-check("设置展开后按钮位置仍与状态行齐平",
-    b.btn && b.status && b.btn.top === b.status.top,
-    JSON.stringify({ status: b.status, btn: b.btn }));
+check("设置展开后按钮仍贴顶行右边界",
+    b.btn && b.status && b.btn.top === b.status.top && b.gapToRight === 0
+    && a.gapToRight === 0, JSON.stringify({ before: a.gapToRight, after: b.gapToRight }));
 await shotNode(page, "MossPromptSmith", join(ROOT, "docs", "_local", "panel-2-tune.png"), { y: 30 });
 await page.evaluate(() => document.querySelector(".mossllm-settings").click());
 await page.waitForTimeout(900);
 r = await visRows(ID);
 check("收起设置 ⇒ 回到 4 行", r.shown === 4, JSON.stringify(r));
+const gapBack = await page.evaluate((id) => {
+    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
+    return Math.round(g.querySelector(".mossllm-toprow").getBoundingClientRect().right
+        - g.querySelector(".mossllm-settings").getBoundingClientRect().right);
+}, ID);
+check("展开→收起后设置按钮始终贴右（不再左右跳）", gapBack === 0,
+    JSON.stringify({ first: a.gapToRight, expanded: b.gapToRight, collapsed: gapBack }));
+
+// ---- 3b. 预设嵌套在设置内（不做顶层按钮）----
+const nest = await page.evaluate(async (id) => {
+    const n = app.graph.nodes.find((x) => String(x.id) === id);
+    const g = document.querySelector('[data-widgets-grid-node-id="' + id + '"]');
+    const W = (k) => n.widgets.find((w) => w.name === k);
+    const wait = (ms) => new Promise((r2) => setTimeout(r2, ms));
+    g.querySelector(".mossllm-settings").click();       // 打开设置
+    await wait(700);
+    const box = g.querySelector(".mossllm-presets-box");
+    const out = { visible: !box.hidden };
+    g.querySelector(".mossllm-pztoggle").click();       // 展开预设
+    await wait(500);
+    out.groups = [...g.querySelectorAll("[data-pz-group]")].map((b) => b.textContent);
+    g.querySelector('[data-pz-group="connect"]').click();
+    await wait(500);
+    const eps = [...g.querySelectorAll("[data-pz-endpoint]")];
+    out.addresses = eps.length;
+    if (eps.length) eps[0].click();
+    await wait(500);
+    out.base = String(W("api_base").value);
+    out.chan = String(W("channel").value);
+    g.querySelector('[data-pz-group="tune"]').click();
+    await wait(500);
+    out.tunes = [...g.querySelectorAll("[data-moss-preset]")].map((b) => b.textContent);
+    g.querySelector(".mossllm-settings").click();       // 收起
+    await wait(600);
+    out.hiddenAfter = box.hidden;
+    return out;
+}, ID);
+check("设置内预设嵌套：两类 → 5 个地址 → 点一下写入地址并切在线服务",
+    nest.visible && nest.groups.length === 2 && nest.addresses === 5
+    && /^https?:\/\//.test(nest.base) && nest.chan === "api", JSON.stringify(nest));
+check("设置内预设嵌套：换快慢有 3 个子档，收起设置后预设区隐藏",
+    nest.tunes.length === 3 && nest.hiddenAfter, JSON.stringify(nest));
 
 // ---- 4. 缺项状态与点击 ----
 const lack = await page.evaluate(async (id) => {

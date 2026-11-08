@@ -215,12 +215,14 @@ const CSS = `
  padding:16px 2px 6px;border-bottom:0.5px solid var(--border-color,#4e4e4e);margin-bottom:8px}
 @keyframes mossllm-spin{to{transform:rotate(360deg)}}
 /* ==== 推倒重来：三层界面 ==== */
-.mossllm-bar{display:flex;flex-wrap:nowrap;align-content:flex-start;flex:0 0 auto;
+.mossllm-bar{display:flex;flex-direction:column;flex-wrap:nowrap;flex:0 0 auto;
  align-items:stretch;gap:0;box-sizing:border-box;width:100%;min-width:0;max-width:100%;
  overflow:hidden;padding:0;border-top:1px solid var(--border-color,#4e4e4e);
  color:var(--descrip-text,#999);font:12px/1.5 system-ui,sans-serif}
+.mossllm-toprow{flex:0 0 auto;position:relative;display:flex;flex-direction:row;
+ width:100%;min-width:0;align-items:stretch}
 .mossllm-status{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;
- height:38px;padding:0 10px;overflow:hidden;border-bottom:1px solid var(--border-color,#4e4e4e)}
+ height:38px;padding:0 92px 0 10px;overflow:hidden;border-bottom:1px solid var(--border-color,#4e4e4e)}
 .mossllm-status .mossllm-hint{flex:1 1 auto;min-width:0;height:auto;line-height:1.4;
  font-size:15px;font-weight:500;color:var(--input-text,#ddd);opacity:1;
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -230,14 +232,31 @@ const CSS = `
 .mossllm-status .mossllm-warn[hidden]{display:none}
 .mossllm-status .mossllm-warn[data-level="danger"]{color:#f09595}
 .mossllm-status .mossllm-warn[data-level="ok"]{color:var(--descrip-text,#999)}
-.mossllm-settings{flex:0 0 auto;height:38px;padding:0 14px;border:0;
+.mossllm-settings{position:absolute;right:0;top:0;height:38px;padding:0 14px;border:0;
  border-left:1px solid var(--border-color,#4e4e4e);border-bottom:1px solid var(--border-color,#4e4e4e);
  background:transparent;color:var(--input-text,#ddd);font:12px/1.5 system-ui,sans-serif;cursor:pointer}
 .mossllm-settings:hover{background:var(--comfy-input-bg,#222)}
 .mossllm-settings[data-on="1"]{color:#5b9cf6}
-.mossllm-settings-note{flex:0 0 100%;padding:7px 10px;font-size:12px;
+.mossllm-settings-note{width:100%;min-width:0;max-width:100%;box-sizing:border-box;
+ overflow:hidden;padding:7px 10px;font-size:12px;
  color:var(--descrip-text,#999);border-bottom:1px solid var(--border-color,#4e4e4e)}
 .mossllm-settings-note[hidden]{display:none}
+.mossllm-presets-box{width:100%;min-width:0;max-width:100%;box-sizing:border-box;
+ overflow:hidden;display:flex;flex-direction:column;gap:8px;
+ padding:8px 10px;border-bottom:1px solid var(--border-color,#4e4e4e)}
+.mossllm-presets-box[hidden]{display:none}
+.mossllm-pzbody{display:flex;flex-direction:column;gap:8px}
+.mossllm-pzbody[hidden]{display:none}
+.mossllm-pzgroups,.mossllm-pzsub,.mossllm-presets{display:flex;flex-wrap:wrap;gap:6px}
+.mossllm-pztoggle{align-self:flex-start;padding:4px 9px;border-radius:6px;
+ border:1px solid var(--border-color,#4e4e4e);background:transparent;
+ color:var(--input-text,#ddd);font:12px/1.4 system-ui,sans-serif;cursor:pointer}
+.mossllm-pzitem,.mossllm-preset{padding:4px 9px;border-radius:6px;
+ border:1px solid var(--border-color,#4e4e4e);background:transparent;
+ color:var(--input-text,#ddd);font:12px/1.4 system-ui,sans-serif;cursor:pointer}
+.mossllm-pzitem[data-on="1"]{background:var(--comfy-input-bg,#222);font-weight:500}
+.mossllm-preset:hover,.mossllm-pzitem:hover{background:var(--comfy-input-bg,#222)}
+
 .mossllm-status .mossllm-langslot{flex:0 0 auto;min-width:0;max-width:64px;overflow:hidden}
 .mossllm-status .mossllm-warn{max-width:45%}
 
@@ -532,6 +551,7 @@ function stateOf(node) {
             force: false,          // 会话内记住「高级」展开：st 挂在 node.__mossllm 上，
                                    // 实例在则状态在、重开工作流则新建 st 回到收起。不另存第二份状态。
             warnedChannel: false,
+            presetOpen: false, presetGroup: null,
         };
     }
     return st;
@@ -1093,11 +1113,58 @@ function buildBar(node, st) {
         st.force = !st.force;
         applySoon(node);
     };
-    bar.append(st.statusCard, st.btn);
+    st.topRow = document.createElement("div");
+    st.topRow.className = "mossllm-toprow";
+    st.topRow.append(st.statusCard, st.btn);
+    bar.append(st.topRow);
 
     st.settingsNote = document.createElement("div");
     st.settingsNote.className = "mossllm-settings-note";
-    bar.append(st.settingsNote);
+
+    // 预设嵌套放在「设置」内部：先选一类，再选具体档。不是顶层按钮。
+    st.presetBox = document.createElement("div");
+    st.presetBox.className = "mossllm-presets-box";
+    st.presetBox.hidden = true;
+    st.presetToggle = document.createElement("button");
+    st.presetToggle.type = "button";
+    st.presetToggle.className = "mossllm-pztoggle";
+    st.presetToggle.onclick = (e) => {
+        e.stopPropagation();
+        st.presetOpen = !st.presetOpen;
+        applySoon(node);
+    };
+    st.presetBody = document.createElement("div");
+    st.presetBody.className = "mossllm-pzbody";
+    st.presetBody.hidden = true;
+    st.presetGroups = document.createElement("div");
+    st.presetGroups.className = "mossllm-pzgroups";
+    st.presetSub = document.createElement("div");
+    st.presetSub.className = "mossllm-pzsub";
+    for (const grp of ["connect", "tune"]) {
+        const b2 = document.createElement("button");
+        b2.type = "button";
+        b2.className = "mossllm-pzitem";
+        b2.dataset.pzGroup = grp;
+        b2.onclick = (e) => {
+            e.stopPropagation();
+            st.presetGroup = st.presetGroup === grp ? null : grp;
+            applySoon(node);
+        };
+        st.presetGroups.appendChild(b2);
+    }
+    st.presets = document.createElement("div");
+    st.presets.className = "mossllm-presets";
+    for (const key of ["draft", "fine", "reset"]) {
+        const pb = document.createElement("button");
+        pb.type = "button";
+        pb.className = "mossllm-preset";
+        pb.dataset.mossPreset = key;
+        pb.onclick = (e) => { e.stopPropagation(); applyPreset(node, st, key); };
+        st.presets.appendChild(pb);
+    }
+    st.presetBody.append(st.presetGroups, st.presetSub);
+    st.presetBox.append(st.presetToggle, st.presetBody);
+    bar.append(st.settingsNote, st.presetBox);
     return bar;
 }
 
@@ -1151,6 +1218,41 @@ function paintBar(node, st, shown, off, meta) {
     st.settingsNote.hidden = !st.force;
     if (st.force) {
         st.settingsNote.textContent = "以下一般不用改；只有状态行说「还缺」时才需要动。";
+    }
+    st.presetBox.hidden = !st.force;
+    if (st.force) {
+        st.presetToggle.textContent = (st.presetOpen ? "▾" : "▸") + " 一键套用";
+        st.presetBody.hidden = !st.presetOpen;
+        for (const b2 of st.presetGroups.children) {
+            const g2 = b2.dataset.pzGroup;
+            b2.textContent = g2 === "connect" ? "换地址" : "换快慢";
+            b2.dataset.on = st.presetGroup === g2 ? "1" : "0";
+        }
+        st.presetSub.textContent = "";
+        if (st.presetGroup === "tune") {
+            st.presetSub.appendChild(st.presets);
+            for (const pb of st.presets.children) {
+                const k = pb.dataset.mossPreset;
+                pb.textContent = L["preset_" + k];
+                pb.title = L["presetTip_" + k];
+            }
+        } else if (st.presetGroup === "connect") {
+            for (const ep of ENDPOINTS) {
+                const b2 = document.createElement("button");
+                b2.type = "button";
+                b2.className = "mossllm-pzitem";
+                b2.dataset.pzEndpoint = ep.id;
+                b2.textContent = L["ep_" + ep.id] || ep.id;
+                b2.title = ep.url;
+                b2.onclick = (e) => {
+                    e.stopPropagation();
+                    setApiBase(node, ep.url);
+                    setChannel(node, CH_API);
+                    applySoon(node);
+                };
+                st.presetSub.appendChild(b2);
+            }
+        }
     }
 
     // 状态行：陈述当前输入与输出，不给任何功能起名
