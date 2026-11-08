@@ -350,7 +350,9 @@ class MossPromptSmith:
                 "length": (["短", "中", "长"], {"default": "中",
                     "tooltip": "短≈512 / 中≈1024 / 长≈2048 tokens"}),
                 "temperature": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 2.0, "step": 0.05,
-                    "tooltip": "越低越稳定，越高越发散"}),
+                    "tooltip": "越低越稳、越高越发散。三档够用：0.1–0.3 稳定（默认 0.2，"
+                               "同一输入基本重写同一段）；0.5 左右平衡；0.9 以上发散（措辞变化大，"
+                               "也更容易跑偏）。写实/产品/复刻用低档，创意/氛围用高档"}),
                 "panels": ("INT", {"default": 4, "min": 1, "max": 9,
                     "tooltip": "仅「宫格稿」写法：分几格"}),
                 "language": (["auto", "zh", "en"], {"default": "auto",
