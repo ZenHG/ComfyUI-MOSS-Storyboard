@@ -128,6 +128,7 @@ export const LABELS_EN = {
     style_note: "Custom style",
     keep: "Must keep",
     speed: "Speed",
+    kv_cache: "KV precision",
     model: "Local model",
     panels: "Panels",
     seed: "Seed",
@@ -217,6 +218,7 @@ export const LABELS = {
     style_note: "自定义风格",
     keep: "必须原样保留",
     speed: "速度档",
+    kv_cache: "KV 精度",
 };
 
 //: **同名参数在不同节点上含义不同** —— 全局标签只能取一个，所以这里按节点覆盖。
@@ -260,6 +262,13 @@ const LABELS_NODE = {
 // ---------------------------------------------------------------------------
 export const COMBOS = {
     canvas_aspect: { auto: "自动" },
+    //: KV 精度四档。**只影响显示**，存档值仍是 q8_0 / q4_0 / f16 / f8_e4m3。
+    kv_cache: {
+        q8_0: "8 位（默认：省约一半显存，速度最快）",
+        q4_0: "4 位（最省显存；长文可能记不牢）",
+        f16: "半精度（最占显存，基准档）",
+        f8_e4m3: "FP8（需新版运行时 b12321+；比 8 位只多省一点）",
+    },
     init: {
         // 界面上只写"是什么"，不写"有没有用"——结论放 tooltip，且带版本口径。
         auto: "自动（纯布局）",
@@ -772,6 +781,14 @@ export const TIPS = {
     "MossPromptSmith.speed": {
         en: "[Local only] VRAM preset: save VRAM (small context, slower) / balanced (default) / "
             + "prefer speed. Only touch this if you run out of VRAM or want more context.",
+    },
+    "MossPromptSmith.kv_cache": {
+        en: "[Local only] Precision of the KV cache — the only thing this dropdown controls, model "
+            + "weights are unaffected. q8_0 (default) halves the cache with no measurable speed loss; "
+            + "f16 is the full-size baseline; f8_e4m3 needs llama.cpp b12321 or newer and saves only "
+            + "~6% more than q8_0 while slightly slowing prefill; q4_0 saves the most but can hurt "
+            + "long-context recall. An older runtime falls back to q8_0 and says so in the report. "
+            + "No effect on the api channel.",
     },
 };
 
