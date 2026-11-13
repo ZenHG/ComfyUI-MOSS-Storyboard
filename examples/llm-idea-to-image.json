@@ -441,7 +441,8 @@
     "",
     "",
     "均衡",
-    "auto"
+    "auto",
+    "q8_0"
    ],
    "title": "🧠 LLM Prompt · single image"
   },
@@ -1016,7 +1017,8 @@
     "",
     "",
     "均衡",
-    "auto"
+    "auto",
+    "q8_0"
    ],
    "title": "🧠 LLM Prompt · storyboard (bypassed)"
   },

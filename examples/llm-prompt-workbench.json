@@ -347,7 +347,8 @@
     "",
     "",
     "均衡",
-    "auto"
+    "auto",
+    "q8_0"
    ],
    "title": "🧠 LLM Prompt · 反推"
   },
@@ -604,7 +605,8 @@
     "",
     "",
     "均衡",
-    "auto"
+    "auto",
+    "q8_0"
    ],
    "title": "🧠 LLM Prompt · 洗图 (bypassed)"
   },
@@ -861,7 +863,8 @@
     "",
     "",
     "均衡",
-    "auto"
+    "auto",
+    "q8_0"
    ],
    "title": "🧠 LLM Prompt · 扩写 (bypassed)"
   },
@@ -1322,7 +1325,8 @@
     "",
     "",
     "均衡",
-    "auto"
+    "auto",
+    "q8_0"
    ],
    "title": "🧠 LLM Prompt · PE-I2I edit (bypassed)"
   },
