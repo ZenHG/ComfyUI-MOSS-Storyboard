@@ -42,7 +42,7 @@
 |---|---|---|
 | 任意 Python | `python -m ruff check .` | CI 第一道；`审计报告/` 已被 pyproject 排除 |
 | `core/layout.py` 几何 | `tests/test_core.py` → `tests/test_editor.py` → `tests/test_panel_assembly.py` | 几何只算一次，会穿透到拼版 |
-| `nodes.py` 的 `INPUT_TYPES` | `tests/test_contract.py --no-host` + `tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json` | 参数表唯一真相源；新 widget 只能追加末尾。⚠️ 这条命令的通配符由 shell 展开：**bash 可用**；PowerShell 要先 `Get-ChildItem examples\*.json …` 展开再传 |
+| `nodes.py` 的 `INPUT_TYPES` | `tests/test_contract.py --no-host` + `tools/check_frontend.py` + `tools/check_ui_workflow.py examples/*.json tests/fixtures/moss-storyboard-*.json` | 参数表唯一真相源；新 widget 只能追加末尾；新参数缺「英文提示 / 中文标签 / 取值中文」= F5b·F6a·F7 红（2026-11-13 连红一次）。⚠️ 这条命令的通配符由 shell 展开：**bash 可用**；PowerShell 要先 `Get-ChildItem examples\*.json …` 展开再传 |
 | `core/editor.py`（state v3 编译层） | `tests/test_editor.py` + `tests/test_interop.py` + `tests/test_adversarial.py` | state v3 是冻结契约（`docs/10-contract.md`） |
 | `v3/`（V1→V3 节点外壳） | `tests/test_contract.py --no-host` + `tools/smoke_nodes.py` | 外壳只转发，schema 由 `v3/_compat.py` 从 V1 生成 |
 | `web/` 前端（预设/校验/elements） | `tests/test_cross_language.py` + `tools/check_frontend.py` + `tools/check_editor_ui.py` + `tests/test_i18n.mjs` | JS↔Python 差分；**新增 runner 必须断言两侧结果条数守恒**（`zip` 会静默截断成假绿） |
@@ -73,7 +73,7 @@
 |---|---|---|
 | **版本号** | `__init__.py` 的 `__version__` · `pyproject.toml` 的 `version` 行 · `CHANGES.md` 首个 `## x.y.z` · `README.md` 的 `| Version | **x** |` · `README_ZH.md` 的 `| 版本 | **x** |` | **机检**（S5，五处格式各不相同，写成别的样子就抓不到） |
 | **要发布** | `RELEASE-NOTES.md` 有 `## <version>` 一节，用 `<!-- EN -->` 分中英；中文段含「升级动作」、英文段含 `Action required`；**不许出现** `CHANGES.md`/`tests/`/`tools/`/`docs/`/「机检」「断言」这类内部记号 | **机检**（S8，含字数上限）+ `tools/release.py` |
-| **`INPUT_TYPES` 增删参数** | `nodes.py` · `docs/19-node-manual.md`（反引号包键名）· `web/moss_sb_i18n.js` 的 `LABELS` 与 `TIPS` · 重跑 `tools/make_*.py` 重生成示例 | 机检（S18 / `test_contract.py`） |
+| **`INPUT_TYPES` 增删参数** | `nodes.py`（**追加项一律进 `optional`**：进 `required` 会让存量工作流报 `Required input is missing`）· `docs/19-node-manual.md`（反引号包键名）· `web/moss_sb_i18n.js` 的 `LABELS`+`LABELS_EN` / `TIPS` / **`COMBOS`**（ASCII 取值必须有中文）· 重跑 `tools/make_*.py` 重生成示例；**手写示例**（`examples/llm-*.json`）要自己补 `widgets_values` 末项 · `tools/check_ui_workflow.py` 的 `LEGACY_TAIL` 加上这一项（存量 N-1 格才合法） | 机检（S18 / `test_contract.py` / `check_frontend.py` / 示例闸） |
 | **新增节点** | 注册 · `v3` schema · `web/moss_sb_i18n.js` 的 `NODES`/`LABELS`/`TIPS` · `README.md`+`README_ZH.md` 的「七个节点」标题与表格 · `docs/19` 新增一节（README 锚点要跟着改） | 机检（`check_frontend.py` 核节点总数）+ **锚点无闸** |
 | **新增示例** | 文件本身由 `tools/make_*.py` 生成 · 两份 README 画廊表各补一行 · `CONTRIBUTING.md` 与 `ci.yml` 的项数/文件数 · README 里的「十二份」类字样 | 半机检（S18 **只认中文 README**） |
 | **新增 .py/.js/.mjs** | 前 5 行必须有 `SPDX-License-Identifier: MIT` | **机检**（S14 只读前 5 行） |
