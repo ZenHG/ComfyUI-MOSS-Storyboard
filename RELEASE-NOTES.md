@@ -19,6 +19,39 @@
 
 ---
 
+## 0.5.3 — 2026-11-13
+
+**LLM 节点新增「KV 精度」下拉。默认值与之前完全一致。**
+
+- 新增第 19 个参数 `kv_cache`：`q8_0`（默认）/ `q4_0` / `f16` / `f8_e4m3`。
+- 🔴 默认仍是 `q8_0`，**不用改任何配置**。老工作流打开时没有这一项，会按 `q8_0` 跑。
+- `f8_e4m3` 需要 llama.cpp **b12321 以上**。版本不够时不会崩：自动退回 `q8_0`，并在运行报告里
+  写明原因和升级命令。启动失败时也会点名这一项。
+- 实测：`f8_e4m3` 比 `q8_0` 只多省约 8 MiB（8K 上下文），速度也不更快。想省显存仍建议留 `q8_0`。
+- 走外部 API 时这个下拉不生效（显存由服务方管），运行报告会说明，不静默忽略。
+
+**升级动作**：无。不改配置即按原行为运行；只有想试 `f8_e4m3` 才需要升级运行时。
+
+<!-- EN -->
+
+**The LLM node gains a KV precision dropdown. Defaults are unchanged.**
+
+- New 19th parameter `kv_cache`: `q8_0` (default) / `q4_0` / `f16` / `f8_e4m3`.
+- 🔴 The default is still `q8_0`, so **no configuration change is needed**. Existing workflows
+  have no such entry and run on `q8_0` as before.
+- `f8_e4m3` requires llama.cpp **b12321 or newer**. An older runtime does not crash: the node
+  falls back to `q8_0` and states the reason plus the upgrade command in the run report. If the
+  server still fails to start, the error names this setting.
+- Measured: `f8_e4m3` saves only about 8 MiB more than `q8_0` at 8K context, and is not faster.
+  Keep `q8_0` unless you have a specific reason.
+- With an external API endpoint the dropdown has no effect (memory is managed by the provider).
+  The run report says so instead of silently ignoring it.
+
+**Action required**: none. Run as-is for unchanged behaviour; upgrade the runtime only if you
+want to try `f8_e4m3`.
+
+---
+
 ## 0.5.2 — 2026-11-09
 
 **LLM 节点参数从 39 项收到 18 项，风格预设 16 档，并带自定义。**
