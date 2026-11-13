@@ -111,7 +111,10 @@ _LANGS = ["auto", "zh", "en"]
 _RUNTIMES = ["auto", "runtime", "path", "custom", "download"]
 _ONOFF = ["on", "off"]
 _MTP = ["auto", "on", "off"]
-_KV = ["q8_0", "q4_0", "f16"]
+#: KV cache 类型。f8_e4m3 需要 llama.cpp b12321+（PR #28392，2026-11-10 合并）；
+#: 旧运行时会自动回落 q8_0 并在 report 里出声（见 LlamaServer.kv_supports）。
+#: 显存账：f16→q8_0 省约 47%，f16→f8_e4m3 省 50%——两者差约 6%，不是「再省一半」。
+_KV = ["q8_0", "q4_0", "f16", "f8_e4m3"]
 
 #: 提示词写法：顶层四类 → 子档。风格类通过 style_lock 注入，不新增 dialect。
 _STYLE_CLASS = {
@@ -385,6 +388,13 @@ class MossPromptSmith:
                 "image7": ("IMAGE", {"tooltip": "第 7 张参考图。不用就空着"}),
                 "image8": ("IMAGE", {"tooltip": "第 8 张参考图。不用就空着"}),
                 "image9": ("IMAGE", {"tooltip": "第 9 张参考图。不用就空着"}),
+                "kv_cache": (_KV, {"default": "q8_0",
+                    "tooltip": "KV cache 精度。显存只跟它有关（与模型权重无关）。"
+                               "q8_0 默认：省约 47%，实测 prefill/decode 都最快；"
+                               "f16 最占（≈2 倍）；"
+                               "f8_e4m3：省 50%，但比 q8_0 只多 8 MiB@8K context，prefill 反而慢约 4%，"
+                               "实测无优势（需 llama.cpp b12321+，旧版自动回落 q8_0 并在 report 出声）；"
+                               "q4_0：省约 73%，只在长上下文塞不下时用，可能伤长文记忆"}),
             },
         }
         return it  # noqa: RET504
@@ -422,7 +432,7 @@ class MossPromptSmith:
               style="英文详述", target="moss-image", style_note="", length="中",
               temperature=0.2, panels=4, language="auto",
               keep="", seed=0, api_base="", api_model="", api_key="", speed="均衡",
-              runtime="auto", image=None,
+              runtime="auto", kv_cache="q8_0", image=None,
               image2=None, image3=None, image4=None, image5=None,
               image6=None, image7=None, image8=None, image9=None):
         # ---- 16 项 → 旧 39 项展开（内部逻辑一行不动）----
@@ -458,8 +468,12 @@ class MossPromptSmith:
         mmproj = _MMPROJ_AUTO
         server_exe = ""
         gpu_layers = ""
-        cache_type_k = "q8_0"
-        cache_type_v = "q8_0"
+        # KV cache 精度：UI 给 4 档，值不认识就按 q8_0（老工作流没有这个键也落到 q8_0）
+        _kv = str(kv_cache or "q8_0")
+        if _kv not in _KV:
+            _kv = "q8_0"
+        cache_type_k = _kv
+        cache_type_v = _kv
         flash_attn = "on"
         parallel = 1
         mtp = "auto"
@@ -478,6 +492,12 @@ class MossPromptSmith:
         self._chat_notes = []
         #: 图像预处理的降级说明（缩放 / 透明合成 / 没装 Pillow）。不静默。
         self._img_notes = []
+        # KV 精度只对本机侧车有效：外部端点的显存归服务方管，这个下拉对它无效。
+        # 不说的话，用户选了 f8_e4m3 却看不到任何变化，会以为「没生效」。
+        if channel == "api" and _kv != "q8_0":
+            report.append("「KV 精度」= %s 只对本机 llama-server 生效；本次走外部端点（%s），"
+                          "该设置被忽略（显存由服务方管）。"
+                          % (_kv, (api_base or "").strip()))
 
         # 旧稿兼容：初版把中文写进了枚举值。这里归一成存档 id，并把归一过的字段写进
         # report —— 用户看见的是「我的图被就地改了哪几格」，不是静默迁移。

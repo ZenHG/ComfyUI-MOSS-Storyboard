@@ -488,6 +488,37 @@ class LlamaServer:
     # ── 可执行文件 ──────────────────────────────────────────
     #: exe 路径 → 支持的 flag 集合。`--help` 只跑一次。
     _flag_cache = {}
+    #: (exe 路径, 类型) → 该 llama-server 认不认这个 KV 类型。`--help` 只跑一次。
+    _kv_type_cache = {}
+
+    @classmethod
+    def kv_supports(cls, exe, dtype):
+        """问 `llama-server --help`：它认不认这个 KV cache 类型。
+
+        为什么要按**值**判、不按**开关**判：`f8_e4m3` 是 llama.cpp PR #28392
+        （2026-11-10）才进 `kv_cache_types` 的。旧版 `--cache-type-k` 这个开关
+        **存在**，但值不在白名单里 ⇒ 进程启动即退出，错误信息只有退出码。
+        与 `help_flags` 同一个坑，所以同一套做法。
+        """
+        key = (str(Path(exe)), str(dtype))
+        if key in cls._kv_type_cache:
+            return cls._kv_type_cache[key]
+        ok = False
+        try:
+            p = subprocess.run([exe, "--help"], capture_output=True, text=True, timeout=20)
+            text = (p.stdout or "") + (p.stderr or "")
+            seg = re.search(r"--cache-type-k(?![\w-])[\s\S]{0,400}", text)
+            if seg:
+                # help 会把值列表折到下一行（b12344 实测：iq4_nl, / q5_0, q5_1）。
+                # 先把折行拼平，再取 allowed values 到 `(default` 之间那一段。
+                head = seg.group(0).replace("\r", " ").replace("\n", " ")
+                m = re.search(r"allowed values:\s*([^()]*)", head)
+                if m:
+                    ok = str(dtype) in {t.strip() for t in m.group(1).split(",") if t.strip()}
+        except Exception:
+            ok = False
+        cls._kv_type_cache[key] = ok
+        return ok
 
     @classmethod
     def help_flags(cls, exe):
@@ -561,8 +592,19 @@ class LlamaServer:
         if has("--flash-attn"):
             cmd += ["--flash-attn", "on" if self.flash_attn else "off"]
         if has("--cache-type-k"):
-            cmd += ["--cache-type-k", str(self.cache_type_k),
-                    "--cache-type-v", str(self.cache_type_v)]
+            k, v = str(self.cache_type_k), str(self.cache_type_v)
+            # 值级校验：开关在 ≠ 值认。不认就回落 q8_0（现状默认），并出声。
+            for attr, val in (("cache_type_k", k), ("cache_type_v", v)):
+                if val == "q8_0" or self.kv_supports(exe, val):
+                    continue
+                notes.append("KV 类型 %s 不被这个 llama-server 接受（--cache-type-%s），已回落 q8_0。\n"
+                             "    f8_e4m3 要 llama.cpp b12321+（PR #28392）；本机可按需升级：\n"
+                             "    python -m moss_llm.runtime_install" % (val, attr[-1]))
+                if attr == "cache_type_k":
+                    k = "q8_0"
+                else:
+                    v = "q8_0"
+            cmd += ["--cache-type-k", k, "--cache-type-v", v]
         if has("--batch-size"):
             cmd += ["--batch-size", "2048"]
         if has("--ubatch-size"):
@@ -585,6 +627,22 @@ class LlamaServer:
         return cmd, notes
 
     # ── 启动 ────────────────────────────────────────────────
+    def kv_fail_hint(self):
+        """启动失败时点名非默认 KV 类型。
+
+        正常情况下 `kv_supports()` 已经把不认的值回落成 q8_0 了，所以这里多半不是
+        真凶；但用户只看到「启动失败 + 退出码」时，最容易怀疑的就是刚改的那个下拉。
+        与其让人猜，不如把值、版本门槛、回退办法一起写进错误里。
+        """
+        bad = sorted({str(t) for t in (self.cache_type_k, self.cache_type_v)
+                      if str(t) not in ("q8_0", "f16")})
+        if not bad:
+            return ""
+        return ("    ⚠ 本次 KV 类型 = %s。老版本 llama.cpp 不认这个值"
+                "（`f8_e4m3` 要 b12321+，PR #28392）。\n"
+                "      先把它改回 q8_0 再试；要保留这一档就升级运行时：\n"
+                "      python -m moss_llm.runtime_install\n" % " / ".join(bad))
+
     def start(self):
         if self.attached:
             if not self._healthy():
@@ -639,7 +697,7 @@ class LlamaServer:
             raise RuntimeError(
                 "llama-server 启动失败。模型: %s\n"
                 "    排查：① 显存是否被占用（生视频/游戏会挤掉模型层）② 模型文件是否完整\n"
-                "    ③ 看日志：%s" % (Path(self.model).name, self.log_path))
+                "    ③ 看日志：%s\n%s" % (Path(self.model).name, self.log_path, self.kv_fail_hint()))
         # MTP 起不来 → 回退普通模式重启（不同模型/版本支持不一，绝不卡死）。
         # 回退必须**出声**：写进 notes，让 report 里看得见。
         self.notes.append("MTP(draft-mtp) 启动失败（模型可能不含内嵌 MTP 层或不兼容当前 "
@@ -649,8 +707,8 @@ class LlamaServer:
             self.stop()
             raise RuntimeError(
                 "llama-server 启动失败（含 MTP 回退后仍失败）。模型: %s\n"
-                "    排查：① 显存是否被占用 ② 模型文件是否完整 ③ 看日志：%s"
-                % (Path(self.model).name, self.log_path))
+                "    排查：① 显存是否被占用 ② 模型文件是否完整 ③ 看日志：%s\n%s"
+                % (Path(self.model).name, self.log_path, self.kv_fail_hint()))
         return self
 
     def _spawn(self, exe, cmd):

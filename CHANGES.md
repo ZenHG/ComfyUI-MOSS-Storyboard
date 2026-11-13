@@ -2,6 +2,42 @@
 
 > 本文是历史记录：文中提到的 `docs/NN` 若已不在仓库，内容见 git 历史。
 
+## 0.5.3 — 2026-11-13
+- ⚡ 新增可选参数 `kv_cache`（`q8_0` / `q4_0` / `f16` / `f8_e4m3`，默认 `q8_0`）。
+  放 `optional` 是有意的：老工作流没有这个键，落到 q8_0，不会报 `Required input is missing`。
+- 📉 显存实测（`moss-te-heretic-dhq-K-6.6G.gguf`，c=8192，8 层 KV，RTX 5070）：
+  f16 = 256.00 MiB → q8_0 = 136.00 MiB（−46.9%）→ f8_e4m3 = 128.00 MiB（−50.0%）。
+  **f8_e4m3 比 q8_0 只多省 6%**，不是「再省一半」。要再省只能上 q4_0（−73%）。
+  ⚠️ 数字来源是 llama-server 日志里**它自己算出的分配量**
+  （`llama_kv_cache: size = ... K (f8_e4m3): 64.00 MiB`），不是 nvidia-smi 前后差值，
+  所以不受同卡其他进程影响；且三档比值与理论值逐字节吻合（1024 / 1088 / 2048 bytes per cell）。
+- ⏱️ 速度实测（**卡已空闲**，基线 1259 MiB；c=8192，`cache_prompt=false`，n_predict=128，
+  temp=0，seed=42，各跑 3 次取中位）：
+
+  | 类型 | 总显存 | KV（日志） | prefill t/s | decode t/s |
+  |---|---|---|---|---|
+  | f16 | 7373 MiB | 256.00 MiB | 264.9 | 80.5 |
+  | q8_0 | 7292 MiB | 136.00 MiB | **347.2** | 79.9 |
+  | f8_e4m3 | 7236 MiB | 128.00 MiB | 331.8 | 80.0 |
+
+  结论：**decode 三档持平（80 t/s，差 <1%）；prefill 是 q8_0 最快**，f8_e4m3 比它慢 4%，
+  比 f16 仍快 25%。f8_e4m3 相对 q8_0 只多省 8 MiB（c=8192）⇒ **默认仍留 q8_0**，
+  `f8_e4m3` 只作为选项存在，不给原生 OCP-FP8 checkpoint 以外的模型带来收益。
+- 🔍 输出一致性：temp=0、同 seed 下三档**不逐字节相同**（KV 量化微差会在贪心解码里放大），
+  但前 ~300 字符一致；q8_0 与 f8_e4m3 互为最接近（前 ~400 字符相同）。
+  这与「q8_0 质量等价 f16」的既有结论不冲突——分岔不等于变差。
+- 🛡️ 值级闸 `LlamaServer.kv_supports()`：`--cache-type-k` **开关存在 ≠ 值被接受**。
+  `f8_e4m3` 是 llama.cpp PR #28392（2026-11-10 合并）才进 `kv_cache_types` 的；
+  旧运行时会「启动即退出」，而错误信息只有退出码。现在不认就回落 q8_0，并在 report 出声 + 给升级命令。
+  实测：b12121 → 回落 q8_0（两条 note）；b12344 → 原样传 f8_e4m3。
+- 🔧 运行时升到 **b12344**（`python -m moss_llm.runtime_install`）。旧版整份留在
+  `moss_llm/runtime.bak-b12121/`，可回滚。
+- 🔔 旧运行时选 `f8_e4m3` 的提醒做在**三处**，不留「改了没反应」的空白：
+  ① 值不被接受 → report 出声 + 回落 q8_0 + 给升级命令（`kv_supports()`）；
+  ② 真启动失败 → 错误信息点名本次 KV 类型、版本门槛（b12321 / PR #28392）、回退办法
+  （`kv_fail_hint()`，非 q8_0/f16 才出）；
+  ③ 走外部 API → 明说「该下拉对在线端点无效，显存由服务方管」，不静默忽略。
+
 ## 0.5.2 — 2026-11-09
 - 🧩 参数面 39 → 18：`task` / `model` / `text` / `style_class` / `style` / `target` / `style_note` /
   `length` / `temperature` / `panels` / `language` / `keep` / `seed` / `api_base` / `api_model` /
